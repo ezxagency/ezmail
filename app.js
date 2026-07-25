@@ -940,6 +940,22 @@ async function exportAllExcel(){
 // here can't reliably write conditional-formatting rules, so faking a
 // static snapshot color would be misleading. The Hours column instead uses
 // a REPT()-formula text bar, which genuinely does recalculate live.
+// Static red(1)->yellow(3)->green(5) fill color for a rating value, baked
+// in at export time. Not a live conditional-formatting rule - if the cell
+// value is hand-edited afterward, the color won't follow it. That's a real
+// limitation of writing .xlsx from the free SheetJS build; this is the
+// closest honest approximation of the reference design.
+function ratingColorHex(rating){
+  const t = Math.max(0, Math.min(1, (Math.max(1, Math.min(5, rating)) - 1) / 4));
+  const stops = t < 0.5
+    ? [[230,124,115],[255,217,102],t/0.5]
+    : [[255,217,102],[147,196,125],(t-0.5)/0.5];
+  const [from, to, k] = stops;
+  const mix = (a,b) => Math.round(a + (b-a)*k);
+  const rgb = [mix(from[0],to[0]), mix(from[1],to[1]), mix(from[2],to[2])];
+  return rgb.map(v => v.toString(16).padStart(2,"0")).join("").toUpperCase();
+}
+
 function buildOverviewSheet(rows){
   const n = rows.length;
   const firstRow = 5;
@@ -980,6 +996,8 @@ function buildOverviewSheet(rows){
     setNum(`E${row}`, `IF(C${row}=0,0,D${row}/C${row})`, "0.00");
     setNum(`G${row}`, `IF($D$${totalRow}=0,0,D${row}/$D$${totalRow})`, "0.0%");
     setStr(`H${row}`, `REPT("▐",ROUND(D${row}/MAX($D$${firstRow}:$D$${lastRow})*24,0))`);
+    ws[`H${row}`].s = { font: { color: { rgb: "4A86E8" } } };
+    ws[`F${row}`].s = { font: { bold: true }, fill: { patternType: "solid", fgColor: { rgb: ratingColorHex(rows[i].avgRating) } } };
   }
 
   setNum(`C${totalRow}`, `SUM(${col("C")})`);
@@ -998,9 +1016,11 @@ function buildOverviewSheet(rows){
   setNum(`C${totalRow + 7}`, `MAX(${col("G")})`, "0.0%");
 
   const headerAddrs = ["A4","B4","C4","D4","E4","F4","G4","H4"];
-  headerAddrs.forEach(a => { if (ws[a]) ws[a].s = { font: { bold: true } }; });
+  headerAddrs.forEach(a => {
+    if (ws[a]) ws[a].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "1F2937" } } };
+  });
   if (ws.A1) ws.A1.s = { font: { bold: true, sz: 14 } };
-  if (ws[`A${totalRow}`]) ws[`A${totalRow}`].s = { font: { bold: true } };
+  if (ws[`A${totalRow}`]) ws[`A${totalRow}`].s = { font: { bold: true }, border: { top: { style: "thin", color: { rgb: "1F2937" } } } };
   if (ws[`A${totalRow + 2}`]) ws[`A${totalRow + 2}`].s = { font: { bold: true } };
 
   ws["!cols"] = [{wch:22},{wch:26},{wch:9},{wch:12},{wch:11},{wch:11},{wch:15},{wch:26}];
