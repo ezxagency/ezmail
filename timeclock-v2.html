@@ -196,6 +196,46 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(28,124,74,.24);ou
 }
 .toast.on{opacity:1;transform:translate(-50%,0)}
 
+/* ---------- desktop layout ---------- */
+@media (min-width:820px){
+  body{padding:32px 16px}
+  .app{
+    display:grid;
+    grid-template-columns:320px 1fr;
+    grid-template-rows:auto auto auto 1fr;
+    grid-template-areas:
+      "band band"
+      "clock card"
+      "shiftbar card"
+      "dock card";
+    column-gap:28px;row-gap:0;
+    width:min(94vw,880px);max-width:880px;
+    height:min(88vh,680px);
+    margin:0 auto;
+    border-radius:28px;overflow:hidden;
+    box-shadow:0 40px 90px rgba(22,24,26,.18);
+    background:var(--paper);
+  }
+  .band{grid-area:band}
+  .stage{display:contents}
+  .clock{grid-area:clock;padding:22px 24px 0}
+  .shiftbar{grid-area:shiftbar;padding:0 24px 20px}
+  .card{grid-area:card;flex:none;height:auto;margin:22px 24px 22px 0;overflow-y:auto}
+  .dock{grid-area:dock;min-height:auto;padding:0 24px 26px}
+
+  .grab{display:none}
+  .sheet{
+    left:0;right:0;top:0;bottom:0;margin:auto;
+    width:min(92vw,440px);height:max-content;max-height:86vh;
+    border-radius:20px;
+    transform:translateY(12px) scale(.98);opacity:0;pointer-events:none;
+    transition:transform .22s ease,opacity .2s ease;
+    box-shadow:0 30px 70px rgba(22,24,26,.28);
+    padding:22px 22px calc(env(safe-area-inset-bottom) + 22px);
+  }
+  .sheet.on{transform:none;opacity:1;pointer-events:auto}
+}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
