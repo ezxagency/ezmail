@@ -437,10 +437,11 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,95,177,.28);o
    CONFIG — edit these four things and nothing else.
    ============================================================ */
 const CONFIG = {
-  // Manager's WhatsApp number, digits only, NO plus sign.
-  // MUST include country code or the link will not open.
-  // India 91 -> "919453608288"  |  US 1 -> "19453608288"
-  whatsappNumber: "9453608288",
+  // The team's WhatsApp group invite link (Group info > Invite via link).
+  // WhatsApp doesn't support pre-filling text into a group chat, so the
+  // report text is auto-copied to the clipboard when this link opens —
+  // the worker just pastes it once inside the chat.
+  whatsappGroupLink: "https://chat.whatsapp.com/Cq0vaGHDYKw7Y2j7lIB4Jp?s=cl&p=i&ilr=2",
 
   clients: [
     "Store Alpha", "Store Beta", "Store Gamma",
@@ -903,19 +904,21 @@ function reportText(r){
   ].filter(x => x !== null).join("\n");
 }
 
-const waLink = text => "https://wa.me/" + CONFIG.whatsappNumber.replace(/\D/g,"") + "?text=" + encodeURIComponent(text);
-
 function showReport(r){
   const txt = reportText(r);
   openSheet(`
     <h2>Shift closed</h2>
-    <p class="hint">Send it to the office now. It's also saved here for the Excel export.</p>
+    <p class="hint">Send it to the group now. It's also saved here for the Excel export.</p>
     <div class="preview">${esc(txt)}</div>
     <button class="btn btn-wa" id="wa">Send on WhatsApp</button>
     <button class="btn btn-ghost btn-sm" id="cp">Copy text</button>
     <button class="btn btn-ghost btn-sm" id="dn">Done</button>
   `, () => {
-    $("wa").onclick = () => window.open(waLink(txt), "_blank");
+    $("wa").onclick = async () => {
+      try { await navigator.clipboard.writeText(txt); toast("Copied — paste it in the group"); }
+      catch { toast("Opening group — paste the text above"); }
+      window.open(CONFIG.whatsappGroupLink, "_blank");
+    };
     $("cp").onclick = async () => {
       try { await navigator.clipboard.writeText(txt); toast("Copied"); }
       catch { toast("Copy failed — select the text above"); }
