@@ -128,6 +128,7 @@ body{
 }
 .punch-k.k-task{border-color:var(--ink);color:var(--ink)}
 .punch-k.k-break{border-color:var(--break);color:var(--break)}
+.punch-k.k-store{border-color:var(--idle);color:var(--idle)}
 .punch-n{color:var(--ink-soft);flex:1;text-align:right;font-size:12px}
 .stamp-in{animation:stamp .22s cubic-bezier(.2,.9,.3,1.4)}
 @keyframes stamp{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
@@ -472,6 +473,7 @@ function renderPunches(){
   ev.push({ t: sh.startedAt, k: "In", cls: "", n: sh.client });
   (sh.segs||[]).forEach(s => {
     if (s.via === "switch") ev.push({ t: s.startedAt, k: "Task", cls: "k-task", n: s.task });
+    if (s.client) ev.push({ t: s.startedAt, k: "Store", cls: "k-store", n: s.client });
   });
   (sh.breaks||[]).forEach(b => {
     ev.push({ t: b.startedAt, k: "Break", cls: "k-break", n: b.reason });
@@ -607,34 +609,71 @@ function askClockIn(){
 
 /* ---------- Switch task (mandatory) ---------- */
 function askSwitch(){
-  const cur = openSeg(S.shift).task;
+  const seg = openSeg(S.shift);
+  const cur = seg.task;
+  const curStore = S.shift.client;
   openSheet(`
     <h2>Switch task</h2>
-    <p class="hint">Still on the clock — this only splits your time. Currently on <b>${esc(cur)}</b> for ${humanDur(segMs(openSeg(S.shift)))}.</p>
+    <p class="hint">Still on the clock — this only splits your time. Currently on <b>${esc(cur)}</b> for ${humanDur(segMs(seg))} at <b>${esc(curStore)}</b>.</p>
     <label class="fld"><span>New task <b class="req">*</b></span></label>
     <div class="chips">${chipGroup(CONFIG.tasks, true)}</div>
     <label class="fld" id="tkOtherWrap" style="display:none"><span>Task name <b class="req">*</b></span>
       <input type="text" id="tkOther" placeholder="Short name"></label>
+
+    <label class="fld"><span>Store <span style="text-transform:none;font-weight:600;color:var(--ink-soft)">— tap to change, leave blank to stay at ${esc(curStore)}</span></span></label>
+    <div class="chips">${chipGroup(CONFIG.clients, true)}</div>
+    <label class="fld" id="clOtherWrap" style="display:none"><span>Store name <b class="req">*</b></span>
+      <input type="text" id="clOther" placeholder="Enter store name"></label>
+
     <button class="btn" id="ok" disabled>Switch</button>
     <button class="btn btn-ghost btn-sm" id="cancel">Back</button>
   `, () => {
-    let task = "";
-    const tkOther=$("tkOther"), tkWrap=$("tkOtherWrap"), ok=$("ok");
+    let task = "", store = "";
+    const tkOther=$("tkOther"), tkWrap=$("tkOtherWrap");
+    const clOther=$("clOther"), clWrap=$("clOtherWrap");
+    const ok=$("ok");
+
     const taskV = () => task === "__other" ? tkOther.value.trim() : task;
-    const valid = () => (task === "__other" ? OTHER_RE.test(taskV()) : !!task) && taskV() !== cur;
+    const storeV = () => store === "__other" ? clOther.value.trim() : store;
+    const valid = () => {
+      const tOk = (task === "__other" ? OTHER_RE.test(taskV()) : !!task) && taskV() !== cur;
+      const sOk = !store || (store === "__other" ? OTHER_RE.test(storeV()) : true);
+      return tOk && sOk;
+    };
     const sync = () => ok.disabled = !valid();
 
-    $("sheetBody").querySelectorAll(".chip").forEach(c => { if (c.dataset.v === cur) c.disabled = true; });
+    const [taskChips, storeChips] = [...$("sheetBody").querySelectorAll(".chips")].map(g => [...g.querySelectorAll(".chip")]);
+    taskChips.forEach(c => { if (c.dataset.v === cur) c.disabled = true; });
     tkOther.oninput = sync;
-    wireChips(v => { task = v; tkWrap.style.display = v === "__other" ? "block" : "none"; if (v==="__other") tkOther.focus(); sync(); });
+    clOther.oninput = sync;
+
+    taskChips.forEach(c => c.onclick = () => {
+      taskChips.forEach(x => x.setAttribute("aria-pressed","false"));
+      c.setAttribute("aria-pressed","true");
+      task = c.dataset.v;
+      tkWrap.style.display = task === "__other" ? "block" : "none";
+      if (task === "__other") tkOther.focus();
+      sync();
+    });
+    storeChips.forEach(c => c.onclick = () => {
+      const already = c.getAttribute("aria-pressed") === "true";
+      storeChips.forEach(x => x.setAttribute("aria-pressed","false"));
+      store = already ? "" : c.dataset.v;
+      clWrap.style.display = store === "__other" ? "block" : "none";
+      if (!already) { c.setAttribute("aria-pressed","true"); if (store === "__other") clOther.focus(); }
+      sync();
+    });
 
     $("cancel").onclick = closeSheet;
     ok.onclick = async () => {
       const now = Date.now();
-      openSeg(S.shift).endedAt = now;
-      S.shift.segs.push({ task: taskV(), startedAt: now, endedAt: null, via: "switch" });
+      seg.endedAt = now;
+      const newStore = storeV();
+      const seg2 = { task: taskV(), startedAt: now, endedAt: null, via: "switch" };
+      if (newStore && newStore !== S.shift.client){ seg2.client = newStore; S.shift.client = newStore; }
+      S.shift.segs.push(seg2);
       await save(); closeSheet(); render();
-      toast("Now on " + taskV());
+      toast("Now on " + taskV() + (seg2.client ? " · " + seg2.client : ""));
     };
   });
 }
