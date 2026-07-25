@@ -4,6 +4,9 @@
 <meta name="theme-color" content="#191323">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -324,9 +327,61 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,95,177,.28);o
 .stage::-webkit-scrollbar-track,.card::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track{background:transparent}
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- login / admin ---------- */
+.hidden{display:none!important}
+.login-wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px}
+.login-card{
+  width:min(100%,360px);background:rgba(255,255,255,.45);
+  backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);
+  border:1px solid rgba(255,255,255,.5);border-radius:26px;padding:28px 24px;
+  box-shadow:0 30px 60px rgba(25,19,35,.18);
+}
+.login-card h1{font-family:var(--cond);font-size:22px;text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px}
+.login-card .hint{margin:0 0 20px}
+.login-err{color:#b91c1c;font-size:13px;margin:-8px 0 14px;line-height:1.4}
+
+.admin-wrap{max-width:720px;margin:0 auto;padding:28px 18px 60px}
+.admin-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px}
+.admin-title{display:block;font-family:var(--cond);font-weight:700;font-size:22px;text-transform:uppercase;letter-spacing:.06em}
+.admin-sub{display:block;font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:2px}
+.admin-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.admin-row{
+  background:rgba(255,255,255,.4);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
+  border:1px solid rgba(255,255,255,.5);border-radius:18px;padding:16px 18px;
+  display:flex;justify-content:space-between;align-items:center;cursor:pointer;
+  box-shadow:0 14px 26px rgba(25,19,35,.08);transition:transform .15s ease;
+}
+.admin-row:hover{transform:translateY(-2px)}
+.admin-row .a-name{font-family:var(--cond);font-weight:700;font-size:16px}
+.admin-row .a-email{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+.admin-row .a-right{text-align:right}
+.admin-row .a-status{font-family:var(--cond);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:6px 12px;border-radius:999px;display:inline-block}
+.admin-row .a-status.st-idle{background:rgba(151,127,193,.18);color:var(--ink-soft)}
+.admin-row .a-status.st-active{background:rgba(123,95,177,.22);color:var(--active)}
+.admin-row .a-status.st-break{background:rgba(74,57,106,.18);color:var(--break)}
 </style>
 
-<div class="app">
+<div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <h1>Ez Agency</h1>
+    <p class="hint">Sign in with the login your admin set up for you.</p>
+    <p id="loginErr" class="login-err hidden"></p>
+    <label class="fld"><span>Email</span><input type="email" id="loginEmail" autocomplete="username"></label>
+    <label class="fld"><span>Password</span><input type="password" id="loginPass" autocomplete="current-password"></label>
+    <button class="btn btn-go" id="loginBtn">Sign in</button>
+  </div>
+</div>
+
+<div id="adminScreen" class="admin-wrap hidden">
+  <header class="admin-head">
+    <div><span class="admin-title">Team dashboard</span><span class="admin-sub" id="adminSub"></span></div>
+    <button class="btn btn-ghost btn-sm" id="adminLogout" style="width:auto">Sign out</button>
+  </header>
+  <ul class="admin-list" id="adminList"></ul>
+</div>
+
+<div class="app hidden" id="appScreen">
   <header class="band" id="band" data-s="IDLE">
     <span class="band-state" id="bandState">Clocked out</span>
     <span class="band-meta" id="bandMeta">Not on shift</span>
@@ -388,21 +443,50 @@ const CONFIG = {
 };
 
 /* ============================================================
-   STORAGE
+   FIREBASE — paste your project's config below.
+   Get it from Firebase console > Project settings > Your apps.
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "PASTE_API_KEY",
+  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+  storageBucket: "PASTE_PROJECT_ID.appspot.com",
+  messagingSenderId: "PASTE_SENDER_ID",
+  appId: "PASTE_APP_ID"
+};
+// First login using this email is automatically made admin.
+const ADMIN_EMAIL = "ezagency2nd@gmail.com";
+
+const FB_READY = !firebaseConfig.apiKey.includes("PASTE");
+let auth = null, db = null;
+if (FB_READY) {
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
+}
+
+/* ============================================================
+   STORAGE — per-user document in Firestore
    ============================================================ */
 const Store = (() => {
-  const KEY = "shiftcard.v2";
-  const hasWin = typeof window !== "undefined" && window.storage;
-  let mem = null;
+  let uid = null, email = null;
+  function setUser(u, e) { uid = u; email = e; }
   async function read() {
-    if (hasWin) { try { const r = await window.storage.get(KEY); return r ? JSON.parse(r.value) : null; } catch { return null; } }
-    try { const r = localStorage.getItem(KEY); return r ? JSON.parse(r) : null; } catch { return mem; }
+    if (!uid) return null;
+    try {
+      const doc = await db.collection("appState").doc(uid).get();
+      return doc.exists && doc.data().json ? JSON.parse(doc.data().json) : null;
+    } catch (e) { console.error(e); return null; }
   }
   async function write(v) {
-    if (hasWin) { try { await window.storage.set(KEY, JSON.stringify(v)); return; } catch {} }
-    try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { mem = v; }
+    if (!uid) return;
+    try {
+      await db.collection("appState").doc(uid).set({
+        json: JSON.stringify(v), email, name: v.worker || null, updatedAt: Date.now()
+      });
+    } catch (e) { console.error(e); }
   }
-  return { read, write };
+  return { read, write, setUser };
 })();
 
 /* ============================================================
@@ -846,7 +930,11 @@ function showHistory(){
     <ul class="hist">${rows}</ul>
     <button class="btn" id="xl" ${S.history.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
-  `, () => { $("xl").onclick = exportExcel; $("dn").onclick = closeSheet; });
+    ${FB_READY ? '<button class="btn btn-ghost btn-sm" id="so">Sign out</button>' : ""}
+  `, () => {
+    $("xl").onclick = exportExcel; $("dn").onclick = closeSheet;
+    if (FB_READY) $("so").onclick = () => auth.signOut();
+  });
 }
 
 function exportExcel(){
@@ -907,9 +995,13 @@ function exportExcel(){
 $("btnHistory").onclick = showHistory;
 
 /* ============================================================
-   BOOT
+   WORKER APP BOOT (called once, after login as a worker)
    ============================================================ */
-(async function init(){
+let workerStarted = false;
+async function startWorkerApp(){
+  if (workerStarted) return;
+  workerStarted = true;
+
   const saved = await Store.read();
   if (saved) S = Object.assign(S, saved);
 
@@ -923,5 +1015,116 @@ $("btnHistory").onclick = showHistory;
   document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
 
   if (!S.worker) askName();
-})();
+}
+
+/* ============================================================
+   AUTH + ADMIN
+   ============================================================ */
+function screen(show){
+  $("loginScreen").classList.toggle("hidden", show !== "login");
+  $("appScreen").classList.toggle("hidden", show !== "app");
+  $("adminScreen").classList.toggle("hidden", show !== "admin");
+}
+
+async function startAdmin(email){
+  screen("admin");
+  $("adminSub").textContent = email;
+  const list = $("adminList");
+  list.innerHTML = `<li class="empty">Loading…</li>`;
+  try {
+    const snap = await db.collection("appState").get();
+    list.innerHTML = "";
+    if (snap.empty){ list.innerHTML = `<li class="empty">No workers have signed in yet.</li>`; return; }
+    snap.forEach(doc => {
+      const data = doc.data();
+      let s; try { s = JSON.parse(data.json); } catch { s = null; }
+      if (!s) return;
+      const statusCls = s.status === "ACTIVE" ? "st-active" : s.status === "ON_BREAK" ? "st-break" : "st-idle";
+      const todayKey = dayStamp(Date.now());
+      let todayMs = (s.history||[]).filter(r => dayStamp(r.startedAt) === todayKey).reduce((t,r)=>t+r.netMs,0);
+      if (s.shift && s.status !== "IDLE") todayMs += netMs(s.shift);
+      const li = document.createElement("li");
+      li.className = "admin-row";
+      li.innerHTML = `
+        <div><div class="a-name">${esc(s.worker || data.email || "Unnamed")}</div><div class="a-email">${esc(data.email||"")}</div></div>
+        <div class="a-right"><span class="a-status ${statusCls}">${esc((s.status||"").replace("_"," "))}</span><div class="a-email" style="margin-top:6px">${humanDur(todayMs)} today</div></div>
+      `;
+      li.onclick = () => viewWorker(data, s);
+      list.append(li);
+    });
+  } catch (e) {
+    console.error(e);
+    list.innerHTML = `<li class="empty">Couldn't load team data — check Firestore rules allow admin reads.</li>`;
+  }
+}
+
+function viewWorker(data, s){
+  const hist = s.history || [];
+  const rows = hist.length ? hist.map(r => `
+    <li>
+      <div>
+        <div class="h-c">${esc(r.client)}</div>
+        <div class="h-d">${dayStamp(r.startedAt)} · ${clock(r.startedAt)}–${clock(r.endedAt)} · ${taskTally(r, r.endedAt).length} task${taskTally(r,r.endedAt).length===1?"":"s"} · ${r.rating}/5</div>
+      </div>
+      <div class="h-h">${humanDur(r.netMs)}</div>
+    </li>`).join("") : `<div class="empty">No closed shifts yet.</div>`;
+  const total = hist.reduce((t,r) => t + r.netMs, 0);
+
+  openSheet(`
+    <h2>${esc(s.worker || data.email || "Worker")}</h2>
+    <p class="hint">${hist.length} shift${hist.length===1?"":"s"} · ${humanDur(total)} net worked</p>
+    <ul class="hist">${rows}</ul>
+    <button class="btn" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
+    <button class="btn btn-ghost btn-sm" id="dn">Close</button>
+  `, () => {
+    $("xl").onclick = () => { const backup = S; S = s; exportExcel(); S = backup; };
+    $("dn").onclick = closeSheet;
+  });
+}
+
+async function resolveRole(user){
+  const ref = db.collection("users").doc(user.uid);
+  let doc = await ref.get();
+  if (!doc.exists) {
+    const role = (user.email||"").toLowerCase() === ADMIN_EMAIL.toLowerCase() ? "admin" : "worker";
+    await ref.set({ email: user.email, role, createdAt: Date.now() });
+    doc = await ref.get();
+  }
+  return doc.data().role;
+}
+
+if (!FB_READY){
+  screen("login");
+  $("loginErr").textContent = "Firebase isn't configured yet — paste your project's config into firebaseConfig near the top of the script.";
+  $("loginErr").classList.remove("hidden");
+  $("loginBtn").disabled = true;
+} else {
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) { screen("login"); return; }
+    try {
+      const role = await resolveRole(user);
+      if (role === "admin") { startAdmin(user.email); }
+      else { Store.setUser(user.uid, user.email); screen("app"); startWorkerApp(); }
+    } catch (e) {
+      console.error(e);
+      $("loginErr").textContent = "Signed in, but couldn't load your account. Check Firestore rules.";
+      $("loginErr").classList.remove("hidden");
+    }
+  });
+
+  async function doLogin(){
+    const email = $("loginEmail").value.trim();
+    const pass = $("loginPass").value;
+    $("loginErr").classList.add("hidden");
+    if (!email || !pass) return;
+    try { await auth.signInWithEmailAndPassword(email, pass); }
+    catch (e) {
+      $("loginErr").textContent = "Sign-in failed — check the email and password.";
+      $("loginErr").classList.remove("hidden");
+    }
+  }
+  $("loginBtn").onclick = doLogin;
+  $("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+  $("adminLogout").onclick = () => auth.signOut();
+}
 </script>
