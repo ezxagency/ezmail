@@ -620,49 +620,29 @@ function askSwitch(){
     <label class="fld" id="tkOtherWrap" style="display:none"><span>Task name <b class="req">*</b></span>
       <input type="text" id="tkOther" placeholder="Short name"></label>
 
-    <label class="fld"><span>Store <span style="text-transform:none;font-weight:600;color:var(--ink-soft)">— tap to change, leave blank to stay at ${esc(curStore)}</span></span></label>
-    <div class="chips">${chipGroup(CONFIG.clients, true)}</div>
-    <label class="fld" id="clOtherWrap" style="display:none"><span>Store name <b class="req">*</b></span>
-      <input type="text" id="clOther" placeholder="Enter store name"></label>
+    <label class="fld"><span>Store <span style="text-transform:none;font-weight:600;color:var(--ink-soft)">— optional, leave blank to stay at ${esc(curStore)}</span></span>
+      <input type="text" id="cl" autocomplete="organization" placeholder="Enter store name"></label>
 
     <button class="btn" id="ok" disabled>Switch</button>
     <button class="btn btn-ghost btn-sm" id="cancel">Back</button>
   `, () => {
-    let task = "", store = "";
-    const tkOther=$("tkOther"), tkWrap=$("tkOtherWrap");
-    const clOther=$("clOther"), clWrap=$("clOtherWrap");
-    const ok=$("ok");
+    let task = "";
+    const tkOther=$("tkOther"), tkWrap=$("tkOtherWrap"), cl=$("cl"), ok=$("ok");
 
     const taskV = () => task === "__other" ? tkOther.value.trim() : task;
-    const storeV = () => store === "__other" ? clOther.value.trim() : store;
+    const storeV = () => cl.value.trim();
     const valid = () => {
-      const tOk = (task === "__other" ? OTHER_RE.test(taskV()) : !!task) && taskV() !== cur;
-      const sOk = !store || (store === "__other" ? OTHER_RE.test(storeV()) : true);
-      return tOk && sOk;
+      const tOk = task === "__other" ? OTHER_RE.test(taskV()) : !!task;
+      const sv = storeV();
+      const sOk = !sv || OTHER_RE.test(sv);
+      const changed = taskV() !== cur || (sv && sv !== curStore);
+      return tOk && sOk && changed;
     };
     const sync = () => ok.disabled = !valid();
 
-    const [taskChips, storeChips] = [...$("sheetBody").querySelectorAll(".chips")].map(g => [...g.querySelectorAll(".chip")]);
-    taskChips.forEach(c => { if (c.dataset.v === cur) c.disabled = true; });
     tkOther.oninput = sync;
-    clOther.oninput = sync;
-
-    taskChips.forEach(c => c.onclick = () => {
-      taskChips.forEach(x => x.setAttribute("aria-pressed","false"));
-      c.setAttribute("aria-pressed","true");
-      task = c.dataset.v;
-      tkWrap.style.display = task === "__other" ? "block" : "none";
-      if (task === "__other") tkOther.focus();
-      sync();
-    });
-    storeChips.forEach(c => c.onclick = () => {
-      const already = c.getAttribute("aria-pressed") === "true";
-      storeChips.forEach(x => x.setAttribute("aria-pressed","false"));
-      store = already ? "" : c.dataset.v;
-      clWrap.style.display = store === "__other" ? "block" : "none";
-      if (!already) { c.setAttribute("aria-pressed","true"); if (store === "__other") clOther.focus(); }
-      sync();
-    });
+    cl.oninput = sync;
+    wireChips(v => { task = v; tkWrap.style.display = v === "__other" ? "block" : "none"; if (v==="__other") tkOther.focus(); sync(); });
 
     $("cancel").onclick = closeSheet;
     ok.onclick = async () => {
