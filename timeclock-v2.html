@@ -892,7 +892,7 @@ async function closeShift(note, rating){
 }
 
 /* ---------- Report + WhatsApp ---------- */
-function copyTextSync(text){
+function copyTextLegacy(text){
   const ta = document.createElement("textarea");
   ta.value = text;
   ta.setAttribute("readonly", "");
@@ -908,11 +908,16 @@ function copyTextSync(text){
   let ok = false;
   try { ok = document.execCommand("copy"); } catch { ok = false; }
   document.body.removeChild(ta);
-  // Best-effort modern API too, in case execCommand is blocked on this browser.
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).catch(() => {});
-  }
   return ok;
+}
+// Must be fully awaited BEFORE any navigation/app-switch - clipboard writes
+// lose their permission grant the instant the page loses focus, so calling
+// window.open() right after firing this without waiting silently drops it.
+async function copyText(text){
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    try { await navigator.clipboard.writeText(text); return true; } catch {}
+  }
+  return copyTextLegacy(text);
 }
 
 function reportText(r){
@@ -946,13 +951,13 @@ function showReport(r){
     <button class="btn btn-ghost btn-sm" id="cp">Copy text</button>
     <button class="btn btn-ghost btn-sm" id="dn">Done</button>
   `, () => {
-    $("wa").onclick = () => {
-      const ok = copyTextSync(txt);
+    $("wa").onclick = async () => {
+      const ok = await copyText(txt);
       toast(ok ? "Copied — paste it in the group" : "Opening group — copy the text above first");
       window.open(CONFIG.whatsappGroupLink, "_blank");
     };
-    $("cp").onclick = () => {
-      toast(copyTextSync(txt) ? "Copied" : "Copy failed — select the text above");
+    $("cp").onclick = async () => {
+      toast(await copyText(txt) ? "Copied" : "Copy failed — select the text above");
     };
     $("dn").onclick = closeSheet;
   });
