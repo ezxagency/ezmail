@@ -807,7 +807,7 @@ async function startAdmin(email){
         <div><div class="a-name">${esc(s.worker || data.email || "Unnamed")}</div><div class="a-email">${esc(data.email||"")}</div></div>
         <div class="a-right"><span class="a-status ${statusCls}">${esc((s.status||"").replace("_"," "))}</span><div class="a-email" style="margin-top:6px">${humanDur(todayMs)} today</div></div>
       `;
-      li.onclick = () => viewWorker(data, s);
+      li.onclick = () => viewWorker(data, s, doc.id);
       list.append(li);
     });
   } catch (e) {
@@ -942,8 +942,9 @@ async function exportAllExcel(){
   toast("Team report downloaded");
 }
 
-function viewWorker(data, s){
+function viewWorker(data, s, uid){
   const hist = s.history || [];
+  const name = s.worker || data.email || "Worker";
   const rows = hist.length ? hist.map(r => `
     <li>
       <div>
@@ -955,15 +956,31 @@ function viewWorker(data, s){
   const total = hist.reduce((t,r) => t + r.netMs, 0);
 
   openSheet(`
-    <h2>${esc(s.worker || data.email || "Worker")}</h2>
+    <h2>${esc(name)}</h2>
     <p class="hint">${hist.length} shift${hist.length===1?"":"s"} · ${humanDur(total)} net worked</p>
     <ul class="hist">${rows}</ul>
     <button class="btn" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
+    <button class="btn btn-break btn-sm" id="delWorker">Delete Worker</button>
   `, () => {
-    $("xl").onclick = () => exportWorkerExcel(s.worker || data.email || "Worker", data.email || "", hist);
+    $("xl").onclick = () => exportWorkerExcel(name, data.email || "", hist);
     $("dn").onclick = closeSheet;
+    $("delWorker").onclick = () => deleteWorker(uid, name);
   });
+}
+
+async function deleteWorker(uid, name){
+  if (!confirm(`Delete ${name}? This removes their shift data and app access. This can't be undone.\n\nNote: it does NOT delete their login itself - to fully block them from signing in again, also remove them in Firebase Console > Authentication > Users.`)) return;
+  try {
+    await db.collection("appState").doc(uid).delete();
+    await db.collection("users").doc(uid).delete();
+    toast(name + " deleted");
+    closeSheet();
+    startAdmin(auth.currentUser.email);
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't delete - check Firestore rules allow admin deletes");
+  }
 }
 
 // Single-worker export used by the admin dashboard's per-worker "Export to
