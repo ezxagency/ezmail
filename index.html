@@ -27,13 +27,19 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;min-height:100%}
 body{
-  background:
+  background-image:
     radial-gradient(circle at 12% 18%, rgba(123,95,177,.55), transparent 45%),
     radial-gradient(circle at 88% 12%, rgba(98,76,142,.5), transparent 50%),
     radial-gradient(circle at 50% 95%, rgba(74,57,106,.45), transparent 55%),
     linear-gradient(160deg, #f2eff7, #d7cfe8 55%, #b09fd0);
+  background-position:12% 18%, 88% 12%, 50% 95%, 0 0;
   background-attachment:fixed;
+  animation:meshDrift 26s ease-in-out infinite;
   color:var(--ink);font-family:var(--body);overscroll-behavior:none;-webkit-font-smoothing:antialiased;
+}
+@keyframes meshDrift{
+  0%,100%{background-position:12% 18%, 88% 12%, 50% 95%, 0 0}
+  50%{background-position:22% 27%, 78% 22%, 42% 88%, 0 0}
 }
 
 .app{
@@ -41,7 +47,9 @@ body{
   background:rgba(255,255,255,.35);
   backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);
   border-left:1px solid rgba(255,255,255,.4);border-right:1px solid rgba(255,255,255,.4);
+  animation:appIn .55s cubic-bezier(.2,.8,.2,1) both;
 }
+@keyframes appIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
 
 /* ---------- status band ---------- */
 .band{
@@ -50,9 +58,18 @@ body{
   backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
   color:#fff;transition:background .25s ease;
   border-bottom:1px solid rgba(255,255,255,.15);
+  position:relative;
 }
-.band[data-s="ACTIVE"]{background:linear-gradient(180deg, rgba(123,95,177,.75), rgba(98,76,142,.65))}
+.band[data-s="ACTIVE"]{
+  background:linear-gradient(180deg, rgba(123,95,177,.75), rgba(98,76,142,.65));
+  animation:glowPulse 2.6s ease-in-out infinite;
+}
 .band[data-s="ON_BREAK"]{background:linear-gradient(180deg, rgba(74,57,106,.75), rgba(49,38,71,.65))}
+@keyframes glowPulse{
+  0%,100%{box-shadow:0 0 0 rgba(123,95,177,0)}
+  50%{box-shadow:0 8px 32px rgba(123,95,177,.4)}
+}
+.band[data-s="ACTIVE"] ~ .stage .clock-time{text-shadow:0 0 20px rgba(123,95,177,.3)}
 .band-state{
   display:block;font-family:var(--cond);font-weight:700;font-size:24px;
   letter-spacing:.04em;text-transform:uppercase;line-height:1.05;
@@ -142,14 +159,20 @@ body{
   backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
 }
 .btn{
-  width:100%;border:0;border-radius:14px;padding:18px 16px;
+  width:100%;border:0;border-radius:14px;padding:18px 16px;position:relative;overflow:hidden;
   font-family:var(--cond);font-weight:700;font-size:17px;
   letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
-  background:var(--ink);color:#fff;transition:transform .12s ease,opacity .15s ease,background .2s ease;
+  background:var(--ink);color:#fff;transition:transform .12s ease,opacity .15s ease,background .2s ease,box-shadow .2s ease;
 }
 .btn:active{transform:scale(.984)}
 .btn:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 .btn-go{background:var(--active);box-shadow:0 12px 22px rgba(123,95,177,.3)}
+.btn-go::after{
+  content:"";position:absolute;top:0;left:-60%;width:35%;height:100%;
+  background:linear-gradient(120deg, transparent, rgba(255,255,255,.4), transparent);
+  transform:skewX(-20deg);animation:shine 3.4s ease-in-out infinite;
+}
+@keyframes shine{0%,10%{left:-60%}55%,100%{left:130%}}
 .btn-break{background:var(--break);box-shadow:0 12px 22px rgba(74,57,106,.3)}
 .btn-ghost{
   background:rgba(255,255,255,.4);color:var(--ink);border:1.5px solid rgba(255,255,255,.6);
@@ -161,6 +184,14 @@ body{
 .btn[disabled]{opacity:.34;cursor:not-allowed}
 .row{display:flex;gap:10px}
 .row .btn{flex:1}
+
+@media (hover:hover){
+  .btn:not([disabled]):hover{transform:translateY(-2px)}
+  .btn-go:not([disabled]):hover{box-shadow:0 16px 30px rgba(123,95,177,.4)}
+  .btn-ghost:not([disabled]):hover{background:rgba(255,255,255,.55)}
+  .clock-panel{transition:transform .18s ease,box-shadow .18s ease}
+  .clock-panel:hover{transform:translateY(-3px);box-shadow:0 22px 40px rgba(25,19,35,.14)}
+}
 
 /* ---------- sheet ---------- */
 .scrim{position:fixed;inset:0;background:rgba(25,19,35,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:40}
@@ -285,6 +316,12 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,95,177,.28);o
   }
   .sheet.on{transform:none;opacity:1;pointer-events:auto}
 }
+
+/* ---------- fine details ---------- */
+.stage,.card,.sheet{scrollbar-width:thin;scrollbar-color:rgba(123,95,177,.4) transparent}
+.stage::-webkit-scrollbar,.card::-webkit-scrollbar,.sheet::-webkit-scrollbar{width:6px}
+.stage::-webkit-scrollbar-thumb,.card::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb{background:rgba(123,95,177,.4);border-radius:999px}
+.stage::-webkit-scrollbar-track,.card::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track{background:transparent}
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
