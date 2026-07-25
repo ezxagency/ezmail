@@ -911,25 +911,12 @@ async function exportAllExcel(){
     const avgRating = hist.length ? hist.reduce((t,r) => t + r.rating, 0) / hist.length : 0;
     return { name: w.s.worker || w.email || "Unnamed", email: w.email, hist, totalMs, avgRating };
   }).sort((a,b) => b.totalMs - a.totalMs);
-  const maxHrs = Math.max(1, ...rows.map(r => r.totalMs / 3600000));
 
   const wb = XLSX.utils.book_new();
+  const wsOv = buildOverviewSheet(rows);
+  XLSX.utils.book_append_sheet(wb, wsOv, "Team Overview");
 
-  const ovAoa = [
-    ["Team Overview"],
-    ["Generated " + new Date().toLocaleString()],
-    [],
-    ["Team Member", "Email", "Shifts", "Total Hours", "Avg Rating", "Hours"]
-  ];
-  rows.forEach(r => {
-    const hrs = +(r.totalMs / 3600000).toFixed(2);
-    ovAoa.push([r.name, r.email, r.hist.length, hrs, +r.avgRating.toFixed(1), barify(hrs, maxHrs)]);
-  });
-  const wsOv = XLSX.utils.aoa_to_sheet(ovAoa);
-  wsOv["!cols"] = [{wch:20},{wch:26},{wch:8},{wch:12},{wch:10},{wch:22}];
-  XLSX.utils.book_append_sheet(wb, wsOv, "Overview");
-
-  const used = new Set(["overview"]);
+  const used = new Set(["team overview"]);
   rows.forEach(r => {
     const sheetTitle = safeSheetName(r.name, used);
     const aoa = buildWorkerSheetAOA(r.name, r.email, r.hist);
@@ -938,8 +925,86 @@ async function exportAllExcel(){
     XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
   });
 
-  XLSX.writeFile(wb, "team-report-" + new Date().toISOString().slice(0,10) + ".xlsx");
+  XLSX.writeFile(wb, "team-report-" + new Date().toISOString().slice(0,10) + ".xlsx", { cellStyles: true });
   toast("Team report downloaded");
+}
+
+// Builds the "Team Overview" sheet with live spreadsheet formulas (not
+// pre-computed values) for everything derived from the raw per-member
+// numbers, so editing Shifts/Total Hours/Avg Rating recalculates the rest -
+// Hrs/Shift, % of Team Hours, the text-bar chart, the totals row, and the
+// Shift Performance Analysis section all update automatically.
+//
+// Native conditional formatting (a red-to-green color scale on Avg Rating,
+// real Excel "data bars") is NOT included - the free SheetJS build used
+// here can't reliably write conditional-formatting rules, so faking a
+// static snapshot color would be misleading. The Hours column instead uses
+// a REPT()-formula text bar, which genuinely does recalculate live.
+function buildOverviewSheet(rows){
+  const n = rows.length;
+  const firstRow = 5;
+  const lastRow = 4 + n;
+  const totalRow = 5 + n;
+  const col = c => `${c}${firstRow}:${c}${lastRow}`;
+
+  const aoa = [
+    ["Team Overview"],
+    ["Generated " + new Date().toLocaleString()],
+    [],
+    ["Team Member", "Email", "Shifts", "Total Hours", "Hrs / Shift", "Avg Rating", "% of Team Hours", "Hours"]
+  ];
+  rows.forEach(r => {
+    aoa.push([r.name, r.email, r.hist.length, +(r.totalMs / 3600000).toFixed(2), null, +r.avgRating.toFixed(2), null, null]);
+  });
+  aoa.push(["Team Total / Avg", "", null, null, null, null, null, ""]);
+  aoa.push([]);
+  aoa.push(["Shift Performance Analysis"]);
+  aoa.push(["Team avg hours per shift", null, "Total hours / total shifts"]);
+  aoa.push(["Weighted avg rating per shift", null, "Rating weighted by shift count, not a simple average"]);
+  aoa.push(["Most efficient (hrs/shift)", null, null]);
+  aoa.push(["Highest avg rating", null, null]);
+  aoa.push(["Biggest workload share", null, null]);
+  aoa.push([]);
+  aoa.push(["Edit columns A-D and F only. Hrs/Shift, % of Team Hours, the bar chart, and every total below recalculate automatically."]);
+  aoa.push(["Bars scale to the highest Total Hours. Data as provided by the app on " + dayStamp(Date.now()) + "."]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const setNum = (addr, formula, numFmt) => {
+    ws[addr] = { t: "n", v: 0, f: formula };
+    if (numFmt) ws[addr].z = numFmt;
+  };
+  const setStr = (addr, formula) => { ws[addr] = { t: "str", v: "", f: formula }; };
+
+  for (let i = 0; i < n; i++){
+    const row = firstRow + i;
+    setNum(`E${row}`, `IF(C${row}=0,0,D${row}/C${row})`, "0.00");
+    setNum(`G${row}`, `IF($D$${totalRow}=0,0,D${row}/$D$${totalRow})`, "0.0%");
+    setStr(`H${row}`, `REPT("▐",ROUND(D${row}/MAX($D$${firstRow}:$D$${lastRow})*24,0))`);
+  }
+
+  setNum(`C${totalRow}`, `SUM(${col("C")})`);
+  setNum(`D${totalRow}`, `SUM(${col("D")})`, "0.00");
+  setNum(`E${totalRow}`, `IF(C${totalRow}=0,0,D${totalRow}/C${totalRow})`, "0.00");
+  setNum(`F${totalRow}`, `IF(SUM(${col("C")})=0,0,SUMPRODUCT(${col("F")},${col("C")})/SUM(${col("C")}))`, "0.0");
+  setNum(`G${totalRow}`, `SUM(${col("G")})`, "0.0%");
+
+  setNum(`B${totalRow + 3}`, `E${totalRow}`, "0.00");
+  setNum(`B${totalRow + 4}`, `F${totalRow}`, "0.0");
+  setStr(`B${totalRow + 5}`, `INDEX(${col("A")},MATCH(MAX(${col("E")}),${col("E")},0))`);
+  setNum(`C${totalRow + 5}`, `MAX(${col("E")})`, "0.00");
+  setStr(`B${totalRow + 6}`, `INDEX(${col("A")},MATCH(MAX(${col("F")}),${col("F")},0))`);
+  setNum(`C${totalRow + 6}`, `MAX(${col("F")})`, "0.0");
+  setStr(`B${totalRow + 7}`, `INDEX(${col("A")},MATCH(MAX(${col("G")}),${col("G")},0))`);
+  setNum(`C${totalRow + 7}`, `MAX(${col("G")})`, "0.0%");
+
+  const headerAddrs = ["A4","B4","C4","D4","E4","F4","G4","H4"];
+  headerAddrs.forEach(a => { if (ws[a]) ws[a].s = { font: { bold: true } }; });
+  if (ws.A1) ws.A1.s = { font: { bold: true, sz: 14 } };
+  if (ws[`A${totalRow}`]) ws[`A${totalRow}`].s = { font: { bold: true } };
+  if (ws[`A${totalRow + 2}`]) ws[`A${totalRow + 2}`].s = { font: { bold: true } };
+
+  ws["!cols"] = [{wch:22},{wch:26},{wch:9},{wch:12},{wch:11},{wch:11},{wch:15},{wch:26}];
+  return ws;
 }
 
 function viewWorker(data, s, uid){
