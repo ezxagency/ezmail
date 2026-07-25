@@ -831,6 +831,64 @@ function safeSheetName(base, used){
   return final;
 }
 
+// Builds the array-of-arrays for one worker's Excel sheet: summary block,
+// TASK BREAKDOWN (with barify() bar chart), then SHIFT HISTORY. Shared by
+// exportAllExcel() (one sheet per worker) and viewWorker()'s single-worker
+// export so both paths produce the same polished layout.
+function buildWorkerSheetAOA(name, email, hist){
+  const totalMs = hist.reduce((t,r) => t + r.netMs, 0);
+  const hrs = +(totalMs / 3600000).toFixed(2);
+  const avgRating = hist.length ? hist.reduce((t,r) => t + r.rating, 0) / hist.length : 0;
+
+  const tally = new Map();
+  hist.forEach(shift => {
+    let store = shift.client;
+    (shift.segs || []).filter(s => s.endedAt).forEach(s => {
+      if (s.client) store = s.client;
+      const key = store + " " + s.task;
+      const cur = tally.get(key) || { store, task: s.task, ms: 0 };
+      cur.ms += segMs(s);
+      tally.set(key, cur);
+    });
+  });
+  const taskRows = [...tally.values()].sort((a,b) => b.ms - a.ms);
+  const maxTaskMs = Math.max(1, ...taskRows.map(t => t.ms));
+
+  // history is already newest-first (S.history.unshift(rec) on close), but
+  // sort explicitly so the sheet stays correct even if input order ever changes.
+  const sortedHist = [...hist].sort((a,b) => b.startedAt - a.startedAt);
+
+  const aoa = [
+    [name],
+    [email],
+    [],
+    ["Shifts", "Total Hours", "Avg Rating"],
+    [hist.length, hrs, +avgRating.toFixed(1)],
+    [],
+    ["TASK BREAKDOWN"],
+    ["Store / Task", "Hours", "% of total", "Chart"]
+  ];
+  taskRows.forEach(t => {
+    const th = +(t.ms / 3600000).toFixed(2);
+    const pct = Math.round(t.ms / (totalMs || 1) * 100);
+    aoa.push([taskLabel(t), th, pct + "%", barify(t.ms, maxTaskMs)]);
+  });
+  aoa.push([]);
+  aoa.push(["SHIFT HISTORY"]);
+  aoa.push(["Date", "Store", "In", "Out", "Break (min)", "Hours", "Rating", "Notes"]);
+  sortedHist.forEach(shift => {
+    aoa.push([
+      dayStamp(shift.startedAt), shift.client, clock(shift.startedAt), clock(shift.endedAt),
+      Math.round(shift.breakMs / 60000), +(shift.netMs / 3600000).toFixed(2), shift.rating, shift.note
+    ]);
+  });
+  return aoa;
+}
+
+// Standard column widths for a buildWorkerSheetAOA() sheet — shared so both
+// export paths render identically.
+const WORKER_SHEET_COLS = [{wch:24},{wch:14},{wch:12},{wch:12},{wch:12},{wch:10},{wch:8},{wch:40}];
+
 async function exportAllExcel(){
   if (!window.XLSX) { toast("Excel export isn't available right now"); return; }
   toast("Building workbook…");
@@ -874,49 +932,9 @@ async function exportAllExcel(){
   const used = new Set(["overview"]);
   rows.forEach(r => {
     const sheetTitle = safeSheetName(r.name, used);
-    const hrs = +(r.totalMs / 3600000).toFixed(2);
-
-    const tally = new Map();
-    r.hist.forEach(shift => {
-      let store = shift.client;
-      (shift.segs || []).filter(s => s.endedAt).forEach(s => {
-        if (s.client) store = s.client;
-        const key = store + " " + s.task;
-        const cur = tally.get(key) || { store, task: s.task, ms: 0 };
-        cur.ms += segMs(s);
-        tally.set(key, cur);
-      });
-    });
-    const taskRows = [...tally.values()].sort((a,b) => b.ms - a.ms);
-    const maxTaskMs = Math.max(1, ...taskRows.map(t => t.ms));
-
-    const aoa = [
-      [r.name],
-      [r.email],
-      [],
-      ["Shifts", "Total Hours", "Avg Rating"],
-      [r.hist.length, hrs, +r.avgRating.toFixed(1)],
-      [],
-      ["TASK BREAKDOWN"],
-      ["Store / Task", "Hours", "% of total", "Chart"]
-    ];
-    taskRows.forEach(t => {
-      const th = +(t.ms / 3600000).toFixed(2);
-      const pct = Math.round(t.ms / (r.totalMs || 1) * 100);
-      aoa.push([taskLabel(t), th, pct + "%", barify(t.ms, maxTaskMs)]);
-    });
-    aoa.push([]);
-    aoa.push(["SHIFT HISTORY"]);
-    aoa.push(["Date", "Store", "In", "Out", "Break (min)", "Hours", "Rating", "Notes"]);
-    r.hist.forEach(shift => {
-      aoa.push([
-        dayStamp(shift.startedAt), shift.client, clock(shift.startedAt), clock(shift.endedAt),
-        Math.round(shift.breakMs / 60000), +(shift.netMs / 3600000).toFixed(2), shift.rating, shift.note
-      ]);
-    });
-
+    const aoa = buildWorkerSheetAOA(r.name, r.email, r.hist);
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{wch:24},{wch:14},{wch:12},{wch:12},{wch:12},{wch:10},{wch:8},{wch:40}];
+    ws["!cols"] = WORKER_SHEET_COLS;
     XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
   });
 
@@ -943,9 +961,28 @@ function viewWorker(data, s){
     <button class="btn" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
   `, () => {
-    $("xl").onclick = () => { const backup = S; S = s; exportExcel(); S = backup; };
+    $("xl").onclick = () => exportWorkerExcel(s.worker || data.email || "Worker", data.email || "", hist);
     $("dn").onclick = closeSheet;
   });
+}
+
+// Single-worker export used by the admin dashboard's per-worker "Export to
+// Excel" button. Produces one polished sheet (same summary/task-breakdown/
+// history layout as exportAllExcel()'s per-worker sheets) instead of the
+// flat two-sheet dump exportExcel() makes for a worker's own self-export.
+function exportWorkerExcel(name, email, hist){
+  if (!window.XLSX) { toast("Excel export isn't available right now"); return; }
+  if (!hist.length) return;
+
+  const aoa = buildWorkerSheetAOA(name, email, hist);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = WORKER_SHEET_COLS;
+  XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name, new Set()));
+
+  const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "worker";
+  XLSX.writeFile(wb, "shift-report-" + slug + "-" + new Date().toISOString().slice(0,10) + ".xlsx");
+  toast("Excel file downloaded");
 }
 
 async function resolveRole(user){
