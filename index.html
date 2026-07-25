@@ -201,7 +201,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(28,124,74,.24);ou
   body{padding:32px 16px}
   .app{
     display:grid;
-    grid-template-columns:320px 1fr;
+    grid-template-columns:340px 1fr;
     grid-template-rows:auto auto auto auto;
     grid-template-areas:
       "band band"
@@ -218,7 +218,9 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(28,124,74,.24);ou
   }
   .band{grid-area:band}
   .stage{display:contents}
-  .clock{grid-area:clock;padding:22px 24px 0}
+  .clock{grid-area:clock;padding:22px 20px 0}
+  .clock-panel{padding:16px 10px}
+  .clock-time{font-size:24px}
   .shiftbar{grid-area:shiftbar;padding:0 24px 20px}
   .card{grid-area:card;flex:none;height:auto;margin:22px 24px 22px 0;overflow-y:auto}
   .dock{grid-area:dock;min-height:auto;padding:0 24px 26px}
