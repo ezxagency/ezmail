@@ -918,6 +918,345 @@ function fillWorkerSheet(ws, name, email, hist){
   ws.columns = WORKER_SHEET_COLS.map(w => ({ width: w }));
 }
 
+// ============================================================
+// TEAM REPORT — Dashboard / Overview / Clients / Shift Log / one sheet
+// per member, all formula-driven off a single consolidated Shift Log.
+// "Clean Navy" theme. See notes on REPORT_THEME for the palette source.
+// ============================================================
+const REPORT_THEME = {
+  navy: "FF1F2937", blue: "FF2563EB", green: "FFACC652", orange: "FFF9A33F",
+  red: "FFDC2626", zebra: "FFF3F4F6", border: "FFE5E7EB", muted: "FF6B7280"
+};
+const reportStars = n => "★".repeat(Math.max(0, Math.min(5, n))) + "☆".repeat(5 - Math.max(0, Math.min(5, n)));
+const fv = (formula, result) => ({ formula, result });
+
+function styleReportHeaderRow(ws, rowNum, numCols){
+  const row = ws.getRow(rowNum);
+  for (let c = 1; c <= numCols; c++){
+    const cell = row.getCell(c);
+    cell.font = { name: "Arial", bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: REPORT_THEME.navy } };
+  }
+  row.height = 20;
+}
+const reportZebra = row => { row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: REPORT_THEME.zebra } }; };
+const reportRowBorder = (row, numCols) => {
+  for (let c = 1; c <= numCols; c++) row.getCell(c).border = { bottom: { style: "thin", color: { argb: REPORT_THEME.border } } };
+};
+const reportDataBar = (ws, ref) => ws.addConditionalFormatting({
+  ref, rules: [{ type: "dataBar", cfvo: [{type:"min"},{type:"max"}], gradient:false, border:false, color:{argb:REPORT_THEME.blue} }]
+});
+const reportRatingScale = (ws, ref) => ws.addConditionalFormatting({
+  ref, rules: [{ type: "colorScale", cfvo: [{type:"num",value:1},{type:"num",value:3},{type:"num",value:5}],
+    color: [{argb:REPORT_THEME.red},{argb:REPORT_THEME.orange},{argb:REPORT_THEME.green}] }]
+});
+
+// One row per closed shift, across every member, newest first.
+function buildShiftLogRows(members){
+  const rows = [];
+  members.forEach(m => {
+    (m.hist || []).forEach(r => {
+      rows.push({
+        date: r.startedAt, member: m.name, client: String(r.client || "").toUpperCase(),
+        inTime: clock(r.startedAt), outTime: clock(r.endedAt),
+        brk: Math.round((r.breakMs || 0) / 60000), hours: +(r.netMs / 3600000).toFixed(2),
+        rating: r.rating, notes: r.note || ""
+      });
+    });
+  });
+  rows.sort((a, b) => b.date - a.date);
+  return rows;
+}
+
+// Every number the workbook will show, computed once so a formula and its
+// cached `result` can never disagree - see fv() above.
+function computeReportModel(members, logRows){
+  const memberStats = members.map(m => {
+    const rows = logRows.filter(r => r.member === m.name);
+    const shifts = rows.length;
+    const hours = +rows.reduce((t,r)=>t+r.hours,0).toFixed(2);
+    const hrsPerShift = shifts ? +(hours/shifts).toFixed(2) : 0;
+    const avgRating = shifts ? +(rows.reduce((t,r)=>t+r.rating,0)/shifts).toFixed(1) : 0;
+    return { name: m.name, email: m.email, shifts, hours, hrsPerShift, avgRating };
+  });
+  const totalShifts = memberStats.reduce((t,m)=>t+m.shifts,0);
+  const totalHours = +memberStats.reduce((t,m)=>t+m.hours,0).toFixed(2);
+  memberStats.forEach(m => { m.share = totalHours ? +(m.hours/totalHours).toFixed(4) : 0; });
+  const teamHrsPerShift = totalShifts ? +(totalHours/totalShifts).toFixed(2) : 0;
+  const teamAvgRating = logRows.length ? +(logRows.reduce((t,r)=>t+r.rating,0)/logRows.length).toFixed(1) : 0;
+  const totalShare = +memberStats.reduce((t,m)=>t+m.share,0).toFixed(4);
+
+  const clientTotals = new Map();
+  logRows.forEach(r => {
+    if (!r.client) return;
+    const cur = clientTotals.get(r.client) || { shifts:0, hours:0 };
+    cur.shifts++; cur.hours += r.hours;
+    clientTotals.set(r.client, cur);
+  });
+  const clients = [...clientTotals.entries()].map(([name,v]) => ({ name, shifts:v.shifts, hours:+v.hours.toFixed(2) }))
+    .sort((a,b)=>b.hours-a.hours);
+  const totalClientHours = +clients.reduce((t,c)=>t+c.hours,0).toFixed(2);
+  clients.forEach(c => { c.share = totalClientHours ? +(c.hours/totalClientHours).toFixed(4) : 0; });
+
+  const pick = (arr, key) => arr.length ? arr.reduce((best,m)=> m[key]>best[key]?m:best) : null;
+
+  const dates = logRows.map(r=>r.date);
+  return {
+    memberStats, totalShifts, totalHours, teamHrsPerShift, teamAvgRating, totalShare,
+    clients, totalClientHours,
+    mostEfficient: pick(memberStats, "hrsPerShift"), highestRating: pick(memberStats, "avgRating"),
+    biggestShare: pick(memberStats, "share"), totalBreak: logRows.reduce((t,r)=>t+r.brk,0),
+    minDate: dates.length ? new Date(Math.min(...dates)) : null,
+    maxDate: dates.length ? new Date(Math.max(...dates)) : null
+  };
+}
+
+function fillShiftLogSheet(ws, logRows){
+  const headers = ["DATE","MEMBER","STORE/CLIENT","IN","OUT","BRK (min)","HOURS","RATING","STARS","NOTES"];
+  ws.addRow(headers);
+  styleReportHeaderRow(ws, 1, headers.length);
+  const startRow = 2;
+  logRows.forEach((r, i) => {
+    const rn = startRow + i;
+    const row = ws.getRow(rn);
+    row.getCell(1).value = new Date(r.date); row.getCell(1).numFmt = "mmm dd, yyyy";
+    row.getCell(2).value = r.member;
+    row.getCell(3).value = r.client; row.getCell(3).font = { color: { argb: REPORT_THEME.blue } };
+    row.getCell(4).value = r.inTime;
+    row.getCell(5).value = r.outTime;
+    row.getCell(6).value = r.brk;
+    row.getCell(7).value = r.hours; row.getCell(7).numFmt = "0.00"; row.getCell(7).font = { bold: true };
+    row.getCell(8).value = r.rating;
+    row.getCell(9).value = fv(`REPT("★",H${rn})&REPT("☆",5-H${rn})`, reportStars(r.rating));
+    row.getCell(9).font = { color: { argb: REPORT_THEME.orange } };
+    row.getCell(10).value = r.notes; row.getCell(10).font = { color: { argb: REPORT_THEME.muted } };
+    if (i % 2 === 1) reportZebra(row);
+    reportRowBorder(row, 10);
+  });
+  const lastRow = startRow + logRows.length - 1;
+  if (logRows.length){
+    reportDataBar(ws, `G${startRow}:G${lastRow}`);
+    reportRatingScale(ws, `H${startRow}:H${lastRow}`);
+    ws.autoFilter = `A1:J${lastRow}`;
+  }
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+  ws.addRow([]);
+  ws.addRow(["Source log - every other sheet in this workbook derives from these rows."]).getCell(1).font = { italic: true, color: { argb: REPORT_THEME.blue } };
+  ws.columns = [{width:13},{width:16},{width:16},{width:9},{width:9},{width:10},{width:9},{width:8},{width:14},{width:30}];
+}
+
+function fillOverviewSheet(ws, model, logRange){
+  const n = model.memberStats.length;
+  const firstRow = 2, lastRow = 1 + n, totalRow = lastRow + 1;
+  const L = logRange;
+  const logRef = c => `'Shift Log'!$${c}$${L.startRow}:$${c}$${L.lastRow}`;
+  const ovCol = c => `$${c}$${firstRow}:$${c}$${lastRow}`;
+
+  const header = ws.addRow(["MEMBER","EMAIL","SHIFTS","HOURS","HRS/SHIFT","SHARE","AVG RATING"]);
+  styleReportHeaderRow(ws, header.number, 7);
+
+  model.memberStats.forEach((m, i) => {
+    const r = firstRow + i;
+    const row = ws.getRow(r);
+    row.getCell(1).value = m.name;
+    row.getCell(2).value = m.email;
+    row.getCell(3).value = fv(`COUNTIFS(${logRef("B")},A${r})`, m.shifts);
+    row.getCell(4).value = fv(`SUMIFS(${logRef("G")},${logRef("B")},A${r})`, m.hours); row.getCell(4).numFmt = "0.00";
+    row.getCell(5).value = fv(`IFERROR(D${r}/C${r},0)`, m.hrsPerShift); row.getCell(5).numFmt = "0.00";
+    row.getCell(6).value = fv(`IFERROR(D${r}/SUM(${ovCol("D")}),0)`, m.share); row.getCell(6).numFmt = "0%";
+    row.getCell(7).value = fv(`IFERROR(AVERAGEIFS(${logRef("H")},${logRef("B")},A${r}),0)`, m.avgRating); row.getCell(7).numFmt = "0.0";
+    if (i % 2 === 1) reportZebra(row);
+    reportRowBorder(row, 7);
+  });
+
+  const t = ws.getRow(totalRow);
+  t.getCell(1).value = "TEAM TOTAL / AVG"; t.font = { bold: true };
+  t.getCell(3).value = fv(`SUM(${ovCol("C")})`, model.totalShifts);
+  t.getCell(4).value = fv(`SUM(${ovCol("D")})`, model.totalHours); t.getCell(4).numFmt = "0.00";
+  t.getCell(5).value = fv(`IFERROR(D${totalRow}/C${totalRow},0)`, model.teamHrsPerShift); t.getCell(5).numFmt = "0.00";
+  t.getCell(6).value = fv(`SUM(${ovCol("F")})`, model.totalShare); t.getCell(6).numFmt = "0%";
+  t.getCell(7).value = fv(`IFERROR(AVERAGE(${logRef("H")}),0)`, model.teamAvgRating); t.getCell(7).numFmt = "0.0";
+  for (let c = 1; c <= 7; c++) t.getCell(c).border = { top: { style: "medium", color: { argb: REPORT_THEME.navy } } };
+
+  if (n){ reportDataBar(ws, `D${firstRow}:D${lastRow}`); reportRatingScale(ws, `G${firstRow}:G${lastRow}`); }
+
+  ws.addRow([]);
+  ws.addRow(["Shift Performance Analysis"]).getCell(1).font = { bold: true, size: 12 };
+  const mk = (label, note) => { const row = ws.addRow([label]); if (note){ row.getCell(3).value = note; row.getCell(3).font = { italic:true, color:{argb:REPORT_THEME.muted} }; } return row; };
+
+  const r1 = mk("Team avg hours per shift", "total hours ÷ total shifts");
+  r1.getCell(2).value = fv(`E${totalRow}`, model.teamHrsPerShift); r1.getCell(2).numFmt = "0.00";
+  const r2 = mk("Weighted avg rating per shift", "weighted by shift count, not member avg");
+  r2.getCell(2).value = fv(`G${totalRow}`, model.teamAvgRating); r2.getCell(2).numFmt = "0.0";
+  const r3 = mk("Most efficient (hrs/shift)");
+  r3.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("E")}),${ovCol("E")},0)),"—")`, model.mostEfficient ? model.mostEfficient.name : "—");
+  r3.getCell(3).value = fv(`IFERROR(MAX(${ovCol("E")}),0)`, model.mostEfficient ? model.mostEfficient.hrsPerShift : 0); r3.getCell(3).numFmt = "0.00";
+  const r4 = mk("Highest avg rating", "first member on ties");
+  r4.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("G")}),${ovCol("G")},0)),"—")`, model.highestRating ? model.highestRating.name : "—");
+  r4.getCell(3).value = fv(`IFERROR(MAX(${ovCol("G")}),0)`, model.highestRating ? model.highestRating.avgRating : 0); r4.getCell(3).numFmt = "0.0";
+  const r5 = mk("Biggest workload share");
+  r5.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("F")}),${ovCol("F")},0)),"—")`, model.biggestShare ? model.biggestShare.name : "—");
+  r5.getCell(3).value = fv(`IFERROR(MAX(${ovCol("F")}),0)`, model.biggestShare ? model.biggestShare.share : 0); r5.getCell(3).numFmt = "0%";
+
+  ws.addRow([]);
+  ws.addRow(["Edit punches on the Shift Log sheet only — every figure here recalculates from it."]).getCell(1).font = { italic: true, color: { argb: REPORT_THEME.blue } };
+  ws.columns = [{width:20},{width:26},{width:9},{width:11},{width:11},{width:10},{width:12}];
+}
+
+function fillClientsSheet(ws, model, logRange){
+  const header = ws.addRow(["CLIENT/STORE","SHIFTS","HOURS","SHARE"]);
+  styleReportHeaderRow(ws, header.number, 4);
+  const firstRow = 2, lastRow = 1 + model.clients.length;
+  const L = logRange;
+  const logRef = c => `'Shift Log'!$${c}$${L.startRow}:$${c}$${L.lastRow}`;
+
+  model.clients.forEach((cl, i) => {
+    const r = firstRow + i;
+    const row = ws.getRow(r);
+    row.getCell(1).value = cl.name;
+    row.getCell(2).value = fv(`COUNTIF(${logRef("C")},A${r})`, cl.shifts);
+    row.getCell(3).value = fv(`SUMIF(${logRef("C")},A${r},${logRef("G")})`, cl.hours); row.getCell(3).numFmt = "0.00";
+    row.getCell(4).value = fv(`IFERROR(C${r}/SUM($C$${firstRow}:$C$${lastRow}),0)`, cl.share); row.getCell(4).numFmt = "0%";
+    if (i % 2 === 1) reportZebra(row);
+    reportRowBorder(row, 4);
+  });
+  if (model.clients.length) reportDataBar(ws, `C${firstRow}:C${lastRow}`);
+  ws.addRow([]);
+  ws.addRow(["Grouped case-insensitively - \"Acme\" and \"ACME\" are combined by the formulas above."]).getCell(1).font = { italic: true, color: { argb: REPORT_THEME.muted } };
+  ws.columns = [{width:24},{width:9},{width:11},{width:10}];
+}
+
+function fillDashboardSheet(ws, model, logRange, overviewRange){
+  const L = logRange, O = overviewRange;
+  const logRef = c => `'Shift Log'!$${c}$${L.startRow}:$${c}$${L.lastRow}`;
+  const ovRef = c => `Overview!$${c}$${O.firstRow}:$${c}$${O.lastRow}`;
+
+  ws.addRow(["EZ AGENCY · TEAM TIME CARDS"]).getCell(1).font = { bold: true, size: 10, color: { argb: REPORT_THEME.muted } };
+  ws.addRow(["TEAM REPORT"]).getCell(1).font = { bold: true, size: 24, color: { argb: REPORT_THEME.navy } };
+  ws.addRow(["Generated " + new Date().toLocaleString()]).getCell(1).font = { italic: true, color: { argb: REPORT_THEME.muted } };
+  ws.addRow([]);
+
+  const badge = ws.addRow(["FILED · " + dayStamp(Date.now())]);
+  badge.getCell(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  badge.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: REPORT_THEME.navy } };
+  ws.addRow([]);
+
+  ws.addRow(["PERIOD","GENERATED","MEMBERS","SHIFTS FILED"]).eachCell(c => { c.font = { bold: true, size: 10, color: { argb: REPORT_THEME.muted } }; });
+  const metaRow = ws.addRow([]);
+  const periodStr = model.minDate && model.maxDate
+    ? dayStamp(model.minDate.getTime()).replace(/,.*/, "") + " – " + dayStamp(model.maxDate.getTime())
+    : "—";
+  metaRow.getCell(1).value = L.lastRow >= L.startRow
+    ? fv(`TEXT(MIN(${logRef("A")}),"mmm d")&" – "&TEXT(MAX(${logRef("A")}),"mmm d, yyyy")`, periodStr)
+    : "—";
+  metaRow.getCell(2).value = dayStamp(Date.now());
+  metaRow.getCell(3).value = fv(`COUNTA(${ovRef("A")})`, model.memberStats.length);
+  metaRow.getCell(4).value = fv(`COUNT(${logRef("G")})`, model.totalShifts);
+  for (let c = 1; c <= 4; c++){
+    metaRow.getCell(c).border = { top:{style:"thin",color:{argb:REPORT_THEME.border}}, bottom:{style:"thin",color:{argb:REPORT_THEME.border}}, left:{style:"thin",color:{argb:REPORT_THEME.border}}, right:{style:"thin",color:{argb:REPORT_THEME.border}} };
+    metaRow.getCell(c).font = { bold: true };
+  }
+  ws.addRow([]);
+
+  ws.addRow(["AT A GLANCE"]).getCell(1).font = { bold: true, size: 12, color: { argb: REPORT_THEME.navy } };
+  ws.addRow(["TOTAL HOURS","BREAK TIME","AVG SHIFT RATING","TOP BY HOURS"]).eachCell(c => { c.font = { bold: true, size: 10, color: { argb: REPORT_THEME.muted } }; });
+  const kpiRow = ws.addRow([]);
+  kpiRow.getCell(1).value = fv(`SUM(${logRef("G")})`, model.totalHours);
+  kpiRow.getCell(1).numFmt = '0.00" h"'; kpiRow.getCell(1).font = { bold: true, size: 16, color: { argb: REPORT_THEME.blue } };
+  kpiRow.getCell(2).value = fv(`SUM(${logRef("F")})`, model.totalBreak);
+  kpiRow.getCell(2).numFmt = '0" min"'; kpiRow.getCell(2).font = { bold: true, size: 16, color: { argb: REPORT_THEME.red } };
+  kpiRow.getCell(3).value = fv(`IFERROR(AVERAGE(${logRef("H")}),0)`, model.teamAvgRating);
+  kpiRow.getCell(3).numFmt = '0.0" ★"'; kpiRow.getCell(3).font = { bold: true, size: 16, color: { argb: REPORT_THEME.green } };
+  const topByHours = model.memberStats.length ? model.memberStats.reduce((b,m)=>m.hours>b.hours?m:b) : null;
+  kpiRow.getCell(4).value = fv(`IFERROR(INDEX(${ovRef("A")},MATCH(MAX(${ovRef("D")}),${ovRef("D")},0)),"—")`, topByHours ? topByHours.name : "—");
+  kpiRow.getCell(4).font = { bold: true, size: 16, color: { argb: REPORT_THEME.navy } };
+
+  ws.addRow([]);
+  ws.addRow(["Every figure on this page recalculates from the Shift Log sheet - nothing here is a fixed number."]).getCell(1).font = { italic: true, color: { argb: REPORT_THEME.blue } };
+  ws.columns = [{width:26},{width:20},{width:20},{width:22}];
+}
+
+function fillReportMemberSheet(ws, member, mstat, logRange){
+  const L = logRange;
+  const logRef = c => `'Shift Log'!$${c}$${L.startRow}:$${c}$${L.lastRow}`;
+  const nameCell = "A1";
+
+  ws.addRow([member.name]).getCell(1).font = { bold: true, size: 14 };
+  ws.addRow([member.email]).getCell(1).font = { color: { argb: REPORT_THEME.muted } };
+  ws.addRow([]);
+
+  const kpiHeader = ws.addRow(["SHIFTS","TOTAL HOURS","AVG RATING"]);
+  styleReportHeaderRow(ws, kpiHeader.number, 3);
+  const kpiRow = ws.addRow([]);
+  kpiRow.getCell(1).value = fv(`COUNTIFS(${logRef("B")},${nameCell})`, mstat.shifts);
+  kpiRow.getCell(2).value = fv(`SUMIFS(${logRef("G")},${logRef("B")},${nameCell})`, mstat.hours); kpiRow.getCell(2).numFmt = "0.00";
+  kpiRow.getCell(3).value = fv(`IFERROR(AVERAGEIFS(${logRef("H")},${logRef("B")},${nameCell}),0)`, mstat.avgRating); kpiRow.getCell(3).numFmt = "0.0";
+  const totalHoursCellRef = `B${kpiRow.number}`;
+  ws.addRow([]);
+
+  const hist = member.hist || [];
+  const tally = new Map();
+  hist.forEach(shift => {
+    let store = shift.client;
+    (shift.segs || []).filter(s => s.endedAt).forEach(s => {
+      if (s.client) store = s.client;
+      const key = store + " " + s.task;
+      const cur = tally.get(key) || { store, task: s.task, ms: 0 };
+      cur.ms += segMs(s);
+      tally.set(key, cur);
+    });
+  });
+  const taskRows = [...tally.values()].sort((a,b) => b.ms - a.ms);
+
+  if (taskRows.length){
+    ws.addRow(["TASK BREAKDOWN"]).getCell(1).font = { bold: true, size: 12 };
+    const taskHeader = ws.addRow(["STORE / TASK","HOURS","% OF TOTAL"]);
+    styleReportHeaderRow(ws, taskHeader.number, 3);
+    const taskFirstRow = taskHeader.number + 1;
+    taskRows.forEach((t, i) => {
+      const r = taskFirstRow + i;
+      const hrs = +(t.ms / 3600000).toFixed(2);
+      const pct = mstat.hours ? +(hrs / mstat.hours).toFixed(4) : 0;
+      const row = ws.getRow(r);
+      row.getCell(1).value = taskLabel(t);
+      row.getCell(2).value = hrs; row.getCell(2).numFmt = "0.00";
+      row.getCell(3).value = fv(`IFERROR(B${r}/${totalHoursCellRef},0)`, pct); row.getCell(3).numFmt = "0%";
+      if (i % 2 === 1) reportZebra(row);
+      reportRowBorder(row, 3);
+    });
+    reportDataBar(ws, `B${taskFirstRow}:B${taskFirstRow + taskRows.length - 1}`);
+    ws.addRow([]);
+  }
+
+  ws.addRow(["SHIFT HISTORY"]).getCell(1).font = { bold: true, size: 12 };
+  const histHeader = ws.addRow(["DATE","STORE","IN","OUT","BRK (min)","HOURS","RATING","STARS","NOTES"]);
+  styleReportHeaderRow(ws, histHeader.number, 9);
+  const sortedHist = [...hist].sort((a,b) => b.startedAt - a.startedAt);
+  const histFirstRow = histHeader.number + 1;
+  sortedHist.forEach((shift, i) => {
+    const r = histFirstRow + i;
+    const row = ws.getRow(r);
+    row.getCell(1).value = new Date(shift.startedAt); row.getCell(1).numFmt = "mmm dd, yyyy";
+    row.getCell(2).value = shift.client; row.getCell(2).font = { color: { argb: REPORT_THEME.blue } };
+    row.getCell(3).value = clock(shift.startedAt);
+    row.getCell(4).value = clock(shift.endedAt);
+    row.getCell(5).value = Math.round(shift.breakMs / 60000);
+    row.getCell(6).value = +(shift.netMs / 3600000).toFixed(2); row.getCell(6).numFmt = "0.00"; row.getCell(6).font = { bold: true };
+    row.getCell(7).value = shift.rating;
+    row.getCell(8).value = fv(`REPT("★",G${r})&REPT("☆",5-G${r})`, reportStars(shift.rating));
+    row.getCell(8).font = { color: { argb: REPORT_THEME.orange } };
+    row.getCell(9).value = shift.note || ""; row.getCell(9).font = { color: { argb: REPORT_THEME.muted } };
+    if (i % 2 === 1) reportZebra(row);
+    reportRowBorder(row, 9);
+  });
+  if (sortedHist.length){
+    const histLastRow = histFirstRow + sortedHist.length - 1;
+    reportDataBar(ws, `F${histFirstRow}:F${histLastRow}`);
+    reportRatingScale(ws, `G${histFirstRow}:G${histLastRow}`);
+  }
+  ws.columns = [{width:13},{width:16},{width:9},{width:9},{width:10},{width:9},{width:8},{width:14},{width:30}];
+}
+
 async function exportAllExcel(){
   if (!window.ExcelJS) { toast("Excel export isn't available right now"); return; }
   toast("Building workbook…");
@@ -930,113 +1269,32 @@ async function exportAllExcel(){
   snap.forEach(doc => {
     const data = doc.data();
     let s; try { s = JSON.parse(data.json); } catch { s = null; }
-    if (s) members.push({ email: data.email || "", s });
+    if (s) members.push({ name: s.worker || data.email || "Unnamed", email: data.email || "", hist: s.history || [] });
   });
   if (!members.length) { toast("No team member data yet"); return; }
+  members.sort((a,b) => (b.hist||[]).reduce((t,r)=>t+r.netMs,0) - (a.hist||[]).reduce((t,r)=>t+r.netMs,0));
 
-  const rows = members.map(w => {
-    const hist = w.s.history || [];
-    const totalMs = hist.reduce((t,r) => t + r.netMs, 0);
-    const avgRating = hist.length ? hist.reduce((t,r) => t + r.rating, 0) / hist.length : 0;
-    return { name: w.s.worker || w.email || "Unnamed", email: w.email, hist, totalMs, avgRating };
-  }).sort((a,b) => b.totalMs - a.totalMs);
+  const logRows = buildShiftLogRows(members);
+  const model = computeReportModel(members, logRows);
+  // Row ranges are deterministic from counts alone, so they can be computed
+  // before any sheet exists - this lets Dashboard (which references both
+  // Shift Log and Overview) be added first, giving the correct tab order.
+  const logRange = { startRow: 2, lastRow: 1 + logRows.length };
+  const overviewRange = { firstRow: 2, lastRow: 1 + model.memberStats.length, totalRow: 2 + model.memberStats.length };
 
   const wb = new ExcelJS.Workbook();
-  fillOverviewSheet(wb.addWorksheet("Team Overview"), rows);
-
-  const used = new Set(["team overview"]);
-  rows.forEach(r => {
-    const ws = wb.addWorksheet(safeSheetName(r.name, used));
-    fillWorkerSheet(ws, r.name, r.email, r.hist);
+  fillDashboardSheet(wb.addWorksheet("Dashboard"), model, logRange, overviewRange);
+  fillOverviewSheet(wb.addWorksheet("Overview"), model, logRange);
+  fillClientsSheet(wb.addWorksheet("Clients"), model, logRange);
+  fillShiftLogSheet(wb.addWorksheet("Shift Log"), logRows);
+  const used = new Set(["dashboard", "overview", "clients", "shift log"]);
+  members.forEach((m, i) => {
+    const ws = wb.addWorksheet(safeSheetName(m.name, used));
+    fillReportMemberSheet(ws, m, model.memberStats[i], logRange);
   });
 
   await downloadWorkbook(wb, "team-report-" + new Date().toISOString().slice(0,10) + ".xlsx");
   toast("Team report downloaded");
-}
-
-// Static red(1)->yellow(3)->green(5) fill color for a rating value, baked
-// in at export time. Not a live conditional-formatting rule - if the cell
-// value is hand-edited afterward, the color won't follow it (real
-// conditional-formatting rules aren't something we generate). Everything
-// else derived from the raw numbers (Hrs/Shift, % of Team Hours, the bar
-// chart, totals, and the whole Shift Performance Analysis section) is a
-// genuine live spreadsheet formula that recalculates on edit.
-function ratingColorHex(rating){
-  const t = Math.max(0, Math.min(1, (Math.max(1, Math.min(5, rating)) - 1) / 4));
-  const stops = t < 0.5
-    ? [[230,124,115],[255,217,102],t/0.5]
-    : [[255,217,102],[147,196,125],(t-0.5)/0.5];
-  const [from, to, k] = stops;
-  const mix = (a,b) => Math.round(a + (b-a)*k);
-  const rgb = [mix(from[0],to[0]), mix(from[1],to[1]), mix(from[2],to[2])];
-  return "FF" + rgb.map(v => v.toString(16).padStart(2,"0")).join("").toUpperCase();
-}
-
-function fillOverviewSheet(ws, rows){
-  const n = rows.length;
-  const firstRow = 5;
-  const lastRow = 4 + n;
-  const totalRow = 5 + n;
-  const col = c => `${c}${firstRow}:${c}${lastRow}`;
-
-  ws.addRow(["Team Overview"]).getCell(1).font = { bold: true, size: 14 };
-  ws.addRow(["Generated " + new Date().toLocaleString()]);
-  ws.addRow([]);
-  const header = ws.addRow(["Team Member", "Email", "Shifts", "Total Hours", "Hrs / Shift", "Avg Rating", "% of Team Hours", "Hours"]);
-  styleHeaderRow(ws, header.number, 8);
-
-  rows.forEach(r => {
-    const row = ws.addRow([r.name, r.email, r.hist.length, +(r.totalMs / 3600000).toFixed(2), null, +r.avgRating.toFixed(2), null, null]);
-    const rn = row.number;
-    row.getCell(5).value = { formula: `IF(C${rn}=0,0,D${rn}/C${rn})` };
-    row.getCell(5).numFmt = "0.00";
-    row.getCell(7).value = { formula: `IF($D$${totalRow}=0,0,D${rn}/$D$${totalRow})` };
-    row.getCell(7).numFmt = "0.0%";
-    row.getCell(8).value = { formula: `REPT("▐",ROUND(D${rn}/MAX($D$${firstRow}:$D$${lastRow})*24,0))` };
-    row.getCell(8).font = { color: { argb: "FF4A86E8" } };
-    row.getCell(6).font = { bold: true };
-    row.getCell(6).fill = { type: "pattern", pattern: "solid", fgColor: { argb: ratingColorHex(r.avgRating) } };
-  });
-
-  const totalRowObj = ws.addRow(["Team Total / Avg", "", null, null, null, null, null, ""]);
-  totalRowObj.getCell(1).font = { bold: true };
-  totalRowObj.getCell(3).value = { formula: `SUM(${col("C")})` };
-  totalRowObj.getCell(4).value = { formula: `SUM(${col("D")})` };
-  totalRowObj.getCell(4).numFmt = "0.00";
-  totalRowObj.getCell(5).value = { formula: `IF(C${totalRow}=0,0,D${totalRow}/C${totalRow})` };
-  totalRowObj.getCell(5).numFmt = "0.00";
-  totalRowObj.getCell(6).value = { formula: `IF(SUM(${col("C")})=0,0,SUMPRODUCT(${col("F")},${col("C")})/SUM(${col("C")}))` };
-  totalRowObj.getCell(6).numFmt = "0.0";
-  totalRowObj.getCell(7).value = { formula: `SUM(${col("G")})` };
-  totalRowObj.getCell(7).numFmt = "0.0%";
-  for (let c = 1; c <= 8; c++) totalRowObj.getCell(c).border = { top: { style: "thin" } };
-
-  ws.addRow([]);
-  ws.addRow(["Shift Performance Analysis"]).getCell(1).font = { bold: true };
-
-  const r1 = ws.addRow(["Team avg hours per shift", null, "Total hours / total shifts"]);
-  r1.getCell(2).value = { formula: `E${totalRow}` }; r1.getCell(2).numFmt = "0.00";
-
-  const r2 = ws.addRow(["Weighted avg rating per shift", null, "Rating weighted by shift count, not a simple average"]);
-  r2.getCell(2).value = { formula: `F${totalRow}` }; r2.getCell(2).numFmt = "0.0";
-
-  const r3 = ws.addRow(["Most efficient (hrs/shift)"]);
-  r3.getCell(2).value = { formula: `INDEX(${col("A")},MATCH(MAX(${col("E")}),${col("E")},0))` };
-  r3.getCell(3).value = { formula: `MAX(${col("E")})` }; r3.getCell(3).numFmt = "0.00";
-
-  const r4 = ws.addRow(["Highest avg rating"]);
-  r4.getCell(2).value = { formula: `INDEX(${col("A")},MATCH(MAX(${col("F")}),${col("F")},0))` };
-  r4.getCell(3).value = { formula: `MAX(${col("F")})` }; r4.getCell(3).numFmt = "0.0";
-
-  const r5 = ws.addRow(["Biggest workload share"]);
-  r5.getCell(2).value = { formula: `INDEX(${col("A")},MATCH(MAX(${col("G")}),${col("G")},0))` };
-  r5.getCell(3).value = { formula: `MAX(${col("G")})` }; r5.getCell(3).numFmt = "0.0%";
-
-  ws.addRow([]);
-  ws.addRow(["Edit columns A-D and F only. Hrs/Shift, % of Team Hours, the bar chart, and every total below recalculate automatically."]);
-  ws.addRow(["Bars scale to the highest Total Hours. Data as provided by the app on " + dayStamp(Date.now()) + "."]);
-
-  ws.columns = [22,26,9,12,11,11,15,26].map(w => ({ width: w }));
 }
 
 function viewWorker(data, s, uid){
