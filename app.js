@@ -772,6 +772,114 @@ async function startAdmin(email){
   }
 }
 
+/* ---------- team-wide Excel export (one sheet per worker + overview) ---------- */
+function barify(value, max, width = 18){
+  if (!max || max <= 0) return "";
+  const filled = Math.max(0, Math.min(width, Math.round((value / max) * width)));
+  return "█".repeat(filled) + "░".repeat(width - filled);
+}
+
+function safeSheetName(base, used){
+  let name = String(base).replace(/[\\\/\?\*\[\]:]/g, "").trim().slice(0, 28) || "Worker";
+  let final = name, i = 2;
+  while (used.has(final.toLowerCase())) { final = name.slice(0, 25) + " " + i; i++; }
+  used.add(final.toLowerCase());
+  return final;
+}
+
+async function exportAllExcel(){
+  if (!window.XLSX) { toast("Excel export isn't available right now"); return; }
+  toast("Building workbook…");
+  let snap;
+  try { snap = await db.collection("appState").get(); }
+  catch (e) { console.error(e); toast("Couldn't load team data"); return; }
+  if (snap.empty) { toast("No worker data yet"); return; }
+
+  const workers = [];
+  snap.forEach(doc => {
+    const data = doc.data();
+    let s; try { s = JSON.parse(data.json); } catch { s = null; }
+    if (s) workers.push({ email: data.email || "", s });
+  });
+  if (!workers.length) { toast("No worker data yet"); return; }
+
+  const rows = workers.map(w => {
+    const hist = w.s.history || [];
+    const totalMs = hist.reduce((t,r) => t + r.netMs, 0);
+    const avgRating = hist.length ? hist.reduce((t,r) => t + r.rating, 0) / hist.length : 0;
+    return { name: w.s.worker || w.email || "Unnamed", email: w.email, hist, totalMs, avgRating };
+  }).sort((a,b) => b.totalMs - a.totalMs);
+  const maxHrs = Math.max(1, ...rows.map(r => r.totalMs / 3600000));
+
+  const wb = XLSX.utils.book_new();
+
+  const ovAoa = [
+    ["Team Overview"],
+    ["Generated " + new Date().toLocaleString()],
+    [],
+    ["Team Member", "Email", "Shifts", "Total Hours", "Avg Rating", "Hours"]
+  ];
+  rows.forEach(r => {
+    const hrs = +(r.totalMs / 3600000).toFixed(2);
+    ovAoa.push([r.name, r.email, r.hist.length, hrs, +r.avgRating.toFixed(1), barify(hrs, maxHrs)]);
+  });
+  const wsOv = XLSX.utils.aoa_to_sheet(ovAoa);
+  wsOv["!cols"] = [{wch:20},{wch:26},{wch:8},{wch:12},{wch:10},{wch:22}];
+  XLSX.utils.book_append_sheet(wb, wsOv, "Overview");
+
+  const used = new Set(["overview"]);
+  rows.forEach(r => {
+    const sheetTitle = safeSheetName(r.name, used);
+    const hrs = +(r.totalMs / 3600000).toFixed(2);
+
+    const tally = new Map();
+    r.hist.forEach(shift => {
+      let store = shift.client;
+      (shift.segs || []).filter(s => s.endedAt).forEach(s => {
+        if (s.client) store = s.client;
+        const key = store + " " + s.task;
+        const cur = tally.get(key) || { store, task: s.task, ms: 0 };
+        cur.ms += segMs(s);
+        tally.set(key, cur);
+      });
+    });
+    const taskRows = [...tally.values()].sort((a,b) => b.ms - a.ms);
+    const maxTaskMs = Math.max(1, ...taskRows.map(t => t.ms));
+
+    const aoa = [
+      [r.name],
+      [r.email],
+      [],
+      ["Shifts", "Total Hours", "Avg Rating"],
+      [r.hist.length, hrs, +r.avgRating.toFixed(1)],
+      [],
+      ["TASK BREAKDOWN"],
+      ["Store / Task", "Hours", "% of total", "Chart"]
+    ];
+    taskRows.forEach(t => {
+      const th = +(t.ms / 3600000).toFixed(2);
+      const pct = Math.round(t.ms / (r.totalMs || 1) * 100);
+      aoa.push([taskLabel(t), th, pct + "%", barify(t.ms, maxTaskMs)]);
+    });
+    aoa.push([]);
+    aoa.push(["SHIFT HISTORY"]);
+    aoa.push(["Date", "Store", "In", "Out", "Break (min)", "Hours", "Rating", "Notes"]);
+    r.hist.forEach(shift => {
+      aoa.push([
+        dayStamp(shift.startedAt), shift.client, clock(shift.startedAt), clock(shift.endedAt),
+        Math.round(shift.breakMs / 60000), +(shift.netMs / 3600000).toFixed(2), shift.rating, shift.note
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:24},{wch:14},{wch:12},{wch:12},{wch:12},{wch:10},{wch:8},{wch:40}];
+    XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
+  });
+
+  XLSX.writeFile(wb, "team-report-" + new Date().toISOString().slice(0,10) + ".xlsx");
+  toast("Team report downloaded");
+}
+
 function viewWorker(data, s){
   const hist = s.history || [];
   const rows = hist.length ? hist.map(r => `
@@ -875,5 +983,6 @@ if (!FB_READY){
   $("loginBtn").onclick = doLogin;
   $("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
   $("adminLogout").onclick = () => auth.signOut();
+  $("adminExportAll").onclick = exportAllExcel;
   $("pendingSignOut").onclick = () => auth.signOut();
 }
