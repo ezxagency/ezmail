@@ -202,7 +202,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(28,124,74,.24);ou
   .app{
     display:grid;
     grid-template-columns:320px 1fr;
-    grid-template-rows:auto auto auto 1fr;
+    grid-template-rows:auto auto auto auto;
     grid-template-areas:
       "band band"
       "clock card"
@@ -210,7 +210,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(28,124,74,.24);ou
       "dock card";
     column-gap:28px;row-gap:0;
     width:min(94vw,880px);max-width:880px;
-    height:min(88vh,680px);
+    max-height:min(90vh,720px);
     margin:0 auto;
     border-radius:28px;overflow:hidden;
     box-shadow:0 40px 90px rgba(22,24,26,.18);
