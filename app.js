@@ -792,7 +792,7 @@ async function startAdmin(email){
   try {
     const snap = await db.collection("appState").get();
     list.innerHTML = "";
-    if (snap.empty){ list.innerHTML = `<li class="empty">No workers have signed in yet.</li>`; return; }
+    if (snap.empty){ list.innerHTML = `<li class="empty">No team members have signed in yet.</li>`; return; }
     snap.forEach(doc => {
       const data = doc.data();
       let s; try { s = JSON.parse(data.json); } catch { s = null; }
@@ -824,7 +824,7 @@ function barify(value, max, width = 18){
 }
 
 function safeSheetName(base, used){
-  let name = String(base).replace(/[\\\/\?\*\[\]:]/g, "").trim().slice(0, 28) || "Worker";
+  let name = String(base).replace(/[\\\/\?\*\[\]:]/g, "").trim().slice(0, 28) || "Member";
   let final = name, i = 2;
   while (used.has(final.toLowerCase())) { final = name.slice(0, 25) + " " + i; i++; }
   used.add(final.toLowerCase());
@@ -895,7 +895,7 @@ async function exportAllExcel(){
   let snap;
   try { snap = await db.collection("appState").get(); }
   catch (e) { console.error(e); toast("Couldn't load team data"); return; }
-  if (snap.empty) { toast("No worker data yet"); return; }
+  if (snap.empty) { toast("No team member data yet"); return; }
 
   const workers = [];
   snap.forEach(doc => {
@@ -903,7 +903,7 @@ async function exportAllExcel(){
     let s; try { s = JSON.parse(data.json); } catch { s = null; }
     if (s) workers.push({ email: data.email || "", s });
   });
-  if (!workers.length) { toast("No worker data yet"); return; }
+  if (!workers.length) { toast("No team member data yet"); return; }
 
   const rows = workers.map(w => {
     const hist = w.s.history || [];
@@ -944,7 +944,7 @@ async function exportAllExcel(){
 
 function viewWorker(data, s, uid){
   const hist = s.history || [];
-  const name = s.worker || data.email || "Worker";
+  const name = s.worker || data.email || "Member";
   const rows = hist.length ? hist.map(r => `
     <li>
       <div>
@@ -961,7 +961,7 @@ function viewWorker(data, s, uid){
     <ul class="hist">${rows}</ul>
     <button class="btn" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
-    <button class="btn btn-break btn-sm" id="delWorker">Delete Worker</button>
+    <button class="btn btn-break btn-sm" id="delWorker">Remove Member</button>
   `, () => {
     $("xl").onclick = () => exportWorkerExcel(name, data.email || "", hist);
     $("dn").onclick = closeSheet;
@@ -997,7 +997,7 @@ function exportWorkerExcel(name, email, hist){
   ws["!cols"] = WORKER_SHEET_COLS;
   XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name, new Set()));
 
-  const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "worker";
+  const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "member";
   XLSX.writeFile(wb, "shift-report-" + slug + "-" + new Date().toISOString().slice(0,10) + ".xlsx");
   toast("Excel file downloaded");
 }
