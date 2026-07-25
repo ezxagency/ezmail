@@ -58,9 +58,11 @@ body{background:radial-gradient(circle at top, #fbfcfa, #e9eae5 38%);color:var(-
 }
 .clock-time{
   font-family:var(--mono);font-weight:700;
-  font-size:clamp(34px,10vw,46px);letter-spacing:-.02em;line-height:1;
+  font-size:28px;letter-spacing:-.02em;line-height:1;
   margin-top:10px;font-variant-numeric:tabular-nums;
 }
+@media (max-width:360px){ .clock-time{font-size:25px} }
+@media (max-width:320px){ .clock-time{font-size:21px} }
 .clock-meta{margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
 .shiftbar{
   display:flex;justify-content:center;gap:10px;align-items:baseline;
