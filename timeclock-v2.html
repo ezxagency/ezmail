@@ -22,6 +22,12 @@
   --break:#4a396a;
   --idle:#957fc1;
 
+  --mint-100:#dcfce9;
+  --mint-200:#b8f0d1;
+  --mint-300:#8fe6b8;
+  --mint-400:#63d99c;
+  --mint-500:#3cc984;
+
   --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --cond:"IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
   --body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
@@ -32,9 +38,9 @@ html,body{margin:0;height:100%;min-height:100%}
 body{
   background-image:
     radial-gradient(circle at 12% 18%, rgba(123,95,177,.55), transparent 45%),
-    radial-gradient(circle at 88% 12%, rgba(98,76,142,.5), transparent 50%),
-    radial-gradient(circle at 50% 95%, rgba(74,57,106,.45), transparent 55%),
-    linear-gradient(160deg, #f2eff7, #d7cfe8 55%, #b09fd0);
+    radial-gradient(circle at 88% 12%, rgba(98,76,142,.45), transparent 50%),
+    radial-gradient(circle at 55% 100%, rgba(60,201,132,.35), transparent 55%),
+    linear-gradient(160deg, #f2eff7, #d7cfe8 40%, #b09fd0 65%, #8fe6b8 88%, #63d99c);
   background-position:12% 18%, 88% 12%, 50% 95%, 0 0;
   background-attachment:fixed;
   animation:meshDrift 26s ease-in-out infinite;
@@ -47,7 +53,7 @@ body{
 
 .app{
   display:flex;flex-direction:column;height:100dvh;width:min(100%,380px);max-width:380px;margin:0 auto;position:relative;
-  background:linear-gradient(165deg, rgba(255,255,255,.6), rgba(176,159,208,.32));
+  background:linear-gradient(165deg, rgba(255,255,255,.6), rgba(176,159,208,.3), rgba(143,230,184,.22));
   backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);
   border-left:1px solid rgba(255,255,255,.4);border-right:1px solid rgba(255,255,255,.4);
   animation:appIn .55s cubic-bezier(.2,.8,.2,1) both;
@@ -179,7 +185,7 @@ body{
 }
 .btn:active{transform:scale(.984)}
 .btn:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
-.btn-go{background:linear-gradient(135deg, #957fc1, #7b5fb1 55%, #624c8e);box-shadow:0 12px 22px rgba(123,95,177,.3)}
+.btn-go{background:linear-gradient(135deg, #7b5fb1, #624c8e 55%, #3cc984);box-shadow:0 12px 22px rgba(123,95,177,.3)}
 .btn-go::after{
   content:"";position:absolute;top:0;left:-60%;width:35%;height:100%;
   background:linear-gradient(120deg, transparent, rgba(255,255,255,.4), transparent);
@@ -192,7 +198,7 @@ body{
   backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);
   box-shadow:0 8px 18px rgba(25,19,35,.08);
 }
-.btn-wa{background:linear-gradient(135deg, #957fc1, #4a396a);box-shadow:0 12px 22px rgba(74,57,106,.3)}
+.btn-wa{background:linear-gradient(135deg, #624c8e, #3cc984);box-shadow:0 12px 22px rgba(60,201,132,.3)}
 .btn-sm{padding:14px 12px;font-size:15px;letter-spacing:.07em}
 .btn[disabled]{opacity:.34;cursor:not-allowed}
 .row{display:flex;gap:10px}
@@ -210,7 +216,7 @@ body{
 .scrim{position:fixed;inset:0;background:rgba(25,19,35,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:40}
 .scrim.on{opacity:1;pointer-events:auto}
 .sheet{
-  position:fixed;left:0;right:0;bottom:0;z-index:50;background:linear-gradient(165deg, rgba(255,255,255,.78), rgba(215,207,232,.45));
+  position:fixed;left:0;right:0;bottom:0;z-index:50;background:linear-gradient(165deg, rgba(255,255,255,.78), rgba(215,207,232,.4), rgba(184,240,209,.3));
   backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);
   border:1px solid rgba(255,255,255,.5);border-bottom:0;
   border-radius:18px 18px 0 0;transform:translateY(101%);
@@ -304,7 +310,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,95,177,.28);o
     margin:0 auto;
     border-radius:28px;overflow:hidden;
     box-shadow:0 40px 90px rgba(25,19,35,.22);
-    background:linear-gradient(165deg, rgba(255,255,255,.6), rgba(176,159,208,.32));
+    background:linear-gradient(165deg, rgba(255,255,255,.6), rgba(176,159,208,.3), rgba(143,230,184,.22));
     backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);
     border:1px solid rgba(255,255,255,.4);
   }
@@ -342,7 +348,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,95,177,.28);o
 .hidden{display:none!important}
 .login-wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px}
 .login-card{
-  width:min(100%,360px);background:linear-gradient(160deg, rgba(255,255,255,.7), rgba(176,159,208,.4));
+  width:min(100%,360px);background:linear-gradient(160deg, rgba(255,255,255,.7), rgba(176,159,208,.35), rgba(143,230,184,.28));
   backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);
   border:1px solid rgba(255,255,255,.5);border-radius:26px;padding:28px 24px;
   box-shadow:0 30px 60px rgba(25,19,35,.18);
