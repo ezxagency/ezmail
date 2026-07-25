@@ -365,11 +365,13 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,95,177,.28);o
 <div id="loginScreen" class="login-wrap">
   <div class="login-card">
     <h1>Ez Agency</h1>
-    <p class="hint">Sign in with the login your admin set up for you.</p>
+    <p class="hint" id="loginHint">Sign in to clock in and out.</p>
     <p id="loginErr" class="login-err hidden"></p>
     <label class="fld"><span>Email</span><input type="email" id="loginEmail" autocomplete="username"></label>
     <label class="fld"><span>Password</span><input type="password" id="loginPass" autocomplete="current-password"></label>
+    <label class="fld hidden" id="confirmWrap"><span>Confirm password</span><input type="password" id="loginPass2" autocomplete="new-password"></label>
     <button class="btn btn-go" id="loginBtn">Sign in</button>
+    <button class="link" id="modeToggle" style="display:block;margin:14px auto 0;text-align:center">New here? Create an account</button>
   </div>
 </div>
 
@@ -1112,14 +1114,41 @@ if (!FB_READY){
     }
   });
 
+  let loginMode = "signin";
+  function setLoginMode(mode){
+    loginMode = mode;
+    const isSignup = mode === "signup";
+    $("confirmWrap").classList.toggle("hidden", !isSignup);
+    $("loginBtn").textContent = isSignup ? "Create account" : "Sign in";
+    $("loginHint").textContent = isSignup ? "Set up your login — you'll use this every time." : "Sign in to clock in and out.";
+    $("modeToggle").textContent = isSignup ? "Already have an account? Sign in" : "New here? Create an account";
+    $("loginErr").classList.add("hidden");
+  }
+  $("modeToggle").onclick = () => setLoginMode(loginMode === "signin" ? "signup" : "signin");
+
+  const AUTH_ERRORS = {
+    "auth/email-already-in-use": "That email already has an account — sign in instead.",
+    "auth/invalid-email": "That doesn't look like a valid email.",
+    "auth/weak-password": "Password must be at least 6 characters.",
+    "auth/user-not-found": "No account with that email.",
+    "auth/wrong-password": "Wrong password.",
+    "auth/invalid-credential": "Wrong email or password."
+  };
   async function doLogin(){
     const email = $("loginEmail").value.trim();
     const pass = $("loginPass").value;
     $("loginErr").classList.add("hidden");
     if (!email || !pass) return;
-    try { await auth.signInWithEmailAndPassword(email, pass); }
-    catch (e) {
-      $("loginErr").textContent = "Sign-in failed — check the email and password.";
+    try {
+      if (loginMode === "signup") {
+        if (pass.length < 6) throw new Error("Password must be at least 6 characters.");
+        if (pass !== $("loginPass2").value) throw new Error("Passwords don't match.");
+        await auth.createUserWithEmailAndPassword(email, pass);
+      } else {
+        await auth.signInWithEmailAndPassword(email, pass);
+      }
+    } catch (e) {
+      $("loginErr").textContent = AUTH_ERRORS[e.code] || e.message || "Something went wrong — try again.";
       $("loginErr").classList.remove("hidden");
     }
   }
