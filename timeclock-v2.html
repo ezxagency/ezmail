@@ -73,6 +73,15 @@ body{
   50%{box-shadow:0 8px 32px rgba(123,95,177,.4)}
 }
 .band[data-s="ACTIVE"] ~ .stage .clock-time{text-shadow:0 0 20px rgba(123,95,177,.3)}
+.band-signout{
+  position:absolute;top:calc(env(safe-area-inset-top) + 16px);right:18px;
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:#fff;
+  font-family:var(--cond);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  padding:6px 11px;border-radius:999px;cursor:pointer;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:background .15s ease;
+}
+.band-signout:hover{background:rgba(255,255,255,.28)}
 .band-state{
   display:block;font-family:var(--cond);font-weight:700;font-size:24px;
   letter-spacing:.04em;text-transform:uppercase;line-height:1.05;
@@ -387,6 +396,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,95,177,.28);o
   <header class="band" id="band" data-s="IDLE">
     <span class="band-state" id="bandState">Clocked out</span>
     <span class="band-meta" id="bandMeta">Not on shift</span>
+    <button type="button" class="band-signout hidden" id="bandSignOut">Sign out</button>
   </header>
 
   <main class="stage">
@@ -932,10 +942,8 @@ function showHistory(){
     <ul class="hist">${rows}</ul>
     <button class="btn" id="xl" ${S.history.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
-    ${FB_READY ? '<button class="btn btn-ghost btn-sm" id="so">Sign out</button>' : ""}
   `, () => {
     $("xl").onclick = exportExcel; $("dn").onclick = closeSheet;
-    if (FB_READY) $("so").onclick = () => auth.signOut();
   });
 }
 
@@ -1015,6 +1023,11 @@ async function startWorkerApp(){
   render();
   setInterval(tick, 1000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+
+  if (FB_READY) {
+    $("bandSignOut").classList.remove("hidden");
+    $("bandSignOut").onclick = () => auth.signOut();
+  }
 
   if (!S.worker) askName();
 }
@@ -1102,7 +1115,13 @@ if (!FB_READY){
   $("loginBtn").disabled = true;
 } else {
   auth.onAuthStateChanged(async (user) => {
-    if (!user) { screen("login"); return; }
+    if (!user) {
+      screen("login");
+      workerStarted = false;
+      S = { worker:"", status:"IDLE", shift:null, history:[], lastReport:null };
+      $("bandSignOut").classList.add("hidden");
+      return;
+    }
     try {
       const role = await resolveRole(user);
       if (role === "admin") { startAdmin(user.email); }
