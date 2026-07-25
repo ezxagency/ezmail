@@ -338,8 +338,12 @@ const dayStamp = ts => new Date(ts).toLocaleDateString(undefined,{day:"2-digit",
 
 function hms(ms){ const s = Math.max(0, Math.floor(ms/1000));
   return pad(Math.floor(s/3600)) + ":" + pad(Math.floor(s/60)%60) + ":" + pad(s%60); }
-function humanDur(ms){ const m = Math.max(0, Math.round(ms/60000));
-  return m < 60 ? m + "m" : Math.floor(m/60) + "h " + pad(m%60) + "m"; }
+function humanDur(ms){
+  const s = Math.max(0, Math.round(ms/1000));
+  if (s < 60) return s + "s";
+  const m = Math.round(s/60);
+  return m < 60 ? m + "m" : Math.floor(m/60) + "h " + pad(m%60) + "m";
+}
 
 const openSeg   = sh => (sh.segs || []).find(s => !s.endedAt);
 function taskClockMs(sh, now = Date.now()) {
