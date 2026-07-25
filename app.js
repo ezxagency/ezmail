@@ -218,11 +218,18 @@ function renderPunches(){
   if (ul.lastElementChild) ul.lastElementChild.classList.add("stamp-in");
 }
 
+function setRingTime(id, ms){
+  const s = hms(ms), i = s.lastIndexOf(":");
+  const el = $(id);
+  el.querySelector(".ring-main").textContent = s.slice(0, i);
+  el.querySelector(".ring-sec").textContent = s.slice(i + 1);
+}
+
 function tick(){
   const bar = $("shiftbar");
   if (S.status === "IDLE"){
-    $("shiftClock").textContent = "00:00:00";
-    $("taskClock").textContent = "00:00:00";
+    setRingTime("shiftClock", 0);
+    setRingTime("taskClock", 0);
     bar.innerHTML = "";
     return;
   }
@@ -231,8 +238,8 @@ function tick(){
   const shiftMs = netMs(sh, now);
   const taskMs = taskClockMs(sh, now);
 
-  $("shiftClock").textContent = hms(shiftMs);
-  $("taskClock").textContent = hms(taskMs);
+  setRingTime("shiftClock", shiftMs);
+  setRingTime("taskClock", taskMs);
 
   if (S.status === "ACTIVE"){
     bar.innerHTML = `<span>Task</span> <b>${humanDur(taskMs)}</b>`
@@ -522,7 +529,7 @@ function reportText(r){
   ].filter(x => x !== null).join("\n");
 }
 
-const CHART_COLORS = ["#7B2CBF", "#00F5D4", "#2D006B", "#9B4DDB", "#00C7AC", "#E4D6F5"];
+const CHART_COLORS = ["#00AE0B", "#C9A876", "#B5533C", "rgba(255,255,255,.75)", "rgba(255,255,255,.5)", "rgba(255,255,255,.3)"];
 const BREAK_COLOR = "#C7C2D1";
 
 function taskChartHTML(tally, breakMs){
