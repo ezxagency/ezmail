@@ -542,9 +542,17 @@ const segMs   = (s, now = Date.now()) => (s.endedAt || now) - s.startedAt;
 
 function taskTally(sh, now = Date.now()){
   const m = new Map();
-  (sh.segs||[]).forEach(s => m.set(s.task, (m.get(s.task)||0) + segMs(s, now)));
-  return [...m.entries()].sort((a,b) => b[1]-a[1]);
+  let store = sh.client;
+  (sh.segs||[]).forEach(s => {
+    if (s.client) store = s.client;
+    const key = store + " " + s.task;
+    const cur = m.get(key) || { store, task: s.task, ms: 0 };
+    cur.ms += segMs(s, now);
+    m.set(key, cur);
+  });
+  return [...m.values()].sort((a,b) => b.ms - a.ms);
 }
+const taskLabel = t => (t.store||"").toUpperCase() + " " + t.task.toUpperCase() + " WORK";
 
 /* ============================================================
    RENDER
@@ -835,7 +843,7 @@ async function resume(){
 function askWrapUp(){
   const sh = S.shift, now = Date.now();
   const tally = taskTally(sh, now)
-    .map(([t,ms]) => `<li><span>${esc(t)}</span><b>${humanDur(ms)}</b></li>`).join("");
+    .map(t => `<li><span>${esc(taskLabel(t))}</span><b>${humanDur(t.ms)}</b></li>`).join("");
 
   openSheet(`
     <h2>Wrap up</h2>
@@ -884,19 +892,34 @@ async function closeShift(note, rating){
 }
 
 /* ---------- Report + WhatsApp ---------- */
+function copyTextSync(text){
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.top = "-9999px";
+  ta.style.left = "-9999px";
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
 function reportText(r){
-  const tasks = taskTally(r, r.endedAt).map(([t,ms]) => `  · ${t} — ${humanDur(ms)}`).join("\n");
+  const tasks = taskTally(r, r.endedAt).map(t => `  · ${taskLabel(t)} — ${humanDur(t.ms)}`).join("\n");
   const brk = r.breaks.filter(b=>b.endedAt)
     .map(b => `  · ${b.reason} ${clock(b.startedAt)}–${clock(b.endedAt)} (${humanDur(b.endedAt-b.startedAt)})`).join("\n");
+  const lbl = s => (s + ":").padEnd(17);
 
   return [
     "SHIFT REPORT", dayStamp(r.startedAt), "",
-    "Worker: " + r.worker,
-    "Store:  " + r.client,
-    "In:     " + clock(r.startedAt),
-    "Out:    " + clock(r.endedAt),
-    "Net:    " + humanDur(r.netMs),
-    "Break:  " + (r.breakMs ? humanDur(r.breakMs) : "none"),
+    lbl("Team member") + r.worker,
+    lbl("Store") + r.client,
+    lbl("Clock In Time") + clock(r.startedAt),
+    lbl("Clock Out Time") + clock(r.endedAt),
+    lbl("Total worked") + humanDur(r.netMs),
+    lbl("Break") + (r.breakMs ? humanDur(r.breakMs) : "none"),
     brk || null, "",
     "TASKS", tasks, "",
     "Rating: " + r.rating + "/5", "",
@@ -914,14 +937,13 @@ function showReport(r){
     <button class="btn btn-ghost btn-sm" id="cp">Copy text</button>
     <button class="btn btn-ghost btn-sm" id="dn">Done</button>
   `, () => {
-    $("wa").onclick = async () => {
-      try { await navigator.clipboard.writeText(txt); toast("Copied — paste it in the group"); }
-      catch { toast("Opening group — paste the text above"); }
+    $("wa").onclick = () => {
+      const ok = copyTextSync(txt);
+      toast(ok ? "Copied — paste it in the group" : "Opening group — copy the text above first");
       window.open(CONFIG.whatsappGroupLink, "_blank");
     };
-    $("cp").onclick = async () => {
-      try { await navigator.clipboard.writeText(txt); toast("Copied"); }
-      catch { toast("Copy failed — select the text above"); }
+    $("cp").onclick = () => {
+      toast(copyTextSync(txt) ? "Copied" : "Copy failed — select the text above");
     };
     $("dn").onclick = closeSheet;
   });
@@ -954,27 +976,33 @@ function showHistory(){
 function exportExcel(){
   const shifts = S.history.map(r => ({
     "Date": dayStamp(r.startedAt),
-    "Worker": r.worker,
+    "Team Member": r.worker,
     "Store": r.client,
-    "Clock In": clock(r.startedAt),
-    "Clock Out": clock(r.endedAt),
+    "Clock In Time": clock(r.startedAt),
+    "Clock Out Time": clock(r.endedAt),
     "Break (min)": Math.round(r.breakMs/60000),
-    "Net Hours": +(r.netMs/3600000).toFixed(2),
+    "Total Worked (hrs)": +(r.netMs/3600000).toFixed(2),
     "Rating": r.rating,
     "Notes": r.note
   }));
 
   const detail = [];
-  S.history.forEach(r => (r.segs||[]).filter(s=>s.endedAt).forEach(s => detail.push({
-    "Date": dayStamp(r.startedAt),
-    "Worker": r.worker,
-    "Store": r.client,
-    "Task": s.task,
-    "Start": clock(s.startedAt),
-    "End": clock(s.endedAt),
-    "Minutes": Math.round(segMs(s)/60000),
-    "Hours": +(segMs(s)/3600000).toFixed(2)
-  })));
+  S.history.forEach(r => {
+    let store = r.client;
+    (r.segs||[]).filter(s=>s.endedAt).forEach(s => {
+      if (s.client) store = s.client;
+      detail.push({
+        "Date": dayStamp(r.startedAt),
+        "Team Member": r.worker,
+        "Store": store,
+        "Task": taskLabel({ store, task: s.task }),
+        "Start": clock(s.startedAt),
+        "End": clock(s.endedAt),
+        "Minutes": Math.round(segMs(s)/60000),
+        "Hours": +(segMs(s)/3600000).toFixed(2)
+      });
+    });
+  });
 
   const name = "shifts-" + new Date().toISOString().slice(0,10);
 
