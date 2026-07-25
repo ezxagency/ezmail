@@ -608,7 +608,37 @@ function showHistory(){
   });
 }
 
-function exportExcel(){
+// ---------- Excel helpers (ExcelJS - the free SheetJS build silently drops
+// cell styles/colors on write, confirmed by inspecting its output; ExcelJS
+// actually writes them) ----------
+function styleHeaderRow(ws, rowNum, numCols){
+  const row = ws.getRow(rowNum);
+  for (let c = 1; c <= numCols; c++){
+    const cell = row.getCell(c);
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } };
+  }
+}
+async function downloadWorkbook(wb, filename){
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function addTableSheet(wb, sheetName, rows, colWidths){
+  const ws = wb.addWorksheet(sheetName);
+  if (rows.length){
+    const headers = Object.keys(rows[0]);
+    ws.addRow(headers);
+    rows.forEach(r => ws.addRow(headers.map(h => r[h])));
+    styleHeaderRow(ws, 1, headers.length);
+  }
+  if (colWidths) ws.columns = colWidths.map(w => ({ width: w }));
+  return ws;
+}
+
+async function exportExcel(){
   const shifts = S.history.map(r => ({
     "Date": dayStamp(r.startedAt),
     "Team Member": r.worker,
@@ -641,15 +671,11 @@ function exportExcel(){
 
   const name = "shifts-" + new Date().toISOString().slice(0,10);
 
-  if (window.XLSX){
-    const wb = XLSX.utils.book_new();
-    const ws1 = XLSX.utils.json_to_sheet(shifts);
-    ws1["!cols"] = [{wch:14},{wch:16},{wch:16},{wch:9},{wch:10},{wch:11},{wch:10},{wch:7},{wch:48}];
-    const ws2 = XLSX.utils.json_to_sheet(detail);
-    ws2["!cols"] = [{wch:14},{wch:16},{wch:16},{wch:18},{wch:8},{wch:8},{wch:9},{wch:8}];
-    XLSX.utils.book_append_sheet(wb, ws1, "Shifts");
-    XLSX.utils.book_append_sheet(wb, ws2, "Task Detail");
-    XLSX.writeFile(wb, name + ".xlsx");
+  if (window.ExcelJS){
+    const wb = new ExcelJS.Workbook();
+    addTableSheet(wb, "Shifts", shifts, [14,16,16,9,10,11,10,7,48]);
+    addTableSheet(wb, "Task Detail", detail, [14,16,16,18,8,8,9,8]);
+    await downloadWorkbook(wb, name + ".xlsx");
     toast("Excel file downloaded");
     return;
   }
@@ -831,11 +857,16 @@ function safeSheetName(base, used){
   return final;
 }
 
-// Builds the array-of-arrays for one worker's Excel sheet: summary block,
-// TASK BREAKDOWN (with barify() bar chart), then SHIFT HISTORY. Shared by
-// exportAllExcel() (one sheet per worker) and viewWorker()'s single-worker
-// export so both paths produce the same polished layout.
-function buildWorkerSheetAOA(name, email, hist){
+// Standard column widths for a fillWorkerSheet() sheet — shared so both
+// export paths render identically.
+const WORKER_SHEET_COLS = [24,14,12,12,12,10,8,40];
+
+// Populates a worksheet with one member's Excel layout: summary block,
+// TASK BREAKDOWN (with a live-colored barify() bar chart), then SHIFT
+// HISTORY. Shared by exportAllExcel() (one sheet per member) and
+// exportWorkerExcel()'s single-member export so both paths produce the
+// same polished layout.
+function fillWorkerSheet(ws, name, email, hist){
   const totalMs = hist.reduce((t,r) => t + r.netMs, 0);
   const hrs = +(totalMs / 3600000).toFixed(2);
   const avgRating = hist.length ? hist.reduce((t,r) => t + r.rating, 0) / hist.length : 0;
@@ -858,93 +889,78 @@ function buildWorkerSheetAOA(name, email, hist){
   // sort explicitly so the sheet stays correct even if input order ever changes.
   const sortedHist = [...hist].sort((a,b) => b.startedAt - a.startedAt);
 
-  const aoa = [
-    [name],
-    [email],
-    [],
-    ["Shifts", "Total Hours", "Avg Rating"],
-    [hist.length, hrs, +avgRating.toFixed(1)],
-    [],
-    ["TASK BREAKDOWN"],
-    ["Store / Task", "Hours", "% of total", "Chart"]
-  ];
+  ws.addRow([name]).getCell(1).font = { bold: true, size: 14 };
+  ws.addRow([email]);
+  ws.addRow([]);
+  ws.addRow(["Shifts", "Total Hours", "Avg Rating"]);
+  ws.addRow([hist.length, hrs, +avgRating.toFixed(1)]);
+  ws.addRow([]);
+  ws.addRow(["TASK BREAKDOWN"]).getCell(1).font = { bold: true, size: 12 };
+  const taskHeader = ws.addRow(["Store / Task", "Hours", "% of total", "Chart"]);
+  styleHeaderRow(ws, taskHeader.number, 4);
   taskRows.forEach(t => {
     const th = +(t.ms / 3600000).toFixed(2);
     const pct = Math.round(t.ms / (totalMs || 1) * 100);
-    aoa.push([taskLabel(t), th, pct + "%", barify(t.ms, maxTaskMs)]);
+    const row = ws.addRow([taskLabel(t), th, pct + "%", barify(t.ms, maxTaskMs)]);
+    row.getCell(4).font = { color: { argb: "FF4A86E8" } };
   });
-  aoa.push([]);
-  aoa.push(["SHIFT HISTORY"]);
-  aoa.push(["Date", "Store", "In", "Out", "Break (min)", "Hours", "Rating", "Notes"]);
+  ws.addRow([]);
+  ws.addRow(["SHIFT HISTORY"]).getCell(1).font = { bold: true, size: 12 };
+  const histHeader = ws.addRow(["Date", "Store", "In", "Out", "Break (min)", "Hours", "Rating", "Notes"]);
+  styleHeaderRow(ws, histHeader.number, 8);
   sortedHist.forEach(shift => {
-    aoa.push([
+    ws.addRow([
       dayStamp(shift.startedAt), shift.client, clock(shift.startedAt), clock(shift.endedAt),
       Math.round(shift.breakMs / 60000), +(shift.netMs / 3600000).toFixed(2), shift.rating, shift.note
     ]);
   });
-  return aoa;
+
+  ws.columns = WORKER_SHEET_COLS.map(w => ({ width: w }));
 }
 
-// Standard column widths for a buildWorkerSheetAOA() sheet — shared so both
-// export paths render identically.
-const WORKER_SHEET_COLS = [{wch:24},{wch:14},{wch:12},{wch:12},{wch:12},{wch:10},{wch:8},{wch:40}];
-
 async function exportAllExcel(){
-  if (!window.XLSX) { toast("Excel export isn't available right now"); return; }
+  if (!window.ExcelJS) { toast("Excel export isn't available right now"); return; }
   toast("Building workbook…");
   let snap;
   try { snap = await db.collection("appState").get(); }
   catch (e) { console.error(e); toast("Couldn't load team data"); return; }
   if (snap.empty) { toast("No team member data yet"); return; }
 
-  const workers = [];
+  const members = [];
   snap.forEach(doc => {
     const data = doc.data();
     let s; try { s = JSON.parse(data.json); } catch { s = null; }
-    if (s) workers.push({ email: data.email || "", s });
+    if (s) members.push({ email: data.email || "", s });
   });
-  if (!workers.length) { toast("No team member data yet"); return; }
+  if (!members.length) { toast("No team member data yet"); return; }
 
-  const rows = workers.map(w => {
+  const rows = members.map(w => {
     const hist = w.s.history || [];
     const totalMs = hist.reduce((t,r) => t + r.netMs, 0);
     const avgRating = hist.length ? hist.reduce((t,r) => t + r.rating, 0) / hist.length : 0;
     return { name: w.s.worker || w.email || "Unnamed", email: w.email, hist, totalMs, avgRating };
   }).sort((a,b) => b.totalMs - a.totalMs);
 
-  const wb = XLSX.utils.book_new();
-  const wsOv = buildOverviewSheet(rows);
-  XLSX.utils.book_append_sheet(wb, wsOv, "Team Overview");
+  const wb = new ExcelJS.Workbook();
+  fillOverviewSheet(wb.addWorksheet("Team Overview"), rows);
 
   const used = new Set(["team overview"]);
   rows.forEach(r => {
-    const sheetTitle = safeSheetName(r.name, used);
-    const aoa = buildWorkerSheetAOA(r.name, r.email, r.hist);
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = WORKER_SHEET_COLS;
-    XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
+    const ws = wb.addWorksheet(safeSheetName(r.name, used));
+    fillWorkerSheet(ws, r.name, r.email, r.hist);
   });
 
-  XLSX.writeFile(wb, "team-report-" + new Date().toISOString().slice(0,10) + ".xlsx", { cellStyles: true });
+  await downloadWorkbook(wb, "team-report-" + new Date().toISOString().slice(0,10) + ".xlsx");
   toast("Team report downloaded");
 }
 
-// Builds the "Team Overview" sheet with live spreadsheet formulas (not
-// pre-computed values) for everything derived from the raw per-member
-// numbers, so editing Shifts/Total Hours/Avg Rating recalculates the rest -
-// Hrs/Shift, % of Team Hours, the text-bar chart, the totals row, and the
-// Shift Performance Analysis section all update automatically.
-//
-// Native conditional formatting (a red-to-green color scale on Avg Rating,
-// real Excel "data bars") is NOT included - the free SheetJS build used
-// here can't reliably write conditional-formatting rules, so faking a
-// static snapshot color would be misleading. The Hours column instead uses
-// a REPT()-formula text bar, which genuinely does recalculate live.
 // Static red(1)->yellow(3)->green(5) fill color for a rating value, baked
 // in at export time. Not a live conditional-formatting rule - if the cell
-// value is hand-edited afterward, the color won't follow it. That's a real
-// limitation of writing .xlsx from the free SheetJS build; this is the
-// closest honest approximation of the reference design.
+// value is hand-edited afterward, the color won't follow it (real
+// conditional-formatting rules aren't something we generate). Everything
+// else derived from the raw numbers (Hrs/Shift, % of Team Hours, the bar
+// chart, totals, and the whole Shift Performance Analysis section) is a
+// genuine live spreadsheet formula that recalculates on edit.
 function ratingColorHex(rating){
   const t = Math.max(0, Math.min(1, (Math.max(1, Math.min(5, rating)) - 1) / 4));
   const stops = t < 0.5
@@ -953,78 +969,74 @@ function ratingColorHex(rating){
   const [from, to, k] = stops;
   const mix = (a,b) => Math.round(a + (b-a)*k);
   const rgb = [mix(from[0],to[0]), mix(from[1],to[1]), mix(from[2],to[2])];
-  return rgb.map(v => v.toString(16).padStart(2,"0")).join("").toUpperCase();
+  return "FF" + rgb.map(v => v.toString(16).padStart(2,"0")).join("").toUpperCase();
 }
 
-function buildOverviewSheet(rows){
+function fillOverviewSheet(ws, rows){
   const n = rows.length;
   const firstRow = 5;
   const lastRow = 4 + n;
   const totalRow = 5 + n;
   const col = c => `${c}${firstRow}:${c}${lastRow}`;
 
-  const aoa = [
-    ["Team Overview"],
-    ["Generated " + new Date().toLocaleString()],
-    [],
-    ["Team Member", "Email", "Shifts", "Total Hours", "Hrs / Shift", "Avg Rating", "% of Team Hours", "Hours"]
-  ];
+  ws.addRow(["Team Overview"]).getCell(1).font = { bold: true, size: 14 };
+  ws.addRow(["Generated " + new Date().toLocaleString()]);
+  ws.addRow([]);
+  const header = ws.addRow(["Team Member", "Email", "Shifts", "Total Hours", "Hrs / Shift", "Avg Rating", "% of Team Hours", "Hours"]);
+  styleHeaderRow(ws, header.number, 8);
+
   rows.forEach(r => {
-    aoa.push([r.name, r.email, r.hist.length, +(r.totalMs / 3600000).toFixed(2), null, +r.avgRating.toFixed(2), null, null]);
+    const row = ws.addRow([r.name, r.email, r.hist.length, +(r.totalMs / 3600000).toFixed(2), null, +r.avgRating.toFixed(2), null, null]);
+    const rn = row.number;
+    row.getCell(5).value = { formula: `IF(C${rn}=0,0,D${rn}/C${rn})` };
+    row.getCell(5).numFmt = "0.00";
+    row.getCell(7).value = { formula: `IF($D$${totalRow}=0,0,D${rn}/$D$${totalRow})` };
+    row.getCell(7).numFmt = "0.0%";
+    row.getCell(8).value = { formula: `REPT("▐",ROUND(D${rn}/MAX($D$${firstRow}:$D$${lastRow})*24,0))` };
+    row.getCell(8).font = { color: { argb: "FF4A86E8" } };
+    row.getCell(6).font = { bold: true };
+    row.getCell(6).fill = { type: "pattern", pattern: "solid", fgColor: { argb: ratingColorHex(r.avgRating) } };
   });
-  aoa.push(["Team Total / Avg", "", null, null, null, null, null, ""]);
-  aoa.push([]);
-  aoa.push(["Shift Performance Analysis"]);
-  aoa.push(["Team avg hours per shift", null, "Total hours / total shifts"]);
-  aoa.push(["Weighted avg rating per shift", null, "Rating weighted by shift count, not a simple average"]);
-  aoa.push(["Most efficient (hrs/shift)", null, null]);
-  aoa.push(["Highest avg rating", null, null]);
-  aoa.push(["Biggest workload share", null, null]);
-  aoa.push([]);
-  aoa.push(["Edit columns A-D and F only. Hrs/Shift, % of Team Hours, the bar chart, and every total below recalculate automatically."]);
-  aoa.push(["Bars scale to the highest Total Hours. Data as provided by the app on " + dayStamp(Date.now()) + "."]);
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const setNum = (addr, formula, numFmt) => {
-    ws[addr] = { t: "n", v: 0, f: formula };
-    if (numFmt) ws[addr].z = numFmt;
-  };
-  const setStr = (addr, formula) => { ws[addr] = { t: "str", v: "", f: formula }; };
+  const totalRowObj = ws.addRow(["Team Total / Avg", "", null, null, null, null, null, ""]);
+  totalRowObj.getCell(1).font = { bold: true };
+  totalRowObj.getCell(3).value = { formula: `SUM(${col("C")})` };
+  totalRowObj.getCell(4).value = { formula: `SUM(${col("D")})` };
+  totalRowObj.getCell(4).numFmt = "0.00";
+  totalRowObj.getCell(5).value = { formula: `IF(C${totalRow}=0,0,D${totalRow}/C${totalRow})` };
+  totalRowObj.getCell(5).numFmt = "0.00";
+  totalRowObj.getCell(6).value = { formula: `IF(SUM(${col("C")})=0,0,SUMPRODUCT(${col("F")},${col("C")})/SUM(${col("C")}))` };
+  totalRowObj.getCell(6).numFmt = "0.0";
+  totalRowObj.getCell(7).value = { formula: `SUM(${col("G")})` };
+  totalRowObj.getCell(7).numFmt = "0.0%";
+  for (let c = 1; c <= 8; c++) totalRowObj.getCell(c).border = { top: { style: "thin" } };
 
-  for (let i = 0; i < n; i++){
-    const row = firstRow + i;
-    setNum(`E${row}`, `IF(C${row}=0,0,D${row}/C${row})`, "0.00");
-    setNum(`G${row}`, `IF($D$${totalRow}=0,0,D${row}/$D$${totalRow})`, "0.0%");
-    setStr(`H${row}`, `REPT("▐",ROUND(D${row}/MAX($D$${firstRow}:$D$${lastRow})*24,0))`);
-    ws[`H${row}`].s = { font: { color: { rgb: "4A86E8" } } };
-    ws[`F${row}`].s = { font: { bold: true }, fill: { patternType: "solid", fgColor: { rgb: ratingColorHex(rows[i].avgRating) } } };
-  }
+  ws.addRow([]);
+  ws.addRow(["Shift Performance Analysis"]).getCell(1).font = { bold: true };
 
-  setNum(`C${totalRow}`, `SUM(${col("C")})`);
-  setNum(`D${totalRow}`, `SUM(${col("D")})`, "0.00");
-  setNum(`E${totalRow}`, `IF(C${totalRow}=0,0,D${totalRow}/C${totalRow})`, "0.00");
-  setNum(`F${totalRow}`, `IF(SUM(${col("C")})=0,0,SUMPRODUCT(${col("F")},${col("C")})/SUM(${col("C")}))`, "0.0");
-  setNum(`G${totalRow}`, `SUM(${col("G")})`, "0.0%");
+  const r1 = ws.addRow(["Team avg hours per shift", null, "Total hours / total shifts"]);
+  r1.getCell(2).value = { formula: `E${totalRow}` }; r1.getCell(2).numFmt = "0.00";
 
-  setNum(`B${totalRow + 3}`, `E${totalRow}`, "0.00");
-  setNum(`B${totalRow + 4}`, `F${totalRow}`, "0.0");
-  setStr(`B${totalRow + 5}`, `INDEX(${col("A")},MATCH(MAX(${col("E")}),${col("E")},0))`);
-  setNum(`C${totalRow + 5}`, `MAX(${col("E")})`, "0.00");
-  setStr(`B${totalRow + 6}`, `INDEX(${col("A")},MATCH(MAX(${col("F")}),${col("F")},0))`);
-  setNum(`C${totalRow + 6}`, `MAX(${col("F")})`, "0.0");
-  setStr(`B${totalRow + 7}`, `INDEX(${col("A")},MATCH(MAX(${col("G")}),${col("G")},0))`);
-  setNum(`C${totalRow + 7}`, `MAX(${col("G")})`, "0.0%");
+  const r2 = ws.addRow(["Weighted avg rating per shift", null, "Rating weighted by shift count, not a simple average"]);
+  r2.getCell(2).value = { formula: `F${totalRow}` }; r2.getCell(2).numFmt = "0.0";
 
-  const headerAddrs = ["A4","B4","C4","D4","E4","F4","G4","H4"];
-  headerAddrs.forEach(a => {
-    if (ws[a]) ws[a].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "1F2937" } } };
-  });
-  if (ws.A1) ws.A1.s = { font: { bold: true, sz: 14 } };
-  if (ws[`A${totalRow}`]) ws[`A${totalRow}`].s = { font: { bold: true }, border: { top: { style: "thin", color: { rgb: "1F2937" } } } };
-  if (ws[`A${totalRow + 2}`]) ws[`A${totalRow + 2}`].s = { font: { bold: true } };
+  const r3 = ws.addRow(["Most efficient (hrs/shift)"]);
+  r3.getCell(2).value = { formula: `INDEX(${col("A")},MATCH(MAX(${col("E")}),${col("E")},0))` };
+  r3.getCell(3).value = { formula: `MAX(${col("E")})` }; r3.getCell(3).numFmt = "0.00";
 
-  ws["!cols"] = [{wch:22},{wch:26},{wch:9},{wch:12},{wch:11},{wch:11},{wch:15},{wch:26}];
-  return ws;
+  const r4 = ws.addRow(["Highest avg rating"]);
+  r4.getCell(2).value = { formula: `INDEX(${col("A")},MATCH(MAX(${col("F")}),${col("F")},0))` };
+  r4.getCell(3).value = { formula: `MAX(${col("F")})` }; r4.getCell(3).numFmt = "0.0";
+
+  const r5 = ws.addRow(["Biggest workload share"]);
+  r5.getCell(2).value = { formula: `INDEX(${col("A")},MATCH(MAX(${col("G")}),${col("G")},0))` };
+  r5.getCell(3).value = { formula: `MAX(${col("G")})` }; r5.getCell(3).numFmt = "0.0%";
+
+  ws.addRow([]);
+  ws.addRow(["Edit columns A-D and F only. Hrs/Shift, % of Team Hours, the bar chart, and every total below recalculate automatically."]);
+  ws.addRow(["Bars scale to the highest Total Hours. Data as provided by the app on " + dayStamp(Date.now()) + "."]);
+
+  ws.columns = [22,26,9,12,11,11,15,26].map(w => ({ width: w }));
 }
 
 function viewWorker(data, s, uid){
@@ -1072,18 +1084,16 @@ async function deleteWorker(uid, name){
 // Excel" button. Produces one polished sheet (same summary/task-breakdown/
 // history layout as exportAllExcel()'s per-worker sheets) instead of the
 // flat two-sheet dump exportExcel() makes for a worker's own self-export.
-function exportWorkerExcel(name, email, hist){
-  if (!window.XLSX) { toast("Excel export isn't available right now"); return; }
+async function exportWorkerExcel(name, email, hist){
+  if (!window.ExcelJS) { toast("Excel export isn't available right now"); return; }
   if (!hist.length) return;
 
-  const aoa = buildWorkerSheetAOA(name, email, hist);
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = WORKER_SHEET_COLS;
-  XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name, new Set()));
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(safeSheetName(name, new Set()));
+  fillWorkerSheet(ws, name, email, hist);
 
   const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "member";
-  XLSX.writeFile(wb, "shift-report-" + slug + "-" + new Date().toISOString().slice(0,10) + ".xlsx");
+  await downloadWorkbook(wb, "shift-report-" + slug + "-" + new Date().toISOString().slice(0,10) + ".xlsx");
   toast("Excel file downloaded");
 }
 
