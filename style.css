@@ -93,6 +93,7 @@ body{
 @media (max-width:360px){ .clock-time{font-size:25px} }
 @media (max-width:320px){ .clock-time{font-size:21px} }
 .clock-meta{margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
+.clock-meta.is-ready{color:#E8963C}
 .shiftbar{
   display:flex;justify-content:center;gap:10px;align-items:baseline;
   margin-top:0;padding-top:12px;border-top:1px solid var(--edge);
@@ -142,15 +143,39 @@ body{
 .punch-n{color:var(--ink-soft);flex:1;text-align:right;font-size:12px}
 .stamp-in{animation:stamp .22s cubic-bezier(.2,.9,.3,1.4)}
 @keyframes stamp{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
-.empty{padding:28px 4px 30px;color:var(--ink-soft);font-size:14px;line-height:1.6}
+.empty{padding:34px 4px 36px;color:var(--ink-soft);font-size:14px;line-height:1.6;text-align:center}
+.empty-icon{
+  display:flex;align-items:center;justify-content:center;margin:0 auto 14px;
+  width:56px;height:56px;border-radius:50%;background:rgba(228,214,245,.6);color:var(--ink-soft);
+}
+.empty-icon svg{width:26px;height:26px}
 
 /* ---------- dock ---------- */
 .dock{
-  padding:12px 16px calc(env(safe-area-inset-bottom) + 16px);display:flex;flex-direction:column;gap:12px;
-  min-height:clamp(132px,30vh,170px);justify-content:flex-end;border-top:1px solid rgba(255,255,255,.5);
+  padding:12px 16px 12px;display:flex;flex-direction:column;gap:12px;
+  min-height:clamp(112px,26vh,150px);justify-content:flex-end;border-top:1px solid rgba(255,255,255,.5);
   background:rgba(255,255,255,.4);
   backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
 }
+.btn-icon{display:inline-flex;vertical-align:-3px;margin-right:8px}
+.btn-icon svg{width:18px;height:18px}
+
+/* ---------- bottom nav ---------- */
+.bottom-nav{
+  display:flex;justify-content:space-around;align-items:center;
+  padding:8px 12px calc(env(safe-area-inset-bottom) + 8px);
+  border-top:1px solid rgba(255,255,255,.5);
+  background:rgba(255,255,255,.55);
+  backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
+}
+.nav-btn{
+  border:0;background:none;cursor:pointer;color:var(--ink-soft);
+  display:flex;align-items:center;justify-content:center;
+  width:44px;height:44px;border-radius:50%;transition:background .15s ease,color .15s ease;
+}
+.nav-btn svg{width:22px;height:22px}
+.nav-btn:hover{color:var(--ink)}
+.nav-btn.active{background:#00F5D4;color:var(--ink)}
 .btn{
   width:100%;border:0;border-radius:14px;padding:18px 16px;position:relative;overflow:hidden;
   font-family:var(--cond);font-weight:700;font-size:17px;
@@ -291,12 +316,13 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,44,191,.28);o
   .app{
     display:grid;
     grid-template-columns:340px 1fr;
-    grid-template-rows:auto auto auto auto;
+    grid-template-rows:auto auto auto auto auto;
     grid-template-areas:
       "band band"
       "clock card"
       "shiftbar card"
-      "dock card";
+      "dock card"
+      "nav card";
     column-gap:28px;row-gap:0;
     width:min(94vw,880px);max-width:880px;
     max-height:min(90vh,720px);
@@ -314,7 +340,8 @@ input:focus,select:focus,textarea:focus{outline:3px solid rgba(123,44,191,.28);o
   .clock-time{font-size:24px}
   .shiftbar{grid-area:shiftbar;padding:0 24px 20px}
   .card{grid-area:card;flex:none;height:auto;margin:22px 24px 22px 0;overflow-y:auto}
-  .dock{grid-area:dock;min-height:auto;padding:0 24px 26px}
+  .dock{grid-area:dock;min-height:auto;padding:0 24px 18px}
+  .bottom-nav{grid-area:nav;padding:10px 24px calc(env(safe-area-inset-bottom) + 10px)}
 
   .grab{display:none}
   .sheet{

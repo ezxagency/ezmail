@@ -131,10 +131,12 @@ function render(){
   const st = S.status;
   $("band").dataset.s = st;
 
+  $("shiftMeta").classList.remove("is-ready");
   if (st === "IDLE"){
     $("bandState").textContent = "Clocked out";
     $("bandMeta").textContent  = S.worker ? S.worker.toUpperCase() : "Not on shift";
     $("shiftMeta").textContent = "Ready";
+    $("shiftMeta").classList.add("is-ready");
     $("taskMeta").textContent = "Idle";
   } else if (st === "ACTIVE"){
     const seg = openSeg(S.shift);
@@ -155,24 +157,33 @@ function render(){
   tick();
 }
 
+const DOCK_ICONS = {
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>',
+  switch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>'
+};
+
 function renderDock(){
   const d = $("dock"); d.innerHTML = "";
-  const mk = (label, cls, fn) => {
+  const mk = (label, cls, fn, icon) => {
     const b = document.createElement("button");
-    b.className = "btn " + cls; b.textContent = label; b.onclick = fn; return b;
+    b.className = "btn " + cls;
+    b.innerHTML = (icon ? `<span class="btn-icon">${DOCK_ICONS[icon]}</span>` : "") + esc(label);
+    b.onclick = fn; return b;
   };
 
   if (S.status === "IDLE"){
-    d.append(mk("Clock in", "btn-go", askClockIn));
+    d.append(mk("Clock in", "btn-go", askClockIn, "clock"));
   } else if (S.status === "ACTIVE"){
-    d.append(mk("Switch task", "", askSwitch));
+    d.append(mk("Switch task", "", askSwitch, "switch"));
     const row = document.createElement("div"); row.className = "row";
-    row.append(mk("Pause", "btn-break btn-sm", askPause), mk("Clock out", "btn-ghost btn-sm", askWrapUp));
+    row.append(mk("Pause", "btn-break btn-sm", askPause, "pause"), mk("Clock out", "btn-ghost btn-sm", askWrapUp, "stop"));
     d.append(row);
   } else {
     const last = [...(S.shift.segs||[])].pop();
-    d.append(mk("Resume · " + (last ? last.task : "work"), "btn-go", resume));
-    d.append(mk("Clock out", "btn-ghost btn-sm", askWrapUp));
+    d.append(mk("Resume · " + (last ? last.task : "work"), "btn-go", resume, "clock"));
+    d.append(mk("Clock out", "btn-ghost btn-sm", askWrapUp, "stop"));
   }
 }
 
@@ -659,6 +670,39 @@ function exportExcel(){
 }
 
 $("btnHistory").onclick = showHistory;
+
+function showProfile(){
+  const email = (auth && auth.currentUser && auth.currentUser.email) || "";
+  openSheet(`
+    <h2>Profile</h2>
+    <label class="fld"><span>Name</span>
+      <input type="text" id="profName" value="${esc(S.worker||"")}" placeholder="Your name"></label>
+    <p class="hint">${esc(email)}</p>
+    <button class="btn btn-go" id="profSave">Save name</button>
+    <button class="btn btn-ghost btn-sm" id="profSignOut">Sign out</button>
+    <button class="btn btn-ghost btn-sm" id="profClose">Close</button>
+  `, () => {
+    $("profSave").onclick = async () => {
+      const v = $("profName").value.trim();
+      if (v.length < 2) return;
+      S.worker = v; await save(); render();
+      closeSheet(); toast("Name updated");
+    };
+    $("profSignOut").onclick = () => auth.signOut();
+    $("profClose").onclick = closeSheet;
+  });
+}
+
+function setActiveNav(id){
+  ["navDashboard","navCard","navHistory","navProfile"].forEach(n => $(n).classList.toggle("active", n === id));
+}
+$("navDashboard").onclick = () => setActiveNav("navDashboard");
+$("navCard").onclick = () => {
+  setActiveNav("navCard");
+  document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
+};
+$("navHistory").onclick = () => { setActiveNav("navHistory"); showHistory(); };
+$("navProfile").onclick = () => { setActiveNav("navProfile"); showProfile(); };
 
 /* ============================================================
    WORKER APP BOOT (called once, after login as a worker)
