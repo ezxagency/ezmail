@@ -1073,16 +1073,29 @@ async function startWorkerApp(){
   if (S.status === "ACTIVE"   && S.shift && !openSeg(S.shift))   S.status = "IDLE";
   if (S.status === "ON_BREAK" && S.shift && !openBreak(S.shift)) S.status = "ACTIVE";
 
+  // a shift left open across a shutdown/long gap would otherwise keep
+  // silently accruing real elapsed time forever - flag it instead
+  const STALE_SHIFT_MS = 16 * 3600000;
+  const staleShift = S.status !== "IDLE" && S.shift && (Date.now() - S.shift.startedAt) > STALE_SHIFT_MS;
+
   render();
   setInterval(tick, 1000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+  const wake = () => { if (!document.hidden) tick(); };
+  document.addEventListener("visibilitychange", wake);
+  window.addEventListener("focus", wake);
+  window.addEventListener("pageshow", wake);
 
   if (FB_READY) {
     $("bandSignOut").classList.remove("hidden");
     $("bandSignOut").onclick = () => auth.signOut();
   }
 
-  if (!S.worker) askName();
+  if (staleShift) {
+    toast("Shift left open a long time — please review and close it");
+    askWrapUp();
+  } else if (!S.worker) {
+    askName();
+  }
 }
 
 /* ============================================================
