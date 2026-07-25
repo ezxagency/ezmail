@@ -174,18 +174,19 @@ body{
   width:100%;border:0;border-radius:14px;padding:18px 16px;position:relative;overflow:hidden;
   font-family:var(--cond);font-weight:700;font-size:17px;
   letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
-  background:var(--ink);color:#fff;transition:transform .12s ease,opacity .15s ease,background .2s ease,box-shadow .2s ease;
+  background:linear-gradient(135deg, #312647, #191323);color:#fff;
+  transition:transform .12s ease,opacity .15s ease,background .2s ease,box-shadow .2s ease;
 }
 .btn:active{transform:scale(.984)}
 .btn:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
-.btn-go{background:var(--active);box-shadow:0 12px 22px rgba(123,95,177,.3)}
+.btn-go{background:linear-gradient(135deg, #957fc1, #7b5fb1 55%, #624c8e);box-shadow:0 12px 22px rgba(123,95,177,.3)}
 .btn-go::after{
   content:"";position:absolute;top:0;left:-60%;width:35%;height:100%;
   background:linear-gradient(120deg, transparent, rgba(255,255,255,.4), transparent);
   transform:skewX(-20deg);animation:shine 3.4s ease-in-out infinite;
 }
 @keyframes shine{0%,10%{left:-60%}55%,100%{left:130%}}
-.btn-break{background:var(--break);box-shadow:0 12px 22px rgba(74,57,106,.3)}
+.btn-break{background:linear-gradient(135deg, #624c8e, #4a396a);box-shadow:0 12px 22px rgba(74,57,106,.3)}
 .btn-ghost{
   background:rgba(255,255,255,.4);color:var(--ink);border:1.5px solid rgba(255,255,255,.6);
   backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);
