@@ -28,11 +28,21 @@
   </div>
 </div>
 
+<div id="pendingScreen" class="login-wrap hidden">
+  <div class="login-card">
+    <img class="brand-logo" src="logo.png" alt="Ez Agency">
+    <h1>Almost there</h1>
+    <p class="hint">Your account is created but needs admin approval before you can clock in. Check back shortly, or ask your admin to approve it.</p>
+    <button class="btn btn-ghost btn-sm" id="pendingSignOut">Sign out</button>
+  </div>
+</div>
+
 <div id="adminScreen" class="admin-wrap hidden">
   <header class="admin-head">
     <div class="admin-brand"><img class="brand-logo brand-logo-sm" src="logo.png" alt="Ez Agency"><div><span class="admin-title">Team dashboard</span><span class="admin-sub" id="adminSub"></span></div></div>
     <button class="btn btn-ghost btn-sm" id="adminLogout" style="width:auto">Sign out</button>
   </header>
+  <ul class="admin-list" id="adminPending"></ul>
   <ul class="admin-list" id="adminList"></ul>
 </div>
 
