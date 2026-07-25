@@ -135,71 +135,26 @@ function render(){
   if (st === "IDLE"){
     $("bandState").textContent = "Clocked out";
     $("bandMeta").textContent  = S.worker ? S.worker.toUpperCase() : "Not on shift";
-    $("shiftMeta").textContent = "System Standby";
+    $("shiftMeta").textContent = "Ready";
     $("shiftMeta").classList.add("is-ready");
     $("taskMeta").textContent = "Idle";
-    $("dhEyebrow").textContent = "SYSTEM STANDBY";
-    $("dhStore").textContent = S.worker ? S.worker.toUpperCase().replace(/\s+/g,"_") + ".SYS" : "NO WORKER PROFILE";
-    $("dhStatusText").textContent = "IDLE";
-    $("dhDot").style.background = "var(--idle)";
   } else if (st === "ACTIVE"){
     const seg = openSeg(S.shift);
     $("bandState").textContent = "Clocked in";
     $("bandMeta").textContent  = currentStore(S.shift).toUpperCase();
     $("shiftMeta").textContent = "Net working";
     $("taskMeta").textContent = seg ? seg.task : "Current task";
-    $("dhEyebrow").textContent = "CURRENT ACTIVE SHIFT";
-    $("dhStore").textContent = currentStore(S.shift).toUpperCase();
-    $("dhStatusText").textContent = "ACTIVE";
-    $("dhDot").style.background = "var(--active)";
   } else {
     const b = openBreak(S.shift);
     $("bandState").textContent = "On break";
     $("bandMeta").textContent  = (b.reason||"Break").toUpperCase() + " · " + currentStore(S.shift).toUpperCase();
     $("shiftMeta").textContent = "Net working";
     $("taskMeta").textContent = "Paused";
-    $("dhEyebrow").textContent = "SHIFT PAUSED";
-    $("dhStore").textContent = currentStore(S.shift).toUpperCase();
-    $("dhStatusText").textContent = "ON BREAK";
-    $("dhDot").style.background = "var(--break)";
   }
 
   renderDock();
   renderPunches();
-  renderDashboard();
   tick();
-}
-
-function renderDashboard(){
-  const todayKey = dayStamp(Date.now());
-  let tasks = 0, breakMsToday = 0;
-  (S.history||[]).filter(r => dayStamp(r.startedAt) === todayKey).forEach(r => {
-    tasks += (r.segs||[]).length;
-    breakMsToday += r.breakMs || 0;
-  });
-  if (S.shift && S.status !== "IDLE" && dayStamp(S.shift.startedAt) === todayKey){
-    tasks += (S.shift.segs||[]).length;
-    breakMsToday += breakMs(S.shift);
-  }
-  $("statTasksToday").textContent = tasks;
-  $("statBreakToday").textContent = breakMsToday ? humanDur(breakMsToday) : "0m";
-
-  const tbody = $("dashHistBody");
-  tbody.innerHTML = "";
-  (S.history||[]).slice(0, 20).forEach(r => {
-    const tally = taskTally(r, r.endedAt);
-    const pills = tally.map(t => `<span class="dash-pill">${esc(t.task)}</span>`).join("");
-    const stars = [1,2,3,4,5].map(n => `<span class="${n<=r.rating?"":"off"}">★</span>`).join("");
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${dayStamp(r.startedAt)}</td>
-      <td>${esc(r.client)}</td>
-      <td>${pills}</td>
-      <td>${humanDur(r.netMs)}</td>
-      <td class="dash-stars">${stars}</td>
-    `;
-    tbody.append(tr);
-  });
 }
 
 const DOCK_ICONS = {
@@ -268,7 +223,6 @@ function tick(){
   if (S.status === "IDLE"){
     $("shiftClock").textContent = "00:00:00";
     $("taskClock").textContent = "00:00:00";
-    $("statCurrentBreak").textContent = "00:00";
     bar.innerHTML = "";
     return;
   }
@@ -283,11 +237,8 @@ function tick(){
   if (S.status === "ACTIVE"){
     bar.innerHTML = `<span>Task</span> <b>${humanDur(taskMs)}</b>`
       + (breakMs(sh, now) ? ` <span>· break ${humanDur(breakMs(sh, now))}</span>` : "");
-    $("statCurrentBreak").textContent = "00:00";
   } else {
     bar.innerHTML = `<span>Shift</span> <b>${humanDur(shiftMs)}</b> <span>· paused</span>`;
-    const b = openBreak(sh);
-    $("statCurrentBreak").textContent = b ? hms(now - b.startedAt).slice(0,5) : "00:00";
   }
 }
 
@@ -386,9 +337,9 @@ function askSwitch(){
   const cur = seg.task;
   const curStore = currentStore(S.shift);
   openSheet(`
-    <h2>Switch Task</h2>
-    <p class="hint">Select a new operational protocol to initiate. Currently running <b>${esc(cur)}</b> for ${humanDur(segMs(seg))} at <b>${esc(curStore)}</b>.</p>
-    <label class="fld"><span>New protocol <b class="req">*</b></span></label>
+    <h2>Switch task</h2>
+    <p class="hint">Still on the clock — this only splits your time. Currently on <b>${esc(cur)}</b> for ${humanDur(segMs(seg))} at <b>${esc(curStore)}</b>.</p>
+    <label class="fld"><span>New task <b class="req">*</b></span></label>
     <div class="chips">${chipGroup(CONFIG.tasks, true)}</div>
     <label class="fld" id="tkOtherWrap" style="display:none"><span>Task name <b class="req">*</b></span>
       <input type="text" id="tkOther" placeholder="Short name"></label>
@@ -396,7 +347,7 @@ function askSwitch(){
     <label class="fld"><span>Store <span style="text-transform:none;font-weight:600;color:var(--ink-soft)">— optional, leave blank to stay at ${esc(curStore)}</span></span>
       <input type="text" id="cl" autocomplete="organization" placeholder="Enter store name"></label>
 
-    <button class="btn" id="ok" disabled>Confirm Switch</button>
+    <button class="btn" id="ok" disabled>Switch</button>
     <button class="btn btn-ghost btn-sm" id="cancel">Back</button>
   `, () => {
     let task = "";
@@ -470,37 +421,22 @@ async function resume(){
 }
 
 /* ---------- Clock out (wrap-up + rating, both mandatory) ---------- */
-function shiftRefCode(ts){
-  const n = ts % 10000;
-  const letter = String.fromCharCode(65 + (Math.floor(ts / 10000) % 26));
-  return String(n).padStart(4,"0") + "-" + letter;
-}
-
 function askWrapUp(){
   const sh = S.shift, now = Date.now();
   const tally = taskTally(sh, now)
     .map(t => `<li><span>${esc(taskLabel(t))}</span><b>${humanDur(t.ms)}</b></li>`).join("");
-  const ref = shiftRefCode(sh.startedAt);
 
   openSheet(`
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
-        <h2 style="margin-bottom:2px">Wrap Up</h2>
-        <p class="hint" style="margin-bottom:0">Reviewing active shift ${ref}</p>
-      </div>
-      <div style="text-align:right;flex:none">
-        <div style="font-family:var(--mono);font-weight:700;font-size:20px;color:var(--active)">${hms(netMs(sh, now))}</div>
-        <div style="font-family:var(--cond);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Total Elapsed</div>
-      </div>
-    </div>
-    <label class="fld" style="margin-top:18px"><span>Task Tally</span></label>
+    <h2>Wrap up</h2>
+    <p class="hint">Your task clocks for this shift:</p>
     <ul class="tally">${tally}</ul>
-    <label class="fld"><span>Shift Notes <b class="req">*</b></span>
-      <textarea id="note" placeholder="Enter additional details or discrepancies..."></textarea></label>
-    <label class="fld"><span>Shift Performance Rating <b class="req">*</b></span></label>
+    <label class="fld"><span>Anything to add? <b class="req">*</b></span>
+      <textarea id="note" placeholder="Anything left open, anything blocking you."></textarea></label>
+    <label class="fld"><span>Rate your day <b class="req">*</b></span></label>
     <div class="stars">${[1,2,3,4,5].map(n=>`<button type="button" class="star" data-n="${n}" aria-pressed="false">${n}</button>`).join("")}</div>
-    <button class="btn btn-go" id="ok" disabled>Close Shift</button>
-    <button class="link" id="cancel" style="display:block;margin:14px auto 0;text-align:center">Return to Dashboard</button>
+    <p class="hint">1 = rough day · 5 = everything clicked</p>
+    <button class="btn btn-go" id="ok" disabled>Close shift</button>
+    <button class="btn btn-ghost btn-sm" id="cancel">Back</button>
   `, () => {
     let rating = 0;
     const note = $("note"), ok = $("ok");
@@ -586,8 +522,8 @@ function reportText(r){
   ].filter(x => x !== null).join("\n");
 }
 
-const CHART_COLORS = ["#00F5D4", "#00C7AC", "#F2F4F5", "#6B7480", "#5FF5E1", "#9FF9ED"];
-const BREAK_COLOR = "#E8963C";
+const CHART_COLORS = ["#7B2CBF", "#00F5D4", "#2D006B", "#9B4DDB", "#00C7AC", "#E4D6F5"];
+const BREAK_COLOR = "#C7C2D1";
 
 function taskChartHTML(tally, breakMs){
   const items = tally.map((t,i) => ({ label: taskLabel(t), ms: t.ms, color: CHART_COLORS[i % CHART_COLORS.length] }));
@@ -627,47 +563,14 @@ function taskChartHTML(tally, breakMs){
 function showReport(r){
   const txt = reportText(r);
   const chart = taskChartHTML(taskTally(r, r.endedAt), r.breakMs);
-  const ref = shiftRefCode(r.startedAt);
-  const taskRows = taskTally(r, r.endedAt).map(t =>
-    `<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--ink-soft)">${esc(taskLabel(t))}</span><b>${humanDur(t.ms)}</b></div>`
-  ).join("");
-
   openSheet(`
-    <div style="text-align:center;margin-bottom:18px">
-      <div style="width:52px;height:52px;border-radius:50%;background:rgba(0,245,212,.12);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:var(--active)">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-      </div>
-      <h2 style="margin-bottom:2px">Shift Closed</h2>
-      <p class="hint" style="margin-bottom:0">Reference #${ref}</p>
-    </div>
-
-    <div class="preview" style="font-family:var(--mono)">
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--ink-soft)">WORKER</span><b>${esc(r.worker)}</b></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--ink-soft)">STORE</span><b>${esc(r.client)}</b></div>
-      <div style="display:flex;justify-content:space-between;padding:10px 0 6px;border-top:1px dashed var(--edge);margin-top:6px">
-        <span><span style="display:block;color:var(--ink-soft);font-size:10px">IN</span><b>${clock(r.startedAt)}</b></span>
-        <span style="text-align:right"><span style="display:block;color:var(--ink-soft);font-size:10px">OUT</span><b>${clock(r.endedAt)}</b></span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0 10px">
-        <span><span style="display:block;color:var(--ink-soft);font-size:10px">BREAK</span><b style="color:var(--break)">${r.breakMs ? humanDur(r.breakMs) : "none"}</b></span>
-        <span style="text-align:right"><span style="display:block;color:var(--ink-soft);font-size:10px">NET</span><b style="color:var(--active)">${humanDur(r.netMs)}</b></span>
-      </div>
-      <div style="border-top:1px dashed var(--edge);margin-top:4px;padding-top:10px">
-        <span style="display:block;color:var(--ink-soft);font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Task Breakdown</span>
-        ${taskRows}
-      </div>
-      <div style="display:flex;justify-content:space-between;border-top:1px solid var(--edge);margin-top:10px;padding-top:12px">
-        <span style="font-family:var(--cond);text-transform:uppercase;letter-spacing:.1em;font-size:11px;font-weight:700">Grand Total</span>
-        <b style="font-size:16px">${hms(r.netMs)}</b>
-      </div>
-    </div>
-
+    <h2>Shift closed</h2>
+    <p class="hint">Send it to the group now. It's also saved here for the Excel export.</p>
     ${chart}
+    <div class="preview">${esc(txt)}</div>
     <button class="btn btn-wa" id="wa">Send on WhatsApp</button>
-    <div class="row">
-      <button class="btn btn-ghost btn-sm" id="cp">Copy Text</button>
-      <button class="btn btn-ghost btn-sm" id="dn">Done</button>
-    </div>
+    <button class="btn btn-ghost btn-sm" id="cp">Copy text</button>
+    <button class="btn btn-ghost btn-sm" id="dn">Done</button>
   `, () => {
     $("wa").onclick = async () => {
       const ok = await copyText(txt);
@@ -767,7 +670,6 @@ function exportExcel(){
 }
 
 $("btnHistory").onclick = showHistory;
-$("btnHistoryDesktop").onclick = showHistory;
 
 function showProfile(){
   const email = (auth && auth.currentUser && auth.currentUser.email) || "";
@@ -791,19 +693,16 @@ function showProfile(){
   });
 }
 
-const SIDE_NAV_MAP = { sideToday: "navDashboard", sideHistory: "navHistory", sideExport: "navExport" };
 function setActiveNav(id){
-  ["navDashboard","navHistory","navExport"].forEach(n => $(n).classList.toggle("active", n === id));
-  Object.keys(SIDE_NAV_MAP).forEach(n => $(n).classList.toggle("active", SIDE_NAV_MAP[n] === id));
+  ["navDashboard","navCard","navHistory","navProfile"].forEach(n => $(n).classList.toggle("active", n === id));
 }
 $("navDashboard").onclick = () => setActiveNav("navDashboard");
+$("navCard").onclick = () => {
+  setActiveNav("navCard");
+  document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
+};
 $("navHistory").onclick = () => { setActiveNav("navHistory"); showHistory(); };
-$("navExport").onclick = () => { setActiveNav("navExport"); exportExcel(); };
-
-$("sideToday").onclick = () => setActiveNav("navDashboard");
-$("sideHistory").onclick = () => { setActiveNav("navHistory"); showHistory(); };
-$("sideExport").onclick = () => { setActiveNav("navExport"); exportExcel(); };
-$("sideProfile").onclick = showProfile;
+$("navProfile").onclick = () => { setActiveNav("navProfile"); showProfile(); };
 
 /* ============================================================
    WORKER APP BOOT (called once, after login as a worker)
