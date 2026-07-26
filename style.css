@@ -133,12 +133,16 @@ body{
   font-family:var(--wk);font-weight:700;text-transform:uppercase;
   font-size:20px;line-height:1.15;letter-spacing:.01em;color:var(--wk-white);
 }
-.link{
-  background:none;border:0;padding:4px 0;margin-top:2px;
+.link{background:none;border:0;padding:4px 0;margin-top:2px;font:inherit;cursor:pointer;white-space:nowrap}
+#appScreen .link,.sheet .link{
   font-family:var(--wk);letter-spacing:.14em;text-transform:uppercase;font-size:11px;font-weight:500;
-  color:var(--wk-white-70);text-decoration:none;cursor:pointer;white-space:nowrap;
+  color:var(--wk-white-70);text-decoration:none;
 }
-.link:hover{color:var(--wk-white)}
+#appScreen .link:hover,.sheet .link:hover{color:var(--wk-white)}
+#loginScreen .link,#pendingScreen .link,#adminScreen .link{
+  padding-left:12px;letter-spacing:inherit;text-transform:inherit;font-weight:inherit;
+  color:var(--ink);text-decoration:underline;text-underline-offset:3px;
+}
 .punches{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .punches li{
   display:flex;gap:10px;align-items:baseline;padding:12px 14px;

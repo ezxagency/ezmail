@@ -1468,6 +1468,23 @@ if (!FB_READY){
   }
   $("loginBtn").onclick = doLogin;
   $("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+
+  $("forgotPassword").onclick = async () => {
+    const email = $("loginEmail").value.trim();
+    $("loginErr").classList.add("hidden");
+    if (!email) {
+      $("loginErr").textContent = "Enter your email above first, then tap Forgot password.";
+      $("loginErr").classList.remove("hidden");
+      return;
+    }
+    try {
+      await auth.sendPasswordResetEmail(email);
+      toast("Password reset email sent");
+    } catch (e) {
+      $("loginErr").textContent = AUTH_ERRORS[e.code] || e.message || "Couldn't send reset email — try again.";
+      $("loginErr").classList.remove("hidden");
+    }
+  };
   $("adminLogout").onclick = () => auth.signOut();
   $("adminExportAll").onclick = exportAllExcel;
   $("pendingSignOut").onclick = () => auth.signOut();
