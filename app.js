@@ -1446,7 +1446,9 @@ if (!FB_READY){
     "auth/weak-password": "Password must be at least 6 characters.",
     "auth/user-not-found": "No account with that email.",
     "auth/wrong-password": "Wrong password.",
-    "auth/invalid-credential": "Wrong email or password."
+    "auth/invalid-credential": "Wrong email or password.",
+    "auth/quota-exceeded": "Too many emails sent today — try again tomorrow, or ask your admin to check the Firebase project's email quota.",
+    "auth/too-many-requests": "Too many attempts — wait a bit before trying again."
   };
   async function doLogin(){
     const email = $("loginEmail").value.trim();
