@@ -1434,34 +1434,35 @@ function viewWorker(data, s, uid){
    full team roster (with pending approvals, export, etc.) still lives
    behind the "Admin access" header button - this is just a fast path. ---------- */
 function askAssignTaskPickMember(){
-  openSheet(`
-    <h2>Assign task</h2>
-    <p class="hint">Who's this for?</p>
-    <ul class="hist" id="assignPickList"><li class="empty">Loading…</li></ul>
-    <button class="btn btn-ghost btn-sm" id="assignPickCancel">Cancel</button>
-  `, async () => {
-    $("assignPickCancel").onclick = closeSheet;
-    const list = $("assignPickList");
-    try {
-      const snap = await db.collection("appState").get();
-      if (snap.empty) { list.innerHTML = `<div class="empty">No team members have signed in yet.</div>`; return; }
-      list.innerHTML = "";
-      snap.forEach(doc => {
-        const data = doc.data();
-        let s; try { s = JSON.parse(data.json); } catch { s = null; }
-        if (!s) return;
-        const name = s.worker || data.email || "Unnamed";
-        const li = document.createElement("li");
-        li.style.cursor = "pointer";
-        li.innerHTML = `<div><div class="h-c">${esc(name)}</div><div class="h-d">${esc(data.email||"")}</div></div>`;
-        li.onclick = () => askAssignTask(doc.id, name);
-        list.append(li);
-      });
-    } catch (e) {
-      console.error(e);
-      list.innerHTML = `<div class="empty">Couldn't load team data — check Firestore rules allow admin reads.</div>`;
-    }
-  });
+  $("assignPickScreen").classList.remove("hidden");
+  $("assignPickClose").onclick = closeAssignPickPage;
+  loadAssignPickList();
+}
+function closeAssignPickPage(){
+  $("assignPickScreen").classList.add("hidden");
+}
+async function loadAssignPickList(){
+  const list = $("assignPickList");
+  list.innerHTML = `<li class="empty">Loading…</li>`;
+  try {
+    const snap = await db.collection("appState").get();
+    if (snap.empty) { list.innerHTML = `<li class="empty">No team members have signed in yet.</li>`; return; }
+    list.innerHTML = "";
+    snap.forEach(doc => {
+      const data = doc.data();
+      let s; try { s = JSON.parse(data.json); } catch { s = null; }
+      if (!s) return;
+      const name = s.worker || data.email || "Unnamed";
+      const li = document.createElement("li");
+      li.style.cursor = "pointer";
+      li.innerHTML = `<div><div class="h-c">${esc(name)}</div><div class="h-d">${esc(data.email||"")}</div></div>`;
+      li.onclick = () => askAssignTask(doc.id, name);
+      list.append(li);
+    });
+  } catch (e) {
+    console.error(e);
+    list.innerHTML = `<li class="empty">Couldn't load team data — check Firestore rules allow admin reads.</li>`;
+  }
 }
 
 /* ---------- admin: assign a task to a team member (v1 - will keep evolving) ---------- */

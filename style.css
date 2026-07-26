@@ -255,18 +255,20 @@ body{
   .btn-ghost:not([disabled]):hover{background:rgba(255,255,255,.18)}
 }
 
-/* ---------- team page (admin) - full-page, not a sheet ---------- */
-.team-page{
+/* ---------- admin full pages (Team, Assign task) - not sheets ---------- */
+.admin-page{
   position:fixed;inset:0;z-index:30;overflow-y:auto;
   background-color:var(--wk-navy);
   background-image:linear-gradient(90deg, rgba(13,15,20,.55), transparent 55%), url('bg-marble.webp');
   background-position:center;background-size:cover;background-repeat:no-repeat;
   color:var(--wk-white);
 }
-.team-page-inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 32px) 24px 60px}
-.team-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
-.team-page-title{font-family:var(--wk);font-weight:700;font-size:28px;text-transform:uppercase;margin:0}
-.team-page-hint{font-family:var(--body);color:var(--wk-white-70);margin:0 0 22px;font-size:14px}
+.admin-page-inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 32px) 24px 60px}
+.admin-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.admin-page-title{font-family:var(--wk);font-weight:700;font-size:28px;text-transform:uppercase;margin:0}
+.admin-page-hint{font-family:var(--body);color:var(--wk-white-70);margin:0 0 22px;font-size:14px}
+.admin-page-back{display:inline-flex;align-items:center;gap:8px}
+.admin-page-back svg{width:16px;height:16px}
 
 /* ---------- sheet (History / Profile / prompts) ---------- */
 .scrim{position:fixed;inset:0;background:rgba(8,9,13,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:40}
