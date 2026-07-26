@@ -926,22 +926,47 @@ function showTeam(){
   $("teamExportAll").onclick = exportAllExcel;
   loadTeamPending();
   loadTeamList();
-  showRecentlyCompleted();
+  ackCompletedAssignments(); // clears the notification badge; log below stays regardless
+  loadCompletionLog(true);
 }
 function closeTeamPage(){
   $("teamScreen").classList.add("hidden");
 }
 
-async function showRecentlyCompleted(){
+// Persistent notification log - every completed assignment ever, not just
+// unacknowledged ones, so it's there "all time" rather than flashing once.
+// Fetched once per Team-page visit and paginated client-side, 5 rows at a
+// time, to avoid needing a composite Firestore index for an orderBy.
+let completionLogRows = null;
+let completionLogShown = 5;
+async function loadCompletionLog(reset){
   const box = $("teamRecentlyDone");
   if (!box) return;
-  const rows = await ackCompletedAssignments(); // also clears the notification badge
+  if (reset || completionLogRows === null) {
+    box.innerHTML = `<p class="hint">Loading notifications…</p>`;
+    try {
+      const snap = await db.collection("assignments").where("done", "==", true).get();
+      const rows = [];
+      snap.forEach(doc => rows.push(doc.data()));
+      rows.sort((a,b) => (b.doneAt||0) - (a.doneAt||0));
+      completionLogRows = rows;
+      completionLogShown = 5;
+    } catch (e) {
+      console.error(e);
+      completionLogRows = [];
+    }
+  }
+  renderCompletionLog();
+}
+function renderCompletionLog(){
+  const box = $("teamRecentlyDone");
+  const rows = completionLogRows || [];
   if (!rows.length) { box.innerHTML = ""; return; }
-  rows.sort((a,b) => (b.doneAt||0) - (a.doneAt||0));
+  const visible = rows.slice(0, completionLogShown);
   box.innerHTML = `
-    <p class="hint" style="margin-bottom:8px">Recently completed:</p>
-    <ul class="hist" style="margin-bottom:18px">
-      ${rows.map(r => `
+    <p class="hint" style="margin-bottom:8px">Notifications:</p>
+    <ul class="hist" style="margin-bottom:10px">
+      ${visible.map(r => `
         <li>
           <div>
             <div class="h-c">${esc(r.toName || "Someone")} · ${esc(r.store)} · ${esc(r.task)}</div>
@@ -949,7 +974,10 @@ async function showRecentlyCompleted(){
           </div>
         </li>`).join("")}
     </ul>
+    ${rows.length > completionLogShown ? `<button class="btn btn-ghost btn-sm" id="loadMoreCompleted" style="width:auto;margin-bottom:18px">Load more (${rows.length - completionLogShown} older)</button>` : ""}
   `;
+  const moreBtn = $("loadMoreCompleted");
+  if (moreBtn) moreBtn.onclick = () => { completionLogShown += 5; renderCompletionLog(); };
 }
 
 /* ---------- team-wide Excel export (one sheet per worker + overview) ---------- */
