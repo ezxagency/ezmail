@@ -225,11 +225,33 @@ function setRingTime(id, ms){
   el.querySelector(".ring-sec").textContent = s.slice(i + 1);
 }
 
+// Rings are a real progress indicator, not decoration: one full clockwise
+// lap = one cycle (8h for the shift ring, 1h for the task ring). Once a
+// lap completes it stays behind as a dim fill and a fresh bright arc
+// starts sweeping from the top again for the next lap.
+const SHIFT_CYCLE_MS = 8 * 3600000;
+const TASK_CYCLE_MS = 3600000;
+function updateRingProgress(ringId, elapsedMs, cycleMs){
+  const ring = $(ringId);
+  const lapFill = ring.querySelector(".ring-lap-fill");
+  const progress = ring.querySelector(".ring-progress");
+  const completedLaps = Math.floor(Math.max(0, elapsedMs) / cycleMs);
+  const p = (Math.max(0, elapsedMs) % cycleMs) / cycleMs;
+  lapFill.classList.toggle("on", completedLaps >= 1);
+  if (p < 0.002) { progress.setAttribute("d", ""); return; }
+  const theta = p * 360, rad = (theta * Math.PI) / 180;
+  const x = (100 + 86 * Math.sin(rad)).toFixed(2);
+  const y = (100 - 86 * Math.cos(rad)).toFixed(2);
+  progress.setAttribute("d", `M100,14 A86,86 0 ${theta > 180 ? 1 : 0} 1 ${x},${y}`);
+}
+
 function tick(){
   const bar = $("shiftbar");
   if (S.status === "IDLE"){
     setRingTime("shiftClock", 0);
     setRingTime("taskClock", 0);
+    updateRingProgress("shiftRing", 0, SHIFT_CYCLE_MS);
+    updateRingProgress("taskRing", 0, TASK_CYCLE_MS);
     bar.innerHTML = "";
     return;
   }
@@ -240,6 +262,8 @@ function tick(){
 
   setRingTime("shiftClock", shiftMs);
   setRingTime("taskClock", taskMs);
+  updateRingProgress("shiftRing", shiftMs, SHIFT_CYCLE_MS);
+  updateRingProgress("taskRing", taskMs, TASK_CYCLE_MS);
 
   if (S.status === "ACTIVE"){
     bar.innerHTML = `<span>Task</span> <b>${humanDur(taskMs)}</b>`

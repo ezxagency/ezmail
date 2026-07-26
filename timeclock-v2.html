@@ -65,7 +65,7 @@
   <main class="stage">
     <div class="clock">
       <div class="clock-panel">
-        <div class="ring">
+        <div class="ring" id="shiftRing">
           <svg class="ring-svg" viewBox="0 0 200 200" aria-hidden="true">
             <defs>
               <marker id="ringArrowShift" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
@@ -73,11 +73,8 @@
               </marker>
             </defs>
             <circle class="ring-track" cx="100" cy="100" r="86"/>
-            <path class="ring-idle-arc" d="M100,14 A86,86 0 1 1 14,100" marker-end="url(#ringArrowShift)"/>
-            <g class="ring-run-group">
-              <circle class="ring-run-arc" cx="100" cy="100" r="86"/>
-              <g class="ring-run-tip"><path class="ring-tip-arrow" d="M93,9 L108,14 L93,19 Z"/></g>
-            </g>
+            <circle class="ring-lap-fill" cx="100" cy="100" r="86"/>
+            <path class="ring-progress" marker-end="url(#ringArrowShift)"/>
           </svg>
           <div class="ring-center">
             <span class="ring-time" id="shiftClock"><span class="ring-main">00:00</span><sup class="ring-sec">00</sup></span>
@@ -87,7 +84,7 @@
         <div class="clock-meta" id="shiftMeta">Ready</div>
       </div>
       <div class="clock-panel">
-        <div class="ring">
+        <div class="ring" id="taskRing">
           <svg class="ring-svg" viewBox="0 0 200 200" aria-hidden="true">
             <defs>
               <marker id="ringArrowTask" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
@@ -95,11 +92,8 @@
               </marker>
             </defs>
             <circle class="ring-track" cx="100" cy="100" r="86"/>
-            <path class="ring-idle-arc" d="M100,14 A86,86 0 1 1 14,100" marker-end="url(#ringArrowTask)"/>
-            <g class="ring-run-group">
-              <circle class="ring-run-arc" cx="100" cy="100" r="86"/>
-              <g class="ring-run-tip"><path class="ring-tip-arrow" d="M93,9 L108,14 L93,19 Z"/></g>
-            </g>
+            <circle class="ring-lap-fill" cx="100" cy="100" r="86"/>
+            <path class="ring-progress" marker-end="url(#ringArrowTask)"/>
           </svg>
           <div class="ring-center">
             <span class="ring-time" id="taskClock"><span class="ring-main">00:00</span><sup class="ring-sec">00</sup></span>

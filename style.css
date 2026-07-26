@@ -90,24 +90,15 @@ body{
 .ring{position:relative;width:100%;max-width:190px;aspect-ratio:1/1;margin:0 auto}
 .ring-svg{width:100%;height:100%;overflow:visible}
 .ring-track{fill:none;stroke:rgba(255,255,255,.9);stroke-width:9}
-.ring-idle-arc{fill:none;stroke:var(--wk-green);stroke-width:9;stroke-linecap:butt;opacity:1;transition:opacity .2s ease,stroke .2s ease}
-.ring-svg marker path{fill:var(--wk-green);fill:context-stroke}
-.ring-run-group{opacity:0;transition:opacity .2s ease}
-.ring-run-arc{
-  fill:none;stroke:var(--wk-green);stroke-width:9;
-  stroke-dasharray:135 540.35;stroke-dashoffset:0;
-  transform-origin:100px 100px;transform:rotate(-90deg);
-  animation:ringDash 60s linear infinite;animation-play-state:paused;
+.ring-lap-fill{
+  fill:none;stroke:rgba(0,174,11,.35);stroke-width:9;
+  opacity:0;transition:opacity .4s ease,stroke .2s ease;
 }
-.ring-run-tip{transform-origin:100px 100px;animation:ringSpin 60s linear infinite;animation-play-state:paused}
-.ring-tip-arrow{fill:var(--wk-green)}
-@keyframes ringDash{to{stroke-dashoffset:-540.35}}
-@keyframes ringSpin{to{transform:rotate(360deg)}}
-.band[data-s="ACTIVE"] ~ .stage .ring-idle-arc{opacity:0}
-.band[data-s="ACTIVE"] ~ .stage .ring-run-group{opacity:1}
-.band[data-s="ACTIVE"] ~ .stage .ring-run-arc,
-.band[data-s="ACTIVE"] ~ .stage .ring-run-tip{animation-play-state:running}
-.band[data-s="ON_BREAK"] ~ .stage .ring-idle-arc{stroke:rgba(255,255,255,.4)}
+.ring-lap-fill.on{opacity:1}
+.ring-progress{fill:none;stroke:var(--wk-green);stroke-width:9;stroke-linecap:butt;transition:stroke .2s ease}
+.ring-svg marker path{fill:var(--wk-green);fill:context-stroke}
+.band[data-s="ON_BREAK"] ~ .stage .ring-progress{stroke:rgba(255,255,255,.5)}
+.band[data-s="ON_BREAK"] ~ .stage .ring-lap-fill{stroke:rgba(255,255,255,.25)}
 .ring-center{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
 }
