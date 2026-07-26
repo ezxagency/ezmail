@@ -481,25 +481,3 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 #loginScreen .sc-footer-link{font-family:var(--body);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--sc-footer);text-decoration:none;margin:0 10px}
 #loginScreen a.sc-footer-link:hover{color:var(--sc-green)}
 #loginScreen .sc-copyright{margin:14px 0 0;font-size:12px;color:#C4BCA9;font-family:var(--body)}
-.brand-logo-sm{height:28px;margin:0}
-.admin-brand{display:flex;align-items:center;gap:14px}
-
-.admin-wrap{max-width:720px;margin:0 auto;padding:28px 18px 60px}
-.admin-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px}
-.admin-title{display:block;font-family:var(--display);font-weight:400;font-size:22px;text-transform:uppercase;letter-spacing:.01em}
-.admin-sub{display:block;font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:2px}
-.admin-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
-.admin-row{
-  background:rgba(255,255,255,.7);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
-  border:1px solid rgba(255,255,255,.5);border-radius:18px;padding:16px 18px;
-  display:flex;justify-content:space-between;align-items:center;cursor:pointer;
-  box-shadow:0 14px 26px rgba(15,12,27,.08);transition:transform .15s ease;
-}
-.admin-row:hover{transform:translateY(-2px)}
-.admin-row .a-name{font-family:var(--cond);font-weight:700;font-size:16px}
-.admin-row .a-email{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:2px}
-.admin-row .a-right{text-align:right}
-.admin-row .a-status{font-family:var(--cond);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:6px 12px;border-radius:999px;display:inline-block}
-.admin-row .a-status.st-idle{background:rgba(155,77,219,.18);color:var(--ink-soft)}
-.admin-row .a-status.st-active{background:rgba(123,44,191,.22);color:var(--active)}
-.admin-row .a-status.st-break{background:rgba(45,0,107,.18);color:var(--break)}

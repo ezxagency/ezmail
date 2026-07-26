@@ -755,7 +755,7 @@ function showProfile(){
 }
 
 function setActiveNav(id){
-  ["navDashboard","navCard","navHistory","navProfile"].forEach(n => $(n).classList.toggle("active", n === id));
+  ["navDashboard","navCard","navHistory","navTeam","navProfile"].forEach(n => $(n).classList.toggle("active", n === id));
 }
 $("navDashboard").onclick = () => setActiveNav("navDashboard");
 $("navCard").onclick = () => {
@@ -763,12 +763,14 @@ $("navCard").onclick = () => {
   document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
 };
 $("navHistory").onclick = () => { setActiveNav("navHistory"); showHistory(); };
+$("navTeam").onclick = () => { setActiveNav("navTeam"); showTeam(); };
 $("navProfile").onclick = () => { setActiveNav("navProfile"); showProfile(); };
 
 /* ============================================================
    WORKER APP BOOT (called once, after login as a worker)
    ============================================================ */
 let workerStarted = false;
+let isAdmin = false;
 async function startWorkerApp(){
   if (workerStarted) return;
   workerStarted = true;
@@ -813,30 +815,30 @@ function screen(show){
   $("loginScreen").classList.toggle("hidden", show !== "login");
   $("pendingScreen").classList.toggle("hidden", show !== "pending");
   $("appScreen").classList.toggle("hidden", show !== "app");
-  $("adminScreen").classList.toggle("hidden", show !== "admin");
 }
 
-async function loadPending(){
-  const pending = $("adminPending");
+async function loadTeamPending(){
+  const pending = $("teamPending");
+  if (!pending) return;
+  pending.innerHTML = "";
   try {
     const snap = await db.collection("users").where("role", "==", "pending").get();
-    pending.innerHTML = "";
     if (snap.empty) return;
-    pending.insertAdjacentHTML("afterbegin", `<li class="admin-sub" style="margin:0 0 4px;list-style:none">Pending approval</li>`);
+    pending.insertAdjacentHTML("beforebegin", `<p class="hint" id="teamPendingHint" style="margin:0 0 10px">Pending approval</p>`);
     snap.forEach(doc => {
       const data = doc.data();
       const li = document.createElement("li");
-      li.className = "admin-row";
       li.innerHTML = `
-        <div><div class="a-name">${esc(data.email || "Unknown")}</div><div class="a-email">Waiting for approval</div></div>
-        <div class="a-right"><button class="btn btn-go btn-sm" style="width:auto" id="approve-${doc.id}">Approve</button></div>
+        <div><div class="h-c">${esc(data.email || "Unknown")}</div><div class="h-d">Waiting for approval</div></div>
+        <button class="btn btn-go btn-sm" style="width:auto" id="approve-${doc.id}">Approve</button>
       `;
       pending.append(li);
-      document.getElementById("approve-" + doc.id).onclick = async (e) => {
+      $("approve-" + doc.id).onclick = async (e) => {
         e.stopPropagation();
         await db.collection("users").doc(doc.id).update({ role: "worker" });
-        loadPending();
         toast(data.email + " approved");
+        $("teamPendingHint") && $("teamPendingHint").remove();
+        loadTeamPending();
       };
     });
   } catch (e) {
@@ -844,37 +846,50 @@ async function loadPending(){
   }
 }
 
-async function startAdmin(email){
-  screen("admin");
-  $("adminSub").textContent = email;
-  loadPending();
-  const list = $("adminList");
-  list.innerHTML = `<li class="empty">Loading…</li>`;
+async function loadTeamList(){
+  const list = $("teamList");
+  if (!list) return;
+  list.innerHTML = `<div class="empty">Loading…</div>`;
   try {
     const snap = await db.collection("appState").get();
     list.innerHTML = "";
-    if (snap.empty){ list.innerHTML = `<li class="empty">No team members have signed in yet.</li>`; return; }
+    if (snap.empty){ list.innerHTML = `<div class="empty">No team members have signed in yet.</div>`; return; }
     snap.forEach(doc => {
       const data = doc.data();
       let s; try { s = JSON.parse(data.json); } catch { s = null; }
       if (!s) return;
-      const statusCls = s.status === "ACTIVE" ? "st-active" : s.status === "ON_BREAK" ? "st-break" : "st-idle";
       const todayKey = dayStamp(Date.now());
       let todayMs = (s.history||[]).filter(r => dayStamp(r.startedAt) === todayKey).reduce((t,r)=>t+r.netMs,0);
       if (s.shift && s.status !== "IDLE") todayMs += netMs(s.shift);
       const li = document.createElement("li");
-      li.className = "admin-row";
+      li.style.cursor = "pointer";
       li.innerHTML = `
-        <div><div class="a-name">${esc(s.worker || data.email || "Unnamed")}</div><div class="a-email">${esc(data.email||"")}</div></div>
-        <div class="a-right"><span class="a-status ${statusCls}">${esc((s.status||"").replace("_"," "))}</span><div class="a-email" style="margin-top:6px">${humanDur(todayMs)} today</div></div>
+        <div><div class="h-c">${esc(s.worker || data.email || "Unnamed")}</div><div class="h-d">${esc(data.email||"")} · ${esc((s.status||"").replace("_"," "))}</div></div>
+        <div class="h-h">${humanDur(todayMs)} today</div>
       `;
       li.onclick = () => viewWorker(data, s, doc.id);
       list.append(li);
     });
   } catch (e) {
     console.error(e);
-    list.innerHTML = `<li class="empty">Couldn't load team data — check Firestore rules allow admin reads.</li>`;
+    list.innerHTML = `<div class="empty">Couldn't load team data — check Firestore rules allow admin reads.</div>`;
   }
+}
+
+function showTeam(){
+  openSheet(`
+    <h2>Team</h2>
+    <p class="hint">Everyone who's signed in, plus anyone waiting for approval.</p>
+    <button class="btn btn-go btn-sm" id="teamExportAll" style="width:auto;margin-bottom:18px">Export Team Report</button>
+    <ul class="hist" id="teamPending"></ul>
+    <ul class="hist" id="teamList"></ul>
+    <button class="btn btn-ghost btn-sm" id="teamClose">Close</button>
+  `, () => {
+    $("teamExportAll").onclick = exportAllExcel;
+    $("teamClose").onclick = closeSheet;
+    loadTeamPending();
+    loadTeamList();
+  });
 }
 
 /* ---------- team-wide Excel export (one sheet per worker + overview) ---------- */
@@ -1366,7 +1381,6 @@ async function deleteWorker(uid, name){
     await db.collection("users").doc(uid).delete();
     toast(name + " deleted");
     closeSheet();
-    startAdmin(auth.currentUser.email);
   } catch (e) {
     console.error(e);
     toast("Couldn't delete - check Firestore rules allow admin deletes");
@@ -1418,9 +1432,14 @@ if (!FB_READY){
     }
     try {
       const role = await resolveRole(user);
-      if (role === "admin") { startAdmin(user.email); }
-      else if (role === "pending") { screen("pending"); }
-      else { Store.setUser(user.uid, user.email); screen("app"); startWorkerApp(); }
+      if (role === "pending") { screen("pending"); }
+      else {
+        isAdmin = role === "admin";
+        $("navTeam").classList.toggle("hidden", !isAdmin);
+        Store.setUser(user.uid, user.email);
+        screen("app");
+        startWorkerApp();
+      }
     } catch (e) {
       console.error(e);
       $("loginErr").textContent = "Signed in, but couldn't load your account. Check Firestore rules.";
@@ -1505,7 +1524,5 @@ if (!FB_READY){
       $("loginErr").classList.remove("hidden");
     }
   };
-  $("adminLogout").onclick = () => auth.signOut();
-  $("adminExportAll").onclick = exportAllExcel;
   $("pendingSignOut").onclick = () => auth.signOut();
 }
