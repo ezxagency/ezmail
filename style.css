@@ -188,18 +188,33 @@ body{
 
 .btn{
   width:100%;border:0;border-radius:16px;padding:18px 16px;position:relative;overflow:hidden;
-  font-family:var(--wk);font-weight:500;font-size:15px;
+  font-weight:500;font-size:15px;
   letter-spacing:.14em;text-transform:uppercase;cursor:pointer;
-  background:rgba(255,255,255,.12);color:var(--wk-white);border:1.5px solid rgba(255,255,255,.4);
   transition:transform .12s ease,opacity .15s ease,background .2s ease,box-shadow .2s ease;
 }
 .btn:active{transform:scale(.984)}
-.btn-go{background:var(--wk-white);color:#12131a;box-shadow:0 12px 24px rgba(0,0,0,.28);border-color:transparent}
-.btn-break{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3)}
-.btn-ghost{background:rgba(255,255,255,.1);color:var(--wk-white);border:1.5px solid rgba(255,255,255,.35)}
-.btn-wa{background:var(--wk-green);color:#08210a;border-color:transparent;box-shadow:0 12px 22px rgba(0,174,11,.3)}
 .btn-sm{padding:14px 12px;font-size:13px;letter-spacing:.1em}
 .btn[disabled]{opacity:.34;cursor:not-allowed}
+
+/* worker app + its sheets - "Clean Marble" kit */
+#appScreen .btn,.sheet .btn{
+  font-family:var(--wk);background:rgba(255,255,255,.12);color:var(--wk-white);border:1.5px solid rgba(255,255,255,.4);
+}
+#appScreen .btn-go,.sheet .btn-go{background:var(--wk-white);color:#12131a;box-shadow:0 12px 24px rgba(0,0,0,.28);border-color:transparent}
+#appScreen .btn-break,.sheet .btn-break{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3)}
+#appScreen .btn-ghost,.sheet .btn-ghost{background:rgba(255,255,255,.1);color:var(--wk-white);border:1.5px solid rgba(255,255,255,.35)}
+#appScreen .btn-wa,.sheet .btn-wa{background:var(--wk-green);color:#08210a;border-color:transparent;box-shadow:0 12px 22px rgba(0,174,11,.3)}
+
+/* login / pending / admin - legacy palette, unchanged from before the redesign */
+#loginScreen .btn,#pendingScreen .btn,#adminScreen .btn{
+  font-family:var(--cond);font-weight:700;background:#2D006B;color:#fff;
+}
+#loginScreen .btn-go,#pendingScreen .btn-go,#adminScreen .btn-go{background:#00F5D4;color:var(--ink);box-shadow:0 12px 22px rgba(0,245,212,.35)}
+#loginScreen .btn-ghost,#pendingScreen .btn-ghost,#adminScreen .btn-ghost{
+  background:rgba(255,255,255,.65);color:var(--ink);border:1.5px solid rgba(255,255,255,.6);
+  backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);
+  box-shadow:0 8px 18px rgba(15,12,27,.08);
+}
 .row{display:flex;gap:10px}
 .row .btn{flex:1}
 
