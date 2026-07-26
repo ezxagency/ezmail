@@ -95,6 +95,8 @@ body{
 }
 .band-signout:hover{background:rgba(255,255,255,.14)}
 .band-signout:active{transform:scale(.97)}
+.admin-icon-btn{width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%}
+.admin-icon-btn svg{width:20px;height:20px}
 .notif-badge{
   position:absolute;top:-8px;right:-8px;min-width:20px;height:20px;padding:0 5px;
   border-radius:999px;background:var(--wk-green);color:#08210a;
