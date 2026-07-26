@@ -1420,8 +1420,8 @@ function askAssignTask(uid, name){
     <h2>Assign task</h2>
     <p class="hint">For ${esc(name)} — shows up on their home screen until marked done.</p>
 
-    <label class="fld"><span>Store <b class="req">*</b></span></label>
-    <div class="chips" id="assignStoreChips">${chipGroup(CONFIG.clients)}</div>
+    <label class="fld"><span>Store <b class="req">*</b></span>
+      <input type="text" id="assignStore" autocomplete="organization" placeholder="Enter store name"></label>
 
     <label class="fld"><span>Task <b class="req">*</b></span></label>
     <div class="chips" id="assignTaskChips">${chipGroup(CONFIG.tasks, true)}</div>
@@ -1437,15 +1437,16 @@ function askAssignTask(uid, name){
     <button class="btn btn-go" id="assignSave" disabled>Assign</button>
     <button class="btn btn-ghost btn-sm" id="assignCancel">Cancel</button>
   `, () => {
-    let store = "", task = "";
-    const noteEl = $("assignNote"), saveBtn = $("assignSave");
+    let task = "";
+    const storeEl = $("assignStore"), noteEl = $("assignNote"), saveBtn = $("assignSave");
     const tkOther = $("assignTaskOther"), tkWrap = $("assignTaskOtherWrap");
 
+    const store = () => storeEl.value.trim();
     const taskV = () => task === "__other" ? tkOther.value.trim() : task;
-    const valid = () => !!store && (task === "__other" ? OTHER_RE.test(taskV()) : !!task) && noteEl.value.trim().length >= 3;
+    const valid = () => OTHER_RE.test(store()) && (task === "__other" ? OTHER_RE.test(taskV()) : !!task) && noteEl.value.trim().length >= 3;
     const sync = () => saveBtn.disabled = !valid();
 
-    wireChipsIn($("assignStoreChips"), v => { store = v; sync(); });
+    storeEl.oninput = sync;
     wireChipsIn($("assignTaskChips"), v => {
       task = v;
       tkWrap.style.display = v === "__other" ? "block" : "none";
@@ -1461,7 +1462,7 @@ function askAssignTask(uid, name){
         await db.collection("assignments").add({
           toUid: uid, toName: name,
           fromEmail: (auth.currentUser && auth.currentUser.email) || "",
-          store, task: taskV(), note: noteEl.value.trim(),
+          store: store(), task: taskV(), note: noteEl.value.trim(),
           dueDate: $("assignDue").value || null,
           createdAt: Date.now(), done: false, doneAt: null
         });
