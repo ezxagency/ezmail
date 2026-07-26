@@ -138,12 +138,12 @@ body{
   color:var(--wk-white-70);text-decoration:none;cursor:pointer;white-space:nowrap;
 }
 .link:hover{color:var(--wk-white)}
-.punches{list-style:none;margin:0;padding:0}
+.punches{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .punches li{
-  display:flex;gap:10px;align-items:baseline;padding:14px 0;
-  border-bottom:1px dashed rgba(255,255,255,.22);font-family:var(--wk);font-size:13px;
+  display:flex;gap:10px;align-items:baseline;padding:12px 14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:12px;
+  font-family:var(--wk);font-size:13px;
 }
-.punches li:last-child{border-bottom:0}
 .punch-t{font-weight:600;font-variant-numeric:tabular-nums;color:var(--wk-white)}
 .punch-k{
   font-family:var(--wk);text-transform:uppercase;letter-spacing:.1em;
