@@ -179,6 +179,20 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
     </button>
   </nav>
+
+  <div class="team-page hidden" id="teamScreen">
+    <div class="team-page-inner">
+      <div class="team-page-head">
+        <h1 class="team-page-title">Team</h1>
+        <button type="button" class="band-signout" id="teamPageClose">Close</button>
+      </div>
+      <p class="team-page-hint">Everyone who's signed in, plus anyone waiting for approval.</p>
+      <div id="teamRecentlyDone"></div>
+      <button class="btn btn-go btn-sm" id="teamExportAll" style="width:auto;margin-bottom:18px">Export Team Report</button>
+      <ul class="hist" id="teamPending"></ul>
+      <ul class="hist" id="teamList"></ul>
+    </div>
+  </div>
 </div>
 
 <div class="scrim" id="scrim"></div>

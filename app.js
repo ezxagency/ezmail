@@ -911,33 +911,36 @@ async function loadTeamList(){
   }
 }
 
+// Team is a full page (not a sheet) - admin gets the whole viewport to
+// work with instead of a small bottom sheet.
 function showTeam(){
-  openSheet(`
-    <h2>Team</h2>
-    <p class="hint">Everyone who's signed in, plus anyone waiting for approval.</p>
-    <div id="teamRecentlyDone"></div>
-    <button class="btn btn-go btn-sm" id="teamExportAll" style="width:auto;margin-bottom:18px">Export Team Report</button>
-    <ul class="hist" id="teamPending"></ul>
-    <ul class="hist" id="teamList"></ul>
-    <button class="btn btn-ghost btn-sm" id="teamClose">Close</button>
-  `, () => {
-    $("teamExportAll").onclick = exportAllExcel;
-    $("teamClose").onclick = closeSheet;
-    loadTeamPending();
-    loadTeamList();
-    showRecentlyCompleted();
-  });
+  $("teamScreen").classList.remove("hidden");
+  $("teamPageClose").onclick = closeTeamPage;
+  $("teamExportAll").onclick = exportAllExcel;
+  loadTeamPending();
+  loadTeamList();
+  showRecentlyCompleted();
+}
+function closeTeamPage(){
+  $("teamScreen").classList.add("hidden");
 }
 
 async function showRecentlyCompleted(){
   const box = $("teamRecentlyDone");
   if (!box) return;
   const rows = await ackCompletedAssignments(); // also clears the notification badge
-  if (!rows.length) return;
+  if (!rows.length) { box.innerHTML = ""; return; }
+  rows.sort((a,b) => (b.doneAt||0) - (a.doneAt||0));
   box.innerHTML = `
     <p class="hint" style="margin-bottom:8px">Recently completed:</p>
     <ul class="hist" style="margin-bottom:18px">
-      ${rows.map(r => `<li><div><div class="h-c">${esc(r.toName || "Someone")} · ${esc(r.store)} · ${esc(r.task)}</div></div></li>`).join("")}
+      ${rows.map(r => `
+        <li>
+          <div>
+            <div class="h-c">${esc(r.toName || "Someone")} · ${esc(r.store)} · ${esc(r.task)}</div>
+            <div class="h-d">${r.doneAt ? dayStamp(r.doneAt) + " · " + clock(r.doneAt) : ""}</div>
+          </div>
+        </li>`).join("")}
     </ul>
   `;
 }
