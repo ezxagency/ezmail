@@ -356,6 +356,17 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .hist .h-d{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin-top:3px}
 .hist .h-h{font-family:var(--wk);font-size:15px;font-weight:600;white-space:nowrap;color:var(--wk-white)}
 
+.assign-table{width:100%;border-collapse:collapse;font-family:var(--wk);font-size:12px}
+.assign-table th{
+  text-align:left;padding:8px 12px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--wk-white-70);border-bottom:1px solid rgba(255,255,255,.25);white-space:nowrap;
+}
+.assign-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.12);vertical-align:top;white-space:nowrap;color:var(--wk-white)}
+.assign-table tr:last-child td{border-bottom:0}
+.assign-status{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.assign-status.open{background:rgba(255,255,255,.16);color:#fff}
+.assign-status.done{background:var(--wk-green);color:#08210a}
+
 .toast{
   position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
   background:rgba(15,17,23,.9);color:#fff;padding:13px 20px;border-radius:999px;

@@ -933,51 +933,61 @@ function closeTeamPage(){
   $("teamScreen").classList.add("hidden");
 }
 
-// Persistent notification log - every completed assignment ever, not just
-// unacknowledged ones, so it's there "all time" rather than flashing once.
-// Fetched once per Team-page visit and paginated client-side, 5 rows at a
-// time, to avoid needing a composite Firestore index for an orderBy.
-let completionLogRows = null;
-let completionLogShown = 5;
+// All assignments (open + done) in one table - who, what store, what
+// task, current status, and every date that matters. Fetched once per
+// Team-page visit and paginated client-side, 8 rows at a time, to avoid
+// needing a composite Firestore index for an orderBy.
+let assignLogRows = null;
+let assignLogShown = 8;
 async function loadCompletionLog(reset){
   const box = $("teamRecentlyDone");
   if (!box) return;
-  if (reset || completionLogRows === null) {
-    box.innerHTML = `<p class="hint">Loading notifications…</p>`;
+  if (reset || assignLogRows === null) {
+    box.innerHTML = `<p class="hint">Loading assignments…</p>`;
     try {
-      const snap = await db.collection("assignments").where("done", "==", true).get();
+      const snap = await db.collection("assignments").get();
       const rows = [];
       snap.forEach(doc => rows.push(doc.data()));
-      rows.sort((a,b) => (b.doneAt||0) - (a.doneAt||0));
-      completionLogRows = rows;
-      completionLogShown = 5;
+      rows.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+      assignLogRows = rows;
+      assignLogShown = 8;
     } catch (e) {
       console.error(e);
-      completionLogRows = [];
+      assignLogRows = [];
     }
   }
   renderCompletionLog();
 }
 function renderCompletionLog(){
   const box = $("teamRecentlyDone");
-  const rows = completionLogRows || [];
+  const rows = assignLogRows || [];
   if (!rows.length) { box.innerHTML = ""; return; }
-  const visible = rows.slice(0, completionLogShown);
+  const visible = rows.slice(0, assignLogShown);
   box.innerHTML = `
-    <p class="hint" style="margin-bottom:8px">Notifications:</p>
-    <ul class="hist" style="margin-bottom:10px">
-      ${visible.map(r => `
-        <li>
-          <div>
-            <div class="h-c">${esc(r.toName || "Someone")} · ${esc(r.store)} · ${esc(r.task)}</div>
-            <div class="h-d">${r.doneAt ? dayStamp(r.doneAt) + " · " + clock(r.doneAt) : ""}</div>
-          </div>
-        </li>`).join("")}
-    </ul>
-    ${rows.length > completionLogShown ? `<button class="btn btn-ghost btn-sm" id="loadMoreCompleted" style="width:auto;margin-bottom:18px">Load more (${rows.length - completionLogShown} older)</button>` : ""}
+    <p class="hint" style="margin-bottom:8px">Assignments:</p>
+    <div style="overflow-x:auto;margin-bottom:10px">
+      <table class="assign-table">
+        <thead><tr>
+          <th>To</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th><th>Completed</th>
+        </tr></thead>
+        <tbody>
+          ${visible.map(r => `
+            <tr>
+              <td>${esc(r.toName || "Someone")}</td>
+              <td>${esc(r.store || "—")}</td>
+              <td>${esc(r.task || "—")}</td>
+              <td><span class="assign-status ${r.done ? "done" : "open"}">${r.done ? "Done" : "Open"}</span></td>
+              <td>${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
+              <td>${r.dueDate ? esc(r.dueDate) : "—"}</td>
+              <td>${r.doneAt ? dayStamp(r.doneAt) + " " + clock(r.doneAt) : "—"}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+    ${rows.length > assignLogShown ? `<button class="btn btn-ghost btn-sm" id="loadMoreCompleted" style="width:auto;margin-bottom:18px">Load more (${rows.length - assignLogShown} older)</button>` : ""}
   `;
   const moreBtn = $("loadMoreCompleted");
-  if (moreBtn) moreBtn.onclick = () => { completionLogShown += 5; renderCompletionLog(); };
+  if (moreBtn) moreBtn.onclick = () => { assignLogShown += 8; renderCompletionLog(); };
 }
 
 /* ---------- team-wide Excel export (one sheet per worker + overview) ---------- */
