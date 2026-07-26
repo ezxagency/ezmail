@@ -792,7 +792,7 @@ async function startWorkerApp(){
   const staleShift = S.status !== "IDLE" && S.shift && (Date.now() - S.shift.startedAt) > STALE_SHIFT_MS;
 
   render();
-  loadAssignedTasks();
+  watchAssignedTasks();
   setInterval(tick, 1000);
   const wake = () => { if (!document.hidden) tick(); };
   document.addEventListener("visibilitychange", wake);
@@ -1478,41 +1478,47 @@ function askAssignTask(uid, name){
   });
 }
 
-/* ---------- worker: tasks assigned to me (v1) ---------- */
-async function loadAssignedTasks(){
+/* ---------- worker: tasks assigned to me (v1) - live, not a one-time
+   load, so a task assigned while you're already on the page shows up
+   (and toasts) without needing a reload ---------- */
+let assignedTasksSeen = null; // null = first snapshot hasn't landed yet
+function watchAssignedTasks(){
   const box = $("assignedTasksCard"), list = $("assignedTasksList");
   if (!box || !auth.currentUser) return;
-  try {
-    const snap = await db.collection("assignments")
-      .where("toUid", "==", auth.currentUser.uid)
-      .where("done", "==", false)
-      .get();
-    if (snap.empty) { box.classList.add("hidden"); list.innerHTML = ""; return; }
-    const rows = [];
-    snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
-    rows.sort((a,b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
-    box.classList.remove("hidden");
-    list.innerHTML = rows.map(r => `
-      <li>
-        <div>
-          <div class="h-c">${esc(r.store)} · ${esc(r.task)}</div>
-          <div class="h-d">${esc(r.note)}</div>
-          <div class="h-d">${r.dueDate ? "Due " + esc(r.dueDate) : "No due date"} · from ${esc(r.fromEmail || "admin")}</div>
-        </div>
-        <button class="btn btn-ghost btn-sm" style="width:auto" data-id="${r.id}">Done</button>
-      </li>
-    `).join("");
-    list.querySelectorAll("button[data-id]").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
-  } catch (e) {
-    console.error(e);
-  }
+  db.collection("assignments")
+    .where("toUid", "==", auth.currentUser.uid)
+    .where("done", "==", false)
+    .onSnapshot(snap => {
+      const rows = [];
+      snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
+      rows.sort((a,b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+
+      if (assignedTasksSeen) {
+        rows.filter(r => !assignedTasksSeen.has(r.id))
+          .forEach(r => toast("New task from " + (r.fromEmail || "admin") + ": " + r.store + " · " + r.task));
+      }
+      assignedTasksSeen = new Set(rows.map(r => r.id));
+
+      if (!rows.length) { box.classList.add("hidden"); list.innerHTML = ""; return; }
+      box.classList.remove("hidden");
+      list.innerHTML = rows.map(r => `
+        <li>
+          <div>
+            <div class="h-c">${esc(r.store)} · ${esc(r.task)}</div>
+            <div class="h-d">${esc(r.note)}</div>
+            <div class="h-d">${r.dueDate ? "Due " + esc(r.dueDate) : "No due date"} · from ${esc(r.fromEmail || "admin")}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" style="width:auto" data-id="${r.id}">Done</button>
+        </li>
+      `).join("");
+      list.querySelectorAll("button[data-id]").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
+    }, e => console.error(e));
 }
 
 async function markAssignmentDone(id){
   try {
     await db.collection("assignments").doc(id).update({ done: true, doneAt: Date.now() });
     toast("Marked done");
-    loadAssignedTasks();
   } catch (e) {
     console.error(e);
     toast("Couldn't update — check Firestore rules allow it");
