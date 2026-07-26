@@ -33,8 +33,10 @@ const firebaseConfig = {
   messagingSenderId: "233171568445",
   appId: "1:233171568445:web:883b9f8038b3a346762754"
 };
-// First login using this email is automatically made admin.
-const ADMIN_EMAIL = "ezagency2nd@gmail.com";
+// Anyone on this list is made (or kept) admin on every login - add an
+// email here to grant admin access, even to an account that already
+// exists and signed in as a regular worker before.
+const ADMIN_EMAILS = ["ezagency2nd@gmail.com", "prashuchiha34@gmail.com"].map(e => e.toLowerCase());
 
 const FB_READY = !firebaseConfig.apiKey.includes("PASTE");
 let auth = null, db = null;
@@ -1550,10 +1552,16 @@ async function exportWorkerExcel(name, email, hist){
 async function resolveRole(user){
   const ref = db.collection("users").doc(user.uid);
   let doc = await ref.get();
+  const shouldBeAdmin = ADMIN_EMAILS.includes((user.email || "").toLowerCase());
   if (!doc.exists) {
-    // new signups wait for admin approval; only the designated admin email skips it
-    const role = (user.email||"").toLowerCase() === ADMIN_EMAIL.toLowerCase() ? "admin" : "pending";
+    // new signups wait for admin approval; designated admin emails skip it
+    const role = shouldBeAdmin ? "admin" : "pending";
     await ref.set({ email: user.email, role, createdAt: Date.now() });
+    doc = await ref.get();
+  } else if (shouldBeAdmin && doc.data().role !== "admin") {
+    // an existing account whose email was just added to ADMIN_EMAILS -
+    // upgrade it on this login instead of requiring a manual DB edit
+    await ref.update({ role: "admin" });
     doc = await ref.get();
   }
   return doc.data().role;
