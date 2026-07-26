@@ -129,8 +129,8 @@ body{
 
 /* ---------- punch card (glass panel) ---------- */
 .card{
-  background:rgba(255,255,255,.05);
-  backdrop-filter:blur(6px) saturate(110%);-webkit-backdrop-filter:blur(6px) saturate(110%);
+  background:rgba(255,255,255,.03);
+  backdrop-filter:blur(4px) saturate(105%);-webkit-backdrop-filter:blur(4px) saturate(105%);
   border:1px solid var(--wk-glass-border);border-radius:22px;position:relative;padding:20px 20px 14px;flex:1;
 }
 .card-head{
