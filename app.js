@@ -1489,7 +1489,7 @@ function askAssignTask(uid, name){
    (and toasts) without needing a reload ---------- */
 let assignedTasksSeen = null; // null = first snapshot hasn't landed yet
 function watchAssignedTasks(){
-  const box = $("assignedTasksCard"), list = $("assignedTasksList");
+  const box = $("assignedTasksSection"), list = $("assignedTasksList");
   if (!box || !auth.currentUser) return;
   db.collection("assignments")
     .where("toUid", "==", auth.currentUser.uid)
