@@ -112,7 +112,7 @@ body{
 .clock-meta{margin-top:4px;font-family:var(--wk);font-size:11px;color:var(--wk-white-60);letter-spacing:.1em;text-transform:uppercase}
 .shiftbar{
   display:flex;justify-content:center;gap:10px;align-items:baseline;
-  padding-top:10px;border-top:1px solid rgba(255,255,255,.2);
+  padding-top:10px;
   font-family:var(--wk);font-size:12px;color:var(--wk-white-70);
   letter-spacing:.04em;min-height:22px;text-transform:uppercase;
 }
