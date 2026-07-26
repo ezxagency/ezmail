@@ -330,7 +330,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .stage{display:contents}
   .clock{grid-area:clock;padding:18px 24px 0}
   .shiftbar{grid-area:shiftbar;padding:0 24px 20px}
-  .card{grid-area:card;flex:none;height:auto;margin:26px 32px 32px 0;overflow-y:auto}
+  .card{grid-area:card;flex:none;height:auto;max-height:100%;align-self:center;margin:0 32px 0 0;overflow-y:auto}
   .dock{grid-area:dock;min-height:auto;padding:0 24px 18px}
   .bottom-nav{grid-area:nav;padding:10px 24px calc(env(safe-area-inset-bottom) + 10px);background:transparent;border-top:0;backdrop-filter:none;-webkit-backdrop-filter:none}
 
