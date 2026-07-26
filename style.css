@@ -67,8 +67,9 @@ body{
 /* ---------- brand row (wordmark + username + sign out) ---------- */
 .band{
   padding:calc(env(safe-area-inset-top) + 20px) 18px 8px;
-  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;
 }
+.band-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none;margin-left:auto}
 .brand{min-width:0}
 .brand-title{display:inline-block}
 .brand-word{

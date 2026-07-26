@@ -798,6 +798,7 @@ async function startWorkerApp(){
   if (FB_READY) {
     $("bandSignOut").classList.remove("hidden");
     $("bandSignOut").onclick = () => auth.signOut();
+    $("adminAccessBtn").onclick = () => showTeam();
   }
 
   if (staleShift) {
@@ -1436,6 +1437,7 @@ if (!FB_READY){
       else {
         isAdmin = role === "admin";
         $("navTeam").classList.toggle("hidden", !isAdmin);
+        $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
         Store.setUser(user.uid, user.email);
         screen("app");
         startWorkerApp();
