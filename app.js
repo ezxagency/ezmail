@@ -894,13 +894,20 @@ async function loadTeamList(){
       let s; try { s = JSON.parse(data.json); } catch { s = null; }
       if (!s) return;
       const todayKey = dayStamp(Date.now());
-      let todayMs = (s.history||[]).filter(r => dayStamp(r.startedAt) === todayKey).reduce((t,r)=>t+r.netMs,0);
-      if (s.shift && s.status !== "IDLE") todayMs += netMs(s.shift);
+      const todayHist = (s.history||[]).filter(r => dayStamp(r.startedAt) === todayKey);
+      let todayMs = todayHist.reduce((t,r)=>t+r.netMs,0);
+      let todayBreak = todayHist.reduce((t,r)=>t+(r.breakMs||0),0);
+      if (s.shift && s.status !== "IDLE") { todayMs += netMs(s.shift); todayBreak += breakMs(s.shift); }
+      const now = new Date();
+      const shortDate = (now.getMonth()+1) + "/" + now.getDate();
       const li = document.createElement("li");
       li.style.cursor = "pointer";
       li.innerHTML = `
         <div><div class="h-c">${esc(s.worker || data.email || "Unnamed")}</div><div class="h-d">${esc(data.email||"")} · ${esc((s.status||"").replace("_"," "))}</div></div>
-        <div class="h-h">${humanDur(todayMs)} today</div>
+        <div style="text-align:right">
+          <div class="h-h">${humanDur(todayMs)} today · ${shortDate}</div>
+          <div class="h-d">${humanDur(todayBreak)} break</div>
+        </div>
       `;
       li.onclick = () => viewWorker(data, s, doc.id);
       list.append(li);
