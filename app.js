@@ -756,7 +756,7 @@ function showProfile(){
 }
 
 function setActiveNav(id){
-  ["navDashboard","navCard","navHistory","navTeam","navProfile"].forEach(n => $(n).classList.toggle("active", n === id));
+  ["navDashboard","navCard","navHistory","navAssign","navProfile"].forEach(n => $(n).classList.toggle("active", n === id));
 }
 $("navDashboard").onclick = () => setActiveNav("navDashboard");
 $("navCard").onclick = () => {
@@ -764,7 +764,7 @@ $("navCard").onclick = () => {
   document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
 };
 $("navHistory").onclick = () => { setActiveNav("navHistory"); showHistory(); };
-$("navTeam").onclick = () => { setActiveNav("navTeam"); showTeam(); };
+$("navAssign").onclick = () => { setActiveNav("navAssign"); askAssignTaskPickMember(); };
 $("navProfile").onclick = () => { setActiveNav("navProfile"); showProfile(); };
 
 /* ============================================================
@@ -1379,6 +1379,41 @@ function viewWorker(data, s, uid){
   });
 }
 
+/* ---------- admin: bottom-nav shortcut straight to "assign a task" -
+   picks a member first, then hands off to askAssignTask below. The
+   full team roster (with pending approvals, export, etc.) still lives
+   behind the "Admin access" header button - this is just a fast path. ---------- */
+function askAssignTaskPickMember(){
+  openSheet(`
+    <h2>Assign task</h2>
+    <p class="hint">Who's this for?</p>
+    <ul class="hist" id="assignPickList"><li class="empty">Loading…</li></ul>
+    <button class="btn btn-ghost btn-sm" id="assignPickCancel">Cancel</button>
+  `, async () => {
+    $("assignPickCancel").onclick = closeSheet;
+    const list = $("assignPickList");
+    try {
+      const snap = await db.collection("appState").get();
+      if (snap.empty) { list.innerHTML = `<div class="empty">No team members have signed in yet.</div>`; return; }
+      list.innerHTML = "";
+      snap.forEach(doc => {
+        const data = doc.data();
+        let s; try { s = JSON.parse(data.json); } catch { s = null; }
+        if (!s) return;
+        const name = s.worker || data.email || "Unnamed";
+        const li = document.createElement("li");
+        li.style.cursor = "pointer";
+        li.innerHTML = `<div><div class="h-c">${esc(name)}</div><div class="h-d">${esc(data.email||"")}</div></div>`;
+        li.onclick = () => askAssignTask(doc.id, name);
+        list.append(li);
+      });
+    } catch (e) {
+      console.error(e);
+      list.innerHTML = `<div class="empty">Couldn't load team data — check Firestore rules allow admin reads.</div>`;
+    }
+  });
+}
+
 /* ---------- admin: assign a task to a team member (v1 - will keep evolving) ---------- */
 function askAssignTask(uid, name){
   openSheet(`
@@ -1542,7 +1577,7 @@ if (!FB_READY){
       if (role === "pending") { screen("pending"); }
       else {
         isAdmin = role === "admin";
-        $("navTeam").classList.toggle("hidden", !isAdmin);
+        $("navAssign").classList.toggle("hidden", !isAdmin);
         $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
         Store.setUser(user.uid, user.email);
         screen("app");
