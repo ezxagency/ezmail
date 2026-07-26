@@ -474,6 +474,7 @@ function askWrapUp(){
     <h2>Wrap up</h2>
     <p class="hint">Your task clocks for this shift:</p>
     <ul class="tally">${tally}</ul>
+    <div id="wrapAssignedDone"></div>
     <label class="fld"><span>Anything to add? <b class="req">*</b></span>
       <textarea id="note" placeholder="Anything left open, anything blocking you."></textarea></label>
     <label class="fld"><span>Rate your day <b class="req">*</b></span></label>
@@ -493,7 +494,30 @@ function askWrapUp(){
     note.oninput = sync;
     $("cancel").onclick = closeSheet;
     ok.onclick = () => closeShift(note.value.trim(), rating);
+    loadCompletedAssignmentsForShift(sh.startedAt);
   });
+}
+
+// Shows any assigned tasks marked done since this shift started - loaded
+// after the sheet is already open so Clock Out never waits on a fetch.
+async function loadCompletedAssignmentsForShift(shiftStart){
+  const box = $("wrapAssignedDone");
+  if (!box || !auth.currentUser) return;
+  try {
+    const snap = await db.collection("assignments")
+      .where("toUid", "==", auth.currentUser.uid)
+      .where("done", "==", true)
+      .get();
+    const rows = [];
+    snap.forEach(doc => { const d = doc.data(); if (d.doneAt && d.doneAt >= shiftStart) rows.push(d); });
+    if (!rows.length) return;
+    box.innerHTML = `
+      <p class="hint">Assigned tasks completed this shift:</p>
+      <ul class="tally">${rows.map(a => `<li><span>${esc(a.store)} · ${esc(a.task)}</span></li>`).join("")}</ul>
+    `;
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 async function closeShift(note, rating){
@@ -891,6 +915,7 @@ function showTeam(){
   openSheet(`
     <h2>Team</h2>
     <p class="hint">Everyone who's signed in, plus anyone waiting for approval.</p>
+    <div id="teamRecentlyDone"></div>
     <button class="btn btn-go btn-sm" id="teamExportAll" style="width:auto;margin-bottom:18px">Export Team Report</button>
     <ul class="hist" id="teamPending"></ul>
     <ul class="hist" id="teamList"></ul>
@@ -900,7 +925,21 @@ function showTeam(){
     $("teamClose").onclick = closeSheet;
     loadTeamPending();
     loadTeamList();
+    showRecentlyCompleted();
   });
+}
+
+async function showRecentlyCompleted(){
+  const box = $("teamRecentlyDone");
+  if (!box) return;
+  const rows = await ackCompletedAssignments(); // also clears the notification badge
+  if (!rows.length) return;
+  box.innerHTML = `
+    <p class="hint" style="margin-bottom:8px">Recently completed:</p>
+    <ul class="hist" style="margin-bottom:18px">
+      ${rows.map(r => `<li><div><div class="h-c">${esc(r.toName || "Someone")} · ${esc(r.store)} · ${esc(r.task)}</div></div></li>`).join("")}
+    </ul>
+  `;
 }
 
 /* ---------- team-wide Excel export (one sheet per worker + overview) ---------- */
@@ -1523,11 +1562,40 @@ function watchAssignedTasks(){
 
 async function markAssignmentDone(id){
   try {
-    await db.collection("assignments").doc(id).update({ done: true, doneAt: Date.now() });
+    // ack:false so the admin notification badge picks this up as new
+    await db.collection("assignments").doc(id).update({ done: true, doneAt: Date.now(), ack: false });
     toast("Marked done");
   } catch (e) {
     console.error(e);
     toast("Couldn't update — check Firestore rules allow it");
+  }
+}
+
+/* ---------- admin: notified when a team member completes an assigned task ---------- */
+function watchCompletionNotifications(){
+  const badge = $("adminNotifBadge");
+  if (!badge) return;
+  db.collection("assignments")
+    .where("done", "==", true)
+    .where("ack", "==", false)
+    .onSnapshot(snap => {
+      badge.textContent = snap.size;
+      badge.classList.toggle("hidden", snap.empty);
+    }, e => console.error(e));
+}
+
+async function ackCompletedAssignments(){
+  try {
+    const snap = await db.collection("assignments").where("done", "==", true).where("ack", "==", false).get();
+    if (snap.empty) return [];
+    const rows = [];
+    const batch = db.batch();
+    snap.forEach(doc => { rows.push(doc.data()); batch.update(doc.ref, { ack: true }); });
+    await batch.commit();
+    return rows;
+  } catch (e) {
+    console.error(e);
+    return [];
   }
 }
 
@@ -1606,6 +1674,7 @@ if (!FB_READY){
         const canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
         $("navAssign").classList.toggle("hidden", !canAssignTasks);
         $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
+        if (isAdmin) watchCompletionNotifications();
         Store.setUser(user.uid, user.email);
         screen("app");
         startWorkerApp();
