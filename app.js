@@ -295,14 +295,15 @@ function chipGroup(list, allowOther){
   return list.map(x => `<button type="button" class="chip" data-v="${esc(x)}" aria-pressed="false">${esc(x)}</button>`).join("")
     + (allowOther ? `<button type="button" class="chip" data-v="__other" aria-pressed="false">Other…</button>` : "");
 }
-function wireChips(onPick){
-  const chips = $("sheetBody").querySelectorAll(".chip");
+function wireChipsIn(container, onPick){
+  const chips = container.querySelectorAll(".chip");
   chips.forEach(c => c.onclick = () => {
     chips.forEach(x => x.setAttribute("aria-pressed","false"));
     c.setAttribute("aria-pressed","true");
     onPick(c.dataset.v);
   });
 }
+function wireChips(onPick){ wireChipsIn($("sheetBody"), onPick); }
 const OTHER_RE = /^[A-Za-z0-9][A-Za-z0-9 .\-#]{1,39}$/;
 
 /* ---------- worker name (once) ---------- */
@@ -789,6 +790,7 @@ async function startWorkerApp(){
   const staleShift = S.status !== "IDLE" && S.shift && (Date.now() - S.shift.startedAt) > STALE_SHIFT_MS;
 
   render();
+  loadAssignedTasks();
   setInterval(tick, 1000);
   const wake = () => { if (!document.hidden) tick(); };
   document.addEventListener("visibilitychange", wake);
@@ -1365,14 +1367,118 @@ function viewWorker(data, s, uid){
     <h2>${esc(name)}</h2>
     <p class="hint">${hist.length} shift${hist.length===1?"":"s"} · ${humanDur(total)} net worked</p>
     <ul class="hist">${rows}</ul>
+    <button class="btn btn-go" id="assign">Assign task</button>
     <button class="btn" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
     <button class="btn btn-break btn-sm" id="delWorker">Remove Member</button>
   `, () => {
+    $("assign").onclick = () => askAssignTask(uid, name);
     $("xl").onclick = () => exportWorkerExcel(name, data.email || "", hist);
     $("dn").onclick = closeSheet;
     $("delWorker").onclick = () => deleteWorker(uid, name);
   });
+}
+
+/* ---------- admin: assign a task to a team member (v1 - will keep evolving) ---------- */
+function askAssignTask(uid, name){
+  openSheet(`
+    <h2>Assign task</h2>
+    <p class="hint">For ${esc(name)} — shows up on their home screen until marked done.</p>
+
+    <label class="fld"><span>Store <b class="req">*</b></span></label>
+    <div class="chips" id="assignStoreChips">${chipGroup(CONFIG.clients)}</div>
+
+    <label class="fld"><span>Task <b class="req">*</b></span></label>
+    <div class="chips" id="assignTaskChips">${chipGroup(CONFIG.tasks, true)}</div>
+    <label class="fld" id="assignTaskOtherWrap" style="display:none"><span>Task name <b class="req">*</b></span>
+      <input type="text" id="assignTaskOther" placeholder="Short name"></label>
+
+    <label class="fld"><span>Instructions <b class="req">*</b></span>
+      <textarea id="assignNote" placeholder="What should they do?"></textarea></label>
+
+    <label class="fld"><span>Due date</span>
+      <input type="date" id="assignDue"></label>
+
+    <button class="btn btn-go" id="assignSave" disabled>Assign</button>
+    <button class="btn btn-ghost btn-sm" id="assignCancel">Cancel</button>
+  `, () => {
+    let store = "", task = "";
+    const noteEl = $("assignNote"), saveBtn = $("assignSave");
+    const tkOther = $("assignTaskOther"), tkWrap = $("assignTaskOtherWrap");
+
+    const taskV = () => task === "__other" ? tkOther.value.trim() : task;
+    const valid = () => !!store && (task === "__other" ? OTHER_RE.test(taskV()) : !!task) && noteEl.value.trim().length >= 3;
+    const sync = () => saveBtn.disabled = !valid();
+
+    wireChipsIn($("assignStoreChips"), v => { store = v; sync(); });
+    wireChipsIn($("assignTaskChips"), v => {
+      task = v;
+      tkWrap.style.display = v === "__other" ? "block" : "none";
+      if (v === "__other") tkOther.focus();
+      sync();
+    });
+    noteEl.oninput = sync;
+    tkOther.oninput = sync;
+
+    $("assignCancel").onclick = closeSheet;
+    saveBtn.onclick = async () => {
+      try {
+        await db.collection("assignments").add({
+          toUid: uid, toName: name,
+          fromEmail: (auth.currentUser && auth.currentUser.email) || "",
+          store, task: taskV(), note: noteEl.value.trim(),
+          dueDate: $("assignDue").value || null,
+          createdAt: Date.now(), done: false, doneAt: null
+        });
+        toast("Task assigned to " + name);
+        closeSheet();
+      } catch (e) {
+        console.error(e);
+        toast("Couldn't assign task — check Firestore rules allow it");
+      }
+    };
+  });
+}
+
+/* ---------- worker: tasks assigned to me (v1) ---------- */
+async function loadAssignedTasks(){
+  const box = $("assignedTasksCard"), list = $("assignedTasksList");
+  if (!box || !auth.currentUser) return;
+  try {
+    const snap = await db.collection("assignments")
+      .where("toUid", "==", auth.currentUser.uid)
+      .where("done", "==", false)
+      .get();
+    if (snap.empty) { box.classList.add("hidden"); list.innerHTML = ""; return; }
+    const rows = [];
+    snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
+    rows.sort((a,b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+    box.classList.remove("hidden");
+    list.innerHTML = rows.map(r => `
+      <li>
+        <div>
+          <div class="h-c">${esc(r.store)} · ${esc(r.task)}</div>
+          <div class="h-d">${esc(r.note)}</div>
+          <div class="h-d">${r.dueDate ? "Due " + esc(r.dueDate) : "No due date"} · from ${esc(r.fromEmail || "admin")}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:auto" data-id="${r.id}">Done</button>
+      </li>
+    `).join("");
+    list.querySelectorAll("button[data-id]").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function markAssignmentDone(id){
+  try {
+    await db.collection("assignments").doc(id).update({ done: true, doneAt: Date.now() });
+    toast("Marked done");
+    loadAssignedTasks();
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't update — check Firestore rules allow it");
+  }
 }
 
 async function deleteWorker(uid, name){

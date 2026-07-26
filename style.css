@@ -132,12 +132,13 @@ body{
 .shiftbar b{font-weight:600;color:var(--wk-white);font-variant-numeric:tabular-nums}
 
 /* ---------- punch card (glass panel) ---------- */
+.right-stack{display:flex;flex-direction:column;gap:14px;flex:1;min-height:0;margin-top:-6px}
 .card{
   background:rgba(255,255,255,.03);
   backdrop-filter:blur(4px) saturate(105%);-webkit-backdrop-filter:blur(4px) saturate(105%);
   border:1px solid var(--wk-glass-border);border-radius:22px;position:relative;padding:20px 20px 32px;flex:1;
-  margin-top:-6px;
 }
+.assign-card{flex:none}
 .card-head{
   display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
   padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.35);margin-bottom:4px;
@@ -362,7 +363,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .stage{display:contents}
   .clock{grid-area:clock;padding:18px 24px 0}
   .shiftbar{grid-area:shiftbar;padding:0 24px 20px}
-  .card{grid-area:card;flex:none;height:auto;max-height:100%;margin:24px 32px 18px 0;overflow-y:auto}
+  .right-stack{grid-area:card;margin:24px 32px 18px 0;max-height:100%;min-height:0}
+  .card{flex:1;height:auto;overflow-y:auto}
+  .assign-card{overflow-y:visible}
   .dock{grid-area:dock;min-height:auto;padding:0 24px 18px}
   .bottom-nav{grid-area:nav;padding:10px 24px calc(env(safe-area-inset-bottom) + 10px);background:transparent;border-top:0;backdrop-filter:none;-webkit-backdrop-filter:none}
 

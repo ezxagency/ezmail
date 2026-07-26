@@ -141,19 +141,28 @@
     </div>
     <div class="shiftbar" id="shiftbar"></div>
 
-    <section class="card">
-      <div class="card-head">
-        <span>Today's<br>card</span>
-        <button class="link" id="btnHistory">History</button>
-      </div>
-      <ul class="punches" id="punches"></ul>
-      <div class="empty" id="empty">
-        <span class="empty-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="12" height="17" rx="2"/><path d="M8.5 4V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1"/><circle cx="18" cy="16" r="4.2" fill="#33333a"/><path d="M18 14.2V16l1.1 1"/></svg>
-        </span>
-        No punches yet. Clock in to start the card.
-      </div>
-    </section>
+    <div class="right-stack" id="rightStack">
+      <section class="card assign-card hidden" id="assignedTasksCard">
+        <div class="card-head">
+          <span>Assigned<br>to you</span>
+        </div>
+        <ul class="hist" id="assignedTasksList"></ul>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span>Today's<br>card</span>
+          <button class="link" id="btnHistory">History</button>
+        </div>
+        <ul class="punches" id="punches"></ul>
+        <div class="empty" id="empty">
+          <span class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="12" height="17" rx="2"/><path d="M8.5 4V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1"/><circle cx="18" cy="16" r="4.2" fill="#33333a"/><path d="M18 14.2V16l1.1 1"/></svg>
+          </span>
+          No punches yet. Clock in to start the card.
+        </div>
+      </section>
+    </div>
   </main>
 
   <footer class="dock" id="dock"></footer>
