@@ -35,8 +35,14 @@ const firebaseConfig = {
 };
 // Anyone on this list is made (or kept) admin on every login - add an
 // email here to grant admin access, even to an account that already
-// exists and signed in as a regular worker before.
-const ADMIN_EMAILS = ["ezagency2nd@gmail.com", "prashuchiha34@gmail.com"].map(e => e.toLowerCase());
+// exists and signed in as a regular worker before. Removing an email
+// downgrades it back to "worker" on its next login, same way.
+const ADMIN_EMAILS = ["ezagency2nd@gmail.com"].map(e => e.toLowerCase());
+// Can assign tasks (bottom-nav shortcut) without full admin access -
+// no team roster, no approvals, no export, no remove-member. Keep this
+// list and the matching Firestore rules (isAssignerEmail()) in sync by
+// hand for now - same manual-sync tradeoff as ADMIN_EMAILS already has.
+const ASSIGNER_EMAILS = ["prashuchiha34@gmail.com"].map(e => e.toLowerCase());
 
 const FB_READY = !firebaseConfig.apiKey.includes("PASTE");
 let auth = null, db = null;
@@ -1569,6 +1575,11 @@ async function resolveRole(user){
     // upgrade it on this login instead of requiring a manual DB edit
     await ref.update({ role: "admin" });
     doc = await ref.get();
+  } else if (!shouldBeAdmin && doc.data().role === "admin") {
+    // the mirror case: email was removed from ADMIN_EMAILS - drop back
+    // to a regular worker, not pending (they were already approved)
+    await ref.update({ role: "worker" });
+    doc = await ref.get();
   }
   return doc.data().role;
 }
@@ -1592,7 +1603,8 @@ if (!FB_READY){
       if (role === "pending") { screen("pending"); }
       else {
         isAdmin = role === "admin";
-        $("navAssign").classList.toggle("hidden", !isAdmin);
+        const canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
+        $("navAssign").classList.toggle("hidden", !canAssignTasks);
         $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
         Store.setUser(user.uid, user.email);
         screen("app");
