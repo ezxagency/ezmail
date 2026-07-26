@@ -1433,9 +1433,10 @@ if (!FB_READY){
     loginMode = mode;
     const isSignup = mode === "signup";
     $("confirmWrap").classList.toggle("hidden", !isSignup);
-    $("loginBtn").textContent = isSignup ? "Create account" : "Sign in";
+    $("loginBtnText").textContent = isSignup ? "Create account" : "Sign in";
     $("loginHint").textContent = isSignup ? "Set up your login — you'll use this every time." : "Sign in to clock in and out.";
-    $("modeToggle").textContent = isSignup ? "Already have an account? Sign in" : "New here? Create an account";
+    $("switchHint").textContent = isSignup ? "Already have an account?" : "New here?";
+    $("modeToggle").textContent = isSignup ? "Sign in" : "Create an account";
     $("loginErr").classList.add("hidden");
   }
   $("modeToggle").onclick = () => setLoginMode(loginMode === "signin" ? "signup" : "signin");
@@ -1450,12 +1451,17 @@ if (!FB_READY){
     "auth/quota-exceeded": "Too many emails sent today — try again tomorrow, or ask your admin to check the Firebase project's email quota.",
     "auth/too-many-requests": "Too many attempts — wait a bit before trying again."
   };
+  const persistence = () => $("keepSignedIn").checked
+    ? firebase.auth.Auth.Persistence.LOCAL
+    : firebase.auth.Auth.Persistence.SESSION;
+
   async function doLogin(){
     const email = $("loginEmail").value.trim();
     const pass = $("loginPass").value;
     $("loginErr").classList.add("hidden");
     if (!email || !pass) return;
     try {
+      await auth.setPersistence(persistence());
       if (loginMode === "signup") {
         if (pass.length < 6) throw new Error("Password must be at least 6 characters.");
         if (pass !== $("loginPass2").value) throw new Error("Passwords don't match.");
@@ -1470,6 +1476,18 @@ if (!FB_READY){
   }
   $("loginBtn").onclick = doLogin;
   $("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+
+  $("googleSignIn").onclick = async () => {
+    $("loginErr").classList.add("hidden");
+    try {
+      await auth.setPersistence(persistence());
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await auth.signInWithPopup(provider);
+    } catch (e) {
+      $("loginErr").textContent = AUTH_ERRORS[e.code] || e.message || "Google sign-in failed — try again.";
+      $("loginErr").classList.remove("hidden");
+    }
+  };
 
   $("forgotPassword").onclick = async () => {
     const email = $("loginEmail").value.trim();
