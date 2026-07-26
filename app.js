@@ -195,9 +195,13 @@ function renderPunches(){
 
   const ev = [];
   ev.push({ t: sh.startedAt, k: "In", cls: "", n: sh.client });
-  (sh.segs||[]).forEach(s => {
-    if (s.via === "switch") ev.push({ t: s.startedAt, k: "Task", cls: "k-task", n: s.task });
-    if (s.client) ev.push({ t: s.startedAt, k: "Store", cls: "k-store", n: s.client });
+  (sh.segs||[]).forEach((s, i, arr) => {
+    if (s.via !== "switch") return;
+    // One row per switch: which store, which task - never two rows for
+    // the same action, even when the switch also changed the store.
+    let store = s.client;
+    if (!store) for (let j = i - 1; j >= 0; j--) { if (arr[j].client) { store = arr[j].client; break; } }
+    ev.push({ t: s.startedAt, k: store || sh.client, cls: "k-store", n: s.task });
   });
   (sh.breaks||[]).forEach(b => {
     ev.push({ t: b.startedAt, k: "Break", cls: "k-break", n: b.reason });
