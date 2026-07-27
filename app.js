@@ -773,7 +773,37 @@ async function exportExcel(){
   toast("CSV files downloaded");
 }
 
-$("btnHistory").onclick = showHistory;
+/* ---------- the panes' vertical-dot menus ----------
+   The comp's bottom nav carries only three icons, so Assign task and Profile
+   live here instead of being dropped. Rendered as a sheet rather than a
+   popover so it reuses the app's one dismissal path on every screen size. */
+function menuSheet(title, items){
+  openSheet(`
+    <h2>${esc(title)}</h2>
+    ${items.map((it, i) => `<button class="btn ${it.cls || "btn-ghost"} btn-sm" id="menuItem${i}">${esc(it.label)}</button>`).join("")}
+    <button class="btn btn-ghost btn-sm" id="menuClose">Close</button>
+  `, () => {
+    items.forEach((it, i) => $("menuItem" + i).onclick = () => { closeSheet(); it.run(); });
+    $("menuClose").onclick = closeSheet;
+  });
+}
+
+function openCardMenu(){
+  const items = [{ label: "History", cls: "btn-go", run: showHistory }];
+  if (canAssignTasks) items.push({ label: "Assign task", run: askAssignTaskPickMember });
+  items.push({ label: "Profile", run: showProfile });
+  menuSheet("Daily Mission", items);
+}
+
+function openTeamMenu(){
+  menuSheet("Team", [
+    { label: "Full team page", cls: "btn-go", run: showTeam },
+    { label: "Export team report", run: exportAllExcel }
+  ]);
+}
+
+$("cardMenu").onclick = openCardMenu;
+$("teamMenu").onclick = openTeamMenu;
 
 function showProfile(){
   const email = (auth && auth.currentUser && auth.currentUser.email) || "";
@@ -798,7 +828,7 @@ function showProfile(){
 }
 
 function setActiveNav(id){
-  ["navDashboard","navCard","navHistory","navAssign","navProfile"].forEach(n => $(n).classList.toggle("active", n === id));
+  ["navDashboard","navCard","navHistory"].forEach(n => $(n).classList.toggle("active", n === id));
 }
 $("navDashboard").onclick = () => setActiveNav("navDashboard");
 $("navCard").onclick = () => {
@@ -806,14 +836,15 @@ $("navCard").onclick = () => {
   document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
 };
 $("navHistory").onclick = () => { setActiveNav("navHistory"); showHistory(); };
-$("navAssign").onclick = () => { setActiveNav("navAssign"); askAssignTaskPickMember(); };
-$("navProfile").onclick = () => { setActiveNav("navProfile"); showProfile(); };
 
 /* ============================================================
    WORKER APP BOOT (called once, after login as a worker)
    ============================================================ */
 let workerStarted = false;
 let isAdmin = false;
+// module-level so the card's dot menu can decide whether to offer "Assign
+// task" - the bottom nav no longer carries that entry
+let canAssignTasks = false;
 
 // Anything started for a signed-in user that outlives a single render -
 // the tick timer, wake listeners, Firestore subscriptions. Sign-out has to
@@ -868,7 +899,6 @@ async function startWorkerApp(){
   $("teamProceed").onclick = () => setTeamPaneOpen(true);
   $("teamCollapse").onclick = () => setTeamPaneOpen(false);
   $("cardRestore").onclick = () => setTeamPaneOpen(false);
-  $("teamOpenFullPage").onclick = () => showTeam();
 
   if (staleShift) {
     toast("Shift left open a long time — please review and close it");
@@ -1856,6 +1886,7 @@ if (!FB_READY){
       screen("login");
       workerStarted = false;
       isAdmin = false;
+      canAssignTasks = false;
       S = { worker:"", status:"IDLE", shift:null, history:[], lastReport:null };
       // drop the signed-out uid too, so a stray save() can never write the
       // blank state above over the previous user's stored shift history
@@ -1863,7 +1894,6 @@ if (!FB_READY){
       assignLogRows = null;
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
-      $("navAssign").classList.add("hidden");
       $("appScreen").classList.remove("has-team", "team-open");
       $("teamPanel").classList.add("hidden");
       teamPaneRows = null; teamPendingCount = 0;
@@ -1874,8 +1904,7 @@ if (!FB_READY){
       if (role === "pending") { screen("pending"); }
       else {
         isAdmin = role === "admin";
-        const canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
-        $("navAssign").classList.toggle("hidden", !canAssignTasks);
+        canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
         $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
         $("appScreen").classList.toggle("has-team", isAdmin);
         $("teamPanel").classList.toggle("hidden", !isAdmin);

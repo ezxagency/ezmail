@@ -1,4 +1,4 @@
-:root{
+﻿:root{
   --ink:#0F0C1B;
   --ink-soft:#7B2CBF;
   --paper:#F8F9FA;
@@ -87,7 +87,7 @@ body{
 .band-meta{
   font-family:var(--wk);font-weight:500;text-transform:uppercase;letter-spacing:.42em;
   font-size:15px;color:var(--wk-white);
-  /* "LUNCH · STORE EPSILON" at .42em tracking is wider than the band on a
+  /* "LUNCH Â· STORE EPSILON" at .42em tracking is wider than the band on a
      narrow phone - let it wrap, and break mid-word if a store name has no
      spaces to break at, rather than running under the sign-out button */
   min-width:0;overflow-wrap:anywhere;
@@ -165,13 +165,20 @@ body{
    admins. Below 1024px the shield icon's full-page Team screen is still the
    way in - an assignments table needs more width than a phone has. */
 .team-panel{display:none}
-.team-panel-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.team-panel-mark{display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex:none;color:var(--wk-white)}
+.team-panel-head{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+.team-panel-mark{display:flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;color:var(--wk-white)}
 .team-panel-mark svg{width:100%;height:100%}
 .team-panel-title{
-  font-family:var(--wk);font-weight:700;font-size:19px;text-transform:uppercase;
-  letter-spacing:.06em;margin:0;color:var(--wk-white);
+  font-family:var(--wk);font-weight:700;font-size:22px;text-transform:uppercase;
+  letter-spacing:.04em;margin:0;color:var(--wk-white);flex:1;min-width:0;
 }
+/* the vertical-dot affordance in the corner of both panes */
+.panel-menu{
+  flex:none;background:none;border:0;padding:6px 2px;margin:-6px -2px;cursor:pointer;
+  color:var(--wk-white);opacity:.85;transition:opacity .15s ease;
+}
+.panel-menu:hover{opacity:1}
+.panel-menu svg{display:block;width:20px;height:20px}
 .team-panel-counts{
   font-family:var(--wk);font-size:12.5px;line-height:1.6;color:var(--wk-white-70);
   margin:0 0 14px;letter-spacing:.02em;
@@ -191,13 +198,18 @@ body{
 .team-collapse{margin-top:14px;font-size:13px;color:var(--wk-white-70)}
 .team-collapse:hover{color:var(--wk-white)}
 .team-collapse:hover svg{transform:translateX(-3px)}
-.team-panel-sub{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);margin:0 0 20px;line-height:1.5}
-.team-panel-label-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px}
-.team-panel-label{font-family:var(--wk);font-weight:600;font-size:13px;color:var(--wk-white)}
+.team-panel-sub{font-family:var(--wk);font-size:13.5px;color:var(--wk-white-70);margin:-8px 0 20px;line-height:1.5}
+.team-panel-label{font-family:var(--wk);font-weight:700;font-size:14px;color:var(--wk-white);margin:0 0 12px}
 .team-table-wrap{
-  background:rgba(9,11,16,.5);border:1px solid rgba(255,255,255,.12);border-radius:16px;
+  background:rgba(9,11,16,.5);border:1px solid rgba(255,255,255,.1);border-radius:18px;
   padding:6px 4px;overflow:auto;min-height:0;flex:1;
+  /* the comp shows a visible track, so keep the thumb always-on rather than
+     the hairline the rest of the app uses */
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.5) transparent;
 }
+.team-table-wrap::-webkit-scrollbar{width:8px}
+.team-table-wrap::-webkit-scrollbar-thumb{background:rgba(255,255,255,.5);border-radius:999px}
+.team-table-wrap::-webkit-scrollbar-track{background:transparent}
 .team-table{width:100%;border-collapse:collapse;font-family:var(--wk);font-size:12px}
 .team-table th{
   position:sticky;top:0;z-index:1;background:#12151c;
@@ -525,20 +537,19 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
        width, so a 1920 screen doesn't leave the rings marooned beside a
        1500px card */
     grid-template-columns:clamp(300px,26%,440px) minmax(0,1fr);
-    /* The slack goes in the SHIFTBAR row, not the dock row. The dock is a
-       flex column with justify-content:flex-end, so if its track is ever
-       shorter than its buttons the overflow escapes upward and lands on top
-       of the shiftbar - which is exactly what happened on a short window
-       (600px tall gave the dock an 82px track for 120px of buttons). The
-       shiftbar has almost no content, so it can absorb the slack safely and
-       the dock and nav always get their natural height. */
-    grid-template-rows:auto auto 1fr auto auto;
+    /* Slack goes in a trailing spacer row, so the rail stacks from the top
+       the way the comp does instead of being pushed to the bottom edge.
+       minmax(0,1fr) lets that spacer collapse to nothing on a short window,
+       which keeps the dock from ever being squeezed shorter than its buttons
+       and spilling upward over the shiftbar. */
+    grid-template-rows:auto auto auto auto auto minmax(0,1fr);
     grid-template-areas:
       "band     band"
       "clock    card"
       "shiftbar card"
       "dock     card"
-      "nav      card";
+      "nav      card"
+      ".        card";
     column-gap:34px;row-gap:0;
     overflow:hidden;
     background-image:
@@ -562,32 +573,92 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      what actually lets it scroll inside its grid area. */
   .card{grid-area:card;flex:none;min-height:0;margin:16px 34px 26px 0;padding:24px 24px 28px;overflow-y:auto}
 
-  /* --- admin: third pane --- */
+  /* --- admin: third pane, proportioned off the comp ---
+     At 1600x900 the comp puts the rail at 105-613, Daily Mission at 613-1013
+     (400px) and Team at 1043-1503 (460px), with ~100px of page margin each
+     side. Those translate to 38.3% / 25% / 28.75% with a 1.9% gutter, which
+     is what the tracks below express. */
   .app.has-team{
-    grid-template-columns:clamp(272px,21%,384px) minmax(0,1.12fr) minmax(0,.88fr);
+    /* Page inset first (the comp leaves ~100px each side of 1600), then the
+       three tracks measured off the remaining 1398px: rail 518, card 400,
+       team 460 with a 30px gutter carried as the team's margin-left. */
+    /* vertical rhythm in vh so it tracks the comp's 1600x900 proportions at
+       any height: content top 5.4vh, bottom edge of the panes 16.7vh up from
+       the floor (comp has the card ending at y=750 of 900) */
+    padding:7vh 6.1% 16.7vh 6.5%;
+    /* the inter-pane gutter is carried as the team's margin-left, so the
+       inherited 34px column-gap has to go or every track shifts right */
+    column-gap:0;
+    grid-template-columns:37% 28.6% minmax(0,1fr);
     grid-template-areas:
       "band     band band"
       "clock    card team"
       "shiftbar card team"
       "dock     card team"
-      "nav      card team";
+      "nav      card team"
+      ".        card team";
   }
-  .app.has-team .card{margin-right:22px}
+  /* the app now owns the page inset, so the rows inside it sit flush left */
+  .app.has-team .band{padding:0 0 4px;align-items:flex-start}
+  .app.has-team .brand-rule{margin:10px 0 26px}
+  .app.has-team .shiftbar{padding:14px 0 0}
+  .app.has-team .dock{padding:0;margin-top:2.2vh}
+  .app.has-team .bottom-nav{padding:0;margin-top:5.1vh;gap:52px}
+  .app.has-team .nav-btn{width:52px;height:52px}
+  .app.has-team .nav-btn svg{width:24px;height:24px}
+  /* the rail's controls stop at ~370px of the 510px track, per the comp */
+  .app.has-team .shiftbar,
+  .app.has-team .dock,
+  .app.has-team .bottom-nav{max-width:72%}
+  /* the ring's svg box is wider than its drawn circle, so the track has to
+     be ~22% wider than the 165px circle the comp shows */
+  .app.has-team .clock{
+    padding:0;max-width:80.4%;margin-top:12vh;
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;
+  }
+  .app.has-team .clock-panel{padding:0}
+  .app.has-team .ring{max-width:198px}
+  .app.has-team .ring-main{font-size:27px}
+  .app.has-team .clock-label{margin-top:0;font-size:13px;letter-spacing:.12em}
+  .app.has-team .dock .btn{padding:24px 16px;font-size:16px;border-radius:14px}
+
+  .app.has-team .card{margin:3.2vh 0 0;padding:28px 30px 32px;border-radius:18px}
+  .app.has-team .card-head > span:first-child{font-size:26px;line-height:1.12}
   .app.has-team .team-panel{
     grid-area:team;display:flex;flex-direction:column;min-height:0;
-    margin:16px 34px 26px 0;padding:24px 24px 26px;
+    /* margin-left is the 30px inter-pane gutter from the comp */
+    margin:3.2vh 0 0 4.6%;padding:28px 30px 32px;
     background:rgba(12,14,20,.42);
     backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
-    border:1px solid var(--wk-glass-border);border-radius:22px;
+    border:1px solid var(--wk-glass-border);border-radius:18px;
+    /* collapsed it is a compact card sized to its content, not a full-height
+       column - the comp ends it at y=473 of 900 */
+    align-self:start;
   }
   .app.has-team .team-panel-full{display:none}
+  /* comp scale for the collapsed card's body copy */
+  .app.has-team .team-panel-counts{font-size:14px;margin-bottom:18px}
+  .app.has-team .team-latest-who{font-size:18px}
+  .app.has-team .team-latest-what{font-size:15px;margin-top:5px}
+  .app.has-team .team-latest-when{font-size:11.5px;margin-top:7px}
+  .app.has-team .team-latest{margin-bottom:24px}
+  .app.has-team .team-proceed{font-size:18px}
+  .app.has-team .team-proceed svg{width:20px;height:20px}
+  .app.has-team .card-restore-title{font-size:22px}
+  .app.has-team .card-restore{gap:24px}
 
-  /* --- expanded: the two panes swap weight --- */
-  .app.has-team.team-open{grid-template-columns:clamp(272px,21%,384px) minmax(150px,.22fr) minmax(0,1fr)}
+  /* the comp carries no READY/IDLE meta under the ring labels, and no
+     CLOCKED OUT line under the name */
+  .app.has-team .clock-meta,
+  .app.has-team .band-state{display:none}
+
+  /* --- expanded: the two panes swap weight (comp frame 62: 175px / 668px) --- */
+  .app.has-team.team-open{grid-template-columns:37% 12.5% minmax(0,1fr)}
+  .app.has-team.team-open .team-panel{align-self:stretch}
   .app.has-team.team-open .team-panel-brief{display:none}
   .app.has-team.team-open .team-panel-full{display:flex;flex-direction:column;min-height:0;flex:1}
   /* everything except the restore tile drops out of the shrunken card */
-  .app.has-team.team-open .card{overflow:hidden}
+  .app.has-team.team-open .card{align-self:start;overflow:hidden;padding:24px 22px 26px}
   .app.has-team.team-open .card > *{display:none}
   .app.has-team.team-open .card > .card-restore{display:flex}
 
