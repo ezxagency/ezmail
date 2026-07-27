@@ -261,10 +261,13 @@ function updateRingProgress(ringId, elapsedMs, cycleMs){
   const p = (Math.max(0, elapsedMs) % cycleMs) / cycleMs;
   lapFill.classList.toggle("on", completedLaps >= 1);
   if (p < 0.002) { progress.setAttribute("d", ""); return; }
+  // r95.5 + the 9-wide stroke lands the ring's outer edge exactly on the 200
+  // viewBox, so the drawn circle fills its box. At r86 the svg wasted 14% of
+  // its own width, which made the ring read ~11px small against the comp.
   const theta = p * 360, rad = (theta * Math.PI) / 180;
-  const x = (100 + 86 * Math.sin(rad)).toFixed(2);
-  const y = (100 - 86 * Math.cos(rad)).toFixed(2);
-  progress.setAttribute("d", `M100,14 A86,86 0 ${theta > 180 ? 1 : 0} 1 ${x},${y}`);
+  const x = (100 + 95.5 * Math.sin(rad)).toFixed(2);
+  const y = (100 - 95.5 * Math.cos(rad)).toFixed(2);
+  progress.setAttribute("d", `M100,4.5 A95.5,95.5 0 ${theta > 180 ? 1 : 0} 1 ${x},${y}`);
 }
 
 function tick(){

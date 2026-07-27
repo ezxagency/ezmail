@@ -590,85 +590,144 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      what actually lets it scroll inside its grid area. */
   .card{grid-area:card;flex:none;min-height:0;margin:16px 34px 26px 0;padding:24px 24px 28px;overflow-y:auto}
 
-  /* --- admin: third pane, proportioned off the comp ---
-     At 1600x900 the comp puts the rail at 105-613, Daily Mission at 613-1013
-     (400px) and Team at 1043-1503 (460px), with ~100px of page margin each
-     side. Those translate to 38.3% / 25% / 28.75% with a 1.9% gutter, which
-     is what the tracks below express. */
+  /* --- admin: third pane, measured off Figma frame 28:12 (1920x1080) ---
+     Read from the file rather than a screenshot, so these are the design's
+     own numbers rather than something scaled off an image:
+       page inset      left 115  right 41
+       rail track      115 -> 730   (615)   controls 444 wide inside it
+       Daily Mission   730 -> 1226  (496)
+       Team            1246 -> 1879 (633)   20px gutter
+     As percentages of 1920 those are the tracks below, and they sum to 100. */
   .app.has-team{
-    /* Page inset first (the comp leaves ~100px each side of 1600), then the
-       three tracks measured off the remaining 1398px: rail 518, card 400,
-       team 460 with a 30px gutter carried as the team's margin-left. */
-    /* vertical rhythm in vh so it tracks the comp's 1600x900 proportions at
-       any height: content top 5.4vh, bottom edge of the panes 16.7vh up from
-       the floor (comp has the card ending at y=750 of 900) */
-    padding:7vh 6.1% 16.7vh 6.5%;
-    /* the inter-pane gutter is carried as the team's margin-left, so the
-       inherited 34px column-gap has to go or every track shifts right */
+    padding:3.89vh 2.14% 0 5.99%;
+    /* the 20px inter-pane gutter is the team's margin-left, so the inherited
+       column-gap has to go or every track shifts right */
     column-gap:0;
-    /* rail takes the left half of the screen; the comp's 400:460 split of
-       what is left is kept for the two panes */
-    grid-template-columns:50% 23% minmax(0,1fr);
+    /* NB: these resolve against the padding-box content width (1920 - 115 - 41
+       = 1764), not the full frame, so they are 615/1764 and 496/1764 - not
+       615/1920. Getting that wrong shifts every track left. */
+    grid-template-columns:34.86% 28.12% minmax(0,1fr);
+    grid-template-rows:auto auto auto auto auto minmax(0,1fr);
     grid-template-areas:
       "band     band band"
-      ".        card team"
       "clock    card team"
       "shiftbar card team"
-      ".        card team"
       "dock     card team"
-      ".        card team"
-      "nav      card team";
+      "nav      card team"
+      ".        card team";
   }
-  /* the app now owns the page inset, so the rows inside it sit flush left */
-  .app.has-team .band{padding:0 0 4px;align-items:flex-start}
-  .app.has-team .brand-rule{margin:10px 0 26px}
-  .app.has-team .shiftbar{padding:14px 0 0}
-  /* the 1fr spacer rows own the gaps now; these are just a floor for when
-     the window is too short for the spacers to have any height */
-  .app.has-team .dock{padding:0;margin-top:12px}
-  .app.has-team .bottom-nav{padding:0;margin-top:12px;gap:52px}
-  .app.has-team .nav-btn{width:52px;height:52px}
-  .app.has-team .nav-btn svg{width:24px;height:24px}
-  /* the rail's controls stop at ~370px of the 510px track, per the comp */
+  .app.has-team .band{padding:0 0 1.3vh;align-items:flex-start}
+  /* comp: rule is 281 wide under a 385-wide wordmark, 3px, r12.5 */
+  .app.has-team .brand-rule{width:73%;height:3px;border-radius:12.5px;margin:6px 0 22px}
+  .app.has-team .shiftbar{padding:0;min-height:0}
+  /* comp gaps down the rail: labels 603 -> button 661, button 757 -> nav 795 */
+  .app.has-team .dock{padding:0;margin-top:7.44vh}
+  /* comp insets the nav row 35px from the rail's left edge (circle at x=150) */
+  .app.has-team .bottom-nav{padding:0;margin:3.52vh 0 0 5.75%;gap:8.6%;justify-content:flex-start}
+  .app.has-team .nav-btn{width:8.9vh;height:8.9vh;max-width:97px;max-height:97px}
+  .app.has-team .nav-btn svg{width:46%;height:46%}
+  /* controls occupy 444 of the 615 rail track */
   .app.has-team .shiftbar,
   .app.has-team .dock,
-  .app.has-team .bottom-nav{max-width:72%}
-  /* the ring's svg box is wider than its drawn circle, so the track has to
-     be ~22% wider than the 165px circle the comp shows */
+  .app.has-team .bottom-nav{max-width:72.2%}
+  /* Comp: two 195 circles 52 apart = 442, inside the 444 control column. With
+     the svg now filling its box (r95.5), the box IS the circle, so the gap is
+     simply 52/442. */
   .app.has-team .clock{
-    padding:0;max-width:88%;margin-top:12px;
-    grid-template-columns:repeat(2,minmax(0,1fr));gap:26px;
+    padding:0;max-width:72.2%;margin-top:15.09vh;
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:11.8%;
   }
   .app.has-team .clock-panel{padding:0}
-  .app.has-team .ring{max-width:250px}
-  .app.has-team .ring-main{font-size:34px}
-  .app.has-team .clock-label{margin-top:0;font-size:13px;letter-spacing:.12em}
-  .app.has-team .dock .btn{padding:24px 16px;font-size:16px;border-radius:14px}
+  .app.has-team .ring{max-width:none}
+  .app.has-team .ring-main{font-size:clamp(20px,1.875vw,40px)}
+  .app.has-team .ring-sec{font-size:.42em}
+  .app.has-team .clock-label{
+    margin-top:0;font-weight:600;letter-spacing:.12em;
+    font-size:clamp(12px,1.146vw,24px);
+  }
+  .app.has-team .dock .btn{
+    height:8.89vh;max-height:96px;padding:0 16px;border-radius:13px;
+    font-weight:600;letter-spacing:.12em;font-size:clamp(13px,1.146vw,24px);
+  }
+  .app.has-team .dock .btn-go{box-shadow:0 8px 6px rgba(255,255,255,.25)}
 
-  .app.has-team .card{margin:3.2vh 0 0;padding:28px 30px 32px;border-radius:18px}
-  .app.has-team .card-head > span:first-child{font-size:26px;line-height:1.12}
+  /* Daily Mission: 496x662, r27, 20% white -- a LIGHT panel in the comp, not
+     the dark scrim the mobile card uses. */
+  .app.has-team .card{
+    margin:4.4vh 0 0;padding:4.6vh 33px 0;
+    height:61.3vh;border-radius:27px;
+    background:rgba(255,255,255,.2);border:0;
+    box-shadow:5px 8px 8px rgba(0,0,0,.25);
+    align-self:start;
+  }
+  .app.has-team .card-head{border-bottom:0;padding-bottom:0;margin-bottom:0}
+  .app.has-team .card-head > span:first-child{
+    font-weight:800;letter-spacing:.12em;line-height:.97;
+    font-size:clamp(18px,1.875vw,40px);
+  }
+  /* the comp draws the divider as its own 2px bar, not a border */
+  /* rule sits 145px below the card's top edge in the comp (card 240, rule 385) */
+  .app.has-team .card-head::after{
+    content:"";position:absolute;left:33px;right:33px;top:13.43vh;
+    height:2px;border-radius:4.5px;background:var(--wk-white);
+  }
+  .app.has-team .empty{padding-top:9vh;font-weight:500;font-size:clamp(13px,1.146vw,24px)}
+  .app.has-team .empty-icon{width:10.9vw;height:10.9vw;max-width:210px;max-height:210px}
+
+  /* Team: 633x343, r43, rgba(20,20,20,.43), Inter throughout */
   .app.has-team .team-panel{
-    grid-area:team;display:flex;flex-direction:column;min-height:0;
-    /* margin-left is the 30px inter-pane gutter from the comp */
-    margin:3.2vh 0 0 4.6%;padding:28px 30px 32px;
-    background:rgba(12,14,20,.42);
+    grid-area:team;display:flex;flex-direction:column;
+    margin:3.7vh 0 0 3.06%;padding:3.15vh 38px 0;
+    min-height:31.76vh;border-radius:43px;
+    background:rgba(20,20,20,.43);border:0;
     backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
-    border:1px solid var(--wk-glass-border);border-radius:18px;
-    /* collapsed it is a compact card sized to its content, not a full-height
-       column - the comp ends it at y=473 of 900 */
+    font-family:"Inter",var(--body);
     align-self:start;
   }
   .app.has-team .team-panel-full{display:none}
-  /* comp scale for the collapsed card's body copy */
-  .app.has-team .team-panel-counts{font-size:14px;margin-bottom:18px}
-  .app.has-team .team-latest-who{font-size:18px}
-  .app.has-team .team-latest-what{font-size:15px;margin-top:5px}
-  .app.has-team .team-latest-when{font-size:11.5px;margin-top:7px}
-  .app.has-team .team-latest{margin-bottom:24px}
-  .app.has-team .team-proceed{font-size:18px}
-  .app.has-team .team-proceed svg{width:20px;height:20px}
-  .app.has-team .card-restore-title{font-size:22px}
+  /* Team card type, straight off the comp: Inter Bold 36 title, Regular 32
+     body, Black 32 for Proceed; star 69x63. */
+  .app.has-team .team-panel-head{gap:22px;margin-bottom:3.5vh}
+  .app.has-team .team-panel-mark{width:3.6vw;height:3.3vw;max-width:69px;max-height:63px}
+  /* the comp's text node is literally "TEAM", so keep the uppercase */
+  .app.has-team .team-panel-title{
+    font-family:"Inter",var(--body);font-weight:700;
+    letter-spacing:0;font-size:clamp(18px,1.875vw,40px);
+  }
+  .app.has-team .team-panel-counts,
+  .app.has-team .team-latest-who,
+  .app.has-team .team-latest-what,
+  .app.has-team .team-latest-when,
+  .app.has-team .team-latest-none{
+    font-family:"Inter",var(--body);letter-spacing:0;text-transform:none;
+  }
+  .app.has-team .team-panel-counts{font-weight:400;font-size:clamp(13px,1.25vw,26px);margin-bottom:1.4vh}
+  .app.has-team .team-latest-who{font-weight:400;font-size:clamp(14px,1.667vw,34px)}
+  .app.has-team .team-latest-what{font-weight:400;font-size:clamp(13px,1.25vw,26px);margin-top:.5vh}
+  .app.has-team .team-latest-when{font-size:clamp(10px,.94vw,19px);margin-top:.6vh}
+  .app.has-team .team-latest{margin-bottom:2.3vh}
+  .app.has-team .team-proceed{
+    font-family:"Inter",var(--body);font-weight:900;
+    font-size:clamp(14px,1.667vw,34px);gap:14px;
+  }
+  .app.has-team .team-proceed svg{width:24px;height:24px;stroke-width:3}
+  .app.has-team .card-restore-title{font-size:clamp(16px,1.6vw,34px)}
   .app.has-team .card-restore{gap:24px}
+
+  /* --- band, per the comp --- */
+  /* "EZ" Poppins Bold 64, "CLOCK IN" Rationale 64 */
+  .app.has-team .brand-word{font-size:clamp(26px,3.33vw,68px)}
+  .app.has-team .brand-word .rest{font-family:"Rationale",var(--wk);font-weight:400;margin-left:.14em}
+  /* person glyph 29px, name Roboto 24 with 14.4px tracking (0.6em) */
+  .app.has-team .band-meta{font-size:clamp(12px,1.25vw,26px);letter-spacing:.6em}
+  .app.has-team .band-meta-icon{width:1.51vw;height:1.56vw;max-width:29px;max-height:30px;margin-right:7px}
+  /* sign out 302x71, r38, 2px white border on 11% white, Poppins 30 */
+  .app.has-team .band-signout{
+    padding:0 1.5vw;min-width:15.73vw;height:6.57vh;max-height:71px;
+    border-radius:38px;background:rgba(255,255,255,.11);
+    font-size:clamp(12px,1.56vw,32px);font-weight:400;letter-spacing:.02em;
+  }
+  .app.has-team .admin-icon-btn{min-width:0;width:6.57vh;height:6.57vh;max-width:71px;max-height:71px;padding:0}
 
   /* the comp carries no READY/IDLE meta under the ring labels, and no
      CLOCKED OUT line under the name */
@@ -714,20 +773,31 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
    dock keeping its natural height (see min-height:auto above) is what stops
    the squeeze from turning into an overlap. */
 @media (min-width:1024px) and (max-height:820px){
-  .app.has-team{padding-top:3vh;padding-bottom:5vh}
-  .app.has-team .brand-rule{margin:8px 0 14px}
-  .app.has-team .ring{max-width:200px}
-  .app.has-team .ring-main{font-size:28px}
-  .app.has-team .dock .btn{padding:16px 16px;font-size:14px}
-  .app.has-team .nav-btn{width:44px;height:44px}
+  .app.has-team{padding-top:3vh}
+  .app.has-team .band{padding-bottom:0}
+  .app.has-team .brand-rule{margin:6px 0 12px}
+  .app.has-team .clock{margin-top:5vh}
+  .app.has-team .dock{margin-top:3.4vh}
+  .app.has-team .bottom-nav{margin-top:2.4vh}
   .app.has-team .card,
   .app.has-team .team-panel{margin-top:2.4vh}
+  .app.has-team .card{height:auto;max-height:82vh;padding-top:3.4vh}
+  .app.has-team .card-head::after{top:9.6vh}
+  .app.has-team .empty{padding-top:5vh}
+  .app.has-team .empty-icon{width:7.4vw;height:7.4vw}
 }
+/* very short: the comp's proportions cannot fit, so trade the vertical
+   rhythm down hard rather than clip the nav off the bottom */
 @media (min-width:1024px) and (max-height:660px){
-  .app.has-team .ring{max-width:160px}
-  .app.has-team .ring-main{font-size:23px}
+  .app.has-team{padding-top:2vh}
+  .app.has-team .clock{margin-top:2.6vh}
+  .app.has-team .dock{margin-top:2.2vh}
+  .app.has-team .bottom-nav{margin-top:1.8vh}
   .app.has-team .clock-label{font-size:11px}
-  .app.has-team .dock .btn{padding:13px 14px;font-size:13px}
+  .app.has-team .card{max-height:74vh;padding-top:2.6vh}
+  .app.has-team .card-head::after{top:7.6vh}
+  .app.has-team .empty{padding-top:2.5vh}
+  .app.has-team .empty-icon{width:5.8vw;height:5.8vw}
 }
 
 /* Short desktop window (laptops at 1366x768 with browser chrome, or any
