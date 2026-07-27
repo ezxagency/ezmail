@@ -562,7 +562,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .stage{display:contents}
   .clock{grid-area:clock;padding:16px 0 0 34px;min-width:0}
   .shiftbar{grid-area:shiftbar;justify-content:flex-start;padding:16px 0 0 34px;min-height:0}
-  .dock{grid-area:dock;min-height:0;padding:20px 0 10px 34px;justify-content:flex-end}
+  /* min-height must stay auto. With min-height:0 the dock's auto track can
+     collapse to zero when the column is short, and because the dock is a
+     flex column justified to flex-end its buttons then overflow UPWARD and
+     paint on top of the clock labels. Letting the track keep its content
+     height means a cramped window pushes the nav down instead. */
+  .dock{grid-area:dock;min-height:auto;padding:20px 0 10px 34px;justify-content:flex-end}
   .bottom-nav{
     grid-area:nav;justify-content:flex-start;gap:8px;
     padding:6px 0 24px 30px;
@@ -589,7 +594,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     /* the inter-pane gutter is carried as the team's margin-left, so the
        inherited 34px column-gap has to go or every track shifts right */
     column-gap:0;
-    grid-template-columns:37% 28.6% minmax(0,1fr);
+    /* rail takes the left half of the screen; the comp's 400:460 split of
+       what is left is kept for the two panes */
+    grid-template-columns:50% 23% minmax(0,1fr);
     grid-template-areas:
       "band     band band"
       "clock    card team"
@@ -683,6 +690,31 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     padding:24px 24px calc(env(safe-area-inset-bottom) + 24px);
   }
   .sheet.on{transform:none;opacity:1;pointer-events:auto}
+}
+
+/* The comp's vertical rhythm is derived from a 900px-tall frame. Below that
+   the vh-based gaps plus the 16.7vh bottom inset add up to more than the
+   window has, which squeezed the rail. Compress the rhythm instead - the
+   dock keeping its natural height (see min-height:auto above) is what stops
+   the squeeze from turning into an overlap. */
+@media (min-width:1024px) and (max-height:820px){
+  .app.has-team{padding-top:3vh;padding-bottom:5vh}
+  .app.has-team .brand-rule{margin:8px 0 14px}
+  .app.has-team .clock{margin-top:3vh}
+  .app.has-team .ring{max-width:150px}
+  .app.has-team .ring-main{font-size:22px}
+  .app.has-team .dock{margin-top:1.5vh}
+  .app.has-team .dock .btn{padding:16px 16px;font-size:14px}
+  .app.has-team .bottom-nav{margin-top:2.4vh}
+  .app.has-team .nav-btn{width:44px;height:44px}
+  .app.has-team .card,
+  .app.has-team .team-panel{margin-top:2.4vh}
+}
+@media (min-width:1024px) and (max-height:660px){
+  .app.has-team .ring{max-width:124px}
+  .app.has-team .ring-main{font-size:18px}
+  .app.has-team .clock-label{font-size:11px}
+  .app.has-team .dock .btn{padding:13px 14px;font-size:13px}
 }
 
 /* Short desktop window (laptops at 1366x768 with browser chrome, or any
