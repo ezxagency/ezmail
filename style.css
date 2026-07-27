@@ -52,8 +52,12 @@ body{
 }
 
 /* ---------- worker app shell ---------- */
+/* Full-bleed on phones. The old flat 380px cap left light-grey body gutters
+   down both sides of the dark app on every handset wider than that - which
+   is most of them now (Pixel 7 Pro 412, iPhone Pro Max 430). The cap comes
+   back at the tablet breakpoint, where centring a column is the right call. */
 .app{
-  display:flex;flex-direction:column;height:100dvh;width:min(100%,380px);max-width:380px;margin:0 auto;position:relative;
+  display:flex;flex-direction:column;height:100dvh;width:100%;margin:0 auto;position:relative;
   color:var(--wk-white);
   background-color:var(--wk-navy);
   background-image:
@@ -70,7 +74,7 @@ body{
   display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;
 }
 .band-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none;margin-left:auto}
-.brand{min-width:0}
+.brand{min-width:0;flex:1 1 auto}
 .brand-title{display:inline-block}
 .brand-word{
   font-family:var(--wk);text-transform:uppercase;line-height:1;white-space:nowrap;
@@ -82,6 +86,10 @@ body{
 .band-meta{
   font-family:var(--wk);font-weight:500;text-transform:uppercase;letter-spacing:.42em;
   font-size:15px;color:var(--wk-white);
+  /* "LUNCH · STORE EPSILON" at .42em tracking is wider than the band on a
+     narrow phone - let it wrap, and break mid-word if a store name has no
+     spaces to break at, rather than running under the sign-out button */
+  min-width:0;overflow-wrap:anywhere;
 }
 .band-state{
   margin-top:5px;font-family:var(--wk);font-weight:400;text-transform:uppercase;letter-spacing:.14em;
@@ -142,8 +150,12 @@ body{
 
 /* ---------- punch card (glass panel) ---------- */
 .card{
-  background:rgba(255,255,255,.03);
-  backdrop-filter:blur(4px) saturate(105%);-webkit-backdrop-filter:blur(4px) saturate(105%);
+  /* A dark scrim, not a light one. At 3% white this panel was effectively
+     clear, so its contents inherited whatever the marble was doing behind
+     them - and the bright band of the photo runs straight through the card
+     on wide screens, which left the green store pill unreadable. */
+  background:rgba(12,14,20,.42);
+  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
   border:1px solid var(--wk-glass-border);border-radius:22px;position:relative;padding:20px 20px 32px;flex:1;
   margin-top:-6px;
 }
@@ -174,7 +186,9 @@ body{
 }
 .punches{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .punches li{
-  display:flex;gap:10px;align-items:baseline;padding:12px 14px;
+  /* centre, not baseline: .punch-k is a padded pill, so baseline-aligning it
+     against the bare timestamp text sat the pill visibly low in the row */
+  display:flex;gap:10px;align-items:center;padding:12px 14px;
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:12px;
   font-family:var(--wk);font-size:13px;
 }
@@ -187,7 +201,8 @@ body{
 .punch-k.k-task{border-color:rgba(255,255,255,.9);color:var(--wk-white)}
 .punch-k.k-break{border-color:rgba(255,255,255,.35);color:var(--wk-white-60)}
 .punch-k.k-store{border-color:var(--wk-green);color:var(--wk-green)}
-.punch-n{color:var(--wk-white-60);flex:1;text-align:right;font-size:12px}
+.punch-t{flex:none}
+.punch-n{color:var(--wk-white-60);flex:1;min-width:0;text-align:right;font-size:12px;overflow-wrap:anywhere}
 .stamp-in{animation:stamp .22s cubic-bezier(.2,.9,.3,1.4)}
 @keyframes stamp{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
 .empty{padding:20px 4px 24px;color:var(--wk-white-70);font-size:15px;line-height:1.6;text-align:center}
@@ -261,11 +276,22 @@ body{
 .admin-page{
   position:fixed;inset:0;z-index:30;overflow-y:auto;
   background-color:var(--wk-navy);
-  background-image:linear-gradient(90deg, rgba(13,15,20,.55), transparent 55%), url('bg-marble.webp');
+  /* The scrim has to hold a floor of darkness right across the page, not fade
+     to transparent at 55%. This is full-width text on a photo whose right half
+     is near-white marble - the roster's hours and the assignment table were
+     white-on-white out there, badly so once the desktop width widened them. */
+  background-image:
+    linear-gradient(90deg, rgba(11,13,18,.84), rgba(11,13,18,.62) 55%, rgba(11,13,18,.72)),
+    url('bg-marble.webp');
   background-position:center;background-size:cover;background-repeat:no-repeat;
   color:var(--wk-white);
 }
-.admin-page-inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 32px) 24px 60px}
+.admin-page-inner{
+  max-width:720px;margin:0 auto;
+  /* max() on the sides keeps the content clear of a landscape notch */
+  padding:calc(env(safe-area-inset-top) + 32px) max(24px,env(safe-area-inset-right))
+          calc(env(safe-area-inset-bottom) + 60px) max(24px,env(safe-area-inset-left));
+}
 .admin-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
 .admin-page-title{font-family:var(--wk);font-weight:700;font-size:28px;text-transform:uppercase;margin:0}
 .admin-page-hint{font-family:var(--body);color:var(--wk-white-70);margin:0 0 22px;font-size:14px}
@@ -281,7 +307,9 @@ body{
   border:1px solid rgba(255,255,255,.16);border-bottom:0;
   border-radius:20px 20px 0 0;transform:translateY(101%);
   transition:transform .26s cubic-bezier(.2,.7,.3,1);
-  max-width:380px;margin:0 auto;max-height:92dvh;overflow-y:auto;
+  /* full-width on phones (a bottom sheet inset from the edges reads as a
+     mistake), capped to the app column from tablet up */
+  max-width:460px;margin:0 auto;max-height:92dvh;overflow-y:auto;
   padding:10px 18px calc(env(safe-area-inset-bottom) + 18px);
   box-shadow:0 -20px 48px rgba(0,0,0,.4);
 }
@@ -296,11 +324,17 @@ label.fld > span{
   display:block;font-family:var(--wk);text-transform:uppercase;letter-spacing:.12em;
   font-size:11px;font-weight:500;color:var(--wk-white-70);margin-bottom:8px;
 }
-input[type=text],select,textarea{
+/* type=date was missing here, so the Assign-task due-date field fell back to
+   the browser default - a white box with a black calendar glyph sitting in a
+   dark sheet. color-scheme:dark also darkens the native picker popup.
+   Keep font-size at 16px: anything smaller makes iOS Safari zoom on focus. */
+input[type=text],input[type=date],input[type=number],select,textarea{
   width:100%;font-family:var(--wk);font-size:16px;padding:16px 14px;
   border:1px solid rgba(255,255,255,.3);border-radius:14px;background:rgba(255,255,255,.08);color:var(--wk-white);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
 }
+input[type=date]{color-scheme:dark;min-height:56px}
+input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.7;cursor:pointer}
 textarea{min-height:110px;resize:vertical;line-height:1.6}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#fff 50%),linear-gradient(135deg,#fff 50%,transparent 50%);background-position:calc(100% - 20px) 22px,calc(100% - 14px) 22px;background-size:6px 6px;background-repeat:no-repeat}
 input::placeholder,textarea::placeholder{color:rgba(255,255,255,.4)}
@@ -352,8 +386,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 
 .hist{list-style:none;margin:0 0 18px;padding:0}
 .hist li{border-bottom:1px solid rgba(255,255,255,.18);padding:14px 0;display:flex;justify-content:space-between;gap:14px;align-items:baseline}
-.hist .h-c{font-family:var(--wk);font-weight:600;font-size:16px;letter-spacing:.02em;color:var(--wk-white)}
-.hist .h-d{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin-top:3px}
+/* the text block is an unclassed <div>; without min-width:0 a long email or
+   store name pushes the row wider than the list instead of wrapping */
+.hist li > div{min-width:0}
+/* buttons carry their own padding, so baseline-aligning them against the
+   text next to them leaves them sitting low - centre those rows instead */
+.hist li > .btn{align-self:center;flex:none}
+.hist .h-c{font-family:var(--wk);font-weight:600;font-size:16px;letter-spacing:.02em;color:var(--wk-white);overflow-wrap:anywhere}
+.hist .h-d{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin-top:3px;overflow-wrap:anywhere}
 .hist .h-h{font-family:var(--wk);font-size:15px;font-weight:600;white-space:nowrap;color:var(--wk-white)}
 
 .assign-table{width:100%;border-collapse:collapse;font-family:var(--wk);font-size:12px}
@@ -377,48 +417,142 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .toast.on{opacity:1;transform:translate(-50%,0)}
 
-/* ---------- desktop layout ---------- */
+/* ---------- notched phones in landscape ---------- */
+@media (max-width:1023.98px) and (orientation:landscape){
+  .app{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+}
+
+/* Short landscape phone: the portrait sizings stack up taller than the
+   viewport, leaving the punch card a sliver. Shrink the fixed furniture
+   (rings, dock, header) so the card keeps a usable share of the height. */
+@media (max-width:1023.98px) and (max-height:560px) and (orientation:landscape){
+  .band{padding-top:calc(env(safe-area-inset-top) + 10px);padding-bottom:4px}
+  .brand-rule{margin:6px 0 8px}
+  .clock{padding:0}
+  .ring{max-width:104px}
+  .ring-main{font-size:18px}
+  .clock-label{margin-top:6px;font-size:11px;letter-spacing:.1em}
+  .clock-meta{font-size:10px}
+  .shiftbar{padding-top:6px;min-height:0}
+  .dock{min-height:0;padding:8px 16px}
+  .dock .btn{padding:13px 14px}
+  .empty{padding:12px 4px 16px}
+  .empty-icon{width:88px;height:88px;margin-bottom:12px}
+}
+
+/* ---------- tablet: a centred app column on a dark page ---------- */
+/* Below this the app is full-bleed; above it we get a real two-pane desktop.
+   min-height matters as much as min-width here: a landscape phone is ~844
+   wide but only ~390 tall, and without the height test it landed in this
+   branch and got a 470px column far too short to hold the card. It belongs
+   on the full-bleed path with the short-landscape rule above. */
+@media (min-width:600px) and (max-width:1023.98px) and (min-height:640px){
+  /* The body must be a grid (not plain block) for the gutter below to work:
+     on a block body, .app's top margin collapses out through it and adds its
+     own height to the page, which put a 24px scrollbar on a layout that
+     otherwise fits exactly. Grid items don't margin-collapse. */
+  body{
+    background:#0B0D12;min-height:100dvh;
+    display:grid;grid-template-columns:minmax(0,1fr);
+    align-content:center;justify-items:center;
+  }
+  /* The card treatment is for the app only - the auth screens stay full-bleed,
+     so the gutter goes on .app as a margin (grid item margins don't collapse)
+     rather than on the body as padding, which would inset every screen. */
+  .login-wrap{min-height:100dvh;width:100%}
+  .app{
+    width:min(100%,470px);
+    height:calc(100dvh - 48px);
+    margin:24px 0;
+    border-radius:26px;overflow:hidden;
+    box-shadow:0 30px 70px rgba(0,0,0,.45);
+  }
+  .sheet{max-width:470px}
+}
+
+/* ---------- desktop: two-pane workspace ---------- */
 @media (min-width:1024px){
-  body{padding:32px 16px}
+  /* Centring lives on the body grid instead of body padding + margin:auto.
+     The old rule left .app at height:100dvh with a 90vh cap *and* 32px of
+     body padding, which summed past the viewport and put a scrollbar on
+     every desktop page - login screen included. */
+  body{
+    background:#0B0D12;
+    min-height:100dvh;
+    display:grid;grid-template-columns:minmax(0,1fr);
+    align-content:center;justify-items:center;
+  }
+  /* Gutter on .app, not the body - see the tablet block above. Body padding
+     put dark bars down both sides of the full-bleed login screen. */
+  .login-wrap{min-height:100dvh;width:100%}
+
   .app{
     display:grid;
-    grid-template-columns:340px 1fr;
-    grid-template-rows:auto auto auto auto auto;
+    grid-template-columns:minmax(300px,352px) minmax(0,1fr);
+    /* the dock row takes the slack so the controls sit just above the nav,
+       the way they do on mobile */
+    grid-template-rows:auto auto auto 1fr auto;
     grid-template-areas:
-      "band band"
-      "clock card"
+      "band     band"
+      "clock    card"
       "shiftbar card"
-      "dock card"
-      "nav .";
-    column-gap:28px;row-gap:0;
-    width:min(94vw,880px);max-width:880px;
-    max-height:min(90vh,720px);
-    margin:0 auto;
+      "dock     card"
+      "nav      card";
+    column-gap:34px;row-gap:0;
+    width:min(calc(100% - 40px),1120px);
+    height:min(calc(100dvh - 56px),780px);
+    margin:28px 0;
     border-radius:28px;overflow:hidden;
-    box-shadow:0 40px 90px rgba(0,0,0,.4);
+    box-shadow:0 40px 90px rgba(0,0,0,.45);
     background-image:
-      linear-gradient(90deg, rgba(13,15,20,.55), transparent 55%),
+      linear-gradient(90deg, rgba(13,15,20,.66), rgba(13,15,20,.2) 62%),
       url('bg-marble.webp');
   }
-  .band{grid-area:band;padding:32px 32px 8px}
+  .band{grid-area:band;align-items:center;padding:30px 34px 12px}
+  .band-actions{flex-direction:row;align-items:center;gap:12px}
+  .brand-rule{margin-bottom:12px}
   .stage{display:contents}
-  .clock{grid-area:clock;padding:18px 24px 0}
-  .shiftbar{grid-area:shiftbar;padding:0 24px 20px}
-  .card{grid-area:card;flex:none;height:auto;max-height:100%;margin:24px 32px 18px 0;overflow-y:auto}
-  .dock{grid-area:dock;min-height:auto;padding:0 24px 18px}
-  .bottom-nav{grid-area:nav;padding:10px 24px calc(env(safe-area-inset-bottom) + 10px);background:transparent;border-top:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+  .clock{grid-area:clock;padding:16px 0 0 34px;min-width:0}
+  .shiftbar{grid-area:shiftbar;justify-content:flex-start;padding:16px 0 0 34px;min-height:0}
+  .dock{grid-area:dock;min-height:0;padding:20px 0 10px 34px;justify-content:flex-end}
+  .bottom-nav{
+    grid-area:nav;justify-content:flex-start;gap:8px;
+    padding:6px 0 24px 30px;
+    background:transparent;border-top:0;backdrop-filter:none;-webkit-backdrop-filter:none;
+  }
+  /* spans every content row, so the card's top and bottom edges line up with
+     the left column instead of stopping short above the nav. min-height:0 is
+     what actually lets it scroll inside its grid area. */
+  .card{grid-area:card;flex:none;min-height:0;margin:16px 34px 26px 0;padding:24px 24px 28px;overflow-y:auto}
+
+  /* the left column is narrower than a phone, so the rings and the empty-state
+     art have to come down with it or they overflow their cells */
+  .ring{max-width:150px}
+  .ring-main{font-size:24px}
+  .clock-label{margin-top:10px;font-size:12px}
+  .empty-icon{width:150px;height:150px}
+
+  .admin-page-inner{max-width:1000px;padding:48px 40px 72px}
+  .admin-page-title{font-size:34px}
 
   .grab{display:none}
   .sheet{
     left:0;right:0;top:0;bottom:0;margin:auto;
-    width:min(92vw,440px);height:max-content;max-height:86vh;
-    border-radius:20px;
-    transform:translateY(12px) scale(.98);opacity:0;pointer-events:none;
+    width:min(92vw,460px);height:max-content;max-height:min(86vh,760px);
+    border-radius:22px;
+    transform:translateY(12px) scale(.985);opacity:0;pointer-events:none;
     transition:transform .22s ease,opacity .2s ease;
     box-shadow:0 30px 70px rgba(0,0,0,.5);
-    padding:22px 22px calc(env(safe-area-inset-bottom) + 22px);
+    padding:24px 24px calc(env(safe-area-inset-bottom) + 24px);
   }
   .sheet.on{transform:none;opacity:1;pointer-events:auto}
+}
+
+/* wide desktop: give the left column and the card a little more room */
+@media (min-width:1400px){
+  .app{grid-template-columns:minmax(340px,392px) minmax(0,1fr)}
+  .ring{max-width:170px}
+  .ring-main{font-size:26px}
 }
 
 /* ---------- fine details ---------- */
@@ -434,7 +568,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 
 /* ---------- login / admin (unchanged legacy palette) ---------- */
 .hidden{display:none!important}
-.login-wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px}
+/* Centred with auto margins on the child rather than align/justify-content:
+   when the card is taller than the viewport, centre-alignment overflows in
+   BOTH directions and the top of the card gets clipped out of the scroll
+   range. Auto margins collapse to 0 in that case, so the top stays reachable. */
+.login-wrap{min-height:100dvh;display:flex;padding:24px}
+.login-wrap > *{margin:auto}
+/* Own its background rather than inheriting the body's: the body goes dark
+   from the tablet breakpoint up, and this screen's card is a translucent
+   white built for the light page. */
+#pendingScreen{background:var(--paper)}
 .login-card{
   width:min(100%,360px);background:rgba(255,255,255,.75);
   backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);
@@ -449,7 +592,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 
 /* ---------- login screen: "Shift Card" redesign (scoped, #loginScreen only) ---------- */
 #loginScreen.login-wrap{background:var(--sc-bg);overflow-y:auto;padding:48px 24px}
-#loginScreen .sc-col{width:min(100%,400px);margin:0 auto}
+#loginScreen .sc-col{width:min(100%,400px);margin:auto}
 #loginScreen .sc-header{text-align:center;margin-bottom:28px}
 #loginScreen .sc-icon{
   width:72px;height:72px;border-radius:20px;background:var(--sc-badge);color:#fff;
@@ -472,8 +615,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   font-family:var(--body);font-size:14px;color:var(--sc-ink);font-weight:500;margin-bottom:8px;
 }
 #loginScreen .sc-input-wrap{position:relative}
+/* 16px, not 15px: iOS Safari zooms the whole page in on focus for any field
+   under 16px, and the user then has to pinch back out to reach Sign in. */
 #loginScreen input[type=email],#loginScreen input[type=password]{
-  width:100%;font-family:var(--body);font-size:15px;padding:15px 44px 15px 16px;
+  width:100%;font-family:var(--body);font-size:16px;padding:15px 44px 15px 16px;
   border:1px solid transparent;border-radius:14px;background:var(--sc-input);color:var(--sc-ink);
 }
 #loginScreen input::placeholder{color:#A79E8C}
