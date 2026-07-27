@@ -599,14 +599,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
        Team            1246 -> 1879 (633)   20px gutter
      As percentages of 1920 those are the tracks below, and they sum to 100. */
   .app.has-team{
-    padding:3.89vh 2.14% 0 5.99%;
-    /* the 20px inter-pane gutter is the team's margin-left, so the inherited
+    padding:4.56vh 2.35% 0 6.15%;
+    /* the inter-pane gutter is the team's margin-left, so the inherited
        column-gap has to go or every track shifts right */
     column-gap:0;
-    /* NB: these resolve against the padding-box content width (1920 - 115 - 41
-       = 1764), not the full frame, so they are 615/1764 and 496/1764 - not
-       615/1920. Getting that wrong shifts every track left. */
-    grid-template-columns:34.86% 28.12% minmax(0,1fr);
+    /* NB: these resolve against the padding-box content width (1870 - 115 - 44
+       = 1711), not the full frame width. Getting that wrong shifts every
+       track left. Tracks: rail 602, Daily Mission 496, Team 593 + 20 gutter. */
+    grid-template-columns:35.18% 28.99% minmax(0,1fr);
     grid-template-rows:auto auto auto auto auto minmax(0,1fr);
     grid-template-areas:
       "band     band band"
@@ -616,25 +616,25 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
       "nav      card team"
       ".        card team";
   }
-  .app.has-team .band{padding:0 0 1.3vh;align-items:flex-start}
+  .app.has-team .band{padding:0;align-items:flex-start}
   /* comp: rule is 281 wide under a 385-wide wordmark, 3px, r12.5 */
   .app.has-team .brand-rule{width:73%;height:3px;border-radius:12.5px;margin:6px 0 22px}
   .app.has-team .shiftbar{padding:0;min-height:0}
   /* comp gaps down the rail: labels 603 -> button 661, button 757 -> nav 795 */
-  .app.has-team .dock{padding:0;margin-top:7.44vh}
+  .app.has-team .dock{padding:0;margin-top:8.1vh}
   /* comp insets the nav row 35px from the rail's left edge (circle at x=150) */
-  .app.has-team .bottom-nav{padding:0;margin:3.52vh 0 0 5.75%;gap:8.6%;justify-content:flex-start}
-  .app.has-team .nav-btn{width:8.9vh;height:8.9vh;max-width:97px;max-height:97px}
+  .app.has-team .bottom-nav{padding:0;margin:4.12vh 0 0 5.81%;gap:8.6%;justify-content:flex-start}
+  .app.has-team .nav-btn{width:10.52vh;height:10.52vh;max-width:97px;max-height:97px}
   .app.has-team .nav-btn svg{width:46%;height:46%}
   /* controls occupy 444 of the 615 rail track */
   .app.has-team .shiftbar,
   .app.has-team .dock,
-  .app.has-team .bottom-nav{max-width:72.2%}
+  .app.has-team .bottom-nav{max-width:73.75%}
   /* Comp: two 195 circles 52 apart = 442, inside the 444 control column. With
      the svg now filling its box (r95.5), the box IS the circle, so the gap is
      simply 52/442. */
   .app.has-team .clock{
-    padding:0;max-width:72.2%;margin-top:15.09vh;
+    padding:0;max-width:73.75%;margin-top:15.36vh;
     grid-template-columns:repeat(2,minmax(0,1fr));gap:11.8%;
   }
   .app.has-team .clock-panel{padding:0}
@@ -646,7 +646,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     font-size:clamp(12px,1.146vw,24px);
   }
   .app.has-team .dock .btn{
-    height:8.89vh;max-height:96px;padding:0 16px;border-radius:13px;
+    height:10.41vh;max-height:96px;padding:0 16px;border-radius:13px;
     font-weight:600;letter-spacing:.12em;font-size:clamp(13px,1.146vw,24px);
   }
   .app.has-team .dock .btn-go{box-shadow:0 8px 6px rgba(255,255,255,.25)}
@@ -654,8 +654,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   /* Daily Mission: 496x662, r27, 20% white -- a LIGHT panel in the comp, not
      the dark scrim the mobile card uses. */
   .app.has-team .card{
-    margin:4.4vh 0 0;padding:4.6vh 33px 0;
-    height:61.3vh;border-radius:27px;
+    margin:1.31vh 0 0;padding:5.42vh 33px 0;
+    height:71.8vh;border-radius:27px;
     background:rgba(255,255,255,.2);border:0;
     box-shadow:5px 8px 8px rgba(0,0,0,.25);
     align-self:start;
@@ -666,9 +666,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     font-size:clamp(18px,1.875vw,40px);
   }
   /* the comp draws the divider as its own 2px bar, not a border */
-  /* rule sits 145px below the card's top edge in the comp (card 240, rule 385) */
+  /* rule sits 145px below the card's top edge in the comp (card 192, rule 337) */
   .app.has-team .card-head::after{
-    content:"";position:absolute;left:33px;right:33px;top:13.43vh;
+    content:"";position:absolute;left:33px;right:33px;top:15.73vh;
     height:2px;border-radius:4.5px;background:var(--wk-white);
   }
   .app.has-team .empty{padding-top:9vh;font-weight:500;font-size:clamp(13px,1.146vw,24px)}
@@ -677,8 +677,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   /* Team: 633x343, r43, rgba(20,20,20,.43), Inter throughout */
   .app.has-team .team-panel{
     grid-area:team;display:flex;flex-direction:column;
-    margin:3.7vh 0 0 3.06%;padding:3.15vh 38px 0;
-    min-height:31.76vh;border-radius:43px;
+    margin:.45vh 0 0 3.26%;padding:4.88vh 38px 0;
+    min-height:37.2vh;border-radius:43px;
     background:rgba(20,20,20,.43);border:0;
     backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
     font-family:"Inter",var(--body);
