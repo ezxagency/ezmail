@@ -104,9 +104,16 @@ function humanDur(ms){
 }
 
 const openSeg   = sh => (sh.segs || []).find(s => !s.endedAt);
+// The task clock times the CURRENT task only: the open segment, or - while
+// on break - the last one worked, frozen at the moment the break started.
+// It must NOT sum every segment: the invariant above guarantees
+// sum(segs) === net working time, so a total would just reproduce the
+// shift clock digit for digit and the second ring would say nothing.
 function taskClockMs(sh, now = Date.now()) {
   if (!sh) return 0;
-  return (sh.segs || []).reduce((total, seg) => total + segMs(seg, now), 0);
+  const segs = sh.segs || [];
+  const seg = openSeg(sh) || segs[segs.length - 1];
+  return seg ? segMs(seg, now) : 0;
 }
 const openBreak = sh => (sh.breaks || []).find(b => !b.endedAt);
 const breakMs = (sh, now = Date.now()) => (sh.breaks||[]).reduce((t,b)=>t+((b.endedAt||now)-b.startedAt),0);
@@ -804,6 +811,19 @@ $("navProfile").onclick = () => { setActiveNav("navProfile"); showProfile(); };
    ============================================================ */
 let workerStarted = false;
 let isAdmin = false;
+
+// Anything started for a signed-in user that outlives a single render -
+// the tick timer, wake listeners, Firestore subscriptions. Sign-out has to
+// tear all of it down: without this a second sign-in stacks a fresh copy of
+// each on top of the old ones, and the PREVIOUS user's assignment listener
+// keeps firing and overwriting "Assigned to you" for whoever signed in next.
+let sessionCleanups = [];
+const onSessionEnd = fn => sessionCleanups.push(fn);
+function endSession(){
+  sessionCleanups.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
+  sessionCleanups = [];
+}
+
 async function startWorkerApp(){
   if (workerStarted) return;
   workerStarted = true;
@@ -823,11 +843,18 @@ async function startWorkerApp(){
 
   render();
   watchAssignedTasks();
-  setInterval(tick, 1000);
+
+  const timer = setInterval(tick, 1000);
+  onSessionEnd(() => clearInterval(timer));
   const wake = () => { if (!document.hidden) tick(); };
   document.addEventListener("visibilitychange", wake);
   window.addEventListener("focus", wake);
   window.addEventListener("pageshow", wake);
+  onSessionEnd(() => {
+    document.removeEventListener("visibilitychange", wake);
+    window.removeEventListener("focus", wake);
+    window.removeEventListener("pageshow", wake);
+  });
 
   if (FB_READY) {
     $("bandSignOut").classList.remove("hidden");
@@ -856,6 +883,11 @@ async function loadTeamPending(){
   const pending = $("teamPending");
   if (!pending) return;
   pending.innerHTML = "";
+  // The heading sits *beside* the <ul>, not inside it, so emptying the list
+  // above leaves it behind - drop any copy from a previous open or this
+  // function would stack a new "Pending approval" line on every Team visit.
+  const oldHint = $("teamPendingHint");
+  if (oldHint) oldHint.remove();
   try {
     const snap = await db.collection("users").where("role", "==", "pending").get();
     if (snap.empty) return;
@@ -872,7 +904,6 @@ async function loadTeamPending(){
         e.stopPropagation();
         await db.collection("users").doc(doc.id).update({ role: "worker" });
         toast(data.email + " approved");
-        $("teamPendingHint") && $("teamPendingHint").remove();
         loadTeamPending();
       };
     });
@@ -1579,7 +1610,11 @@ let assignedTasksSeen = null; // null = first snapshot hasn't landed yet
 function watchAssignedTasks(){
   const box = $("assignedTasksSection"), list = $("assignedTasksList");
   if (!box || !auth.currentUser) return;
-  db.collection("assignments")
+  // Fresh subscription, fresh baseline - carrying the previous user's ids
+  // over would make every one of this user's existing tasks look new and
+  // fire a "New task from ..." toast for each on the first snapshot.
+  assignedTasksSeen = null;
+  const unsub = db.collection("assignments")
     .where("toUid", "==", auth.currentUser.uid)
     .where("done", "==", false)
     .onSnapshot(snap => {
@@ -1607,6 +1642,7 @@ function watchAssignedTasks(){
       `).join("");
       list.querySelectorAll("button[data-id]").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
     }, e => console.error(e));
+  onSessionEnd(() => { unsub(); assignedTasksSeen = null; box.classList.add("hidden"); list.innerHTML = ""; });
 }
 
 async function markAssignmentDone(id){
@@ -1624,13 +1660,14 @@ async function markAssignmentDone(id){
 function watchCompletionNotifications(){
   const badge = $("adminNotifBadge");
   if (!badge) return;
-  db.collection("assignments")
+  const unsub = db.collection("assignments")
     .where("done", "==", true)
     .where("ack", "==", false)
     .onSnapshot(snap => {
       badge.textContent = snap.size;
       badge.classList.toggle("hidden", snap.empty);
     }, e => console.error(e));
+  onSessionEnd(() => { unsub(); badge.textContent = "0"; badge.classList.add("hidden"); });
 }
 
 async function ackCompletedAssignments(){
@@ -1655,6 +1692,8 @@ async function deleteWorker(uid, name){
     await db.collection("users").doc(uid).delete();
     toast(name + " deleted");
     closeSheet();
+    loadTeamList();      // the roster behind the sheet still lists them otherwise
+    loadTeamPending();
   } catch (e) {
     console.error(e);
     toast("Couldn't delete - check Firestore rules allow admin deletes");
@@ -1709,10 +1748,18 @@ if (!FB_READY){
 } else {
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
+      endSession();
       screen("login");
       workerStarted = false;
+      isAdmin = false;
       S = { worker:"", status:"IDLE", shift:null, history:[], lastReport:null };
+      // drop the signed-out uid too, so a stray save() can never write the
+      // blank state above over the previous user's stored shift history
+      Store.setUser(null, null);
+      assignLogRows = null;
       $("bandSignOut").classList.add("hidden");
+      $("adminAccessBtn").classList.add("hidden");
+      $("navAssign").classList.add("hidden");
       return;
     }
     try {
