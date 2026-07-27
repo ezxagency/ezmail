@@ -489,9 +489,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app{
     display:grid;
     grid-template-columns:minmax(300px,352px) minmax(0,1fr);
-    /* the dock row takes the slack so the controls sit just above the nav,
-       the way they do on mobile */
-    grid-template-rows:auto auto auto 1fr auto;
+    /* The slack goes in the SHIFTBAR row, not the dock row. The dock is a
+       flex column with justify-content:flex-end, so if its track is ever
+       shorter than its buttons the overflow escapes upward and lands on top
+       of the shiftbar - which is exactly what happened on a short window
+       (600px tall gave the dock an 82px track for 120px of buttons). The
+       shiftbar has almost no content, so it can absorb the slack safely and
+       the dock and nav always get their natural height. */
+    grid-template-rows:auto auto 1fr auto auto;
     grid-template-areas:
       "band     band"
       "clock    card"
@@ -548,8 +553,36 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .sheet.on{transform:none;opacity:1;pointer-events:auto}
 }
 
+/* Short desktop window (laptops at 1366x768 with browser chrome, or any
+   restored-down window). The left column's fixed furniture - band, rings,
+   dock, nav - adds up to more than the app's height allowance, so trim it
+   rather than let the bottom clip. */
+@media (min-width:1024px) and (max-height:780px){
+  .band{padding:18px 34px 8px}
+  .brand-rule{margin:6px 0 10px}
+  .clock{padding:8px 0 0 34px}
+  .ring{max-width:118px}
+  .ring-main{font-size:19px}
+  .clock-label{margin-top:8px;font-size:11px}
+  .clock-meta{font-size:10px}
+  .shiftbar{padding-top:10px}
+  .dock{padding:12px 0 6px 34px;gap:9px}
+  .dock .btn{padding:14px 14px}
+  .bottom-nav{padding:4px 0 16px 30px}
+  .card{margin:12px 34px 18px 0;padding:18px 20px 22px}
+}
+/* Very short: stop centring so the page scrolls from the top instead of
+   clipping the header out of reach above the viewport. */
+@media (min-width:1024px) and (max-height:600px){
+  body{align-content:start}
+  .band{padding:12px 34px 4px}
+  .ring{max-width:96px}
+  .ring-main{font-size:17px}
+  .app{margin:18px 0;height:auto;min-height:calc(100dvh - 36px)}
+}
+
 /* wide desktop: give the left column and the card a little more room */
-@media (min-width:1400px){
+@media (min-width:1400px) and (min-height:781px){
   .app{grid-template-columns:minmax(340px,392px) minmax(0,1fr)}
   .ring{max-width:170px}
   .ring-main{font-size:26px}
