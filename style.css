@@ -660,15 +660,23 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     box-shadow:5px 8px 8px rgba(0,0,0,.25);
     align-self:start;
   }
-  .app.has-team .card-head{border-bottom:0;padding-bottom:0;margin-bottom:0}
+  .app.has-team .card-head{
+    position:relative;border-bottom:0;
+    /* comp: 23px between the title's baseline box and the rule */
+    padding-bottom:23px;margin-bottom:2.6vh;
+  }
   .app.has-team .card-head > span:first-child{
     font-weight:800;letter-spacing:.12em;line-height:.97;
     font-size:clamp(18px,1.875vw,40px);
   }
   /* the comp draws the divider as its own 2px bar, not a border */
-  /* rule sits 145px below the card's top edge in the comp (card 192, rule 337) */
+  /* The rule is drawn as its own 2px bar in the comp, not a border, so it
+     keeps its rounded ends. Anchored to the BOTTOM of the heading rather
+     than a fixed offset from the card's top: the title's height comes from a
+     vw-based font size while a vh offset does not track it, so on a short
+     window the two drift apart and the rule lands across "MISSION". */
   .app.has-team .card-head::after{
-    content:"";position:absolute;left:33px;right:33px;top:15.73vh;
+    content:"";position:absolute;left:0;right:0;bottom:0;
     height:2px;border-radius:4.5px;background:var(--wk-white);
   }
   .app.has-team .empty{padding-top:9vh;font-weight:500;font-size:clamp(13px,1.146vw,24px)}
@@ -849,7 +857,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .card,
   .app.has-team .team-panel{margin-top:2.4vh}
   .app.has-team .card{height:auto;max-height:82vh;padding-top:3.4vh}
-  .app.has-team .card-head::after{top:9.6vh}
   .app.has-team .empty{padding-top:5vh}
   .app.has-team .empty-icon{width:7.4vw;height:7.4vw}
 }
@@ -862,7 +869,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .bottom-nav{margin-top:1.8vh}
   .app.has-team .clock-label{font-size:11px}
   .app.has-team .card{max-height:74vh;padding-top:2.6vh}
-  .app.has-team .card-head::after{top:7.6vh}
   .app.has-team .empty{padding-top:2.5vh}
   .app.has-team .empty-icon{width:5.8vw;height:5.8vw}
 }
