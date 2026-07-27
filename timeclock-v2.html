@@ -89,10 +89,12 @@
         <div class="brand-word"><span class="ez">EZ</span><span class="rest">CLOCK IN</span></div>
         <div class="brand-rule"></div>
       </div>
-      <div class="band-meta" id="bandMeta">
+      <!-- the person glyph is the profile control; the name beside it is the
+           signed-in user -->
+      <button type="button" class="band-meta" id="bandMeta" aria-label="Profile">
         <svg class="band-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c0-3.3 2.9-5.6 6.5-5.6s6.5 2.3 6.5 5.6"/></svg>
         <span id="bandMetaName">Not on shift</span>
-      </div>
+      </button>
       <div class="band-state" id="bandState">Clocked out</div>
     </div>
     <div class="band-actions">

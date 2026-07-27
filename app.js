@@ -804,6 +804,8 @@ function openTeamMenu(){
 
 $("cardMenu").onclick = openCardMenu;
 $("teamMenu").onclick = openTeamMenu;
+// the person glyph + name in the header is the profile control
+$("bandMeta").onclick = showProfile;
 
 function showProfile(){
   const email = (auth && auth.currentUser && auth.currentUser.email) || "";

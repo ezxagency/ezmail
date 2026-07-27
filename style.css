@@ -83,15 +83,20 @@ body{
 .brand-word .ez{font-weight:700}
 .brand-word .rest{font-weight:300;margin-left:.22em}
 .brand-rule{width:100%;height:2px;background:var(--wk-white);margin:8px 0 14px;border-radius:1px}
-.band-meta-icon{width:17px;height:17px;flex:none;margin-right:9px;vertical-align:-3px}
+.band-meta-icon{width:17px;height:17px;flex:none;margin-right:9px}
+/* a button, not a label: the glyph + name is how you reach Profile */
 .band-meta{
+  display:flex;align-items:center;background:none;border:0;padding:4px 0;margin:0;
+  cursor:pointer;text-align:left;
   font-family:var(--wk);font-weight:500;text-transform:uppercase;letter-spacing:.42em;
   font-size:15px;color:var(--wk-white);
+  transition:opacity .15s ease;
   /* "LUNCH Â· STORE EPSILON" at .42em tracking is wider than the band on a
      narrow phone - let it wrap, and break mid-word if a store name has no
      spaces to break at, rather than running under the sign-out button */
   min-width:0;overflow-wrap:anywhere;
 }
+.band-meta:hover{opacity:.75}
 .band-state{
   margin-top:5px;font-family:var(--wk);font-weight:400;text-transform:uppercase;letter-spacing:.14em;
   font-size:11px;color:var(--wk-white-60);
@@ -542,14 +547,21 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
        minmax(0,1fr) lets that spacer collapse to nothing on a short window,
        which keeps the dock from ever being squeezed shorter than its buttons
        and spilling upward over the shiftbar. */
-    grid-template-rows:auto auto auto auto auto minmax(0,1fr);
+    /* Equal 1fr spacers between the rail's blocks rather than one at the end,
+       so the leftover height is shared evenly and the controls sit low
+       instead of everything bunching at the top. The spacers collapse to 0
+       on a short window, and every real row stays auto, so nothing can
+       overlap when space runs out. */
+    grid-template-rows:auto minmax(0,1fr) auto auto minmax(0,1fr) auto minmax(0,1fr) auto;
     grid-template-areas:
       "band     band"
+      ".        card"
       "clock    card"
       "shiftbar card"
+      ".        card"
       "dock     card"
-      "nav      card"
-      ".        card";
+      ".        card"
+      "nav      card";
     column-gap:34px;row-gap:0;
     overflow:hidden;
     background-image:
@@ -599,18 +611,22 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     grid-template-columns:50% 23% minmax(0,1fr);
     grid-template-areas:
       "band     band band"
+      ".        card team"
       "clock    card team"
       "shiftbar card team"
+      ".        card team"
       "dock     card team"
-      "nav      card team"
-      ".        card team";
+      ".        card team"
+      "nav      card team";
   }
   /* the app now owns the page inset, so the rows inside it sit flush left */
   .app.has-team .band{padding:0 0 4px;align-items:flex-start}
   .app.has-team .brand-rule{margin:10px 0 26px}
   .app.has-team .shiftbar{padding:14px 0 0}
-  .app.has-team .dock{padding:0;margin-top:2.2vh}
-  .app.has-team .bottom-nav{padding:0;margin-top:5.1vh;gap:52px}
+  /* the 1fr spacer rows own the gaps now; these are just a floor for when
+     the window is too short for the spacers to have any height */
+  .app.has-team .dock{padding:0;margin-top:12px}
+  .app.has-team .bottom-nav{padding:0;margin-top:12px;gap:52px}
   .app.has-team .nav-btn{width:52px;height:52px}
   .app.has-team .nav-btn svg{width:24px;height:24px}
   /* the rail's controls stop at ~370px of the 510px track, per the comp */
@@ -620,12 +636,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   /* the ring's svg box is wider than its drawn circle, so the track has to
      be ~22% wider than the 165px circle the comp shows */
   .app.has-team .clock{
-    padding:0;max-width:80.4%;margin-top:12vh;
-    grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;
+    padding:0;max-width:88%;margin-top:12px;
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:26px;
   }
   .app.has-team .clock-panel{padding:0}
-  .app.has-team .ring{max-width:198px}
-  .app.has-team .ring-main{font-size:27px}
+  .app.has-team .ring{max-width:250px}
+  .app.has-team .ring-main{font-size:34px}
   .app.has-team .clock-label{margin-top:0;font-size:13px;letter-spacing:.12em}
   .app.has-team .dock .btn{padding:24px 16px;font-size:16px;border-radius:14px}
 
@@ -700,19 +716,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 @media (min-width:1024px) and (max-height:820px){
   .app.has-team{padding-top:3vh;padding-bottom:5vh}
   .app.has-team .brand-rule{margin:8px 0 14px}
-  .app.has-team .clock{margin-top:3vh}
-  .app.has-team .ring{max-width:150px}
-  .app.has-team .ring-main{font-size:22px}
-  .app.has-team .dock{margin-top:1.5vh}
+  .app.has-team .ring{max-width:200px}
+  .app.has-team .ring-main{font-size:28px}
   .app.has-team .dock .btn{padding:16px 16px;font-size:14px}
-  .app.has-team .bottom-nav{margin-top:2.4vh}
   .app.has-team .nav-btn{width:44px;height:44px}
   .app.has-team .card,
   .app.has-team .team-panel{margin-top:2.4vh}
 }
 @media (min-width:1024px) and (max-height:660px){
-  .app.has-team .ring{max-width:124px}
-  .app.has-team .ring-main{font-size:18px}
+  .app.has-team .ring{max-width:160px}
+  .app.has-team .ring-main{font-size:23px}
   .app.has-team .clock-label{font-size:11px}
   .app.has-team .dock .btn{padding:13px 14px;font-size:13px}
 }
