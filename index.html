@@ -89,7 +89,10 @@
         <div class="brand-word"><span class="ez">EZ</span><span class="rest">CLOCK IN</span></div>
         <div class="brand-rule"></div>
       </div>
-      <div class="band-meta" id="bandMeta">Not on shift</div>
+      <div class="band-meta" id="bandMeta">
+        <svg class="band-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c0-3.3 2.9-5.6 6.5-5.6s6.5 2.3 6.5 5.6"/></svg>
+        <span id="bandMetaName">Not on shift</span>
+      </div>
       <div class="band-state" id="bandState">Clocked out</div>
     </div>
     <div class="band-actions">
@@ -145,6 +148,12 @@
     <div class="shiftbar" id="shiftbar"></div>
 
     <section class="card">
+      <!-- Shown only while the Team panel is expanded: the card shrinks to
+           this tile, and tapping it swaps the two panels back. -->
+      <button type="button" class="card-restore" id="cardRestore">
+        <span class="card-restore-title">Today's<br>card</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
       <div class="card-head">
         <span>Today's<br>card</span>
         <button class="link" id="btnHistory">History</button>
@@ -161,6 +170,38 @@
         No punches yet. Clock in to start the card.
       </div>
     </section>
+
+    <!-- Admin-only, desktop-only third pane. Narrow screens keep the
+         full-page Team screen behind the shield icon instead. -->
+    <aside class="team-panel hidden" id="teamPanel">
+      <div class="team-panel-head">
+        <span class="team-panel-mark">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.8l2.5 6.4 6.4 2.5-6.4 2.5L12 19.6l-2.5-6.4L3.1 10.7l6.4-2.5z"/></svg>
+        </span>
+        <h2 class="team-panel-title">Team</h2>
+      </div>
+
+      <div class="team-panel-brief">
+        <p class="team-panel-counts" id="teamPanelCounts">Loading…</p>
+        <div class="team-latest" id="teamPanelLatest"></div>
+        <button type="button" class="team-proceed" id="teamProceed">Proceed
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <div class="team-panel-full">
+        <p class="team-panel-sub">Everyone who's signed in, plus anyone waiting for approval.</p>
+        <div class="team-panel-label-row">
+          <span class="team-panel-label">Assigned tasks</span>
+          <button type="button" class="link" id="teamOpenFullPage">Full team page</button>
+        </div>
+        <div class="team-table-wrap"><table class="team-table" id="teamPanelTable"></table></div>
+        <button type="button" class="team-collapse" id="teamCollapse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          Close
+        </button>
+      </div>
+    </aside>
   </main>
 
   <footer class="dock" id="dock"></footer>

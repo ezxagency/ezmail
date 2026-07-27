@@ -83,6 +83,7 @@ body{
 .brand-word .ez{font-weight:700}
 .brand-word .rest{font-weight:300;margin-left:.22em}
 .brand-rule{width:100%;height:2px;background:var(--wk-white);margin:8px 0 14px;border-radius:1px}
+.band-meta-icon{width:17px;height:17px;flex:none;margin-right:9px;vertical-align:-3px}
 .band-meta{
   font-family:var(--wk);font-weight:500;text-transform:uppercase;letter-spacing:.42em;
   font-size:15px;color:var(--wk-white);
@@ -159,6 +160,75 @@ body{
   border:1px solid var(--wk-glass-border);border-radius:22px;position:relative;padding:20px 20px 32px;flex:1;
   margin-top:-6px;
 }
+/* ---------- Team pane (admin, desktop only) ---------- */
+/* Hidden everywhere by default; the desktop breakpoint turns it on for
+   admins. Below 1024px the shield icon's full-page Team screen is still the
+   way in - an assignments table needs more width than a phone has. */
+.team-panel{display:none}
+.team-panel-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.team-panel-mark{display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex:none;color:var(--wk-white)}
+.team-panel-mark svg{width:100%;height:100%}
+.team-panel-title{
+  font-family:var(--wk);font-weight:700;font-size:19px;text-transform:uppercase;
+  letter-spacing:.06em;margin:0;color:var(--wk-white);
+}
+.team-panel-counts{
+  font-family:var(--wk);font-size:12.5px;line-height:1.6;color:var(--wk-white-70);
+  margin:0 0 14px;letter-spacing:.02em;
+}
+.team-panel-counts b{color:var(--wk-white);font-weight:600}
+.team-latest{margin-bottom:18px}
+.team-latest-who{font-family:var(--wk);font-weight:600;font-size:15px;color:var(--wk-white);overflow-wrap:anywhere}
+.team-latest-what{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-70);margin-top:3px;line-height:1.5;overflow-wrap:anywhere}
+.team-latest-when{font-family:var(--wk);font-size:11px;color:var(--wk-white-60);margin-top:5px;letter-spacing:.06em;text-transform:uppercase}
+.team-latest-none{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);line-height:1.5}
+.team-proceed,.team-collapse{
+  display:inline-flex;align-items:center;gap:9px;background:none;border:0;padding:0;cursor:pointer;
+  font-family:var(--wk);font-weight:700;font-size:15px;color:var(--wk-white);letter-spacing:.02em;
+}
+.team-proceed svg,.team-collapse svg{width:17px;height:17px;transition:transform .16s ease}
+.team-proceed:hover svg{transform:translateX(3px)}
+.team-collapse{margin-top:14px;font-size:13px;color:var(--wk-white-70)}
+.team-collapse:hover{color:var(--wk-white)}
+.team-collapse:hover svg{transform:translateX(-3px)}
+.team-panel-sub{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);margin:0 0 20px;line-height:1.5}
+.team-panel-label-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px}
+.team-panel-label{font-family:var(--wk);font-weight:600;font-size:13px;color:var(--wk-white)}
+.team-table-wrap{
+  background:rgba(9,11,16,.5);border:1px solid rgba(255,255,255,.12);border-radius:16px;
+  padding:6px 4px;overflow:auto;min-height:0;flex:1;
+}
+.team-table{width:100%;border-collapse:collapse;font-family:var(--wk);font-size:12px}
+.team-table th{
+  position:sticky;top:0;z-index:1;background:#12151c;
+  text-align:left;padding:10px 12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--wk-white-60);font-weight:600;white-space:nowrap;
+}
+.team-table td{padding:10px 12px;border-top:1px solid rgba(255,255,255,.08);color:var(--wk-white);white-space:nowrap}
+.team-table td.team-td-user{font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:11px}
+.team-table td.team-td-muted{color:var(--wk-white-60)}
+.team-table tbody tr:first-child td{border-top:0}
+.team-dot{
+  display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;
+}
+.team-dot svg{width:11px;height:11px}
+.team-dot.is-done{background:#22B23A;color:#06230b}
+.team-dot.is-late{background:#E0483C;color:#2b0704}
+.team-dot.is-open{background:rgba(255,255,255,.34);color:transparent}
+.team-table-empty{padding:26px 12px;text-align:center;color:var(--wk-white-60);font-family:var(--wk);font-size:13px}
+
+/* the shrunken punch card, shown only while the Team pane is expanded */
+.card-restore{
+  display:none;width:100%;background:none;border:0;padding:0;cursor:pointer;color:var(--wk-white);
+  flex-direction:column;align-items:flex-start;gap:18px;text-align:left;
+}
+.card-restore-title{
+  font-family:var(--wk);font-weight:700;text-transform:uppercase;
+  font-size:19px;line-height:1.15;letter-spacing:.01em;
+}
+.card-restore svg{width:22px;height:22px;transition:transform .16s ease}
+.card-restore:hover svg{transform:translateX(3px)}
+
 .assign-section{margin:14px 0 18px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.18)}
 .assign-section-title{
   font-family:var(--wk);font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
@@ -491,6 +561,35 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      the left column instead of stopping short above the nav. min-height:0 is
      what actually lets it scroll inside its grid area. */
   .card{grid-area:card;flex:none;min-height:0;margin:16px 34px 26px 0;padding:24px 24px 28px;overflow-y:auto}
+
+  /* --- admin: third pane --- */
+  .app.has-team{
+    grid-template-columns:clamp(272px,21%,384px) minmax(0,1.12fr) minmax(0,.88fr);
+    grid-template-areas:
+      "band     band band"
+      "clock    card team"
+      "shiftbar card team"
+      "dock     card team"
+      "nav      card team";
+  }
+  .app.has-team .card{margin-right:22px}
+  .app.has-team .team-panel{
+    grid-area:team;display:flex;flex-direction:column;min-height:0;
+    margin:16px 34px 26px 0;padding:24px 24px 26px;
+    background:rgba(12,14,20,.42);
+    backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+    border:1px solid var(--wk-glass-border);border-radius:22px;
+  }
+  .app.has-team .team-panel-full{display:none}
+
+  /* --- expanded: the two panes swap weight --- */
+  .app.has-team.team-open{grid-template-columns:clamp(272px,21%,384px) minmax(150px,.22fr) minmax(0,1fr)}
+  .app.has-team.team-open .team-panel-brief{display:none}
+  .app.has-team.team-open .team-panel-full{display:flex;flex-direction:column;min-height:0;flex:1}
+  /* everything except the restore tile drops out of the shrunken card */
+  .app.has-team.team-open .card{overflow:hidden}
+  .app.has-team.team-open .card > *{display:none}
+  .app.has-team.team-open .card > .card-restore{display:flex}
 
   /* the left column is narrower than a phone, so the rings and the empty-state
      art have to come down with it or they overflow their cells */

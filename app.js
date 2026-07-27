@@ -146,23 +146,26 @@ function render(){
   const st = S.status;
   $("band").dataset.s = st;
 
+  // The band's headline is now always WHO you are (with the person glyph in
+  // the markup). The store / break reason it used to carry moves down to the
+  // status line, so that signal isn't lost - just demoted.
+  $("bandMetaName").textContent = S.worker ? S.worker.toUpperCase() : "Not on shift";
+
   $("shiftMeta").classList.remove("is-ready");
   if (st === "IDLE"){
     $("bandState").textContent = "Clocked out";
-    $("bandMeta").textContent  = S.worker ? S.worker.toUpperCase() : "Not on shift";
     $("shiftMeta").textContent = "Ready";
     $("shiftMeta").classList.add("is-ready");
     $("taskMeta").textContent = "Idle";
   } else if (st === "ACTIVE"){
     const seg = openSeg(S.shift);
-    $("bandState").textContent = "Clocked in";
-    $("bandMeta").textContent  = currentStore(S.shift).toUpperCase();
+    $("bandState").textContent = "Clocked in · " + currentStore(S.shift).toUpperCase();
     $("shiftMeta").textContent = "Net working";
     $("taskMeta").textContent = seg ? seg.task : "Current task";
   } else {
     const b = openBreak(S.shift);
-    $("bandState").textContent = "On break";
-    $("bandMeta").textContent  = (b.reason||"Break").toUpperCase() + " · " + currentStore(S.shift).toUpperCase();
+    $("bandState").textContent = "On break · " + (b.reason||"Break").toUpperCase()
+      + " · " + currentStore(S.shift).toUpperCase();
     $("shiftMeta").textContent = "Net working";
     $("taskMeta").textContent = "Paused";
   }
@@ -862,6 +865,11 @@ async function startWorkerApp(){
     $("adminAccessBtn").onclick = () => showTeam();
   }
 
+  $("teamProceed").onclick = () => setTeamPaneOpen(true);
+  $("teamCollapse").onclick = () => setTeamPaneOpen(false);
+  $("cardRestore").onclick = () => setTeamPaneOpen(false);
+  $("teamOpenFullPage").onclick = () => showTeam();
+
   if (staleShift) {
     toast("Shift left open a long time — please review and close it");
     askWrapUp();
@@ -1019,6 +1027,99 @@ function renderCompletionLog(){
   `;
   const moreBtn = $("loadMoreCompleted");
   if (moreBtn) moreBtn.onclick = () => { assignLogShown += 8; renderCompletionLog(); };
+}
+
+/* ============================================================
+   TEAM PANE — the admin's third column on desktop. Collapsed it is a
+   notification: standing counts plus the most recent completion. Expanded
+   it swaps places with the punch card and shows every assignment.
+   Narrow screens never see it; they use showTeam()'s full page instead.
+   ============================================================ */
+let teamPaneRows = null;      // every assignment, newest first
+let teamPendingCount = 0;     // accounts waiting for approval
+
+const todayISO = () => {
+  const d = new Date();
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+};
+// done > overdue > open, matching the three dot colours in the table
+function assignState(r){
+  if (r.done) return "done";
+  return (r.dueDate && r.dueDate < todayISO()) ? "late" : "open";
+}
+
+async function loadTeamPane(){
+  if (!isAdmin) return;
+  try {
+    const snap = await db.collection("assignments").get();
+    const rows = [];
+    snap.forEach(doc => rows.push(doc.data()));
+    rows.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    teamPaneRows = rows;
+  } catch (e) { console.error(e); teamPaneRows = []; }
+  try {
+    const p = await db.collection("users").where("role","==","pending").get();
+    teamPendingCount = p.size;
+  } catch (e) { console.error(e); teamPendingCount = 0; }
+  renderTeamPane();
+}
+
+function renderTeamPane(){
+  const counts = $("teamPanelCounts"), latest = $("teamPanelLatest"), table = $("teamPanelTable");
+  if (!counts || !latest || !table) return;
+  const rows = teamPaneRows || [];
+
+  const open = rows.filter(r => !r.done).length;
+  const late = rows.filter(r => assignState(r) === "late").length;
+  const doneCount = rows.filter(r => r.done).length;
+
+  const bits = [`<b>${open}</b> open`];
+  if (late) bits.push(`<b>${late}</b> overdue`);
+  bits.push(`<b>${doneCount}</b> done`);
+  if (teamPendingCount) bits.push(`<b>${teamPendingCount}</b> awaiting approval`);
+  counts.innerHTML = rows.length || teamPendingCount ? bits.join(" · ") : "No assignments yet.";
+
+  const done = rows.filter(r => r.done && r.doneAt).sort((a,b) => b.doneAt - a.doneAt)[0];
+  latest.innerHTML = done
+    ? `<div class="team-latest-who">${esc(done.toName || "Someone")}</div>
+       <div class="team-latest-what">${esc(done.store || "")} · ${esc(done.task || "")} marked done</div>
+       <div class="team-latest-when">${dayStamp(done.doneAt)} · ${clock(done.doneAt)}</div>`
+    : `<div class="team-latest-none">Nothing completed yet — finished tasks show up here.</div>`;
+
+  if (!rows.length){
+    table.innerHTML = `<tbody><tr><td class="team-table-empty">No assignments yet.</td></tr></tbody>`;
+    return;
+  }
+  const DOT = {
+    done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg>',
+    late: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M6 12h12"/></svg>',
+    open: ""
+  };
+  const LABEL = { done: "Done", late: "Overdue", open: "Open" };
+  table.innerHTML = `
+    <thead><tr>
+      <th>User</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r => {
+        const st = assignState(r);
+        return `<tr>
+          <td class="team-td-user">${esc(r.toName || "Someone")}</td>
+          <td>${esc(r.store || "—")}</td>
+          <td>${esc(r.task || "—")}</td>
+          <td><span class="team-dot is-${st}" title="${LABEL[st]}" aria-label="${LABEL[st]}">${DOT[st]}</span></td>
+          <td class="team-td-muted">${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
+          <td class="team-td-muted">${r.dueDate ? esc(r.dueDate) : "—"}</td>
+        </tr>`;
+      }).join("")}
+    </tbody>`;
+}
+
+function setTeamPaneOpen(open){
+  $("appScreen").classList.toggle("team-open", open);
+  // opening it is the admin reading the notification - clear the badge, same
+  // as walking into the full Team page does
+  if (open) ackCompletedAssignments().then(() => loadTeamPane());
 }
 
 /* ---------- team-wide Excel export (one sheet per worker + overview) ---------- */
@@ -1666,6 +1767,9 @@ function watchCompletionNotifications(){
     .onSnapshot(snap => {
       badge.textContent = snap.size;
       badge.classList.toggle("hidden", snap.empty);
+      // keep the Team pane's counts and "latest completion" in step with the
+      // badge instead of going stale until the next reload
+      loadTeamPane();
     }, e => console.error(e));
   onSessionEnd(() => { unsub(); badge.textContent = "0"; badge.classList.add("hidden"); });
 }
@@ -1760,6 +1864,9 @@ if (!FB_READY){
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
       $("navAssign").classList.add("hidden");
+      $("appScreen").classList.remove("has-team", "team-open");
+      $("teamPanel").classList.add("hidden");
+      teamPaneRows = null; teamPendingCount = 0;
       return;
     }
     try {
@@ -1770,7 +1877,9 @@ if (!FB_READY){
         const canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
         $("navAssign").classList.toggle("hidden", !canAssignTasks);
         $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
-        if (isAdmin) watchCompletionNotifications();
+        $("appScreen").classList.toggle("has-team", isAdmin);
+        $("teamPanel").classList.toggle("hidden", !isAdmin);
+        if (isAdmin) { watchCompletionNotifications(); loadTeamPane(); }
         Store.setUser(user.uid, user.email);
         screen("app");
         startWorkerApp();
