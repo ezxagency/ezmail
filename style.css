@@ -67,6 +67,9 @@ body{
   animation:appIn .55s cubic-bezier(.2,.8,.2,1) both;
 }
 @keyframes appIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+/* shared entrance: used for the staggered pane reveal and for content
+   arriving after the pane swap */
+@keyframes paneContentIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 
 /* ---------- brand row (wordmark + username + sign out) ---------- */
 .band{
@@ -642,6 +645,26 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
       "nav      .    ."
       ".        .    .";
   }
+  /* Page-load reveal, left to right in reading order: the rail's clocks, then
+     the controls, then the two panes. Short offsets - this should register as
+     the dashboard assembling, not as a sequence you have to sit through.
+     No fill-mode on the descendants of .dock, so button hover transforms are
+     not frozen by the animation's end state. */
+  .app.has-team .clock,
+  .app.has-team .shiftbar,
+  .app.has-team .dock,
+  .app.has-team .bottom-nav,
+  .app.has-team .card,
+  .app.has-team .team-panel{
+    animation:paneContentIn .52s cubic-bezier(.22,1,.36,1) backwards;
+  }
+  .app.has-team .clock{animation-delay:.05s}
+  .app.has-team .shiftbar{animation-delay:.09s}
+  .app.has-team .card{animation-delay:.11s}
+  .app.has-team .dock{animation-delay:.15s}
+  .app.has-team .team-panel{animation-delay:.19s}
+  .app.has-team .bottom-nav{animation-delay:.23s}
+
   .app.has-team .band{padding:0;align-items:flex-start}
   /* comp: rule is 281 wide under a 385-wide wordmark, 3px, r12.5 */
   .app.has-team .brand-rule{width:73%;height:3px;border-radius:12.5px;margin:6px 0 22px}
@@ -726,27 +749,44 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .team-panel-full{display:none}
 
   /* --- the swap, animated ---
-     grid-template-columns carries the motion: both panes resize together off
-     a single interpolation, so they stay in lockstep with no gap opening up
-     between them. Everything else (fill, radius, height) rides the same
-     curve. Content cross-fades faster and slightly behind, so the geometry
-     leads and the text settles into it. The global prefers-reduced-motion
-     rule already switches all of this off. */
-  .app.has-team{transition:grid-template-columns .44s cubic-bezier(.4,0,.2,1)}
+     grid-template-columns carries the motion: both panes resize off a single
+     interpolation, so they stay in lockstep with no gap opening between them.
+     Fill, radius and height ride the same curve. The easing is a quint-style
+     ease-out - it commits early and settles long, which reads as "moved
+     deliberately" rather than the symmetric in-out that makes UI feel slow
+     at the start. prefers-reduced-motion already switches all of it off. */
+  .app.has-team{transition:grid-template-columns .5s cubic-bezier(.22,1,.36,1)}
   .app.has-team .card,
   .app.has-team .team-panel{
     transition:
-      height .44s cubic-bezier(.4,0,.2,1),
-      padding .44s cubic-bezier(.4,0,.2,1),
-      border-radius .44s ease,
-      background-color .44s ease;
+      height .5s cubic-bezier(.22,1,.36,1),
+      padding .5s cubic-bezier(.22,1,.36,1),
+      border-radius .5s cubic-bezier(.22,1,.36,1),
+      background-color .38s ease;
   }
+  /* Incoming content lands after the geometry has largely finished, and
+     rises the last few pixels into place instead of just appearing. */
   .app.has-team .team-panel-brief,
   .app.has-team .team-panel-full,
   .app.has-team .card-restore,
   .app.has-team .card-head,
   .app.has-team .punches,
-  .app.has-team .empty{transition:opacity .2s ease .12s}
+  .app.has-team .empty{
+    animation:paneContentIn .34s cubic-bezier(.22,1,.36,1) .16s backwards;
+  }
+
+  /* The expensive part of this transition is not the layout - it's two
+     backdrop-filters re-blurring whatever is behind them on every frame while
+     the widths change. Suspend the blur for the duration of the swap and put
+     it back when the panes have settled; the panels keep their fill, so the
+     drop is not visible in motion. */
+  .app.has-team.is-swapping .card,
+  .app.has-team.is-swapping .team-panel{
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+  }
+  .app.has-team.is-swapping .card,
+  .app.has-team.is-swapping .team-panel,
+  .app.has-team.is-swapping .team-table-wrap{will-change:width,height}
   /* Team card type, straight off the comp: Inter Bold 36 title, Regular 32
      body, Black 32 for Proceed; star 69x63. */
   .app.has-team .team-panel-head{gap:22px;margin-bottom:3.5vh}

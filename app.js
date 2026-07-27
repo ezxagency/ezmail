@@ -1199,8 +1199,19 @@ function renderTeamPane(){
     </tbody>`;
 }
 
+let swapSettle = null;
 function setTeamPaneOpen(open){
-  $("appScreen").classList.toggle("team-open", open);
+  const app = $("appScreen");
+  // Suspend the panels' backdrop-filter for the length of the swap (see the
+  // .is-swapping rules): re-blurring the marble behind two panes on every
+  // frame of a width animation is the expensive part, not the layout itself.
+  // The timeout is the whole mechanism rather than transitionend, which never
+  // fires under prefers-reduced-motion or if the tab is backgrounded midway.
+  app.classList.add("is-swapping");
+  clearTimeout(swapSettle);
+  swapSettle = setTimeout(() => app.classList.remove("is-swapping"), 620);
+
+  app.classList.toggle("team-open", open);
   // opening it is the admin reading the notification - clear the badge, same
   // as walking into the full Team page does
   if (open) ackCompletedAssignments().then(() => loadTeamPane());
