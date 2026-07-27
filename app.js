@@ -1021,7 +1021,8 @@ async function loadCompletionLog(reset){
     try {
       const snap = await db.collection("assignments").get();
       const rows = [];
-      snap.forEach(doc => rows.push(doc.data()));
+      // keep the doc id - the row's Delete button needs something to act on
+      snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
       rows.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
       assignLogRows = rows;
       assignLogShown = 8;
@@ -1042,7 +1043,7 @@ function renderCompletionLog(){
     <div style="overflow-x:auto;margin-bottom:10px">
       <table class="assign-table">
         <thead><tr>
-          <th>To</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th><th>Completed</th>
+          <th>To</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th><th>Completed</th><th></th>
         </tr></thead>
         <tbody>
           ${visible.map(r => `
@@ -1054,6 +1055,12 @@ function renderCompletionLog(){
               <td>${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
               <td>${r.dueDate ? esc(r.dueDate) : "—"}</td>
               <td>${r.doneAt ? dayStamp(r.doneAt) + " " + clock(r.doneAt) : "—"}</td>
+              <td class="assign-del-cell">
+                <button type="button" class="assign-del" data-del="${esc(r.id)}"
+                        aria-label="Delete this assignment" title="Delete this assignment">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+                </button>
+              </td>
             </tr>`).join("")}
         </tbody>
       </table>
@@ -1062,6 +1069,26 @@ function renderCompletionLog(){
   `;
   const moreBtn = $("loadMoreCompleted");
   if (moreBtn) moreBtn.onclick = () => { assignLogShown += 8; renderCompletionLog(); };
+  box.querySelectorAll("button[data-del]").forEach(b => b.onclick = () => deleteAssignment(b.dataset.del));
+}
+
+// Admin-only: remove an assignment outright. Names what is being deleted so
+// the confirm isn't a blind "are you sure", and drops the row locally rather
+// than re-fetching the whole collection.
+async function deleteAssignment(id){
+  const row = (assignLogRows || []).find(r => r.id === id);
+  const what = row ? `${row.task || "task"} at ${row.store || "—"} for ${row.toName || "someone"}` : "this assignment";
+  if (!confirm(`Delete ${what}?\n\nThis removes it for them too, and can't be undone.`)) return;
+  try {
+    await db.collection("assignments").doc(id).delete();
+    assignLogRows = (assignLogRows || []).filter(r => r.id !== id);
+    renderCompletionLog();
+    loadTeamPane();
+    toast("Assignment deleted");
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't delete — check Firestore rules allow admin deletes");
+  }
 }
 
 /* ============================================================
@@ -1081,6 +1108,26 @@ const todayISO = () => {
 function assignState(r){
   if (r.done) return "done";
   return (r.dueDate && r.dueDate < todayISO()) ? "late" : "open";
+}
+// one source for the three status glyphs, shared by the table and the
+// collapsed card's stat row so they can't drift apart
+const STATUS_GLYPH = {
+  done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg>',
+  late: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M6 12h12"/></svg>',
+  open: ""
+};
+const STATUS_LABEL = { done: "Done", late: "Overdue", open: "Open" };
+
+// "Jul 26, 2026 · 21:37" is the least important line in the card and was
+// taking the most room. Anchor it to now instead.
+function whenLabel(ts){
+  const d = new Date(ts), now = new Date();
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d, now)) return "Today " + clock(ts);
+  if (sameDay(d, yesterday)) return "Yesterday " + clock(ts);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + " " + clock(ts);
 }
 
 async function loadTeamPane(){
@@ -1104,33 +1151,35 @@ function renderTeamPane(){
   if (!counts || !latest || !table) return;
   const rows = teamPaneRows || [];
 
-  const open = rows.filter(r => !r.done).length;
-  const late = rows.filter(r => assignState(r) === "late").length;
+  // The three states are counted as a partition, not overlapping sets - an
+  // overdue task is not also counted as open, or the numbers don't add up to
+  // the table you see after Proceed.
   const doneCount = rows.filter(r => r.done).length;
+  const late = rows.filter(r => assignState(r) === "late").length;
+  const openNow = rows.filter(r => assignState(r) === "open").length;
 
-  const bits = [`<b>${open}</b> open`];
-  if (late) bits.push(`<b>${late}</b> overdue`);
-  bits.push(`<b>${doneCount}</b> done`);
-  if (teamPendingCount) bits.push(`<b>${teamPendingCount}</b> awaiting approval`);
-  counts.innerHTML = rows.length || teamPendingCount ? bits.join(" · ") : "No assignments yet.";
+  // Same pips the expanded table uses, so the collapsed card reads as its
+  // legend rather than as a separate vocabulary. Zeroes stay in place but
+  // dimmed, so the row keeps a stable shape and the eye lands on what's live.
+  const stat = (n, label, cls) =>
+    `<li class="team-stat is-${cls}${n ? "" : " is-zero"}">
+       <span class="team-dot is-${cls}">${STATUS_GLYPH[cls]}</span><b>${n}</b> ${label}
+     </li>`;
+  counts.innerHTML = (rows.length || teamPendingCount)
+    ? `<ul class="team-stats">${stat(doneCount, "done", "done")}${stat(late, "overdue", "late")}${stat(openNow, "open", "open")}</ul>`
+      + (teamPendingCount ? `<p class="team-approve">${teamPendingCount} waiting for approval</p>` : "")
+    : `<p class="team-approve">No assignments yet.</p>`;
 
   const done = rows.filter(r => r.done && r.doneAt).sort((a,b) => b.doneAt - a.doneAt)[0];
   latest.innerHTML = done
-    ? `<div class="team-latest-who">${esc(done.toName || "Someone")}</div>
-       <div class="team-latest-what">${esc(done.store || "")} · ${esc(done.task || "")} marked done</div>
-       <div class="team-latest-when">${dayStamp(done.doneAt)} · ${clock(done.doneAt)}</div>`
-    : `<div class="team-latest-none">Nothing completed yet — finished tasks show up here.</div>`;
+    ? `<div class="team-latest-who">${esc(done.toName || "Someone")} finished ${esc(done.task || "a task")}</div>
+       <div class="team-latest-what">${esc(done.store || "—")}<span class="team-latest-when"> · ${whenLabel(done.doneAt)}</span></div>`
+    : `<div class="team-latest-none">Nothing finished yet. Completed tasks land here.</div>`;
 
   if (!rows.length){
     table.innerHTML = `<tbody><tr><td class="team-table-empty">No assignments yet.</td></tr></tbody>`;
     return;
   }
-  const DOT = {
-    done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg>',
-    late: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M6 12h12"/></svg>',
-    open: ""
-  };
-  const LABEL = { done: "Done", late: "Overdue", open: "Open" };
   table.innerHTML = `
     <thead><tr>
       <th>User</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th>
@@ -1142,7 +1191,7 @@ function renderTeamPane(){
           <td class="team-td-user">${esc(r.toName || "Someone")}</td>
           <td>${esc(r.store || "—")}</td>
           <td>${esc(r.task || "—")}</td>
-          <td><span class="team-dot is-${st}" title="${LABEL[st]}" aria-label="${LABEL[st]}">${DOT[st]}</span></td>
+          <td><span class="team-dot is-${st}" title="${STATUS_LABEL[st]}" aria-label="${STATUS_LABEL[st]}">${STATUS_GLYPH[st]}</span></td>
           <td class="team-td-muted">${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
           <td class="team-td-muted">${r.dueDate ? esc(r.dueDate) : "—"}</td>
         </tr>`;

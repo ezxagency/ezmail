@@ -184,15 +184,27 @@ body{
 }
 .panel-menu:hover{opacity:1}
 .panel-menu svg{display:block;width:20px;height:20px}
-.team-panel-counts{
-  font-family:var(--wk);font-size:12.5px;line-height:1.6;color:var(--wk-white-70);
-  margin:0 0 14px;letter-spacing:.02em;
+.team-panel-counts{margin:0 0 14px}
+/* The status row reuses the expanded table's pips, so the collapsed card
+   doubles as its legend. Zero counts stay in place but dimmed - the row keeps
+   a stable shape and the eye goes straight to what is actually live. */
+.team-stats{list-style:none;display:flex;flex-wrap:wrap;gap:8px 20px;margin:0;padding:0}
+.team-stat{
+  display:flex;align-items:center;gap:9px;white-space:nowrap;
+  font-family:var(--wk);font-size:13px;color:var(--wk-white-60);letter-spacing:.01em;
 }
-.team-panel-counts b{color:var(--wk-white);font-weight:600}
+.team-stat b{font-weight:600;color:var(--wk-white);font-variant-numeric:tabular-nums}
+.team-stat.is-zero{opacity:.38}
+.team-approve{
+  font-family:var(--wk);font-size:12px;color:var(--wk-white-60);
+  margin:10px 0 0;letter-spacing:.01em;
+}
+/* Two lines, not four: the event, then its context. The time rides along
+   with the store rather than claiming a line of its own. */
 .team-latest{margin-bottom:18px}
-.team-latest-who{font-family:var(--wk);font-weight:600;font-size:15px;color:var(--wk-white);overflow-wrap:anywhere}
-.team-latest-what{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-70);margin-top:3px;line-height:1.5;overflow-wrap:anywhere}
-.team-latest-when{font-family:var(--wk);font-size:11px;color:var(--wk-white-60);margin-top:5px;letter-spacing:.06em;text-transform:uppercase}
+.team-latest-who{font-family:var(--wk);font-weight:600;font-size:15px;color:var(--wk-white);line-height:1.35;overflow-wrap:anywhere}
+.team-latest-what{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-70);margin-top:4px;line-height:1.5;overflow-wrap:anywhere}
+.team-latest-when{color:var(--wk-white-60)}
 .team-latest-none{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);line-height:1.5}
 .team-proceed,.team-collapse{
   display:inline-flex;align-items:center;gap:9px;background:none;border:0;padding:0;cursor:pointer;
@@ -493,6 +505,18 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .assign-status{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .assign-status.open{background:rgba(255,255,255,.16);color:#fff}
 .assign-status.done{background:var(--wk-green);color:#08210a}
+/* row delete: quiet until you're on the row, red on hover so the destructive
+   one never looks like the others */
+.assign-del-cell{width:1%;padding-right:4px!important}
+.assign-del{
+  display:flex;align-items:center;justify-content:center;
+  width:28px;height:28px;padding:0;border:0;border-radius:8px;cursor:pointer;
+  background:none;color:var(--wk-white-60);opacity:.45;
+  transition:opacity .15s ease,background .15s ease,color .15s ease;
+}
+.assign-del svg{width:15px;height:15px}
+.assign-table tr:hover .assign-del{opacity:1}
+.assign-del:hover,.assign-del:focus-visible{background:rgba(224,72,60,.18);color:#ff8a7e;opacity:1}
 
 .toast{
   position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
@@ -657,9 +681,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      the dark scrim the mobile card uses. */
   .app.has-team .card{
     margin:1.31vh 0 0;padding:5.42vh 33px 0;
-    /* stretches to the bottom of the dock row - no fixed height, so it can
-       never come up short of the Clock out button or run past it */
-    height:auto;align-self:stretch;min-height:0;
+    /* 100% of the grid area, which spans down to the dock row - same result
+       as stretch, but a definite value so it can animate to the collapsed
+       tile's height instead of snapping */
+    height:100%;align-self:stretch;min-height:0;
     border-radius:27px;
     background:rgba(255,255,255,.2);border:0;
     box-shadow:5px 8px 8px rgba(0,0,0,.25);
@@ -690,13 +715,38 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .team-panel{
     grid-area:team;display:flex;flex-direction:column;
     margin:.45vh 0 0 3.26%;padding:4.88vh 38px 0;
-    min-height:37.2vh;border-radius:43px;
+    /* definite at both ends so the swap can animate; the px floor keeps the
+       Proceed row inside the box on a short window */
+    height:max(41vh,300px);border-radius:43px;
     background:rgba(20,20,20,.43);border:0;
     backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
     font-family:"Inter",var(--body);
     align-self:start;
   }
   .app.has-team .team-panel-full{display:none}
+
+  /* --- the swap, animated ---
+     grid-template-columns carries the motion: both panes resize together off
+     a single interpolation, so they stay in lockstep with no gap opening up
+     between them. Everything else (fill, radius, height) rides the same
+     curve. Content cross-fades faster and slightly behind, so the geometry
+     leads and the text settles into it. The global prefers-reduced-motion
+     rule already switches all of this off. */
+  .app.has-team{transition:grid-template-columns .44s cubic-bezier(.4,0,.2,1)}
+  .app.has-team .card,
+  .app.has-team .team-panel{
+    transition:
+      height .44s cubic-bezier(.4,0,.2,1),
+      padding .44s cubic-bezier(.4,0,.2,1),
+      border-radius .44s ease,
+      background-color .44s ease;
+  }
+  .app.has-team .team-panel-brief,
+  .app.has-team .team-panel-full,
+  .app.has-team .card-restore,
+  .app.has-team .card-head,
+  .app.has-team .punches,
+  .app.has-team .empty{transition:opacity .2s ease .12s}
   /* Team card type, straight off the comp: Inter Bold 36 title, Regular 32
      body, Black 32 for Proceed; star 69x63. */
   .app.has-team .team-panel-head{gap:22px;margin-bottom:3.5vh}
@@ -713,11 +763,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .team-latest-none{
     font-family:"Inter",var(--body);letter-spacing:0;text-transform:none;
   }
-  .app.has-team .team-panel-counts{font-weight:400;font-size:clamp(13px,1.25vw,26px);margin-bottom:1.4vh}
-  .app.has-team .team-latest-who{font-weight:400;font-size:clamp(14px,1.667vw,34px)}
-  .app.has-team .team-latest-what{font-weight:400;font-size:clamp(13px,1.25vw,26px);margin-top:.5vh}
-  .app.has-team .team-latest-when{font-size:clamp(10px,.94vw,19px);margin-top:.6vh}
-  .app.has-team .team-latest{margin-bottom:2.3vh}
+  .app.has-team .team-panel-counts{margin-bottom:2.2vh}
+  .app.has-team .team-stats{gap:9px 1.7vw}
+  .app.has-team .team-stat{font-family:"Inter",var(--body);font-size:clamp(11px,.94vw,19px);gap:10px}
+  /* pips read smaller here than in the table - this is a legend, not data */
+  .app.has-team .team-stat .team-dot{width:18px;height:18px}
+  .app.has-team .team-stat .team-dot svg{width:11px;height:11px}
+  .app.has-team .team-approve{font-family:"Inter",var(--body);font-size:clamp(10px,.83vw,17px);margin-top:1.4vh}
+  .app.has-team .team-latest-who{font-weight:400;font-size:clamp(14px,1.35vw,28px)}
+  .app.has-team .team-latest-what{font-weight:400;font-size:clamp(11px,1.04vw,21px);margin-top:.7vh}
+  .app.has-team .team-latest{margin-bottom:2.2vh}
   .app.has-team .team-proceed{
     font-family:"Inter",var(--body);font-weight:900;
     font-size:clamp(14px,1.667vw,34px);gap:14px;
@@ -795,10 +850,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     mask-image:linear-gradient(to bottom,#000 88%,transparent 100%);
   }
   .app.has-team .team-table{table-layout:fixed}
+  /* th is sticky from the base rule, so it MUST keep an opaque fill - with
+     background:none the rows scrolled straight through the header and the
+     two sets of text drew on top of each other. #2b2b2b is the table box's
+     own rgba(43,43,43,.62) at full opacity. */
   .app.has-team .team-table th{
-    background:none;font-family:var(--wk);font-weight:700;letter-spacing:.12em;
+    background:#2b2b2b;font-family:var(--wk);font-weight:700;letter-spacing:.12em;
     font-size:clamp(9px,.73vw,15px);text-align:center;color:var(--wk-white);
-    padding:0 0 1.3vh;border-bottom:1px solid rgba(255,255,255,.55);
+    padding:1.4vh 0;border-bottom:1px solid rgba(255,255,255,.55);
   }
   .app.has-team .team-table th:first-child,
   .app.has-team .team-table td:first-child{padding-left:38px;text-align:left}
