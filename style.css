@@ -608,13 +608,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
        track left. Tracks: rail 602, Daily Mission 496, Team 593 + 20 gutter. */
     grid-template-columns:35.18% 28.99% minmax(0,1fr);
     grid-template-rows:auto auto auto auto auto minmax(0,1fr);
+    /* the panes stop at the dock row, so the card's bottom edge is collinear
+       with the Clock out button rather than running past it to the nav */
     grid-template-areas:
       "band     band band"
       "clock    card team"
       "shiftbar card team"
       "dock     card team"
-      "nav      card team"
-      ".        card team";
+      "nav      .    ."
+      ".        .    .";
   }
   .app.has-team .band{padding:0;align-items:flex-start}
   /* comp: rule is 281 wide under a 385-wide wordmark, 3px, r12.5 */
@@ -655,10 +657,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      the dark scrim the mobile card uses. */
   .app.has-team .card{
     margin:1.31vh 0 0;padding:5.42vh 33px 0;
-    height:71.8vh;border-radius:27px;
+    /* stretches to the bottom of the dock row - no fixed height, so it can
+       never come up short of the Clock out button or run past it */
+    height:auto;align-self:stretch;min-height:0;
+    border-radius:27px;
     background:rgba(255,255,255,.2);border:0;
     box-shadow:5px 8px 8px rgba(0,0,0,.25);
-    align-self:start;
   }
   .app.has-team .card-head{
     position:relative;border-bottom:0;
@@ -856,7 +860,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .bottom-nav{margin-top:2.4vh}
   .app.has-team .card,
   .app.has-team .team-panel{margin-top:2.4vh}
-  .app.has-team .card{height:auto;max-height:82vh;padding-top:3.4vh}
+  .app.has-team .card{padding-top:3.4vh}
   .app.has-team .empty{padding-top:5vh}
   .app.has-team .empty-icon{width:7.4vw;height:7.4vw}
 }
@@ -868,7 +872,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .dock{margin-top:2.2vh}
   .app.has-team .bottom-nav{margin-top:1.8vh}
   .app.has-team .clock-label{font-size:11px}
-  .app.has-team .card{max-height:74vh;padding-top:2.6vh}
+  .app.has-team .card{padding-top:2.6vh}
   .app.has-team .empty{padding-top:2.5vh}
   .app.has-team .empty-icon{width:5.8vw;height:5.8vw}
 }
