@@ -734,15 +734,82 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .clock-meta,
   .app.has-team .band-state{display:none}
 
-  /* --- expanded: the two panes swap weight (comp frame 62: 175px / 668px) --- */
-  .app.has-team.team-open{grid-template-columns:37% 12.5% minmax(0,1fr)}
-  .app.has-team.team-open .team-panel{align-self:stretch}
+  /* --- expanded, measured off Figma frame 29:150 ---
+     Daily Mission collapses to a 220x205 tile and Team takes 798, both at
+     r27 on 20% white. Note the Team panel CHANGES fill when it expands:
+     collapsed it is rgba(20,20,20,.43) at r43, expanded it matches the
+     Daily Mission card. That is the design's call, not an oversight. */
+  .app.has-team.team-open{grid-template-columns:34.86% 12.47% minmax(0,1fr)}
+  .app.has-team.team-open .team-panel{
+    align-self:start;margin-left:5.49%;
+    height:61.3vh;min-height:0;
+    background:rgba(255,255,255,.2);border-radius:27px;
+    box-shadow:5px 8px 8px rgba(0,0,0,.25);
+    padding:3.05vh 38px 3.05vh;
+  }
   .app.has-team.team-open .team-panel-brief{display:none}
   .app.has-team.team-open .team-panel-full{display:flex;flex-direction:column;min-height:0;flex:1}
   /* everything except the restore tile drops out of the shrunken card */
-  .app.has-team.team-open .card{align-self:start;overflow:hidden;padding:24px 22px 26px}
+  .app.has-team.team-open .card{
+    align-self:start;overflow:hidden;
+    height:19vh;padding:3.05vh 27px 2.4vh;
+  }
   .app.has-team.team-open .card > *{display:none}
-  .app.has-team.team-open .card > .card-restore{display:flex}
+  .app.has-team.team-open .card > .card-restore{display:flex;height:100%;justify-content:space-between}
+  .app.has-team.team-open .card-restore-title{
+    font-weight:800;letter-spacing:.12em;line-height:1.09;
+    font-size:clamp(15px,1.667vw,34px);
+  }
+  .app.has-team.team-open .card-restore svg{width:27px;height:27px;stroke-width:2.4}
+
+  /* Team head, expanded: Inter Bold 36 title, Regular 16 subtitle,
+     Bold 20 "Assigned Tasks:" */
+  .app.has-team.team-open .team-panel-head{margin-bottom:1.4vh}
+  .app.has-team.team-open .team-panel-mark{display:none}
+  .app.has-team .team-panel-sub{
+    font-family:"Inter",var(--body);font-size:clamp(11px,.833vw,17px);
+    margin:0 0 2.4vh;line-height:1.3;
+  }
+  .app.has-team .team-panel-label{
+    font-family:"Inter",var(--body);font-weight:700;
+    font-size:clamp(12px,1.04vw,21px);margin:0 0 1.6vh;
+  }
+  /* the table sits in its own darker box: 715x443, r18, rgba(43,43,43,.62) */
+  .app.has-team .team-table-wrap{
+    background:rgba(43,43,43,.62);border:0;border-radius:18px;
+    padding:2.7vh 0 0;flex:1;min-height:0;
+    /* the comp fades the last row out rather than cutting it hard */
+    -webkit-mask-image:linear-gradient(to bottom,#000 88%,transparent 100%);
+    mask-image:linear-gradient(to bottom,#000 88%,transparent 100%);
+  }
+  .app.has-team .team-table{table-layout:fixed}
+  .app.has-team .team-table th{
+    background:none;font-family:var(--wk);font-weight:700;letter-spacing:.12em;
+    font-size:clamp(9px,.73vw,15px);text-align:center;color:var(--wk-white);
+    padding:0 0 1.3vh;border-bottom:1px solid rgba(255,255,255,.55);
+  }
+  .app.has-team .team-table th:first-child,
+  .app.has-team .team-table td:first-child{padding-left:38px;text-align:left}
+  .app.has-team .team-table th:last-child,
+  .app.has-team .team-table td:last-child{padding-right:48px}
+  .app.has-team .team-table td{
+    border-top:0;font-weight:300;color:var(--wk-white);text-align:center;
+    font-size:clamp(9px,.73vw,15px);padding:1.55vh 6px;
+  }
+  .app.has-team .team-table td.team-td-user{
+    font-weight:300;letter-spacing:0;text-transform:uppercase;
+    font-size:clamp(9px,.73vw,15px);
+  }
+  .app.has-team .team-table td.team-td-muted{color:var(--wk-white)}
+  /* comp status glyphs are 21x21 (Group 229/231/233/235) */
+  .app.has-team .team-dot{width:21px;height:21px}
+  .app.has-team .team-dot svg{width:12px;height:12px}
+  /* comp scrollbar: 7px, track rgba(159,159,159,.34), white thumb, r6 */
+  .app.has-team .team-table-wrap::-webkit-scrollbar{width:7px}
+  .app.has-team .team-table-wrap::-webkit-scrollbar-track{background:rgba(159,159,159,.34);border-radius:6px;margin:0 0 2vh}
+  .app.has-team .team-table-wrap::-webkit-scrollbar-thumb{background:var(--wk-white);border-radius:6px}
+  .app.has-team .team-table-wrap{scrollbar-color:var(--wk-white) rgba(159,159,159,.34)}
+  .app.has-team .team-collapse{margin-top:1.6vh;font-family:"Inter",var(--body)}
 
   /* the left column is narrower than a phone, so the rings and the empty-state
      art have to come down with it or they overflow their cells */
