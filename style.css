@@ -592,6 +592,34 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .assign-status{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .assign-status.open{background:rgba(255,255,255,.16);color:#fff}
 .assign-status.done{background:var(--wk-green);color:#08210a}
+
+/* ---------- today's work ---------- */
+.work-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.work-sum{font-family:var(--wk);font-size:12px;color:var(--wk-white-60);margin:0;letter-spacing:.02em}
+.work-sum b{color:var(--wk-white);font-weight:600}
+.work-none{
+  font-family:var(--wk);font-size:13px;color:var(--wk-white-60);
+  margin:0 0 18px;padding:16px 0;border-top:1px solid rgba(255,255,255,.12);
+}
+.work-table td{vertical-align:middle}
+.work-name{font-weight:600}
+.work-net{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* tasks are the one column that can hold several values, so they wrap as
+   chips rather than forcing the row wider than the page */
+.work-table td.work-tasks{white-space:normal;min-width:180px}
+.work-task{
+  display:inline-flex;align-items:baseline;gap:5px;margin:2px 5px 2px 0;
+  padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.1);
+  font-size:11px;color:var(--wk-white-70);white-space:nowrap;
+}
+.work-task b{color:var(--wk-white);font-weight:600;font-variant-numeric:tabular-nums}
+.work-status{
+  display:inline-block;padding:2px 9px;border-radius:999px;
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;
+}
+.work-status.is-active{background:var(--wk-green);color:#08210a}
+.work-status.is-break{background:rgba(255,255,255,.24);color:#fff}
+.work-status.is-done{background:rgba(255,255,255,.12);color:var(--wk-white-70)}
 /* row delete: quiet until you're on the row, red on hover so the destructive
    one never looks like the others */
 .assign-del-cell{width:1%;padding-right:4px!important}

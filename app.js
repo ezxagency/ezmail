@@ -957,41 +957,140 @@ async function loadTeamPending(){
   }
 }
 
-async function loadTeamList(){
-  const list = $("teamList");
+/* One appState read feeds both the today table and the roster below it -
+   they were two separate .get() calls over the same collection. */
+async function loadTeamData(){
+  const list = $("teamList"), today = $("teamToday");
   if (!list) return;
+  if (today) today.innerHTML = `<p class="hint">Loading today's work…</p>`;
   list.innerHTML = `<div class="empty">Loading…</div>`;
   try {
     const snap = await db.collection("appState").get();
-    list.innerHTML = "";
-    if (snap.empty){ list.innerHTML = `<div class="empty">No team members have signed in yet.</div>`; return; }
+    const docs = [];
     snap.forEach(doc => {
       const data = doc.data();
       let s; try { s = JSON.parse(data.json); } catch { s = null; }
-      if (!s) return;
-      const todayKey = dayStamp(Date.now());
-      const todayHist = (s.history||[]).filter(r => dayStamp(r.startedAt) === todayKey);
-      let todayMs = todayHist.reduce((t,r)=>t+r.netMs,0);
-      let todayBreak = todayHist.reduce((t,r)=>t+(r.breakMs||0),0);
-      if (s.shift && s.status !== "IDLE") { todayMs += netMs(s.shift); todayBreak += breakMs(s.shift); }
-      const now = new Date();
-      const shortDate = (now.getMonth()+1) + "/" + now.getDate();
-      const li = document.createElement("li");
-      li.style.cursor = "pointer";
-      li.innerHTML = `
-        <div><div class="h-c">${esc(s.worker || data.email || "Unnamed")}</div><div class="h-d">${esc(data.email||"")} · ${esc((s.status||"").replace("_"," "))}</div></div>
-        <div style="text-align:right">
-          <div class="h-h">${humanDur(todayMs)} today · ${shortDate}</div>
-          <div class="h-d">${humanDur(todayBreak)} break</div>
-        </div>
-      `;
-      li.onclick = () => viewWorker(data, s, doc.id);
-      list.append(li);
+      if (s) docs.push({ id: doc.id, raw: data, state: s });
     });
+    renderTodaysWork(docs);
+    renderTeamRoster(docs);
   } catch (e) {
     console.error(e);
+    if (today) today.innerHTML = "";
     list.innerHTML = `<div class="empty">Couldn't load team data — check Firestore rules allow admin reads.</div>`;
   }
+}
+
+/* What one person did today: closed shifts that started today, plus the open
+   one if it also started today. An open shift from yesterday is deliberately
+   excluded - counting its full elapsed time as "today" is what made the old
+   roster figures drift upward overnight. */
+function todaysWorkFor(s, now = Date.now()){
+  const key = dayStamp(now);
+  const closed = (s.history || []).filter(r => dayStamp(r.startedAt) === key);
+  const live = (s.shift && s.status !== "IDLE" && dayStamp(s.shift.startedAt) === key) ? s.shift : null;
+  if (!closed.length && !live) return null;
+
+  const all = live ? closed.concat([live]) : closed;
+  let net = closed.reduce((t, r) => t + r.netMs, 0);
+  let brk = closed.reduce((t, r) => t + (r.breakMs || 0), 0);
+  if (live) { net += netMs(live, now); brk += breakMs(live, now); }
+
+  const tasks = new Map(), stores = new Set();
+  all.forEach(r => {
+    let store = r.client;
+    if (store) stores.add(store);
+    (r.segs || []).forEach(sg => {
+      if (sg.client) { store = sg.client; stores.add(store); }
+      if (sg.task) tasks.set(sg.task, (tasks.get(sg.task) || 0) + segMs(sg, now));
+    });
+  });
+
+  return {
+    net, brk,
+    firstIn: Math.min(...all.map(r => r.startedAt)),
+    lastOut: closed.length && !live ? Math.max(...closed.map(r => r.endedAt)) : null,
+    shifts: all.length,
+    state: live ? (s.status === "ON_BREAK" ? "break" : "active") : "done",
+    stores: [...stores],
+    tasks: [...tasks.entries()].sort((a, b) => b[1] - a[1]).map(([task, ms]) => ({ task, ms }))
+  };
+}
+
+const WORK_STATE = { active: "On shift", break: "On break", done: "Clocked out" };
+
+function renderTodaysWork(docs){
+  const box = $("teamToday");
+  if (!box) return;
+  const now = Date.now();
+  const rows = docs
+    .map(d => ({ name: d.state.worker || d.raw.email || "Unnamed", work: todaysWorkFor(d.state, now) }))
+    .filter(r => r.work);
+
+  if (!rows.length){
+    box.innerHTML = `
+      <p class="hint" style="margin-bottom:8px">Today's work</p>
+      <p class="work-none">Nobody has clocked in today.</p>`;
+    return;
+  }
+  // on shift first, then whoever has put in the most time
+  const rank = { active: 0, break: 1, done: 2 };
+  rows.sort((a, b) => (rank[a.work.state] - rank[b.work.state]) || (b.work.net - a.work.net));
+
+  const totalNet = rows.reduce((t, r) => t + r.work.net, 0);
+  const onNow = rows.filter(r => r.work.state !== "done").length;
+
+  box.innerHTML = `
+    <div class="work-head">
+      <p class="hint" style="margin:0">Today's work</p>
+      <p class="work-sum">${rows.length} on the clock today · <b>${humanDur(totalNet)}</b> net${onNow ? ` · ${onNow} still on shift` : ""}</p>
+    </div>
+    <div style="overflow-x:auto;margin-bottom:18px">
+      <table class="assign-table work-table">
+        <thead><tr>
+          <th>Member</th><th>Status</th><th>In</th><th>Out</th><th>Stores</th><th>Tasks</th><th>Break</th><th>Worked</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            const w = r.work;
+            return `<tr>
+              <td class="work-name">${esc(r.name)}</td>
+              <td><span class="work-status is-${w.state}">${WORK_STATE[w.state]}</span></td>
+              <td>${clock(w.firstIn)}</td>
+              <td>${w.lastOut ? clock(w.lastOut) : "—"}</td>
+              <td>${w.stores.length ? esc(w.stores.join(", ")) : "—"}</td>
+              <td class="work-tasks">${w.tasks.length
+                ? w.tasks.map(t => `<span class="work-task">${esc(t.task)} <b>${humanDur(t.ms)}</b></span>`).join("")
+                : "—"}</td>
+              <td>${w.brk ? humanDur(w.brk) : "—"}</td>
+              <td class="work-net">${humanDur(w.net)}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderTeamRoster(docs){
+  const list = $("teamList");
+  list.innerHTML = "";
+  if (!docs.length){ list.innerHTML = `<div class="empty">No team members have signed in yet.</div>`; return; }
+  const now = Date.now();
+  const shortDate = (new Date().getMonth() + 1) + "/" + new Date().getDate();
+  docs.forEach(d => {
+    const s = d.state, w = todaysWorkFor(s, now);
+    const li = document.createElement("li");
+    li.style.cursor = "pointer";
+    li.innerHTML = `
+      <div><div class="h-c">${esc(s.worker || d.raw.email || "Unnamed")}</div><div class="h-d">${esc(d.raw.email||"")} · ${esc((s.status||"").replace("_"," "))}</div></div>
+      <div style="text-align:right">
+        <div class="h-h">${humanDur(w ? w.net : 0)} today · ${shortDate}</div>
+        <div class="h-d">${humanDur(w ? w.brk : 0)} break</div>
+      </div>
+    `;
+    li.onclick = () => viewWorker(d.raw, s, d.id);
+    list.append(li);
+  });
 }
 
 // Team is a full page (not a sheet) - admin gets the whole viewport to
@@ -1001,7 +1100,7 @@ function showTeam(){
   $("teamPageClose").onclick = closeTeamPage;
   $("teamExportAll").onclick = exportAllExcel;
   loadTeamPending();
-  loadTeamList();
+  loadTeamData();
   ackCompletedAssignments(); // clears the notification badge; log below stays regardless
   loadCompletionLog(true);
 }
@@ -2065,7 +2164,7 @@ async function deleteWorker(uid, name){
     await db.collection("users").doc(uid).delete();
     toast(name + " deleted");
     closeSheet();
-    loadTeamList();      // the roster behind the sheet still lists them otherwise
+    loadTeamData();      // the roster behind the sheet still lists them otherwise
     loadTeamPending();
   } catch (e) {
     console.error(e);
