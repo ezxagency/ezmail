@@ -903,9 +903,12 @@ async function startWorkerApp(){
     $("adminAccessBtn").onclick = () => showTeam();
   }
 
-  $("teamProceed").onclick = () => setTeamPaneOpen(true);
-  $("teamCollapse").onclick = () => setTeamPaneOpen(false);
-  $("cardRestore").onclick = () => setTeamPaneOpen(false);
+  $("teamProceed").onclick = () => setSidePaneOpen(true);
+  $("teamCollapse").onclick = () => setSidePaneOpen(false);
+  $("assignedProceed").onclick = () => setSidePaneOpen(true);
+  $("assignedCollapse").onclick = () => setSidePaneOpen(false);
+  $("cardRestore").onclick = () => setSidePaneOpen(false);
+  $("assignPanelMenu").onclick = openCardMenu;
 
   if (staleShift) {
     toast("Shift left open a long time — please review and close it");
@@ -1045,7 +1048,7 @@ function renderTodaysWork(docs){
       <p class="hint" style="margin:0">Today's work</p>
       <p class="work-sum">${rows.length} on the clock today · <b>${humanDur(totalNet)}</b> net${onNow ? ` · ${onNow} still on shift` : ""}</p>
     </div>
-    <div style="overflow-x:auto;margin-bottom:18px">
+    <div class="table-card">
       <table class="assign-table work-table">
         <thead><tr>
           <th>Member</th><th>Status</th><th>In</th><th>Out</th><th>Stores</th><th>Tasks</th><th>Break</th><th>Worked</th>
@@ -1054,18 +1057,18 @@ function renderTodaysWork(docs){
           ${rows.map(r => {
             const w = r.work;
             return `<tr>
-              <td class="work-name">${esc(r.name)}</td>
-              <td class="nowrap"><span class="work-status is-${w.state}">${WORK_STATE[w.state]}</span></td>
-              <td class="nowrap">${clock(w.firstIn)}</td>
-              <td class="nowrap">${w.lastOut ? clock(w.lastOut) : "—"}</td>
-              <td>${w.stores.length
+              <td data-label="Member" class="work-name">${esc(r.name)}</td>
+              <td data-label="Status" class="nowrap"><span class="work-status is-${w.state}">${WORK_STATE[w.state]}</span></td>
+              <td data-label="In" class="nowrap">${clock(w.firstIn)}</td>
+              <td data-label="Out" class="nowrap">${w.lastOut ? clock(w.lastOut) : "—"}</td>
+              <td data-label="Stores">${w.stores.length
                 ? w.stores.map(st => `<span class="work-chip">${esc(st)}</span>`).join("")
                 : "—"}</td>
-              <td>${w.tasks.length
+              <td data-label="Tasks">${w.tasks.length
                 ? w.tasks.map(t => `<span class="work-task">${esc(t.task)} <b>${humanDur(t.ms)}</b></span>`).join("")
                 : "—"}</td>
-              <td class="nowrap">${w.brk ? humanDur(w.brk) : "—"}</td>
-              <td class="work-net">${humanDur(w.net)}</td>
+              <td data-label="Break" class="nowrap">${w.brk ? humanDur(w.brk) : "—"}</td>
+              <td data-label="Worked" class="work-net">${humanDur(w.net)}</td>
             </tr>`;
           }).join("")}
         </tbody>
@@ -1143,7 +1146,7 @@ function renderCompletionLog(){
   const visible = rows.slice(0, assignLogShown);
   box.innerHTML = `
     <p class="hint" style="margin-bottom:8px">Assignments:</p>
-    <div style="overflow-x:auto;margin-bottom:10px">
+    <div class="table-card">
       <table class="assign-table">
         <thead><tr>
           <th>To</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th><th>Completed</th><th></th>
@@ -1151,13 +1154,13 @@ function renderCompletionLog(){
         <tbody>
           ${visible.map(r => `
             <tr>
-              <td>${esc(r.toName || "Someone")}</td>
-              <td>${esc(r.store || "—")}</td>
-              <td>${esc(r.task || "—")}</td>
-              <td class="nowrap"><span class="assign-status ${r.done ? "done" : "open"}">${r.done ? "Done" : "Open"}</span></td>
-              <td>${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
-              <td class="nowrap">${r.dueDate ? esc(r.dueDate) : "—"}</td>
-              <td>${r.doneAt ? dayStamp(r.doneAt) + " " + clock(r.doneAt) : "—"}</td>
+              <td data-label="To">${esc(r.toName || "Someone")}</td>
+              <td data-label="Store">${esc(r.store || "—")}</td>
+              <td data-label="Task">${esc(r.task || "—")}</td>
+              <td data-label="Status" class="nowrap"><span class="assign-status ${r.done ? "done" : "open"}">${r.done ? "Done" : "Open"}</span></td>
+              <td data-label="Assigned">${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
+              <td data-label="Due" class="nowrap">${r.dueDate ? esc(r.dueDate) : "—"}</td>
+              <td data-label="Completed">${r.doneAt ? dayStamp(r.doneAt) + " " + clock(r.doneAt) : "—"}</td>
               <td class="assign-del-cell">
                 <button type="button" class="assign-del" data-del="${esc(r.id)}"
                         aria-label="Delete this assignment" title="Delete this assignment">
@@ -1303,7 +1306,10 @@ function renderTeamPane(){
 }
 
 let swapSettle = null;
-function setTeamPaneOpen(open){
+// One toggle for both side panes - the admin's Team and the employee's
+// Assigned. They occupy the same grid area and share every rule, so the only
+// difference is which one is mounted.
+function setSidePaneOpen(open){
   const app = $("appScreen");
   // Suspend the panels' backdrop-filter for the length of the swap (see the
   // .is-swapping rules): re-blurring the marble behind two panes on every
@@ -1314,10 +1320,10 @@ function setTeamPaneOpen(open){
   clearTimeout(swapSettle);
   swapSettle = setTimeout(() => app.classList.remove("is-swapping"), 620);
 
-  app.classList.toggle("team-open", open);
-  // opening it is the admin reading the notification - clear the badge, same
-  // as walking into the full Team page does
-  if (open) ackCompletedAssignments().then(() => loadTeamPane());
+  app.classList.toggle("side-open", open);
+  // opening the Team pane is the admin reading the notification - clear the
+  // badge, same as walking into the full Team page does
+  if (open && isAdmin) ackCompletedAssignments().then(() => loadTeamPane());
 }
 
 /* ---------- team-wide Excel export (one sheet per worker + overview) ---------- */
@@ -2112,7 +2118,8 @@ function watchAssignedTasks(){
       }
       box.classList.remove("hidden");
       app.classList.toggle("has-tasks", !isAdmin);
-      if (count) count.textContent = rows.length + (rows.length === 1 ? " open" : " open");
+      if (count) count.textContent = rows.length + " open";
+      renderAssignedBrief(rows);
       list.innerHTML = rows.map(r => `
         <li>
           <div>
@@ -2131,6 +2138,36 @@ function watchAssignedTasks(){
     $("appScreen").classList.remove("has-tasks");
     list.innerHTML = "";
   });
+}
+
+/* The collapsed state of the employee's pane. Same shape as the admin's Team
+   card - a status line then the one thing that matters most - but about your
+   own queue rather than the team's. The headline is the next thing due, since
+   that is the question the card is answering. */
+function renderAssignedBrief(rows){
+  const counts = $("assignedCounts"), next = $("assignedNext");
+  if (!counts || !next) return;
+
+  const today = todayISO();
+  const late = rows.filter(r => r.dueDate && r.dueDate < today).length;
+  const soon = rows.filter(r => r.dueDate === today).length;
+  const stat = (n, label, cls) =>
+    `<li class="team-stat is-${cls}${n ? "" : " is-zero"}">
+       <span class="team-dot is-${cls}">${STATUS_GLYPH[cls]}</span><b>${n}</b> ${label}
+     </li>`;
+  counts.innerHTML = `<ul class="team-stats">
+      ${stat(rows.length, "open", "open")}${stat(late, "overdue", "late")}${stat(soon, "due today", "done")}
+    </ul>`;
+
+  // undated tasks sort last, so the headline is always something with a date
+  // if one exists
+  const up = [...rows].sort((a, b) =>
+    (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"))[0];
+  next.innerHTML = up
+    ? `<div class="team-latest-who">${esc(up.store || "—")} · ${esc(up.task || "task")}</div>
+       <div class="team-latest-what">${esc(up.note || "")}<span class="team-latest-when">${
+         up.dueDate ? " · due " + esc(up.dueDate) : " · no due date"}</span></div>`
+    : `<div class="team-latest-none">Nothing assigned right now.</div>`;
 }
 
 async function markAssignmentDone(id){
@@ -2252,7 +2289,7 @@ if (!FB_READY){
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
       $("navAssign").classList.add("hidden");
-      $("appScreen").classList.remove("panes", "has-team", "has-tasks", "team-open");
+      $("appScreen").classList.remove("panes", "has-team", "has-tasks", "side-open");
       $("teamPanel").classList.add("hidden");
       teamPaneRows = null; teamPendingCount = 0;
       return;

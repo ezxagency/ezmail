@@ -297,6 +297,11 @@ body{
 }
 .assign-panel .hist{margin:0}
 .assign-panel .hist li:last-child{border-bottom:0}
+/* Stacked, there is no expand step - the list is simply shown. The brief and
+   the Close button belong to the desktop collapsed/expanded pair only. */
+.assign-panel-brief{display:none}
+.assign-panel-full .team-panel-sub,
+.assign-panel-full .team-collapse{display:none}
 .card-head{
   display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
   padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.35);margin-bottom:4px;
@@ -616,25 +621,34 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
    whole thing sideways. nowrap on every cell was what produced the
    full-width horizontal scrollbar. min-width only bites on a phone, where
    scrolling beats columns two characters wide. */
+/* The table lives in its own panel rather than floating on the marble, which
+   gives the rows something to sit on and the header something to stick to. */
+.table-card{
+  background:rgba(16,19,26,.6);border:1px solid rgba(255,255,255,.1);
+  border-radius:16px;overflow:hidden;margin-bottom:18px;
+}
+/* No min-width and no horizontal scroll anywhere: the table always fits its
+   container, and a cell with more in it than fits grows the ROW downward. */
 .assign-table{
-  width:100%;min-width:700px;table-layout:fixed;
+  width:100%;table-layout:fixed;
   border-collapse:separate;border-spacing:0;
   font-family:var(--wk);font-size:12px;
 }
 .assign-table th{
-  position:sticky;top:0;z-index:1;background:#161a23;
-  text-align:left;padding:11px 12px;
+  position:sticky;top:0;z-index:1;background:#12151d;
+  text-align:left;padding:12px;
   font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
   color:var(--wk-white-60);white-space:nowrap;
-  border-bottom:1px solid rgba(255,255,255,.28);
+  border-bottom:1px solid rgba(255,255,255,.14);
 }
 .assign-table td{
-  padding:12px;vertical-align:top;color:var(--wk-white);line-height:1.45;
-  border-bottom:1px solid rgba(255,255,255,.09);
+  padding:13px 12px;vertical-align:top;color:var(--wk-white);line-height:1.45;
+  border-top:1px solid rgba(255,255,255,.07);
   white-space:normal;overflow-wrap:anywhere;
 }
-.assign-table tbody tr:last-child td{border-bottom:0}
-.assign-table tbody tr:hover td{background:rgba(255,255,255,.045)}
+.assign-table tbody tr:first-child td{border-top:0}
+.assign-table tbody tr:nth-child(even) td{background:rgba(255,255,255,.022)}
+.assign-table tbody tr:hover td{background:rgba(255,255,255,.06)}
 /* short, predictable values keep their own line */
 .assign-table .nowrap{white-space:nowrap}
 
@@ -648,10 +662,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .assign-table:not(.work-table) th:nth-child(7),.assign-table:not(.work-table) td:nth-child(7){width:19%}
 .assign-table:not(.work-table) th:nth-child(8),.assign-table:not(.work-table) td:nth-child(8){width:5%}
 
-/* today's work: Member / Status / In / Out / Stores / Tasks / Break / Worked.
-   Wider floor than the log table - the status pill is nowrap, and at 700 the
-   13% track was narrower than "CLOCKED OUT", so it ran into the In column. */
-.work-table{min-width:900px}
+/* today's work: Member / Status / In / Out / Stores / Tasks / Break / Worked */
 .work-table th:nth-child(1),.work-table td:nth-child(1){width:14%}
 .work-table th:nth-child(2),.work-table td:nth-child(2){width:13%}
 .work-table th:nth-child(3),.work-table td:nth-child(3){width:6%}
@@ -660,6 +671,41 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .work-table th:nth-child(6),.work-table td:nth-child(6){width:24%}
 .work-table th:nth-child(7),.work-table td:nth-child(7){width:7%}
 .work-table th:nth-child(8),.work-table td:nth-child(8){width:9%}
+
+/* Below this width eight columns cannot be honest - they would be a few
+   characters wide each. Rather than reintroduce a sideways scroll, each row
+   becomes its own labelled block. Same data, same order, no slider.
+   The threshold is on the viewport but the table lives inside admin-page-inner,
+   which is ~80px narrower - so this has to trip earlier than the width the
+   table itself needs, or the last columns get squeezed off the edge. */
+@media (max-width:1040px){
+  .assign-table,
+  .assign-table tbody,
+  .assign-table tr,
+  .assign-table td{display:block;width:auto!important}
+  .assign-table thead{display:none}
+  .assign-table tbody tr{
+    padding:14px 15px;border-top:1px solid rgba(255,255,255,.09);
+  }
+  .assign-table tbody tr:first-child{border-top:0}
+  .assign-table tbody tr:nth-child(even) td,
+  .assign-table tbody tr:hover td{background:none}
+  .assign-table tbody tr:nth-child(even){background:rgba(255,255,255,.022)}
+  .assign-table td{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+    padding:5px 0;border:0;text-align:right;
+  }
+  /* the label comes from the cell itself, so the markup stays a real table */
+  .assign-table td::before{
+    content:attr(data-label);flex:none;text-align:left;
+    font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--wk-white-60);padding-top:2px;
+  }
+  .assign-table td:not([data-label]){justify-content:flex-end;padding-top:8px}
+  .work-table td.work-name{font-size:15px;padding-bottom:8px}
+  .work-table td.work-name::before{content:none}
+  .work-table td.work-name{justify-content:flex-start;text-align:left}
+}
 .assign-status{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .assign-status.open{background:rgba(255,255,255,.16);color:#fff}
 .assign-status.done{background:var(--wk-green);color:#08210a}
@@ -854,14 +900,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.panes .dock,
   .app.panes .bottom-nav,
   .app.panes .card,
-  .app.panes .team-panel{
+  .app.panes .team-panel,
+  .app.panes .assign-panel{
     animation:paneContentIn .52s cubic-bezier(.22,1,.36,1) backwards;
   }
   .app.panes .clock{animation-delay:.05s}
   .app.panes .shiftbar{animation-delay:.09s}
   .app.panes .card{animation-delay:.11s}
   .app.panes .dock{animation-delay:.15s}
-  .app.panes .team-panel{animation-delay:.19s}
+  .app.panes .team-panel,
+  .app.panes .assign-panel{animation-delay:.19s}
   .app.panes .bottom-nav{animation-delay:.23s}
 
   .app.panes .band{padding:0;align-items:flex-start}
@@ -964,6 +1012,21 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
     align-self:start;overflow:hidden;
   }
+  /* Collapsed it shows the brief and hides the list, exactly like the Team
+     pane; expanded (.side-open) that flips. Both states are driven by the
+     shared .team-panel-* rules, so the two panes cannot drift apart. */
+  /* .has-tasks and .side-open are the same specificity and .has-tasks is
+     declared later, so the collapsed height was beating the expanded one.
+     Qualify with both so the open state actually wins, and let the list be
+     the scrolling part rather than overflowing under the Close button. */
+  .app.panes.has-tasks.side-open .assign-panel{height:61.3vh;overflow:hidden}
+  .app.panes.has-tasks.side-open .assign-panel .hist{
+    flex:1;min-height:0;overflow-y:auto;margin:0 0 1vh;
+  }
+  .app.panes.has-tasks .assign-panel-brief{display:block}
+  .app.panes.has-tasks .assign-panel-full{display:none}
+  .app.panes.side-open .assign-panel-full .team-panel-sub{display:block}
+  .app.panes.side-open .assign-panel-full .team-collapse{display:inline-flex}
   .app.panes.has-tasks .assign-panel-head{gap:14px;margin-bottom:2.4vh}
   .app.panes.has-tasks .assign-panel-mark{width:30px;height:30px}
   .app.panes.has-tasks .assign-panel-title{
@@ -992,7 +1055,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      at the start. prefers-reduced-motion already switches all of it off. */
   .app.panes{transition:grid-template-columns .5s cubic-bezier(.22,1,.36,1)}
   .app.panes .card,
-  .app.panes .team-panel{
+  .app.panes .team-panel,
+  .app.panes .assign-panel{
     transition:
       height .5s cubic-bezier(.22,1,.36,1),
       padding .5s cubic-bezier(.22,1,.36,1),
@@ -1016,11 +1080,13 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      it back when the panes have settled; the panels keep their fill, so the
      drop is not visible in motion. */
   .app.panes.is-swapping .card,
-  .app.panes.is-swapping .team-panel{
+  .app.panes.is-swapping .team-panel,
+  .app.panes.is-swapping .assign-panel{
     backdrop-filter:none;-webkit-backdrop-filter:none;
   }
   .app.panes.is-swapping .card,
   .app.panes.is-swapping .team-panel,
+  .app.panes.is-swapping .assign-panel,
   .app.panes.is-swapping .team-table-wrap{will-change:width,height}
   /* Team card type, straight off the comp: Inter Bold 36 title, Regular 32
      body, Black 32 for Proceed; star 69x63. */
@@ -1081,33 +1147,36 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      r27 on 20% white. Note the Team panel CHANGES fill when it expands:
      collapsed it is rgba(20,20,20,.43) at r43, expanded it matches the
      Daily Mission card. That is the design's call, not an oversight. */
-  .app.panes.team-open{grid-template-columns:34.86% 12.47% minmax(0,1fr)}
-  .app.panes.team-open .team-panel{
+  .app.panes.side-open{grid-template-columns:34.86% 12.47% minmax(0,1fr)}
+  .app.panes.side-open .team-panel,
+  .app.panes.side-open .assign-panel{
     align-self:start;margin-left:5.49%;
     height:61.3vh;min-height:0;
     background:rgba(255,255,255,.2);border-radius:27px;
     box-shadow:5px 8px 8px rgba(0,0,0,.25);
     padding:3.05vh 38px 3.05vh;
   }
-  .app.panes.team-open .team-panel-brief{display:none}
-  .app.panes.team-open .team-panel-full{display:flex;flex-direction:column;min-height:0;flex:1}
+  .app.panes.side-open .team-panel-brief,
+  .app.panes.side-open .assign-panel-brief{display:none}
+  .app.panes.side-open .team-panel-full,
+  .app.panes.side-open .assign-panel-full{display:flex;flex-direction:column;min-height:0;flex:1}
   /* everything except the restore tile drops out of the shrunken card */
-  .app.panes.team-open .card{
+  .app.panes.side-open .card{
     align-self:start;overflow:hidden;
     height:19vh;padding:3.05vh 27px 2.4vh;
   }
-  .app.panes.team-open .card > *{display:none}
-  .app.panes.team-open .card > .card-restore{display:flex;height:100%;justify-content:space-between}
-  .app.panes.team-open .card-restore-title{
+  .app.panes.side-open .card > *{display:none}
+  .app.panes.side-open .card > .card-restore{display:flex;height:100%;justify-content:space-between}
+  .app.panes.side-open .card-restore-title{
     font-weight:800;letter-spacing:.12em;line-height:1.09;
     font-size:clamp(15px,1.667vw,34px);
   }
-  .app.panes.team-open .card-restore svg{width:27px;height:27px;stroke-width:2.4}
+  .app.panes.side-open .card-restore svg{width:27px;height:27px;stroke-width:2.4}
 
   /* Team head, expanded: Inter Bold 36 title, Regular 16 subtitle,
      Bold 20 "Assigned Tasks:" */
-  .app.panes.team-open .team-panel-head{margin-bottom:1.4vh}
-  .app.panes.team-open .team-panel-mark{display:none}
+  .app.panes.side-open .team-panel-head{margin-bottom:1.4vh}
+  .app.panes.side-open .team-panel-mark{display:none}
   .app.panes .team-panel-sub{
     font-family:"Inter",var(--body);font-size:clamp(11px,.833vw,17px);
     margin:0 0 2.4vh;line-height:1.3;
@@ -1193,7 +1262,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.panes .dock{margin-top:3.4vh}
   .app.panes .bottom-nav{margin-top:2.4vh}
   .app.panes .card,
-  .app.panes .team-panel{margin-top:2.4vh}
+  .app.panes .team-panel,
+  .app.panes .assign-panel{margin-top:2.4vh}
   .app.panes .card{padding-top:3.4vh}
   .app.panes .empty{padding-top:5vh}
   .app.panes .empty-icon{width:7.4vw;height:7.4vw}
