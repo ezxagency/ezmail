@@ -1701,103 +1701,275 @@ function viewWorker(data, s, uid){
   });
 }
 
-/* ---------- admin: bottom-nav shortcut straight to "assign a task" -
-   picks a member first, then hands off to askAssignTask below. The
-   full team roster (with pending approvals, export, etc.) still lives
-   behind the "Admin access" header button - this is just a fast path. ---------- */
-function askAssignTaskPickMember(){
-  $("assignPickScreen").classList.remove("hidden");
-  $("assignPickClose").onclick = closeAssignPickPage;
-  loadAssignPickList();
+/* ============================================================
+   ASSIGN TASK — one decision at a time.
+
+   Who → where → what → details. Each answer unlocks the next, and the line
+   at the top composes into a sentence you can read back before committing,
+   so the confirmation is the form rather than a separate summary step.
+   Replaces the old two-surface flow (full-page member picker, then a form).
+   ============================================================ */
+let afState = null;      // the answers so far
+let afOpen = null;       // key of the dropdown currently open, if any
+
+const AF_ORDER = ["who", "where", "what", "details"];
+const afDone = key => {
+  const s = afState || {};
+  if (key === "who")     return !!s.uid;
+  if (key === "where")   return OTHER_RE.test(s.store || "");
+  if (key === "what")    return OTHER_RE.test(s.task || "");
+  if (key === "details") return (s.note || "").trim().length >= 3;
+  return false;
+};
+// a step is reachable once everything before it is answered
+const afUnlocked = key => AF_ORDER.slice(0, AF_ORDER.indexOf(key)).every(afDone);
+
+function afDueLabel(iso){
+  const p = String(iso).split("-").map(Number);
+  if (p.length !== 3 || p.some(isNaN)) return iso;
+  return new Date(p[0], p[1] - 1, p[2])
+    .toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
-function closeAssignPickPage(){
-  $("assignPickScreen").classList.add("hidden");
+
+function afRenderSentence(){
+  const s = afState, el = $("afSentence");
+  if (!el) return;
+  const tok = (v, ph) => v
+    ? `<b class="af-tok">${esc(v)}</b>`
+    : `<i class="af-slot">${esc(ph)}</i>`;
+  el.innerHTML = tok(s.name, "Someone")
+    + ` at ` + tok(s.store, "a store")
+    + ` — ` + tok(s.task, "a task")
+    + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}</b>` : "");
 }
-async function loadAssignPickList(){
-  const list = $("assignPickList");
-  list.innerHTML = `<li class="empty">Loading…</li>`;
+
+// Locks, pips and the Assign button all derive from afDone() so there is one
+// source of truth for "is this step answered".
+function afSync(){
+  AF_ORDER.forEach(key => {
+    const step = $("afStep" + key);
+    if (!step) return;
+    step.classList.toggle("is-done", afDone(key));
+    step.classList.toggle("is-locked", !afUnlocked(key));
+    step.querySelectorAll("button,input,textarea").forEach(c => { c.disabled = !afUnlocked(key); });
+  });
+  afRenderSentence();
+  const save = $("afSave");
+  if (save) save.disabled = !AF_ORDER.every(afDone);
+}
+
+function afCloseMenu(){
+  if (!afOpen) return;
+  const panel = $("afPanel" + afOpen), trig = $("afTrig" + afOpen);
+  if (panel) panel.hidden = true;
+  if (trig) trig.setAttribute("aria-expanded", "false");
+  afOpen = null;
+}
+
+/* A dropdown, not a <select>: the native control can't show the second line
+   of context each option carries, and can't be styled to match the sheet. */
+function afDropdownMarkup(key, label, placeholder){
+  return `
+    <div class="af-step is-locked" id="afStep${key}">
+      <div class="af-step-head">
+        <span class="af-pip" aria-hidden="true"></span>
+        <span class="af-step-label">${esc(label)}</span>
+      </div>
+      <button type="button" class="af-trigger" id="afTrig${key}"
+              aria-expanded="false" aria-controls="afPanel${key}">
+        <span class="af-value" id="afVal${key}">${esc(placeholder)}</span>
+        <svg class="af-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="af-panel" id="afPanel${key}" hidden></div>
+      <div class="af-custom" id="afCustom${key}" hidden>
+        <input type="text" id="afInput${key}" placeholder="Type a name" autocomplete="off">
+        <button type="button" class="af-custom-ok" id="afOk${key}">Use</button>
+      </div>
+    </div>`;
+}
+
+function afWireDropdown(key, getItems, onPick, customLabel){
+  const trig = $("afTrig" + key), panel = $("afPanel" + key);
+  const custom = $("afCustom" + key), input = $("afInput" + key), ok = $("afOk" + key);
+
+  const paint = () => {
+    const items = getItems();
+    panel.innerHTML = (items.length
+      ? items.map(it => `
+          <button type="button" class="af-opt" data-v="${esc(it.value)}">
+            <span class="af-opt-main">${esc(it.label)}</span>
+            ${it.meta ? `<span class="af-opt-meta">${esc(it.meta)}</span>` : ""}
+          </button>`).join("")
+      : `<p class="af-opt-none">Nothing to choose from yet.</p>`)
+      + (customLabel ? `<button type="button" class="af-opt af-opt-new" data-v="__new">${esc(customLabel)}</button>` : "");
+
+    panel.querySelectorAll("button[data-v]").forEach(b => {
+      b.onclick = () => {
+        afCloseMenu();
+        if (b.dataset.v === "__new"){
+          custom.hidden = false;
+          input.value = "";
+          input.focus();
+          return;
+        }
+        custom.hidden = true;
+        onPick(b.dataset.v, b.querySelector(".af-opt-main").textContent);
+      };
+    });
+  };
+
+  const open = () => {
+    if (afOpen && afOpen !== key) afCloseMenu();
+    paint();
+    panel.hidden = false;
+    trig.setAttribute("aria-expanded", "true");
+    afOpen = key;
+    const first = panel.querySelector("button");
+    if (first) first.focus();
+  };
+
+  trig.onclick = () => (afOpen === key ? afCloseMenu() : open());
+  trig.onkeydown = e => { if (e.key === "ArrowDown"){ e.preventDefault(); open(); } };
+
+  // roving focus inside the panel; Esc always returns you to the trigger
+  panel.onkeydown = e => {
+    const opts = [...panel.querySelectorAll("button")];
+    const i = opts.indexOf(document.activeElement);
+    if (e.key === "ArrowDown"){ e.preventDefault(); (opts[i + 1] || opts[0]).focus(); }
+    else if (e.key === "ArrowUp"){ e.preventDefault(); (opts[i - 1] || opts[opts.length - 1]).focus(); }
+    else if (e.key === "Escape"){ e.preventDefault(); afCloseMenu(); trig.focus(); }
+  };
+
+  const commit = () => {
+    const v = input.value.trim();
+    if (!OTHER_RE.test(v)) { input.focus(); return; }
+    custom.hidden = true;
+    onPick(v, v);
+  };
+  ok.onclick = commit;
+  input.onkeydown = e => {
+    if (e.key === "Enter"){ e.preventDefault(); commit(); }
+    else if (e.key === "Escape"){ e.preventDefault(); custom.hidden = true; trig.focus(); }
+  };
+}
+
+function afSet(key, value, label){
+  if (key === "who"){ afState.uid = value; afState.name = label; }
+  if (key === "where") afState.store = value;
+  if (key === "what")  afState.task = value;
+  const val = $("afVal" + key);
+  if (val) val.textContent = label;
+  afSync();
+  // step the admin forward rather than making them hunt for the next control
+  const next = AF_ORDER[AF_ORDER.indexOf(key) + 1];
+  const nextTrig = next && ($("afTrig" + next) || $("afNote"));
+  if (nextTrig && !nextTrig.disabled) nextTrig.focus();
+}
+
+async function openAssignFlow(preUid, preName){
+  afState = { uid: preUid || "", name: preName || "", store: "", task: "", note: "", due: "" };
+  afOpen = null;
+  let members = [], stores = [];
+
+  openSheet(`
+    <h2>Assign task</h2>
+    <p class="af-sentence" id="afSentence"></p>
+    ${afDropdownMarkup("who", "Who", "Choose a team member")}
+    ${afDropdownMarkup("where", "Where", "Choose a store")}
+    ${afDropdownMarkup("what", "What", "Choose a task")}
+    <div class="af-step is-locked" id="afStepdetails">
+      <div class="af-step-head">
+        <span class="af-pip" aria-hidden="true"></span>
+        <span class="af-step-label">Details</span>
+      </div>
+      <textarea id="afNote" placeholder="What should they do?"></textarea>
+      <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
+    </div>
+    <button class="btn btn-go" id="afSave" disabled>Assign</button>
+    <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
+  `, () => {
+    afWireDropdown("who", () => members, (v, l) => afSet("who", v, l));
+    afWireDropdown("where", () => stores, (v) => afSet("where", v, v), "+ Another store");
+    afWireDropdown("what", () => CONFIG.tasks.map(t => ({ value: t, label: t })),
+      (v) => afSet("what", v, v), "+ Another task");
+
+    $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
+    $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
+    $("afCancel").onclick = () => { afCloseMenu(); closeSheet(); };
+    $("afSave").onclick = afSubmit;
+
+    if (preUid) $("afValwho").textContent = preName || "Selected";
+    afSync();
+    loadAssignOptions().then(d => { members = d.members; stores = d.stores; });
+  });
+}
+
+/* Members carry their current open-task count, so you can see who is already
+   loaded before piling more on. Stores come from what has actually been
+   assigned as well as CONFIG, so the list learns instead of going stale. */
+async function loadAssignOptions(){
+  let rows = [];
+  try {
+    const snap = await db.collection("assignments").get();
+    snap.forEach(doc => rows.push(doc.data()));
+  } catch (e) { console.error(e); }
+
+  const openBy = new Map();
+  rows.forEach(r => { if (!r.done && r.toUid) openBy.set(r.toUid, (openBy.get(r.toUid) || 0) + 1); });
+
+  const members = [];
   try {
     const snap = await db.collection("appState").get();
-    if (snap.empty) { list.innerHTML = `<li class="empty">No team members have signed in yet.</li>`; return; }
-    list.innerHTML = "";
     snap.forEach(doc => {
       const data = doc.data();
       let s; try { s = JSON.parse(data.json); } catch { s = null; }
       if (!s) return;
-      const name = s.worker || data.email || "Unnamed";
-      const li = document.createElement("li");
-      li.style.cursor = "pointer";
-      li.innerHTML = `<div><div class="h-c">${esc(name)}</div><div class="h-d">${esc(data.email||"")}</div></div>`;
-      li.onclick = () => askAssignTask(doc.id, name);
-      list.append(li);
+      const n = openBy.get(doc.id) || 0;
+      members.push({
+        value: doc.id,
+        label: s.worker || data.email || "Unnamed",
+        meta: n ? `${n} open` : "clear"
+      });
     });
+  } catch (e) { console.error(e); }
+  members.sort((a, b) => a.label.localeCompare(b.label));
+
+  const seen = new Map();
+  CONFIG.clients.forEach(c => seen.set(c.toLowerCase(), c));
+  rows.forEach(r => { if (r.store) seen.set(String(r.store).toLowerCase(), r.store); });
+  const stores = [...seen.values()].sort((a, b) => a.localeCompare(b))
+    .map(s => ({ value: s, label: s }));
+
+  return { members, stores };
+}
+
+async function afSubmit(){
+  const s = afState;
+  const btn = $("afSave");
+  btn.disabled = true;
+  try {
+    await db.collection("assignments").add({
+      toUid: s.uid, toName: s.name,
+      fromEmail: (auth.currentUser && auth.currentUser.email) || "",
+      store: s.store, task: s.task, note: s.note.trim(),
+      dueDate: s.due || null,
+      createdAt: Date.now(), done: false, doneAt: null
+    });
+    toast(`${s.task} assigned to ${s.name}`);
+    afCloseMenu();
+    closeSheet();
+    if (isAdmin) loadTeamPane();
   } catch (e) {
     console.error(e);
-    list.innerHTML = `<li class="empty">Couldn't load team data — check Firestore rules allow admin reads.</li>`;
+    btn.disabled = false;
+    toast("Couldn't assign task — check Firestore rules allow it");
   }
 }
 
-/* ---------- admin: assign a task to a team member (v1 - will keep evolving) ---------- */
-function askAssignTask(uid, name){
-  openSheet(`
-    <h2>Assign task</h2>
-    <p class="hint">For ${esc(name)} — shows up on their home screen until marked done.</p>
-
-    <label class="fld"><span>Store <b class="req">*</b></span>
-      <input type="text" id="assignStore" autocomplete="organization" placeholder="Enter store name"></label>
-
-    <label class="fld"><span>Task <b class="req">*</b></span></label>
-    <div class="chips" id="assignTaskChips">${chipGroup(CONFIG.tasks, true)}</div>
-    <label class="fld" id="assignTaskOtherWrap" style="display:none"><span>Task name <b class="req">*</b></span>
-      <input type="text" id="assignTaskOther" placeholder="Short name"></label>
-
-    <label class="fld"><span>Instructions <b class="req">*</b></span>
-      <textarea id="assignNote" placeholder="What should they do?"></textarea></label>
-
-    <label class="fld"><span>Due date</span>
-      <input type="date" id="assignDue"></label>
-
-    <button class="btn btn-go" id="assignSave" disabled>Assign</button>
-    <button class="btn btn-ghost btn-sm" id="assignCancel">Cancel</button>
-  `, () => {
-    let task = "";
-    const storeEl = $("assignStore"), noteEl = $("assignNote"), saveBtn = $("assignSave");
-    const tkOther = $("assignTaskOther"), tkWrap = $("assignTaskOtherWrap");
-
-    const store = () => storeEl.value.trim();
-    const taskV = () => task === "__other" ? tkOther.value.trim() : task;
-    const valid = () => OTHER_RE.test(store()) && (task === "__other" ? OTHER_RE.test(taskV()) : !!task) && noteEl.value.trim().length >= 3;
-    const sync = () => saveBtn.disabled = !valid();
-
-    storeEl.oninput = sync;
-    wireChipsIn($("assignTaskChips"), v => {
-      task = v;
-      tkWrap.style.display = v === "__other" ? "block" : "none";
-      if (v === "__other") tkOther.focus();
-      sync();
-    });
-    noteEl.oninput = sync;
-    tkOther.oninput = sync;
-
-    $("assignCancel").onclick = closeSheet;
-    saveBtn.onclick = async () => {
-      try {
-        await db.collection("assignments").add({
-          toUid: uid, toName: name,
-          fromEmail: (auth.currentUser && auth.currentUser.email) || "",
-          store: store(), task: taskV(), note: noteEl.value.trim(),
-          dueDate: $("assignDue").value || null,
-          createdAt: Date.now(), done: false, doneAt: null
-        });
-        toast("Task assigned to " + name);
-        closeSheet();
-      } catch (e) {
-        console.error(e);
-        toast("Couldn't assign task — check Firestore rules allow it");
-      }
-    };
-  });
-}
+// entry points: the card menu opens it cold, the roster opens it with the
+// member already chosen
+const askAssignTaskPickMember = () => openAssignFlow();
+const askAssignTask = (uid, name) => openAssignFlow(uid, name);
 
 /* ---------- worker: tasks assigned to me (v1) - live, not a one-time
    load, so a task assigned while you're already on the page shows up

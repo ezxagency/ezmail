@@ -94,7 +94,7 @@ body{
   font-family:var(--wk);font-weight:500;text-transform:uppercase;letter-spacing:.42em;
   font-size:15px;color:var(--wk-white);
   transition:opacity .15s ease;
-  /* "LUNCH Â· STORE EPSILON" at .42em tracking is wider than the band on a
+  /* "LUNCH · STORE EPSILON" at .42em tracking is wider than the band on a
      narrow phone - let it wrap, and break mid-word if a store name has no
      spaces to break at, rather than running under the sign-out button */
   min-width:0;overflow-wrap:anywhere;
@@ -460,6 +460,90 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .star:hover{border-color:var(--wk-white)}
 .star[aria-pressed=true]{background:var(--wk-white);color:#12131a;border-color:transparent}
+
+/* ---------- assign flow: who → where → what → details ---------- */
+/* The sentence is the confirmation. Rather than filling a form and then
+   reviewing a summary, the answers compose into a line you can read back
+   before committing, with unanswered slots left as dashed blanks. */
+.af-sentence{
+  font-family:var(--wk);font-size:17px;line-height:1.6;letter-spacing:.01em;
+  color:var(--wk-white-60);margin:0 0 24px;
+}
+.af-tok{
+  color:var(--wk-white);font-weight:600;
+  display:inline-block;animation:afTok .28s cubic-bezier(.22,1,.36,1);
+}
+.af-slot{
+  font-style:normal;color:var(--wk-white-60);
+  border-bottom:1.5px dashed rgba(255,255,255,.32);padding-bottom:1px;
+}
+@keyframes afTok{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* A step is locked until everything before it is answered - the sequence is
+   real (you pick a person before you pick their task), so it is encoded in
+   the interface rather than left to a wall of equal fields. */
+.af-step{margin-bottom:16px;transition:opacity .28s ease}
+.af-step.is-locked{opacity:.3;pointer-events:none}
+.af-step-head{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.af-pip{
+  width:8px;height:8px;border-radius:50%;flex:none;background:rgba(255,255,255,.28);
+  transition:background .28s ease,box-shadow .28s ease;
+}
+.af-step.is-done .af-pip{background:var(--wk-green);box-shadow:0 0 0 3.5px rgba(0,174,11,.22)}
+.af-step-label{
+  font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--wk-white-60);
+}
+
+.af-trigger{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:15px 14px;border-radius:14px;cursor:pointer;text-align:left;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.3);
+  color:var(--wk-white);font-family:var(--wk);font-size:15px;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  transition:background .18s ease,border-color .18s ease;
+}
+.af-trigger:hover{background:rgba(255,255,255,.15)}
+.af-step.is-done .af-trigger{border-color:rgba(0,174,11,.5)}
+.af-value{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.af-caret{width:18px;height:18px;flex:none;opacity:.7;transition:transform .2s ease}
+.af-trigger[aria-expanded="true"] .af-caret{transform:rotate(180deg)}
+
+.af-panel{
+  margin-top:6px;padding:6px;max-height:236px;overflow-y:auto;
+  background:rgba(9,11,16,.97);border:1px solid rgba(255,255,255,.18);border-radius:14px;
+  box-shadow:0 18px 38px rgba(0,0,0,.45);
+  animation:afPanelIn .18s cubic-bezier(.22,1,.36,1);
+}
+@keyframes afPanelIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.af-opt{
+  width:100%;display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:11px 12px;border:0;border-radius:10px;cursor:pointer;text-align:left;
+  background:none;color:var(--wk-white);font-family:var(--wk);font-size:14px;
+  transition:background .14s ease;
+}
+.af-opt:hover,.af-opt:focus-visible{background:rgba(255,255,255,.13);outline:none}
+.af-opt-main{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.af-opt-meta{flex:none;font-size:11px;color:var(--wk-white-60);letter-spacing:.04em}
+.af-opt-new{color:var(--wk-green);font-weight:600}
+.af-opt-none{margin:0;padding:14px 12px;font-family:var(--wk);font-size:13px;color:var(--wk-white-60)}
+
+.af-custom{display:flex;gap:8px;margin-top:8px}
+/* an author display rule beats the UA stylesheet's [hidden], so these have to
+   opt back out explicitly or the custom-entry row is always on screen */
+.af-custom[hidden],.af-panel[hidden]{display:none}
+.af-custom input{flex:1;min-width:0}
+.af-custom-ok{
+  flex:none;padding:0 20px;border:0;border-radius:14px;cursor:pointer;
+  background:var(--wk-white);color:#12131a;font-family:var(--wk);font-weight:600;font-size:14px;
+}
+#afStepdetails textarea{min-height:92px}
+.af-due{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
+.af-due > span{
+  flex:none;font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--wk-white-60);
+}
+.af-due input[type=date]{width:auto;flex:1;max-width:210px;padding:12px 14px;min-height:0}
 
 .preview{
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.25);border-radius:16px;padding:16px;
