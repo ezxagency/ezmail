@@ -791,11 +791,12 @@ function menuSheet(title, items){
   });
 }
 
+// Assign lives on its own nav icon now, so it is not repeated here.
 function openCardMenu(){
-  const items = [{ label: "History", cls: "btn-go", run: showHistory }];
-  if (canAssignTasks) items.push({ label: "Assign task", run: askAssignTaskPickMember });
-  items.push({ label: "Profile", run: showProfile });
-  menuSheet("Daily Mission", items);
+  menuSheet("Daily Mission", [
+    { label: "History", cls: "btn-go", run: showHistory },
+    { label: "Profile", run: showProfile }
+  ]);
 }
 
 function openTeamMenu(){
@@ -833,7 +834,7 @@ function showProfile(){
 }
 
 function setActiveNav(id){
-  ["navDashboard","navCard","navHistory"].forEach(n => $(n).classList.toggle("active", n === id));
+  ["navDashboard","navCard","navHistory","navAssign"].forEach(n => $(n).classList.toggle("active", n === id));
 }
 $("navDashboard").onclick = () => setActiveNav("navDashboard");
 $("navCard").onclick = () => {
@@ -841,6 +842,7 @@ $("navCard").onclick = () => {
   document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
 };
 $("navHistory").onclick = () => { setActiveNav("navHistory"); showHistory(); };
+$("navAssign").onclick = () => { setActiveNav("navAssign"); openAssignFlow(); };
 
 /* ============================================================
    WORKER APP BOOT (called once, after login as a worker)
@@ -2131,6 +2133,7 @@ if (!FB_READY){
       assignLogRows = null;
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
+      $("navAssign").classList.add("hidden");
       $("appScreen").classList.remove("has-team", "team-open");
       $("teamPanel").classList.add("hidden");
       teamPaneRows = null; teamPendingCount = 0;
@@ -2142,6 +2145,7 @@ if (!FB_READY){
       else {
         isAdmin = role === "admin";
         canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
+        $("navAssign").classList.toggle("hidden", !canAssignTasks);
         $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
         $("appScreen").classList.toggle("has-team", isAdmin);
         $("teamPanel").classList.toggle("hidden", !isAdmin);

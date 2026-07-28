@@ -755,8 +755,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.has-team .shiftbar{padding:0;min-height:0}
   /* comp gaps down the rail: labels 603 -> button 661, button 757 -> nav 795 */
   .app.has-team .dock{padding:0;margin-top:8.1vh}
-  /* comp insets the nav row 35px from the rail's left edge (circle at x=150) */
-  .app.has-team .bottom-nav{padding:0;margin:4.12vh 0 0 5.81%;gap:8.6%;justify-content:flex-start}
+  /* comp insets the nav row 35px from the rail's left edge (circle at x=150).
+     Gap is 3.6% so a fourth icon (Assign, admins only) still fits the 444px
+     control column - four 97px circles at the old 8.6% came to 502px. At
+     three icons this spans 323px against the comp's 329, so the default case
+     is unchanged. */
+  .app.has-team .bottom-nav{padding:0;margin:4.12vh 0 0 5.81%;gap:3.6%;justify-content:flex-start}
   .app.has-team .nav-btn{width:10.52vh;height:10.52vh;max-width:97px;max-height:97px}
   .app.has-team .nav-btn svg{width:46%;height:46%}
   /* controls occupy 444 of the 615 rail track */
