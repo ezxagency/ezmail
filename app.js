@@ -2097,8 +2097,20 @@ function watchAssignedTasks(){
       }
       assignedTasksSeen = new Set(rows.map(r => r.id));
 
-      if (!rows.length) { box.classList.add("hidden"); list.innerHTML = ""; return; }
+      // The pane is the non-admin's second block. An admin's third column is
+      // already the Team card, so on desktop theirs stays inside the stage
+      // flow rather than fighting for the same grid area.
+      const app = $("appScreen");
+      const count = $("assignedCount");
+      if (!rows.length) {
+        box.classList.add("hidden");
+        app.classList.remove("has-tasks");
+        list.innerHTML = "";
+        return;
+      }
       box.classList.remove("hidden");
+      app.classList.toggle("has-tasks", !isAdmin);
+      if (count) count.textContent = rows.length + (rows.length === 1 ? " open" : " open");
       list.innerHTML = rows.map(r => `
         <li>
           <div>
@@ -2111,7 +2123,12 @@ function watchAssignedTasks(){
       `).join("");
       list.querySelectorAll("button[data-id]").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
     }, e => console.error(e));
-  onSessionEnd(() => { unsub(); assignedTasksSeen = null; box.classList.add("hidden"); list.innerHTML = ""; });
+  onSessionEnd(() => {
+    unsub(); assignedTasksSeen = null;
+    box.classList.add("hidden");
+    $("appScreen").classList.remove("has-tasks");
+    list.innerHTML = "";
+  });
 }
 
 async function markAssignmentDone(id){
@@ -2233,7 +2250,7 @@ if (!FB_READY){
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
       $("navAssign").classList.add("hidden");
-      $("appScreen").classList.remove("has-team", "team-open");
+      $("appScreen").classList.remove("panes", "has-team", "has-tasks", "team-open");
       $("teamPanel").classList.add("hidden");
       teamPaneRows = null; teamPendingCount = 0;
       return;
@@ -2246,6 +2263,9 @@ if (!FB_READY){
         canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
         $("navAssign").classList.toggle("hidden", !canAssignTasks);
         $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
+        // everyone on desktop gets the two-pane shell; the role only decides
+        // what the third column holds
+        $("appScreen").classList.add("panes");
         $("appScreen").classList.toggle("has-team", isAdmin);
         $("teamPanel").classList.toggle("hidden", !isAdmin);
         if (isAdmin) { watchCompletionNotifications(); loadTeamPane(); }

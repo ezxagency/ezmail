@@ -162,10 +162,6 @@
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="4.6" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19.4" r="1.9"/></svg>
         </button>
       </div>
-      <div id="assignedTasksSection" class="assign-section hidden">
-        <div class="assign-section-title">Assigned to you</div>
-        <ul class="hist" id="assignedTasksList"></ul>
-      </div>
       <ul class="punches" id="punches"></ul>
       <div class="empty" id="empty">
         <span class="empty-icon">
@@ -174,6 +170,20 @@
         No punches yet. Clock in to start the card.
       </div>
     </section>
+
+    <!-- The second pane for everyone who is not an admin: their own assigned
+         tasks, in the same slot the admin's Team pane occupies. Only present
+         when they actually have some. -->
+    <aside class="assign-panel hidden" id="assignedTasksSection">
+      <div class="assign-panel-head">
+        <span class="assign-panel-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.2 2.2L15.5 9"/><rect x="4.5" y="4" width="15" height="17" rx="2.4"/><path d="M9 4V2.8h6V4"/></svg>
+        </span>
+        <h2 class="assign-panel-title">Assigned</h2>
+        <span class="assign-count" id="assignedCount"></span>
+      </div>
+      <ul class="hist" id="assignedTasksList"></ul>
+    </aside>
 
     <!-- Admin-only, desktop-only third pane. Narrow screens keep the
          full-page Team screen behind the shield icon instead. -->
