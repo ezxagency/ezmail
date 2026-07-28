@@ -611,13 +611,55 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .hist .h-d{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin-top:3px;overflow-wrap:anywhere}
 .hist .h-h{font-family:var(--wk);font-size:15px;font-weight:600;white-space:nowrap;color:var(--wk-white)}
 
-.assign-table{width:100%;border-collapse:collapse;font-family:var(--wk);font-size:12px}
-.assign-table th{
-  text-align:left;padding:8px 12px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--wk-white-70);border-bottom:1px solid rgba(255,255,255,.25);white-space:nowrap;
+/* Fixed layout with declared column widths, so the table always fits its
+   container and long values wrap into a taller row instead of pushing the
+   whole thing sideways. nowrap on every cell was what produced the
+   full-width horizontal scrollbar. min-width only bites on a phone, where
+   scrolling beats columns two characters wide. */
+.assign-table{
+  width:100%;min-width:700px;table-layout:fixed;
+  border-collapse:separate;border-spacing:0;
+  font-family:var(--wk);font-size:12px;
 }
-.assign-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.12);vertical-align:top;white-space:nowrap;color:var(--wk-white)}
-.assign-table tr:last-child td{border-bottom:0}
+.assign-table th{
+  position:sticky;top:0;z-index:1;background:#161a23;
+  text-align:left;padding:11px 12px;
+  font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--wk-white-60);white-space:nowrap;
+  border-bottom:1px solid rgba(255,255,255,.28);
+}
+.assign-table td{
+  padding:12px;vertical-align:top;color:var(--wk-white);line-height:1.45;
+  border-bottom:1px solid rgba(255,255,255,.09);
+  white-space:normal;overflow-wrap:anywhere;
+}
+.assign-table tbody tr:last-child td{border-bottom:0}
+.assign-table tbody tr:hover td{background:rgba(255,255,255,.045)}
+/* short, predictable values keep their own line */
+.assign-table .nowrap{white-space:nowrap}
+
+/* assignments log: To / Store / Task / Status / Assigned / Due / Completed / delete */
+.assign-table:not(.work-table) th:nth-child(1),.assign-table:not(.work-table) td:nth-child(1){width:12%}
+.assign-table:not(.work-table) th:nth-child(2),.assign-table:not(.work-table) td:nth-child(2){width:15%}
+.assign-table:not(.work-table) th:nth-child(3),.assign-table:not(.work-table) td:nth-child(3){width:13%}
+.assign-table:not(.work-table) th:nth-child(4),.assign-table:not(.work-table) td:nth-child(4){width:10%}
+.assign-table:not(.work-table) th:nth-child(5),.assign-table:not(.work-table) td:nth-child(5){width:13%}
+.assign-table:not(.work-table) th:nth-child(6),.assign-table:not(.work-table) td:nth-child(6){width:13%}
+.assign-table:not(.work-table) th:nth-child(7),.assign-table:not(.work-table) td:nth-child(7){width:19%}
+.assign-table:not(.work-table) th:nth-child(8),.assign-table:not(.work-table) td:nth-child(8){width:5%}
+
+/* today's work: Member / Status / In / Out / Stores / Tasks / Break / Worked.
+   Wider floor than the log table - the status pill is nowrap, and at 700 the
+   13% track was narrower than "CLOCKED OUT", so it ran into the In column. */
+.work-table{min-width:900px}
+.work-table th:nth-child(1),.work-table td:nth-child(1){width:14%}
+.work-table th:nth-child(2),.work-table td:nth-child(2){width:13%}
+.work-table th:nth-child(3),.work-table td:nth-child(3){width:6%}
+.work-table th:nth-child(4),.work-table td:nth-child(4){width:6%}
+.work-table th:nth-child(5),.work-table td:nth-child(5){width:21%}
+.work-table th:nth-child(6),.work-table td:nth-child(6){width:24%}
+.work-table th:nth-child(7),.work-table td:nth-child(7){width:7%}
+.work-table th:nth-child(8),.work-table td:nth-child(8){width:9%}
 .assign-status{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .assign-status.open{background:rgba(255,255,255,.16);color:#fff}
 .assign-status.done{background:var(--wk-green);color:#08210a}
@@ -630,17 +672,17 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   font-family:var(--wk);font-size:13px;color:var(--wk-white-60);
   margin:0 0 18px;padding:16px 0;border-top:1px solid rgba(255,255,255,.12);
 }
-.work-table td{vertical-align:middle}
 .work-name{font-weight:600}
 .work-net{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
-/* tasks are the one column that can hold several values, so they wrap as
-   chips rather than forcing the row wider than the page */
-.work-table td.work-tasks{white-space:normal;min-width:180px}
-.work-task{
+/* Stores and tasks are the two columns that hold several values each. As
+   chips they wrap into a taller row and stay readable, where comma-joined
+   text just ran the table off the side of the page. */
+.work-chip,.work-task{
   display:inline-flex;align-items:baseline;gap:5px;margin:2px 5px 2px 0;
   padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.1);
-  font-size:11px;color:var(--wk-white-70);white-space:nowrap;
+  font-size:11px;color:var(--wk-white-70);white-space:nowrap;max-width:100%;
 }
+.work-chip{overflow:hidden;text-overflow:ellipsis;display:inline-block}
 .work-task b{color:var(--wk-white);font-weight:600;font-variant-numeric:tabular-nums}
 .work-status{
   display:inline-block;padding:2px 9px;border-radius:999px;

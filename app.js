@@ -1055,14 +1055,16 @@ function renderTodaysWork(docs){
             const w = r.work;
             return `<tr>
               <td class="work-name">${esc(r.name)}</td>
-              <td><span class="work-status is-${w.state}">${WORK_STATE[w.state]}</span></td>
-              <td>${clock(w.firstIn)}</td>
-              <td>${w.lastOut ? clock(w.lastOut) : "—"}</td>
-              <td>${w.stores.length ? esc(w.stores.join(", ")) : "—"}</td>
-              <td class="work-tasks">${w.tasks.length
+              <td class="nowrap"><span class="work-status is-${w.state}">${WORK_STATE[w.state]}</span></td>
+              <td class="nowrap">${clock(w.firstIn)}</td>
+              <td class="nowrap">${w.lastOut ? clock(w.lastOut) : "—"}</td>
+              <td>${w.stores.length
+                ? w.stores.map(st => `<span class="work-chip">${esc(st)}</span>`).join("")
+                : "—"}</td>
+              <td>${w.tasks.length
                 ? w.tasks.map(t => `<span class="work-task">${esc(t.task)} <b>${humanDur(t.ms)}</b></span>`).join("")
                 : "—"}</td>
-              <td>${w.brk ? humanDur(w.brk) : "—"}</td>
+              <td class="nowrap">${w.brk ? humanDur(w.brk) : "—"}</td>
               <td class="work-net">${humanDur(w.net)}</td>
             </tr>`;
           }).join("")}
@@ -1152,9 +1154,9 @@ function renderCompletionLog(){
               <td>${esc(r.toName || "Someone")}</td>
               <td>${esc(r.store || "—")}</td>
               <td>${esc(r.task || "—")}</td>
-              <td><span class="assign-status ${r.done ? "done" : "open"}">${r.done ? "Done" : "Open"}</span></td>
+              <td class="nowrap"><span class="assign-status ${r.done ? "done" : "open"}">${r.done ? "Done" : "Open"}</span></td>
               <td>${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
-              <td>${r.dueDate ? esc(r.dueDate) : "—"}</td>
+              <td class="nowrap">${r.dueDate ? esc(r.dueDate) : "—"}</td>
               <td>${r.doneAt ? dayStamp(r.doneAt) + " " + clock(r.doneAt) : "—"}</td>
               <td class="assign-del-cell">
                 <button type="button" class="assign-del" data-del="${esc(r.id)}"
