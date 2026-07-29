@@ -557,10 +557,31 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   transition:background .14s ease;
 }
 .af-opt:hover,.af-opt:focus-visible{background:rgba(255,255,255,.13);outline:none}
-.af-opt-main{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* flex:1 so the label sits beside its checkbox and the meta stays right -
+   space-between alone pushed the label across to the far side */
+.af-opt-main{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .af-opt-meta{flex:none;font-size:11px;color:var(--wk-white-60);letter-spacing:.04em}
 .af-opt-new{color:var(--wk-green);font-weight:600}
 .af-opt-none{margin:0;padding:14px 12px;font-family:var(--wk);font-size:13px;color:var(--wk-white-60)}
+/* multi-select: the panel stays open, so each row carries its own state */
+.af-check{
+  flex:none;width:17px;height:17px;border-radius:5px;
+  border:1.5px solid rgba(255,255,255,.34);
+  display:flex;align-items:center;justify-content:center;
+  color:#0a2a0d;transition:background .14s ease,border-color .14s ease;
+}
+.af-check svg{width:11px;height:11px}
+.af-opt.is-on .af-check{background:var(--wk-green);border-color:var(--wk-green)}
+.af-opt.is-on{color:var(--wk-white)}
+.af-opt-done{
+  margin-top:4px;border-top:1px solid rgba(255,255,255,.12);border-radius:0 0 10px 10px;
+  justify-content:center;font-weight:600;color:var(--wk-white);
+}
+/* the running total of what Assign will actually create */
+.af-count{
+  display:block;margin-top:7px;font-size:11.5px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--wk-green);
+}
 
 .af-custom{display:flex;gap:8px;margin-top:8px}
 /* an author display rule beats the UA stylesheet's [hidden], so these have to

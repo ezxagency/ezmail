@@ -1822,11 +1822,13 @@ let afState = null;      // the answers so far
 let afOpen = null;       // key of the dropdown currently open, if any
 
 const AF_ORDER = ["who", "where", "what", "details"];
+// where/what are multi-select; the key here is also the afState field
+const AF_MULTI = { where: "stores", what: "tasks" };
 const afDone = key => {
   const s = afState || {};
   if (key === "who")     return !!s.uid;
-  if (key === "where")   return OTHER_RE.test(s.store || "");
-  if (key === "what")    return OTHER_RE.test(s.task || "");
+  if (key === "where")   return (s.stores || []).length > 0;
+  if (key === "what")    return (s.tasks || []).length > 0;
   if (key === "details") return (s.note || "").trim().length >= 3;
   return false;
 };
@@ -1846,10 +1848,14 @@ function afRenderSentence(){
   const tok = (v, ph) => v
     ? `<b class="af-tok">${esc(v)}</b>`
     : `<i class="af-slot">${esc(ph)}</i>`;
+  const n = (s.stores.length || 1) * (s.tasks.length || 1);
   el.innerHTML = tok(s.name, "Someone")
-    + ` at ` + tok(s.store, "a store")
-    + ` — ` + tok(s.task, "a task")
-    + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}</b>` : "");
+    + ` at ` + tok(s.stores.join(", "), "a store")
+    + ` — ` + tok(s.tasks.join(", "), "a task")
+    + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}</b>` : "")
+    // every store x task pair becomes its own assignment, so say so before
+    // they commit rather than after four of them appear
+    + (n > 1 ? `<span class="af-count">${n} separate tasks</span>` : "");
 }
 
 // Locks, pips and the Assign button all derive from afDone() so there is one
@@ -1897,32 +1903,47 @@ function afDropdownMarkup(key, label, placeholder){
     </div>`;
 }
 
+const AF_TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg>';
+
 function afWireDropdown(key, getItems, onPick, customLabel){
   const trig = $("afTrig" + key), panel = $("afPanel" + key);
   const custom = $("afCustom" + key), input = $("afInput" + key), ok = $("afOk" + key);
+  const multi = AF_MULTI[key];
 
   const paint = () => {
     const items = getItems();
+    const chosen = multi ? afState[multi] : [];
     panel.innerHTML = (items.length
-      ? items.map(it => `
-          <button type="button" class="af-opt" data-v="${esc(it.value)}">
+      ? items.map(it => {
+          const on = multi && chosen.includes(it.value);
+          return `
+          <button type="button" class="af-opt${on ? " is-on" : ""}" data-v="${esc(it.value)}"${multi ? ` aria-pressed="${on}"` : ""}>
+            ${multi ? `<span class="af-check" aria-hidden="true">${on ? AF_TICK : ""}</span>` : ""}
             <span class="af-opt-main">${esc(it.label)}</span>
             ${it.meta ? `<span class="af-opt-meta">${esc(it.meta)}</span>` : ""}
-          </button>`).join("")
+          </button>`;
+        }).join("")
       : `<p class="af-opt-none">Nothing to choose from yet.</p>`)
-      + (customLabel ? `<button type="button" class="af-opt af-opt-new" data-v="__new">${esc(customLabel)}</button>` : "");
+      + (customLabel ? `<button type="button" class="af-opt af-opt-new" data-v="__new">${esc(customLabel)}</button>` : "")
+      + (multi ? `<button type="button" class="af-opt af-opt-done" data-v="__done">Done choosing</button>` : "");
 
     panel.querySelectorAll("button[data-v]").forEach(b => {
       b.onclick = () => {
-        afCloseMenu();
-        if (b.dataset.v === "__new"){
+        const v = b.dataset.v;
+        if (v === "__done"){ afCloseMenu(); afAdvance(key); return; }
+        if (v === "__new"){
+          afCloseMenu();
           custom.hidden = false;
           input.value = "";
           input.focus();
           return;
         }
+        // multi-select keeps the panel open and repaints in place, so picking
+        // three stores is three clicks rather than three round trips
+        if (multi){ onPick(v); paint(); return; }
+        afCloseMenu();
         custom.hidden = true;
-        onPick(b.dataset.v, b.querySelector(".af-opt-main").textContent);
+        onPick(v, b.querySelector(".af-opt-main").textContent);
       };
     });
   };
@@ -1962,21 +1983,35 @@ function afWireDropdown(key, getItems, onPick, customLabel){
   };
 }
 
+// step the admin forward rather than making them hunt for the next control
+function afAdvance(key){
+  const next = AF_ORDER[AF_ORDER.indexOf(key) + 1];
+  const el = next && ($("afTrig" + next) || $("afNote"));
+  if (el && !el.disabled) el.focus();
+}
+
 function afSet(key, value, label){
   if (key === "who"){ afState.uid = value; afState.name = label; }
-  if (key === "where") afState.store = value;
-  if (key === "what")  afState.task = value;
   const val = $("afVal" + key);
   if (val) val.textContent = label;
   afSync();
-  // step the admin forward rather than making them hunt for the next control
-  const next = AF_ORDER[AF_ORDER.indexOf(key) + 1];
-  const nextTrig = next && ($("afTrig" + next) || $("afNote"));
-  if (nextTrig && !nextTrig.disabled) nextTrig.focus();
+  afAdvance(key);
+}
+
+const AF_PLACEHOLDER = { where: "Choose stores", what: "Choose tasks" };
+
+// toggle one value in a multi-select step
+function afToggle(key, value){
+  const field = AF_MULTI[key], arr = afState[field];
+  const i = arr.indexOf(value);
+  if (i >= 0) arr.splice(i, 1); else arr.push(value);
+  const val = $("afVal" + key);
+  if (val) val.textContent = arr.length ? arr.join(", ") : AF_PLACEHOLDER[key];
+  afSync();
 }
 
 async function openAssignFlow(preUid, preName){
-  afState = { uid: preUid || "", name: preName || "", store: "", task: "", note: "", due: "" };
+  afState = { uid: preUid || "", name: preName || "", stores: [], tasks: [], note: "", due: "" };
   afOpen = null;
   let members = [], stores = [];
 
@@ -1984,8 +2019,8 @@ async function openAssignFlow(preUid, preName){
     <h2>Assign task</h2>
     <p class="af-sentence" id="afSentence"></p>
     ${afDropdownMarkup("who", "Who", "Choose a team member")}
-    ${afDropdownMarkup("where", "Where", "Choose a store")}
-    ${afDropdownMarkup("what", "What", "Choose a task")}
+    ${afDropdownMarkup("where", "Where", AF_PLACEHOLDER.where)}
+    ${afDropdownMarkup("what", "What", AF_PLACEHOLDER.what)}
     <div class="af-step is-locked" id="afStepdetails">
       <div class="af-step-head">
         <span class="af-pip" aria-hidden="true"></span>
@@ -1998,9 +2033,9 @@ async function openAssignFlow(preUid, preName){
     <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
   `, () => {
     afWireDropdown("who", () => members, (v, l) => afSet("who", v, l));
-    afWireDropdown("where", () => stores, (v) => afSet("where", v, v), "+ Another store");
+    afWireDropdown("where", () => stores, v => afToggle("where", v), "+ Another store");
     afWireDropdown("what", () => CONFIG.tasks.map(t => ({ value: t, label: t })),
-      (v) => afSet("what", v, v), "+ Another task");
+      v => afToggle("what", v), "+ Another task");
 
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
@@ -2052,26 +2087,43 @@ async function loadAssignOptions(){
   return { members, stores };
 }
 
+/* Every store x task pair becomes its own assignment rather than one record
+   holding arrays. It keeps the existing single-value shape - so the roster,
+   the tables and the exports need no changes - and it means each one can be
+   ticked off on its own, which is how they actually get worked. Written as a
+   batch so a partial set can't land. */
 async function afSubmit(){
   const s = afState;
   const btn = $("afSave");
   btn.disabled = true;
+
+  const pairs = [];
+  s.stores.forEach(store => s.tasks.forEach(task => pairs.push({ store, task })));
+
   try {
-    await db.collection("assignments").add({
+    const batch = db.batch();
+    const base = {
       toUid: s.uid, toName: s.name,
+      // who assigned it, by name - an email is not an answer to "who asked
+      // me to do this"
+      fromName: S.worker || "",
       fromEmail: (auth.currentUser && auth.currentUser.email) || "",
-      store: s.store, task: s.task, note: s.note.trim(),
-      dueDate: s.due || null,
+      note: s.note.trim(), dueDate: s.due || null,
       createdAt: Date.now(), done: false, doneAt: null
-    });
-    toast(`${s.task} assigned to ${s.name}`);
+    };
+    pairs.forEach(p => batch.set(db.collection("assignments").doc(), { ...base, ...p }));
+    await batch.commit();
+
+    toast(pairs.length === 1
+      ? `${pairs[0].task} assigned to ${s.name}`
+      : `${pairs.length} tasks assigned to ${s.name}`);
     afCloseMenu();
     closeSheet();
     if (isAdmin) loadTeamPane();
   } catch (e) {
     console.error(e);
     btn.disabled = false;
-    toast("Couldn't assign task — check Firestore rules allow it");
+    toast("Couldn't assign — check Firestore rules allow it");
   }
 }
 
@@ -2125,7 +2177,7 @@ function watchAssignedTasks(){
           <div>
             <div class="h-c">${esc(r.store)} · ${esc(r.task)}</div>
             <div class="h-d">${esc(r.note)}</div>
-            <div class="h-d">${r.dueDate ? "Due " + esc(r.dueDate) : "No due date"} · from ${esc(r.fromEmail || "admin")}</div>
+            <div class="h-d">${r.dueDate ? "Due " + esc(r.dueDate) : "No due date"} · from ${esc(r.fromName || r.fromEmail || "admin")}</div>
           </div>
           <button class="btn btn-ghost btn-sm" style="width:auto" data-id="${r.id}">Done</button>
         </li>
