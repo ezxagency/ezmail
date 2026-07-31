@@ -77,7 +77,7 @@
        Team            1246 -> 1879 (633)   20px gutter
      As percentages of 1920 those are the tracks below, and they sum to 100. */
   .app.panes{
-    padding:4.56vh 2.35% 0 6.15%;
+    padding:min(4.56vh, calc(1.5vh + 24px)) 2.35% 0 6.15%;
     /* the inter-pane gutter is the team's margin-left, so the inherited
        column-gap has to go or every track shifts right */
     column-gap:0;
@@ -135,7 +135,7 @@
   .app.panes .brand-rule{width:73%;height:3px;border-radius:12.5px;margin:6px 0 22px}
   .app.panes .shiftbar{padding:0;min-height:0}
   /* comp gaps down the rail: labels 603 -> button 661, button 757 -> nav 795 */
-  .app.panes .dock{padding:0;margin-top:8.1vh}
+  .app.panes .dock{padding:0;margin-top:clamp(14px, calc((100vh - 560px) * .24), 74px)}
   /* controls occupy 444 of the 615 rail track */
   .app.panes .shiftbar,
   .app.panes .dock{max-width:73.75%}
@@ -147,7 +147,7 @@
      the comp put them before the switch existed. Row gap is fixed - the
      inherited 11.8% was a column measure and must not open up vertically. */
   .app.panes .clock{
-    padding:0;max-width:73.75%;margin-top:max(10px, calc(15.36vh - 56px));
+    padding:0;max-width:73.75%;margin-top:clamp(0px, calc((100vh - 690px) * .5), 90px);
     grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 11.8%;
   }
   .app.panes .clock-panel{padding:0}
@@ -468,11 +468,8 @@
    dock keeping its natural height (see min-height:auto above) is what stops
    the squeeze from turning into an overlap. */
 @media (min-width:1024px) and (max-height:820px){
-  .app.panes{padding-top:3vh}
   .app.panes .band{padding-bottom:0}
   .app.panes .brand-rule{margin:6px 0 12px}
-  .app.panes .clock{margin-top:max(0px, calc(5vh - 56px))}
-  .app.panes .dock{margin-top:3.4vh}
   .app.panes .card,
   .app.panes .team-panel,
   .app.panes .assign-panel{margin-top:2.4vh}
@@ -485,9 +482,6 @@
 /* very short: the comp's proportions cannot fit, so trade the vertical
    rhythm down hard rather than clip the nav off the bottom */
 @media (min-width:1024px) and (max-height:660px){
-  .app.panes{padding-top:2vh}
-  .app.panes .clock{margin-top:0}
-  .app.panes .dock{margin-top:2.2vh}
   .app.panes .clock-label{font-size:11px}
   .app.panes .card,
   .app.panes .team-panel,
