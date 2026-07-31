@@ -2140,10 +2140,8 @@ function afToggle(key, value){
 
 /* The fine-tune list (features it only earns with 2+ combos): every store x
    task pair the selection implies, each with a toggle to drop it - so "Design
-   at AVERON but Task Assign only at Football" is expressible - and a date
-   field for a due date of its own, defaulting to the shared one. Rebuilt only
-   when the selection changes, not on every sync, so a date being typed into
-   isn't yanked out from under the cursor. */
+   at AVERON but Task Assign only at Football" is expressible. The one due
+   date in Details covers the whole group. */
 function afRenderPairs(){
   const box = $("afPairs");
   if (!box) return;
@@ -2160,7 +2158,7 @@ function afRenderPairs(){
     <div class="af-step-head">
       <span class="af-pip" aria-hidden="true"></span>
       <span class="af-step-label">Fine-tune</span>
-      <span class="af-pairs-hint">optional · drop a combo, or give one its own due date</span>
+      <span class="af-pairs-hint">optional · drop a combo you don't mean</span>
     </div>
     ${combos.map(c => {
       const off = !!afState.skip[c.k];
@@ -2169,8 +2167,6 @@ function afRenderPairs(){
         <button type="button" class="af-pair-tog" aria-pressed="${!off}"
                 title="${off ? "Include this one again" : "Drop this one"}">${AF_TICK}</button>
         <span class="af-pair-name">${esc(c.store)} · ${esc(c.task)}</span>
-        <input type="date" class="af-pair-due" value="${esc(afState.dues[c.k] || "")}"
-               aria-label="Due date just for ${esc(c.store)} — ${esc(c.task)}"${off ? " disabled" : ""}>
       </div>`;
     }).join("")}`;
   box.querySelectorAll(".af-pair").forEach(row => {
@@ -2180,18 +2176,14 @@ function afRenderPairs(){
       afRenderPairs();
       afSync();
     };
-    row.querySelector(".af-pair-due").onchange = e => {
-      if (e.target.value) afState.dues[k] = e.target.value; else delete afState.dues[k];
-      afRenderSentence();
-    };
   });
 }
 
 async function openAssignFlow(preUid, preName, editThread){
   afEdit = editThread || null;
-  // editing prefills the flow from the thread's still-open rows: the shared
-  // due date is the one most of them carry, anything else becomes a per-line
-  // override, and combos absent from the cross product start dropped
+  // editing prefills the flow from the thread's still-open rows: the due
+  // date is the one most of them carry (older groups could vary per line),
+  // and combos absent from the cross product start dropped
   const openRows = afEdit ? afEdit.rows.filter(r => !r.done) : [];
   let sharedDue = "";
   if (openRows.length){
@@ -2204,7 +2196,7 @@ async function openAssignFlow(preUid, preName, editThread){
     stores: [...new Set(openRows.map(r => r.store).filter(Boolean))],
     tasks:  [...new Set(openRows.map(r => r.task).filter(Boolean))],
     note: openRows.length ? (openRows[0].note || "") : "",
-    due: sharedDue, skip: {}, dues: {}
+    due: sharedDue, skip: {}
   };
   if (openRows.length){
     const have = new Set(openRows.map(r => pairKey(r.store, r.task)));
@@ -2212,9 +2204,6 @@ async function openAssignFlow(preUid, preName, editThread){
       const k = pairKey(store, task);
       if (!have.has(k)) afState.skip[k] = true;
     }));
-    openRows.forEach(r => {
-      if (r.dueDate && r.dueDate !== sharedDue) afState.dues[pairKey(r.store, r.task)] = r.dueDate;
-    });
   }
   afOpen = null;
   let members = [], stores = [];
@@ -2321,7 +2310,6 @@ async function afSubmit(){
 
   const pairs = afActivePairs();
   const col = db.collection("assignments");
-  const pairDue = p => s.dues[pairKey(p.store, p.task)] || s.due || null;
   const from = {
     // who assigned it, by name - an email is not an answer to "who asked
     // me to do this"
@@ -2341,7 +2329,8 @@ async function afSubmit(){
       const createdAt = afEdit.rows[0].createdAt || Date.now();
       const base = {
         toUid: s.uid, toName: s.name, ...from,
-        note: s.note.trim(), groupId, groupSize: total,
+        note: s.note.trim(), dueDate: s.due || null,
+        groupId, groupSize: total,
         // edited means changed - the receipt resets so it needs seeing again
         seenAt: null
       };
@@ -2349,9 +2338,9 @@ async function afSubmit(){
         const k = pairKey(p.store, p.task), old = oldByKey.get(k);
         if (old){
           oldByKey.delete(k);
-          batch.update(col.doc(old.id), { ...base, dueDate: pairDue(p) });
+          batch.update(col.doc(old.id), base);
         } else {
-          batch.set(col.doc(), { ...base, ...p, dueDate: pairDue(p), createdAt, done: false, doneAt: null });
+          batch.set(col.doc(), { ...base, ...p, createdAt, done: false, doneAt: null });
         }
       });
       oldByKey.forEach(old => batch.delete(col.doc(old.id)));
@@ -2364,11 +2353,11 @@ async function afSubmit(){
       const groupId = pairs.length > 1 ? col.doc().id : null;
       const base = {
         toUid: s.uid, toName: s.name, ...from,
-        note: s.note.trim(),
+        note: s.note.trim(), dueDate: s.due || null,
         createdAt: Date.now(), done: false, doneAt: null,
         groupId, groupSize: pairs.length
       };
-      pairs.forEach(p => batch.set(col.doc(), { ...base, ...p, dueDate: pairDue(p) }));
+      pairs.forEach(p => batch.set(col.doc(), { ...base, ...p }));
       await batch.commit();
       toast(pairs.length === 1
         ? `${pairs[0].task} assigned to ${s.name}`

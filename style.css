@@ -604,9 +604,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-due input[type=date]{width:auto;flex:1;max-width:210px;padding:12px 14px;min-height:0}
 
 /* ---------- fine-tune: the cross product, one row per combo ----------
-   Appears only once the selection implies 2+ combos. Each row can be dropped
-   (the tick empties, the row dims) or given a due date of its own; the date
-   field left blank means "the shared one". */
+   Appears only once the selection implies 2+ combos. Each row can be dropped:
+   the tick empties and the row dims. The due date in Details is the group's. */
 .af-pairs{margin-bottom:16px}
 .af-pairs-hint{
   font-family:var(--wk);font-size:10.5px;color:var(--wk-white-60);
@@ -631,11 +630,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   overflow-wrap:anywhere;transition:opacity .14s ease;
 }
 .af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
-.af-pair input[type=date]{
-  flex:none;width:auto;max-width:150px;padding:7px 10px;min-height:0;
-  font-size:12px;transition:opacity .14s ease;
-}
-.af-pair.is-off input[type=date]{opacity:.25}
 
 .preview{
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.25);border-radius:16px;padding:16px;
