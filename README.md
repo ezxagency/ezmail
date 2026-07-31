@@ -53,14 +53,10 @@ To enable delivery:
 1. Firebase console → Extensions → install **Trigger Email from Firestore**.
 2. Point it at collection `mail`, and give it SMTP credentials (any
    provider — Gmail app password, SendGrid, Resend SMTP, …).
-3. Allow signed-in users to create mail documents in Firestore rules, e.g.:
-   ```
-   match /mail/{id} {
-     allow create: if request.auth != null;
-     allow read: if request.auth != null
-                 && resource.data.summary.requestedBy == request.auth.token.email;
-   }
-   ```
+3. Publish the ruleset in `firestore.rules` (kept in this repo, mirrors the
+   live console rules) - its `mail` block lets workers queue mail only to
+   their own address, admins to anyone, and requesters read back delivery
+   state for the sent/failed toast.
 
 Roles: employees can only email their own summary to their own address;
 admins can additionally email any member's summary (to the member or to

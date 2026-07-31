@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isDesignatedAdminEmail() {
+      return request.auth.token.email in ['ezagency2nd@gmail.com'];
+    }
+    function isAssignerEmail() {
+      return request.auth.token.email in ['prashuchiha34@gmail.com'];
+    }
+    match /users/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid
+        && (request.resource.data.role == 'pending'
+            || (request.resource.data.role == 'admin' && isDesignatedAdminEmail()));
+      allow update: if request.auth != null && (
+        isAdmin() ||
+        (request.auth.uid == uid && request.resource.data.role == 'admin' && isDesignatedAdminEmail()) ||
+        (request.auth.uid == uid && request.resource.data.role == 'worker' && resource.data.role == 'admin' && !isDesignatedAdminEmail())
+      );
+      allow delete: if request.auth != null && isAdmin();
+    }
+    match /appState/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin() || isAssignerEmail());
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if request.auth != null && isAdmin();
+    }
+    match /assignments/{id} {
+      allow read: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin() || isAssignerEmail());
+      allow create: if request.auth != null && (isAdmin() || isAssignerEmail());
+      allow update: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin() || isAssignerEmail());
+      allow delete: if request.auth != null && isAdmin();
+    }
+    // Email summaries: the app queues a message here; the Trigger Email
+    // extension (admin SDK, bypasses these rules) delivers it and stamps
+    // delivery state back on the doc, which the requester watches.
+    match /mail/{id} {
+      // workers may only queue mail addressed to themselves; admins to anyone
+      allow create: if request.auth != null && (
+        isAdmin() ||
+        (request.resource.data.to.size() == 1
+         && request.resource.data.to[0] == request.auth.token.email)
+      );
+      // reading back your own request is what powers the sent/failed toast
+      allow read: if request.auth != null
+        && resource.data.summary.requestedBy == request.auth.token.email;
+      allow update, delete: if false;
+    }
+  }
+}
