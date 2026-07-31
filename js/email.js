@@ -110,7 +110,11 @@ async function queueSummaryEmail(opts){   // { to, name, rows, rangeLabel }
     });
   } catch (e) {
     console.error(e);
-    toast("Couldn't queue the email — check Firestore rules allow writing to mail");
+    // name the actual blocker: nine times out of ten it is the missing
+    // `mail` rule, which is a 30-second paste in the Firebase console
+    toast(e && e.code === "permission-denied"
+      ? "Firestore rules are blocking the mail queue — add the mail rule from the README, then retry"
+      : "Couldn't queue the email — " + ((e && e.message) || "try again"));
     return false;
   }
   return new Promise(resolve => {
