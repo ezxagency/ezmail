@@ -42,21 +42,29 @@ design/             reference comps
 
 ## Email summaries (one-time setup)
 
-The app never talks to a mail server itself. "Email my summary" writes a
-document into the Firestore `mail` collection; the official **Trigger Email**
-extension (`firebase/firestore-send-email`) watches that collection and
-delivers the message, stamping `delivery.state` back onto the document —
-which the UI watches to toast success/failure. Until the extension is
-installed, requests queue up harmlessly and the UI says so.
+"Email my summary" builds the HTML in the browser and sends it through
+**EmailJS** — free tier (200 emails/month), no credit card, made for
+static sites. Setup (~10 minutes):
 
-To enable delivery:
-1. Firebase console → Extensions → install **Trigger Email from Firestore**.
-2. Point it at collection `mail`, and give it SMTP credentials (any
-   provider — Gmail app password, SendGrid, Resend SMTP, …).
-3. Publish the ruleset in `firestore.rules` (kept in this repo, mirrors the
-   live console rules) - its `mail` block lets workers queue mail only to
-   their own address, admins to anyone, and requesters read back delivery
-   state for the sent/failed toast.
+1. Create a free account at emailjs.com.
+2. **Email Services → Add New Service → Gmail** (sign in with the agency
+   Gmail). Note the **Service ID**.
+3. **Email Templates → Create New Template**. Set:
+   - *To Email*: `{{to_email}}`
+   - *Subject*: `{{subject}}`
+   - *Content*: switch the editor to code view and put exactly `{{{content}}}`
+     (three braces — that passes the app's HTML through unescaped).
+   Save and note the **Template ID**.
+4. **Account → General**: copy the **Public Key**. Then under
+   **Account → Security**, restrict usage to your domain so nobody else
+   can spend your quota (the public key is meant to be visible in code).
+5. Paste all three into `CONFIG.emailjs` at the top of `js/config.js`,
+   bump the `?v=` in both HTML files, push.
+
+Fallback: if `CONFIG.emailjs` is left empty, the app instead writes to the
+Firestore `mail` collection for the **Trigger Email** extension (requires
+the Blaze plan; rules for it are in `firestore.rules`). Until either route
+is configured, requests fail with an honest toast.
 
 Roles: employees can only email their own summary to their own address;
 admins can additionally email any member's summary (to the member or to

@@ -86,19 +86,51 @@ function summaryEmailHTML(name, rangeLabel, rows){
   </body></html>`;
 }
 
-/* Queue the mail document and watch its delivery state so the toast tells
-   the truth: sent, failed, or parked until delivery is enabled. Resolves
-   when there is something worth telling the user. */
+/* Send the summary. Two transports, tried in order:
+
+   1. EmailJS (CONFIG.emailjs) — a plain REST call from the browser, free
+      tier, no billing account. The dashboard template is just a shell
+      ({{to_email}} / {{subject}} / {{{content}}}); the real HTML is built
+      here and passed through raw.
+   2. Firestore `mail` queue — for projects running the Trigger Email
+      extension instead. The doc's delivery state is watched so the toast
+      tells the truth: sent, failed, or parked until delivery is enabled.
+
+   Resolves when there is something worth telling the user. */
 async function queueSummaryEmail(opts){   // { to, name, rows, rangeLabel }
+  const subject = `Shift summary — ${opts.name} · ${opts.rangeLabel}`;
+  const html = summaryEmailHTML(opts.name, opts.rangeLabel, opts.rows);
+
+  const ej = (typeof CONFIG !== "undefined" && CONFIG.emailjs) || {};
+  if (ej.publicKey && ej.serviceId && ej.templateId){
+    try {
+      const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: ej.serviceId,
+          template_id: ej.templateId,
+          user_id: ej.publicKey,
+          template_params: { to_email: opts.to, subject, content: html }
+        })
+      });
+      if (res.ok){ toast("Summary emailed to " + opts.to); return true; }
+      const why = (await res.text()).slice(0, 90);
+      toast("Email failed — " + (why || "EmailJS rejected the request"));
+      return false;
+    } catch (e) {
+      console.error(e);
+      toast("Email failed — couldn't reach EmailJS (network?)");
+      return false;
+    }
+  }
+
   if (!FB_READY || !db){ toast("Email needs Firebase configured"); return false; }
   let ref;
   try {
     ref = await db.collection("mail").add({
       to: [opts.to],
-      message: {
-        subject: `Shift summary — ${opts.name} · ${opts.rangeLabel}`,
-        html: summaryEmailHTML(opts.name, opts.rangeLabel, opts.rows)
-      },
+      message: { subject, html },
       // our own audit trail; the extension ignores this field
       summary: {
         forName: opts.name,

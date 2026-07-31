@@ -1,5 +1,5 @@
 /* ============================================================
-   CONFIG — edit these four things and nothing else.
+   CONFIG — edit these five things and nothing else.
    ============================================================ */
 const CONFIG = {
   // The team's WhatsApp group invite link (Group info > Invite via link).
@@ -18,7 +18,18 @@ const CONFIG = {
     "Copy", "Design", "Task Review", "Task Assign", "Embed"
   ],
 
-  pauseReasons: ["Lunch", "Travel", "Meeting", "Other"]
+  pauseReasons: ["Lunch", "Travel", "Meeting", "Other"],
+
+  // Email summaries via EmailJS (free tier, no billing account needed).
+  // Setup lives in README > "Email summaries" — paste the three ids from
+  // your EmailJS dashboard here. The public key is safe to publish; lock
+  // it to your domain in EmailJS > Account > Security. Left empty, the
+  // app falls back to the Firestore mail queue (Trigger Email extension).
+  emailjs: {
+    publicKey: "",
+    serviceId: "",
+    templateId: ""
+  }
 };
 
 /* ============================================================
