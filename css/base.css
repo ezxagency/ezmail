@@ -47,6 +47,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;min-height:100%}
 body{
+  overflow-x:hidden;   /* nothing may drag the page sideways, at any zoom */
   background:#F8F9FA;
   color:var(--ink);font-family:var(--body);overscroll-behavior:none;-webkit-font-smoothing:antialiased;
 }

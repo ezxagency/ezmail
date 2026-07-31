@@ -77,7 +77,7 @@
        Team            1246 -> 1879 (633)   20px gutter
      As percentages of 1920 those are the tracks below, and they sum to 100. */
   .app.panes{
-    padding:min(4.56vh, calc(1.5vh + 24px)) 2.35% 0 6.15%;
+    padding:min(4.56vh, calc(1.5vh + 24px)) max(2.35%, calc(50vw - 880px)) 0 max(6.15%, calc(50vw - 840px));
     /* the inter-pane gutter is the team's margin-left, so the inherited
        column-gap has to go or every track shifts right */
     column-gap:0;
@@ -204,11 +204,11 @@
     margin:.45vh 0 0 3.26%;padding:4.88vh 38px 0;
     /* definite at both ends so the swap can animate; the px floor keeps the
        Proceed row inside the box on a short window */
-    height:max(41vh,300px);border-radius:43px;
+    height:100%;border-radius:43px;
     background:rgba(255,244,229,.18);border:0;
     backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
     font-family:"Inter",var(--body);
-    align-self:start;
+    align-self:stretch;
   }
   .app.panes .team-panel-full{display:none}
 
@@ -220,10 +220,10 @@
     margin:.45vh 0 0 3.26%;padding:4.88vh 38px 3vh;
     /* max-height and the mobile scroll are reset here - the inner list does
        the scrolling once this is a pane */
-    height:max(41vh,300px);max-height:none;border-radius:43px;border:0;
+    height:100%;max-height:none;border-radius:43px;border:0;
     background:rgba(255,244,229,.18);
     backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
-    align-self:start;overflow:hidden;
+    align-self:stretch;overflow:hidden;
   }
   /* Collapsed it shows the brief and hides the list, exactly like the Team
      pane; expanded (.side-open) that flips. Both states are driven by the
@@ -232,7 +232,7 @@
      declared later, so the collapsed height was beating the expanded one.
      Qualify with both so the open state actually wins, and let the list be
      the scrolling part rather than overflowing under the Close button. */
-  .app.panes.has-tasks.side-open .assign-panel{height:61.3vh;overflow:hidden}
+  .app.panes.has-tasks.side-open .assign-panel{height:100%;overflow:hidden}
   .app.panes.has-tasks.side-open .assign-panel .hist{
     flex:1;min-height:0;overflow-y:auto;margin:0 0 1vh;
   }
@@ -303,6 +303,10 @@
   .app.panes.is-swapping .team-table-wrap{will-change:width,height}
   /* Team card type, straight off the comp: Inter Bold 36 title, Regular 32
      body, Black 32 for Proceed; star 69x63. */
+  .app.panes .team-panel-brief,
+  .app.panes.has-tasks .assign-panel-brief{display:flex;flex-direction:column;flex:1;min-height:0}
+  .app.panes .team-panel-brief .team-proceed,
+  .app.panes.has-tasks .assign-panel-brief .team-proceed{margin-top:auto;padding-bottom:3.2vh;align-self:flex-start}
   .app.panes .team-panel-head{gap:22px;margin-bottom:3.5vh}
   .app.panes .team-panel-mark{width:3.6vw;height:3.3vw;max-width:69px;max-height:63px}
   /* the comp's text node is literally "TEAM", so keep the uppercase */
@@ -363,8 +367,8 @@
   .app.panes.side-open{grid-template-columns:34.86% 12.47% minmax(0,1fr)}
   .app.panes.side-open .team-panel,
   .app.panes.side-open .assign-panel{
-    align-self:start;margin-left:5.49%;
-    height:61.3vh;min-height:0;
+    align-self:stretch;margin-left:5.49%;
+    height:100%;min-height:0;
     background:rgba(255,244,229,.2);border-radius:27px;
     box-shadow:5px 8px 8px rgba(0,0,0,.25);
     padding:3.05vh 38px 3.05vh;
