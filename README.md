@@ -40,6 +40,32 @@ assets/             images (marble backgrounds, logo)
 design/             reference comps
 ```
 
+## Email summaries (one-time setup)
+
+The app never talks to a mail server itself. "Email my summary" writes a
+document into the Firestore `mail` collection; the official **Trigger Email**
+extension (`firebase/firestore-send-email`) watches that collection and
+delivers the message, stamping `delivery.state` back onto the document —
+which the UI watches to toast success/failure. Until the extension is
+installed, requests queue up harmlessly and the UI says so.
+
+To enable delivery:
+1. Firebase console → Extensions → install **Trigger Email from Firestore**.
+2. Point it at collection `mail`, and give it SMTP credentials (any
+   provider — Gmail app password, SendGrid, Resend SMTP, …).
+3. Allow signed-in users to create mail documents in Firestore rules, e.g.:
+   ```
+   match /mail/{id} {
+     allow create: if request.auth != null;
+     allow read: if request.auth != null
+                 && resource.data.summary.requestedBy == request.auth.token.email;
+   }
+   ```
+
+Roles: employees can only email their own summary to their own address;
+admins can additionally email any member's summary (to the member or to
+themselves) from the Team page, and keep the raw Excel exports.
+
 ## Conventions
 
 - Every `css/`/`js/` reference in the HTML carries the same `?v=N`;

@@ -268,21 +268,35 @@ function updateMissionTick(){
    HISTORY PAGE — every closed shift, filterable, each one expandable
    into the full story, with the Excel export alongside.
    ============================================================ */
-let hxRange = "all";   // all | 7 | 30 — survives leaving the page
+let hxRange = "all";   // all | 7 | 30 | custom — survives leaving the page
 let hxQuery = "";
+let hxStart = "", hxEnd = "";   // the custom range's calendar bounds
 let hxOpenKeys = new Set();
 
 const hxKey = r => String(r.startedAt);
 
 function hxFiltered(){
   const q = hxQuery.trim().toLowerCase();
-  const cut = hxRange === "all" ? 0 : Date.now() - Number(hxRange) * 86400000;
-  return S.history.filter(r => {
-    if (r.startedAt < cut) return false;
-    if (!q) return true;
+  let rows = S.history;
+  if (hxRange === "custom"){
+    rows = summaryFilterRows(rows, hxStart, hxEnd);
+  } else if (hxRange !== "all"){
+    const cut = Date.now() - Number(hxRange) * 86400000;
+    rows = rows.filter(r => r.startedAt >= cut);
+  }
+  if (!q) return rows;
+  return rows.filter(r => {
     const hay = [r.client, r.note, ...taskTally(r, r.endedAt).map(t => t.store + " " + t.task)].join(" ").toLowerCase();
     return hay.includes(q);
   });
+}
+
+// what the current filter means as words, for the email subject/header
+function hxRangeLabel(){
+  if (hxRange === "7") return "Last 7 days";
+  if (hxRange === "30") return "Last 30 days";
+  if (hxRange === "custom") return summaryRangeLabel(hxStart, hxEnd);
+  return "All time";
 }
 
 function renderHistoryPage(){
@@ -308,16 +322,33 @@ function renderHistoryPage(){
       <button type="button" class="chip" data-range="all">All time</button>
       <button type="button" class="chip" data-range="7">Last 7 days</button>
       <button type="button" class="chip" data-range="30">Last 30 days</button>
+      <button type="button" class="chip" data-range="custom">Custom…</button>
       <label class="fpage-search"><input type="text" id="hxSearch" placeholder="Search store, task or note…" value="${esc(hxQuery)}" autocomplete="off"></label>
+    </div>
+    <div class="fpage-dates${hxRange === "custom" ? "" : " hidden"}" id="hxDates">
+      <label>From <input type="date" id="hxStart" value="${esc(hxStart)}"></label>
+      <label>To <input type="date" id="hxEnd" value="${esc(hxEnd)}"></label>
     </div>
     <div id="hxList"></div>`;
 
   box.querySelectorAll(".chip[data-range]").forEach(c => {
     c.setAttribute("aria-pressed", String(c.dataset.range === hxRange));
-    c.onclick = () => { hxRange = c.dataset.range; renderHistoryPage(); };
+    c.onclick = () => {
+      hxRange = c.dataset.range;
+      // picking the calendar for the first time: seed it with this week
+      if (hxRange === "custom" && !hxStart && !hxEnd){
+        hxStart = summaryISO(Date.now() - 6 * 86400000);
+        hxEnd = summaryISO(Date.now());
+      }
+      renderHistoryPage();
+    };
   });
   const search = $("hxSearch");
   search.oninput = () => { hxQuery = search.value; renderHistoryList(); };
+  const dateInput = id => { const el = $(id); if (el) el.onchange = () => {
+    hxStart = $("hxStart").value; hxEnd = $("hxEnd").value; renderHistoryList();
+  }; };
+  dateInput("hxStart"); dateInput("hxEnd");
   renderHistoryList();
 }
 
@@ -339,10 +370,23 @@ function renderHistoryList(){
     <div class="fpage-bar">
       <p class="fpage-bar-note">${rows.length} shift${rows.length === 1 ? "" : "s"} shown${hxRange !== "all" || hxQuery ? " · filtered" : ""}</p>
       <div class="fpage-bar-acts">
-        <button class="btn btn-go btn-sm" id="hxExport" ${S.history.length ? "" : "disabled"}>Export to Excel</button>
+        <button class="btn btn-go btn-sm" id="hxEmail" ${rows.length ? "" : "disabled"}>Email my summary</button>
+        ${isAdmin ? `<button class="btn btn-sm" id="hxExport" ${S.history.length ? "" : "disabled"}>Export to Excel</button>` : ""}
       </div>
     </div>`;
-  $("hxExport").onclick = exportExcel;
+  // the raw spreadsheet stays an audit tool - admins only; everyone else
+  // gets their summary as a formatted email instead
+  const xl = $("hxExport");
+  if (xl) xl.onclick = exportExcel;
+  $("hxEmail").onclick = async () => {
+    const me = (auth && auth.currentUser && auth.currentUser.email) || "";
+    if (!me){ toast("No email on this account"); return; }
+    const btn = $("hxEmail");
+    btn.disabled = true; btn.textContent = "Sending…";
+    // the email is exactly what the page shows: same range, same search
+    await queueSummaryEmail({ to: me, name: S.worker || me, rows: hxFiltered(), rangeLabel: hxRangeLabel() });
+    btn.disabled = false; btn.textContent = "Email my summary";
+  };
 
   if (!rows.length){
     list.innerHTML = `<div class="fpage-panel"><div class="empty">Nothing matches this filter. Widen the range or clear the search.</div></div>`;

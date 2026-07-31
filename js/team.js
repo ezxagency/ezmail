@@ -977,14 +977,63 @@ function viewWorker(data, s, uid){
     <p class="hint">${hist.length} shift${hist.length===1?"":"s"} · ${humanDur(total)} net worked</p>
     <ul class="hist">${rows}</ul>
     <button class="btn btn-go" id="assign">Assign task</button>
-    <button class="btn" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
+    <button class="btn" id="mailSum" ${hist.length ? "" : "disabled"}>Email summary…</button>
+    <button class="btn btn-ghost btn-sm" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
     <button class="btn btn-break btn-sm" id="delWorker">Remove Member</button>
   `, () => {
     $("assign").onclick = () => askAssignTask(uid, name);
+    $("mailSum").onclick = () => askWorkerSummaryEmail(name, data.email || "", hist);
+    // the raw spreadsheet is the admin's audit tool; the email is the
+    // readable summary either of you can be sent
     $("xl").onclick = () => exportWorkerExcel(name, data.email || "", hist);
     $("dn").onclick = closeSheet;
     $("delWorker").onclick = () => deleteWorker(uid, name);
+  });
+}
+
+/* Admin picks a range off the calendar and who receives it: the member
+   themselves or the admin's own inbox. Defaults to the current week. */
+function askWorkerSummaryEmail(name, workerEmail, hist){
+  const me = (auth.currentUser && auth.currentUser.email) || "";
+  const startDefault = summaryISO(Date.now() - 6 * 86400000);
+  const endDefault = summaryISO(Date.now());
+  openSheet(`
+    <h2>Email summary</h2>
+    <p class="hint">A formatted shift summary for <b>${esc(name)}</b>, strictly inside the range you pick.</p>
+    <div class="fpage-dates" style="margin-bottom:16px">
+      <label>From <input type="date" id="wsStart" value="${startDefault}"></label>
+      <label>To <input type="date" id="wsEnd" value="${endDefault}"></label>
+    </div>
+    <label class="fld"><span>Send to</span></label>
+    <div class="chips" id="wsWho">
+      ${workerEmail ? `<button type="button" class="chip" data-v="${esc(workerEmail)}" aria-pressed="true">${esc(name)}</button>` : ""}
+      <button type="button" class="chip" data-v="${esc(me)}" aria-pressed="${workerEmail ? "false" : "true"}">Me (${esc(me)})</button>
+    </div>
+    <p class="hint" id="wsCount"></p>
+    <button class="btn btn-go" id="wsSend">Send summary</button>
+    <button class="btn btn-ghost btn-sm" id="wsBack">Cancel</button>
+  `, () => {
+    let to = workerEmail || me;
+    wireChips(v => { to = v; });
+    const count = () => {
+      const n = summaryFilterRows(hist, $("wsStart").value, $("wsEnd").value).length;
+      $("wsCount").textContent = n ? `${n} shift${n === 1 ? "" : "s"} in this range.` : "No shifts in this range.";
+      $("wsSend").disabled = !n;
+      return n;
+    };
+    $("wsStart").onchange = count; $("wsEnd").onchange = count;
+    count();
+    $("wsSend").onclick = async () => {
+      const a = $("wsStart").value, b = $("wsEnd").value;
+      const rows = summaryFilterRows(hist, a, b);
+      if (!rows.length) return;
+      const btn = $("wsSend");
+      btn.disabled = true; btn.textContent = "Sending…";
+      closeSheet();
+      await queueSummaryEmail({ to, name, rows, rangeLabel: summaryRangeLabel(a, b) });
+    };
+    $("wsBack").onclick = closeSheet;
   });
 }
 
