@@ -3240,8 +3240,35 @@ if (!FB_READY){
    ============================================================ */
 const POMO_LS = "ez-pomo-v1";
 const POMO_ROUNDS = 4;
-const POMO_THEMES = { autumn: "Autumn", dark: "Minimal dark", forest: "Cozy forest", space: "Deep space" };
-const POMO_TRACKS = { none: "None", rain: "Autumn rain", fire: "Cozy fireplace", lofi: "Lo-fi chill", wind: "Gentle wind" };
+// label + the little swatch the dropdown shows; the veil styles live in CSS
+const POMO_THEMES = {
+  autumn:    { label: "Autumn Ember",    swatch: "linear-gradient(140deg,#5b2c0e,#b06a1c 58%,#2e1608)" },
+  golden:    { label: "Golden Hour",     swatch: "linear-gradient(160deg,#3a1c40,#b05038 55%,#ffab40)" },
+  sakura:    { label: "Sakura Dusk",     swatch: "linear-gradient(150deg,#2a1028,#8a3c70 55%,#f48fb1)" },
+  forest:    { label: "Cozy Forest",     swatch: "linear-gradient(140deg,#0d2818,#1f5e38 58%,#0a1a10)" },
+  ocean:     { label: "Ocean Depths",    swatch: "linear-gradient(165deg,#40becb,#0a3a50 55%,#031a2a)" },
+  aurora:    { label: "Aurora Borealis", swatch: "linear-gradient(140deg,#04101c,#40eba6 45%,#5e8cff 75%,#040c16)" },
+  space:     { label: "Deep Space",      swatch: "linear-gradient(140deg,#0b1030,#3d2a80 55%,#060814)" },
+  rainnight: { label: "Midnight Rain",   swatch: "linear-gradient(160deg,#0a0e22,#28347c 60%,#0a0e1c)" },
+  snow:      { label: "First Snow",      swatch: "linear-gradient(160deg,#141a24,#4a5c78 60%,#c8dcf0)" },
+  nordic:    { label: "Nordic Fjord",    swatch: "linear-gradient(160deg,#0e161e,#2c4454 60%,#8cbed2)" },
+  noir:      { label: "Velvet Noir",     swatch: "linear-gradient(150deg,#0a0710,#2c1c44 60%,#060409)" },
+  dark:      { label: "Minimal Dark",    swatch: "linear-gradient(140deg,#101217,#262a33)" }
+};
+// every track is synthesized live in Web Audio - no files, no network
+const POMO_TRACKS = {
+  none:     { label: "None",             sub: "Silence, just the chime" },
+  rain:     { label: "Autumn Rain",      sub: "Steady rainfall, soft droplets" },
+  storm:    { label: "Rolling Thunder",  sub: "Heavy rain, distant rumbles" },
+  fire:     { label: "Cozy Fireplace",   sub: "Crackling logs, deep warmth" },
+  ocean:    { label: "Ocean Waves",      sub: "Slow swells, drifting foam" },
+  forest:   { label: "Forest Morning",   sub: "Breeze, leaves, far-off birds" },
+  wind:     { label: "Gentle Wind",      sub: "Two currents wandering" },
+  crickets: { label: "Night Crickets",   sub: "A warm evening field" },
+  lofi:     { label: "Lo-fi Beats",      sub: "72 bpm, dusty chords" },
+  drone:    { label: "Deep Space Drone", sub: "Slow harmonic drift" },
+  brown:    { label: "Brown Noise",      sub: "Pure low focus wash" }
+};
 const POMO_LIMITS = { focusMin: [1, 90], shortMin: [1, 30], longMin: [5, 45] };
 
 let PM = Object.assign({
@@ -3274,11 +3301,19 @@ let pomoAC = null, pomoMaster = null, pomoAmbient = null;
 function pomoCtx(){
   pomoAC = pomoAC || new (window.AudioContext || window.webkitAudioContext)();
   if (pomoAC.state === "suspended") pomoAC.resume();
-  if (!pomoMaster){ pomoMaster = pomoAC.createGain(); pomoMaster.connect(pomoAC.destination); }
+  if (!pomoMaster){
+    // master -> gentle compressor -> out: the compressor glues the layered
+    // voices and catches event peaks (thunder, pops) before they spike
+    pomoMaster = pomoAC.createGain();
+    const comp = pomoAC.createDynamicsCompressor();
+    comp.threshold.value = -22; comp.knee.value = 24; comp.ratio.value = 3;
+    comp.attack.value = 0.01; comp.release.value = 0.4;
+    pomoMaster.connect(comp); comp.connect(pomoAC.destination);
+  }
   pomoMaster.gain.value = PM.muted ? 0 : PM.vol;
   return pomoAC;
 }
-let pomoNoiseBuf = null;
+let pomoNoiseBuf = null, pomoBrownBuf = null;
 function pomoNoise(ctx){
   if (!pomoNoiseBuf){
     pomoNoiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -3287,6 +3322,20 @@ function pomoNoise(ctx){
   }
   return pomoNoiseBuf;
 }
+// true brown noise (integrated white), far smoother down low than
+// lowpassed white - the difference is very audible on the focus washes
+function pomoBrown(ctx){
+  if (!pomoBrownBuf){
+    pomoBrownBuf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+    const d = pomoBrownBuf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < d.length; i++){
+      last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+      d[i] = last * 3.5;
+    }
+  }
+  return pomoBrownBuf;
+}
 
 function pomoAmbientStop(){
   if (!pomoAmbient) return;
@@ -3294,19 +3343,28 @@ function pomoAmbientStop(){
   pomoAmbient = null;
 }
 
-function pomoAmbientStart(){
+/* Build one soundscape. Every voice is placed in stereo, modulated by slow
+   LFOs so nothing loops audibly, and coloured events (thunder, crackles,
+   birds, droplets) arrive on randomized clocks. `force` lets the settings
+   sheet audition a track for a few seconds while the timer is paused. */
+function pomoAmbientStart(force){
   pomoAmbientStop();
-  if (PM.track === "none" || PM.muted || !PM.running) return;
+  if (PM.track === "none" || PM.muted || (!PM.running && !force)) return;
   const ctx = pomoCtx();
   const bus = ctx.createGain(); bus.connect(pomoMaster);
   const stops = [], timers = [];
+  const R = (a, b) => a + Math.random() * (b - a);
 
-  // looping filtered-noise voice - the base of rain, fire and wind
-  const noiseVoice = (vol, type, freq, q) => {
-    const src = ctx.createBufferSource(); src.buffer = pomoNoise(ctx); src.loop = true;
+  const pan = (node, p) => {
+    if (!ctx.createStereoPanner){ node.connect(bus); return null; }
+    const sp = ctx.createStereoPanner(); sp.pan.value = p;
+    node.connect(sp); sp.connect(bus); return sp;
+  };
+  const noiseVoice = (vol, type, freq, q, at, buf) => {
+    const src = ctx.createBufferSource(); src.buffer = buf || pomoNoise(ctx); src.loop = true;
     const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; if (q) f.Q.value = q;
     const g = ctx.createGain(); g.gain.value = vol;
-    src.connect(f); f.connect(g); g.connect(bus);
+    src.connect(f); f.connect(g); pan(g, at || 0);
     src.start();
     stops.push(() => { try { src.stop(); } catch (e) {} });
     return { src, f, g };
@@ -3317,73 +3375,168 @@ function pomoAmbientStart(){
     target.value = base; o.connect(og); og.connect(target); o.start();
     stops.push(() => { try { o.stop(); } catch (e) {} });
   };
-  // a short one-shot noise burst (fire crackle, vinyl tick)
-  const burst = (vol, freq, dur) => {
+  const burst = (vol, freq, dur, at, type) => {
     const src = ctx.createBufferSource(); src.buffer = pomoNoise(ctx);
-    const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = freq;
+    const f = ctx.createBiquadFilter(); f.type = type || "highpass"; f.frequency.value = freq;
     const g = ctx.createGain();
     g.gain.setValueAtTime(vol, ctx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
-    src.connect(f); f.connect(g); g.connect(bus);
+    src.connect(f); f.connect(g); pan(g, at || 0);
     src.start(); src.stop(ctx.currentTime + dur + 0.05);
   };
+  // a pitched one-shot: sine glide with an envelope (droplets, birds, kicks)
+  const blip = (f0, f1, dur, vol, at, type) => {
+    const o = ctx.createOscillator(); o.type = type || "sine";
+    const g = ctx.createGain();
+    o.frequency.setValueAtTime(f0, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), ctx.currentTime + dur);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + Math.min(0.02, dur / 3));
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    o.connect(g); pan(g, at || 0);
+    o.start(); o.stop(ctx.currentTime + dur + 0.05);
+  };
+  const every = (minMs, maxMs, fn) => {
+    const go = () => { fn(); timers.push(setTimeout(go, R(minMs, maxMs))); };
+    timers.push(setTimeout(go, R(minMs, maxMs)));
+  };
 
-  if (PM.track === "rain"){
-    const body = noiseVoice(0.42, "lowpass", 1300);
-    lfo(body.g.gain, 0.42, 0.08, 0.14);          // slow swells
-    noiseVoice(0.1, "highpass", 5200);            // the fine hiss of drops
-  } else if (PM.track === "fire"){
-    const rumble = noiseVoice(0.5, "lowpass", 300);
-    lfo(rumble.g.gain, 0.5, 0.1, 0.3);
-    const crackle = () => {
-      burst(0.16 + Math.random() * 0.2, 2400 + Math.random() * 2500, 0.03 + Math.random() * 0.05);
-      timers.push(setTimeout(crackle, 90 + Math.random() * 420));
+  const t = PM.track;
+  if (t === "rain"){
+    const body = noiseVoice(0.38, "lowpass", 1150, 0, -0.12);
+    lfo(body.g.gain, 0.38, 0.07, 0.13);
+    noiseVoice(0.09, "highpass", 4800, 0, 0.22);
+    every(2200, 7000, () => blip(R(900, 1400), R(320, 480), 0.14, 0.035, R(-0.5, 0.5)));
+  } else if (t === "storm"){
+    const body = noiseVoice(0.48, "lowpass", 900, 0, -0.1);
+    lfo(body.g.gain, 0.48, 0.09, 0.1);
+    noiseVoice(0.08, "highpass", 4200, 0, 0.25);
+    every(12000, 32000, () => {
+      // a thunder roll: slow-attack brown rumble that dies over seconds
+      const src = ctx.createBufferSource(); src.buffer = pomoBrown(ctx);
+      const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 140;
+      const g = ctx.createGain();
+      const now = ctx.currentTime, dur = R(2.4, 4);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(R(0.22, 0.34), now + 0.35);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      src.connect(f); f.connect(g); pan(g, R(-0.6, 0.6));
+      src.start(); src.stop(now + dur + 0.1);
+    });
+  } else if (t === "fire"){
+    const rumble = noiseVoice(0.42, "lowpass", 240, 0, 0, pomoBrown(ctx));
+    lfo(rumble.g.gain, 0.42, 0.09, 0.28);
+    every(80, 420, () => burst(R(0.12, 0.3), R(1900, 5400), R(0.025, 0.08), R(-0.35, 0.35)));
+    every(3000, 9000, () => blip(110, 60, 0.18, 0.1, R(-0.2, 0.2)));   // a log settling
+  } else if (t === "ocean"){
+    const swell = noiseVoice(0.05, "lowpass", 620, 0, -0.1);
+    // two incommensurate LFOs make the set of waves never quite repeat
+    lfo(swell.g.gain, 0.3, 0.22, 0.055);
+    lfo(swell.f.frequency, 620, 160, 0.085);
+    const foam = noiseVoice(0.05, "highpass", 2600, 0, 0.3);
+    lfo(foam.g.gain, 0.09, 0.06, 0.055);
+  } else if (t === "forest"){
+    const w = noiseVoice(0.3, "bandpass", 360, 0.8, -0.15);
+    lfo(w.f.frequency, 360, 130, 0.05);
+    lfo(w.g.gain, 0.3, 0.1, 0.09);
+    noiseVoice(0.05, "highpass", 4200, 0, 0.2);
+    every(2500, 8000, () => {
+      const n = 2 + Math.floor(Math.random() * 3), at = R(-0.6, 0.6), f0 = R(2600, 4200);
+      for (let i = 0; i < n; i++)
+        timers.push(setTimeout(() => blip(f0 * R(0.95, 1.1), f0 * R(0.6, 0.8), 0.11, 0.04, at), i * R(130, 200)));
+    });
+  } else if (t === "wind"){
+    const a = noiseVoice(0.34, "bandpass", 330, 0.9, -0.3);
+    lfo(a.f.frequency, 330, 150, 0.06);
+    lfo(a.g.gain, 0.34, 0.12, 0.1);
+    const b = noiseVoice(0.26, "bandpass", 520, 0.9, 0.3);
+    lfo(b.f.frequency, 520, 200, 0.043);
+    lfo(b.g.gain, 0.26, 0.1, 0.076);
+    noiseVoice(0.05, "highpass", 3800, 0, 0);
+  } else if (t === "crickets"){
+    noiseVoice(0.06, "lowpass", 260, 0, 0, pomoBrown(ctx));
+    // each cricket: a carrier with a fast tremolo, gated open in short bursts
+    const cricket = (freq, rate, at, minMs, maxMs) => {
+      const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = freq;
+      const trem = ctx.createGain(); lfo(trem.gain, 0.5, 0.5, rate);
+      const gate = ctx.createGain(); gate.gain.value = 0.0001;
+      o.connect(trem); trem.connect(gate); pan(gate, at);
+      o.start();
+      stops.push(() => { try { o.stop(); } catch (e) {} });
+      every(minMs, maxMs, () => {
+        const now = ctx.currentTime;
+        gate.gain.setValueAtTime(0.0001, now);
+        gate.gain.exponentialRampToValueAtTime(0.045, now + 0.03);
+        gate.gain.setValueAtTime(0.045, now + 0.3);
+        gate.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+      });
     };
-    crackle();
-  } else if (PM.track === "wind"){
-    const w = noiseVoice(0.5, "bandpass", 420, 0.9);
-    lfo(w.f.frequency, 420, 190, 0.06);           // the gust wandering
-    lfo(w.g.gain, 0.5, 0.14, 0.1);
-    noiseVoice(0.07, "highpass", 3800);           // leaves
-  } else if (PM.track === "lofi"){
-    // a two-chord pad, a soft kick, and vinyl dust - enough to sit behind work
-    const pad = (freqs) => freqs.map(fr => {
+    cricket(4300, 27, -0.4, 800, 1300);
+    cricket(4650, 31, 0.45, 1000, 1700);
+  } else if (t === "lofi"){
+    // four dusty chords, a heartbeat kick, swung hats, vinyl dust
+    const CH = [
+      [174.6, 261.6, 349.2, 440.0],   // Fmaj7
+      [220.0, 261.6, 329.6, 392.0],   // Am7
+      [146.8, 220.0, 293.7, 349.2],   // Dm7
+      [196.0, 233.1, 293.7, 392.0]    // Gm7
+    ];
+    const filt = ctx.createBiquadFilter(); filt.type = "lowpass"; filt.frequency.value = 780;
+    lfo(filt.frequency, 780, 120, 0.05);
+    const padBus = ctx.createGain(); padBus.gain.value = 1;
+    filt.connect(padBus); pan(padBus, -0.08);
+    const oscs = CH[0].map(fr => {
       const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = fr;
-      o.detune.value = (Math.random() - 0.5) * 14;
-      const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 850;
-      const g = ctx.createGain(); g.gain.value = 0.05;
-      o.connect(f); f.connect(g); g.connect(bus); o.start();
+      o.detune.value = R(-8, 8);
+      const g = ctx.createGain(); g.gain.value = 0.045;
+      o.connect(g); g.connect(filt); o.start();
       stops.push(() => { try { o.stop(); } catch (e) {} });
       return o;
     });
-    const chords = [[130.8, 196.0, 246.9, 329.6], [98.0, 146.8, 220.0, 293.7]]; // Cmaj7 / Gsus feel
-    let oscs = pad(chords[0]), which = 0;
+    let bar = 0;
     timers.push(setInterval(() => {
-      which = 1 - which;
-      oscs.forEach((o, i) => o.frequency.setTargetAtTime(chords[which][i], ctx.currentTime, 0.4));
-    }, 8000));
-    const kick = () => {
-      const o = ctx.createOscillator(); o.type = "sine";
-      const g = ctx.createGain();
-      o.frequency.setValueAtTime(120, ctx.currentTime);
-      o.frequency.exponentialRampToValueAtTime(45, ctx.currentTime + 0.12);
-      g.gain.setValueAtTime(0.11, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
-      o.connect(g); g.connect(bus); o.start(); o.stop(ctx.currentTime + 0.3);
-    };
-    timers.push(setInterval(kick, 60000 / 72));   // 72 bpm heartbeat
-    const dust = () => {
-      burst(0.05 + Math.random() * 0.05, 5000, 0.02);
-      timers.push(setTimeout(dust, 300 + Math.random() * 1400));
-    };
-    dust();
+      bar = (bar + 1) % CH.length;
+      oscs.forEach((o, i) => o.frequency.setTargetAtTime(CH[bar][i], ctx.currentTime, 0.5));
+    }, 6667)); // two bars at 72 bpm
+    const BEAT = 60000 / 72;
+    timers.push(setInterval(() => blip(120, 44, 0.2, 0.1, 0), BEAT));
+    timers.push(setTimeout(() =>
+      timers.push(setInterval(() => burst(0.028, 7000, 0.03, 0.25), BEAT)), BEAT / 2 + 40)); // swung hat
+    every(300, 1500, () => burst(R(0.03, 0.06), 5200, 0.02, R(-0.3, 0.3)));
+  } else if (t === "drone"){
+    [[55, 0.06], [110.4, 0.05], [164.6, 0.035], [220.5, 0.025]].forEach(([fr, vol], i) => {
+      const o = ctx.createOscillator(); o.type = i < 2 ? "sine" : "triangle";
+      o.frequency.value = fr; o.detune.value = R(-4, 4);
+      const f = ctx.createBiquadFilter(); f.type = "lowpass";
+      lfo(f.frequency, 800, 420, 0.02);
+      const g = ctx.createGain(); g.gain.value = vol;
+      lfo(g.gain, vol, vol * 0.35, R(0.02, 0.05));
+      o.connect(f); f.connect(g); pan(g, i % 2 ? 0.25 : -0.25);
+      o.start();
+      stops.push(() => { try { o.stop(); } catch (e) {} });
+    });
+    const shimmer = ctx.createOscillator(); shimmer.type = "sine"; shimmer.frequency.value = 1318.5;
+    const sg = ctx.createGain(); lfo(sg.gain, 0.012, 0.01, 0.03);
+    shimmer.connect(sg); pan(sg, 0.1); shimmer.start();
+    stops.push(() => { try { shimmer.stop(); } catch (e) {} });
+  } else if (t === "brown"){
+    noiseVoice(0.5, "lowpass", 900, 0, 0, pomoBrown(ctx));
   }
 
   pomoAmbient = { stop(){
     stops.forEach(fn => fn());
-    timers.forEach(t => { clearTimeout(t); clearInterval(t); });
+    timers.forEach(tm => { clearTimeout(tm); clearInterval(tm); });
     try { bus.disconnect(); } catch (e) {}
   } };
+}
+
+// audition a track from the settings sheet without starting the timer:
+// it plays for a few seconds, then bows out unless the timer is running
+let pomoPreviewTimer = null;
+function pomoPreview(){
+  clearTimeout(pomoPreviewTimer);
+  pomoAmbientStart(true);
+  pomoPreviewTimer = setTimeout(() => { if (!PM.running) pomoAmbientStop(); }, 6000);
 }
 
 function pomoChime(){
@@ -3510,11 +3663,55 @@ function pomoClamp(key, v){
   const lim = POMO_LIMITS[key];
   return Math.max(lim[0], Math.min(lim[1], Math.round(v) || lim[0]));
 }
+/* One dropdown, af-* skinned: trigger shows the current pick (with a theme
+   swatch when given), the panel lists every option and marks the active one.
+   Only one panel opens at a time within the sheet. */
+function pomoDropdownMarkup(id, items, currentKey){
+  const cur = items[currentKey] || Object.values(items)[0];
+  return `
+    <div class="pdrop" id="${id}">
+      <button type="button" class="af-trigger" aria-expanded="false" aria-haspopup="listbox">
+        ${cur.swatch ? `<span class="pdrop-swatch" data-role="swatch" style="background:${cur.swatch}"></span>` : ""}
+        <span class="af-value">${esc(cur.label)}</span>
+        <svg class="af-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="af-panel" role="listbox" hidden>
+        ${Object.entries(items).map(([k, it]) => `
+          <button type="button" class="af-opt${k === currentKey ? " is-on" : ""}" data-v="${k}" role="option" aria-selected="${String(k === currentKey)}">
+            <span class="af-check" aria-hidden="true">${k === currentKey ? AF_TICK : ""}</span>
+            ${it.swatch ? `<span class="pdrop-swatch" style="background:${it.swatch}"></span>` : ""}
+            <span class="af-opt-main">${esc(it.label)}${it.sub ? `<span class="af-opt-sub">${esc(it.sub)}</span>` : ""}</span>
+          </button>`).join("")}
+      </div>
+    </div>`;
+}
+function pomoWireDropdown(id, items, onPick){
+  const box = $(id), trig = box.querySelector(".af-trigger"), panel = box.querySelector(".af-panel");
+  const close = () => { panel.hidden = true; trig.setAttribute("aria-expanded", "false"); };
+  trig.onclick = () => {
+    const opening = panel.hidden;
+    // close any sibling dropdown first - one open panel at a time
+    document.querySelectorAll(".pdrop .af-panel").forEach(p => { p.hidden = true; });
+    document.querySelectorAll(".pdrop .af-trigger").forEach(x => x.setAttribute("aria-expanded", "false"));
+    if (opening){ panel.hidden = false; trig.setAttribute("aria-expanded", "true"); }
+  };
+  panel.querySelectorAll("[data-v]").forEach(b => b.onclick = () => {
+    const k = b.dataset.v, it = items[k];
+    panel.querySelectorAll("[data-v]").forEach(x => {
+      const on = x === b;
+      x.classList.toggle("is-on", on);
+      x.setAttribute("aria-selected", String(on));
+      x.querySelector(".af-check").innerHTML = on ? AF_TICK : "";
+    });
+    trig.querySelector(".af-value").textContent = it.label;
+    const sw = trig.querySelector("[data-role=swatch]");
+    if (sw && it.swatch) sw.style.background = it.swatch;
+    close();
+    onPick(k);
+  });
+}
+
 function openPomoSettings(){
-  const themeCards = Object.entries(POMO_THEMES).map(([k, label]) =>
-    `<button type="button" class="ptheme-card t-${k}" data-theme="${k}" aria-pressed="${String(PM.theme === k)}"><span>${label}</span></button>`).join("");
-  const trackChips = Object.entries(POMO_TRACKS).map(([k, label]) =>
-    `<button type="button" class="chip" data-track="${k}" aria-pressed="${String(PM.track === k)}">${label}</button>`).join("");
   const sw = (id, label, sub, on) => `
     <div class="prow">
       <span class="prow-label">${label}<span class="prow-sub">${sub}</span></span>
@@ -3525,9 +3722,17 @@ function openPomoSettings(){
     <p class="hint">Tune the timer, the scenery and the sound. Everything here sticks on this device.</p>
 
     <label class="fld"><span>Theme</span></label>
-    <div class="ptheme-grid" id="pThemeGrid">${themeCards}</div>
+    ${pomoDropdownMarkup("pThemeDrop", POMO_THEMES, PM.theme)}
 
-    <label class="fld"><span>Session lengths (minutes)</span></label>
+    <label class="fld"><span>Ambient sound</span></label>
+    ${pomoDropdownMarkup("pTrackDrop", POMO_TRACKS, PM.track)}
+    <div class="pvol">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>
+      <input type="range" id="pVol" min="0" max="100" value="${Math.round(PM.vol * 100)}" aria-label="Volume">
+    </div>
+    ${sw("pChime", "Completion chime", "A soft bell when a session ends", PM.chime)}
+
+    <label class="fld" style="margin-top:10px"><span>Session lengths (minutes)</span></label>
     <div class="pnum-grid">
       <label class="fld"><span>Focus</span><input type="number" id="pFocus" min="1" max="90" value="${PM.focusMin}"></label>
       <label class="fld"><span>Short</span><input type="number" id="pShort" min="1" max="30" value="${PM.shortMin}"></label>
@@ -3536,21 +3741,19 @@ function openPomoSettings(){
     ${sw("pAutoBreak", "Auto-start breaks", "Roll into the break when focus ends", PM.autoBreak)}
     ${sw("pAutoFocus", "Auto-start focus", "Roll into focus when a break ends", PM.autoFocus)}
 
-    <label class="fld" style="margin-top:10px"><span>Ambient sound</span></label>
-    <div class="chips" id="pTrackChips">${trackChips}</div>
-    <div class="pvol">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>
-      <input type="range" id="pVol" min="0" max="100" value="${Math.round(PM.vol * 100)}" aria-label="Volume">
-    </div>
-    ${sw("pChime", "Completion chime", "A soft bell when a session ends", PM.chime)}
-
     <button class="btn btn-go" id="pDone">Done</button>
   `, () => {
-    $("pThemeGrid").querySelectorAll("[data-theme]").forEach(b => b.onclick = () => {
-      PM.theme = b.dataset.theme;
-      $("pThemeGrid").querySelectorAll("[data-theme]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-      if (PM.on) pomoApplyTheme(PM.theme);
+    pomoWireDropdown("pThemeDrop", POMO_THEMES, k => {
+      PM.theme = k;
+      if (PM.on) pomoApplyTheme(k);
       pomoSave();
+    });
+    pomoWireDropdown("pTrackDrop", POMO_TRACKS, k => {
+      PM.track = k;
+      if (PM.running) pomoAmbientStart();
+      else if (k !== "none" && !PM.muted) pomoPreview();  // audition it briefly
+      else pomoAmbientStop();
+      pomoRender(); pomoSave();
     });
     // a changed length applies to the current session immediately unless it
     // is mid-run - a running session keeps the deal it started with
@@ -3574,14 +3777,8 @@ function openPomoSettings(){
     wireSwitch("pAutoBreak", "autoBreak");
     wireSwitch("pAutoFocus", "autoFocus");
     wireSwitch("pChime", "chime", () => { if (PM.chime) pomoChime(); });
-    $("pTrackChips").querySelectorAll("[data-track]").forEach(b => b.onclick = () => {
-      PM.track = b.dataset.track;
-      $("pTrackChips").querySelectorAll("[data-track]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-      if (PM.running) pomoAmbientStart(); else pomoAmbientStop();
-      pomoRender(); pomoSave();
-    });
     $("pVol").oninput = () => { PM.vol = Number($("pVol").value) / 100; pomoApplyVolume(); pomoSave(); };
-    $("pDone").onclick = closeSheet;
+    $("pDone").onclick = () => { if (!PM.running) pomoAmbientStop(); closeSheet(); };
   });
 }
 
@@ -3590,6 +3787,9 @@ function openPomoSettings(){
   const pomo = $("pomo");
   if (!pomo) return;
   pomo.removeAttribute("hidden");   // CSS classes own visibility from here on
+  // saved prefs may predate the current theme/track catalogs
+  if (!POMO_THEMES[PM.theme]) PM.theme = "autumn";
+  if (!POMO_TRACKS[PM.track]) PM.track = "rain";
   // a session that was running when the tab closed: settle it honestly
   if (PM.running && PM.endAt && PM.endAt <= Date.now()){
     PM.running = false; PM.remainMs = 0;

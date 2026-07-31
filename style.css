@@ -1688,25 +1688,114 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   background-position:center;background-size:cover;
 }
 .app[data-ptheme] .theme-veil{opacity:1}
-/* Autumn: warm amber floor, two golden glows, drifting leaf marks */
+/* Every theme is three parts: the veil's own gradient stack (the scene), an
+   optional ::before pattern layer that MOVES (rain, snow, petals, aurora -
+   transform-only, so it stays on the compositor), and an optional ::after
+   accent that BREATHES (glows, twinkles, sheens - opacity-only). */
+.theme-veil::before,.theme-veil::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-position:center;opacity:0;
+}
+/* falling layers are one tile taller than the veil and translate exactly one
+   tile per loop, so the pattern hands off seamlessly */
+@keyframes veilFall{from{transform:translateY(-360px)}to{transform:translateY(0)}}
+@keyframes veilDrift{
+  from{transform:translateX(-6%) rotate(-2deg)}
+  to{transform:translateX(6%) rotate(2deg)}
+}
+@keyframes veilBreathe{from{opacity:.25}to{opacity:.7}}
+@keyframes veilTwinkle{from{opacity:.2}to{opacity:.85}}
+@keyframes veilSheen{
+  0%{transform:translateX(-70%)}
+  55%,100%{transform:translateX(70%)}
+}
+
+/* --- Autumn Ember: amber dusk, golden glows, leaves sifting down --- */
 .app[data-ptheme="autumn"] .theme-veil{
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cg fill='%23ffb648' fill-opacity='.06'%3E%3Cpath d='M42 34c19-15 40-12 46 7-17 10-38 8-46-7z'/%3E%3Cpath d='M198 158c4-23 21-36 40-31-2 20-17 34-40 31z'/%3E%3Cpath d='M116 226c-21-6-29-25-19-42 18 6 28 23 19 42z'/%3E%3Cpath d='M236 60c-14-11-14-28-2-36 10 9 12 25 2 36z'/%3E%3C/g%3E%3C/svg%3E") repeat,
     radial-gradient(58% 48% at 82% 8%, rgba(255,158,44,.30), transparent 70%),
     radial-gradient(52% 46% at 12% 88%, rgba(196,88,22,.32), transparent 72%),
     linear-gradient(152deg, rgba(47,21,7,.93), rgba(99,48,15,.84) 48%, rgba(26,11,4,.95));
 }
-.app[data-ptheme="dark"] .theme-veil{
-  background:
-    radial-gradient(50% 40% at 50% 0%, rgba(255,255,255,.05), transparent 70%),
-    linear-gradient(165deg, rgba(9,10,13,.96), rgba(21,23,29,.94));
+.app[data-ptheme="autumn"] .theme-veil::before{
+  inset:-360px 0 0 0;opacity:1;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='360'%3E%3Cg fill='%23ffb648' fill-opacity='.07'%3E%3Cpath d='M42 34c19-15 40-12 46 7-17 10-38 8-46-7z'/%3E%3Cpath d='M198 158c4-23 21-36 40-31-2 20-17 34-40 31z'/%3E%3Cpath d='M116 286c-21-6-29-25-19-42 18 6 28 23 19 42z'/%3E%3Cpath d='M236 60c-14-11-14-28-2-36 10 9 12 25 2 36z'/%3E%3Cpath d='M30 220c16-12 33-10 38 5-14 9-31 7-38-5z'/%3E%3C/g%3E%3C/svg%3E") repeat;
+  animation:veilFall 46s linear infinite;
 }
+.app[data-ptheme="autumn"] .theme-veil::after{
+  background:radial-gradient(42% 34% at 50% 96%, rgba(255,140,40,.26), transparent 75%);
+  animation:veilBreathe 7s ease-in-out infinite alternate;
+}
+
+/* --- Golden Hour: the last warm light, rose horizon --- */
+.app[data-ptheme="golden"] .theme-veil{
+  background:
+    radial-gradient(70% 52% at 50% 104%, rgba(255,171,64,.42), transparent 72%),
+    radial-gradient(50% 40% at 78% 90%, rgba(236,94,80,.30), transparent 70%),
+    radial-gradient(46% 40% at 16% 12%, rgba(90,44,86,.34), transparent 75%),
+    linear-gradient(168deg, rgba(38,20,44,.94), rgba(120,52,44,.82) 62%, rgba(64,24,18,.94));
+}
+.app[data-ptheme="golden"] .theme-veil::after{
+  background:radial-gradient(34% 26% at 50% 100%, rgba(255,210,120,.35), transparent 75%);
+  animation:veilBreathe 9s ease-in-out infinite alternate;
+}
+
+/* --- Sakura Dusk: plum evening, petals on the wind --- */
+.app[data-ptheme="sakura"] .theme-veil{
+  background:
+    radial-gradient(56% 44% at 80% 10%, rgba(244,143,177,.20), transparent 72%),
+    radial-gradient(48% 42% at 12% 88%, rgba(136,58,110,.30), transparent 72%),
+    linear-gradient(158deg, rgba(40,16,38,.94), rgba(96,42,84,.84) 52%, rgba(26,10,26,.95));
+}
+.app[data-ptheme="sakura"] .theme-veil::before{
+  inset:-360px 0 0 0;opacity:1;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='360'%3E%3Cg fill='%23ffb7d0' fill-opacity='.09'%3E%3Cpath d='M40 40c8-12 22-12 26 0-4 12-18 12-26 0z'/%3E%3Cpath d='M180 120c10-9 22-5 23 6-9 8-21 4-23-6z'/%3E%3Cpath d='M90 230c3-13 16-17 24-9-3 12-15 16-24 9z'/%3E%3Cpath d='M220 300c9-10 21-8 24 3-8 9-20 7-24-3z'/%3E%3Cpath d='M130 330c4-12 17-15 24-7-4 11-16 14-24 7z'/%3E%3C/g%3E%3C/svg%3E") repeat;
+  animation:veilFall 38s linear infinite;
+}
+
+/* --- Cozy Forest: deep green canopy light --- */
 .app[data-ptheme="forest"] .theme-veil{
   background:
     radial-gradient(56% 46% at 85% 6%, rgba(64,145,90,.22), transparent 70%),
     radial-gradient(50% 44% at 10% 92%, rgba(26,84,48,.30), transparent 72%),
     linear-gradient(158deg, rgba(6,22,13,.94), rgba(17,52,31,.86) 50%, rgba(4,14,8,.96));
 }
+.app[data-ptheme="forest"] .theme-veil::after{
+  background:radial-gradient(40% 55% at 72% 0%, rgba(190,255,170,.13), transparent 70%);
+  animation:veilBreathe 11s ease-in-out infinite alternate;
+}
+
+/* --- Ocean Depths: teal water, light playing far above --- */
+.app[data-ptheme="ocean"] .theme-veil{
+  background:
+    radial-gradient(64% 40% at 50% 0%, rgba(64,190,200,.20), transparent 68%),
+    radial-gradient(48% 44% at 88% 78%, rgba(20,90,120,.32), transparent 74%),
+    linear-gradient(172deg, rgba(6,30,42,.92), rgba(10,58,80,.86) 52%, rgba(3,16,26,.96));
+}
+.app[data-ptheme="ocean"] .theme-veil::after{
+  opacity:1;
+  background:
+    radial-gradient(24% 60% at 34% 0%, rgba(160,240,255,.14), transparent 75%),
+    radial-gradient(18% 52% at 62% 0%, rgba(160,240,255,.10), transparent 75%);
+  animation:veilDrift 17s ease-in-out infinite alternate;
+}
+
+/* --- Aurora Borealis: arctic night, the sky moving --- */
+.app[data-ptheme="aurora"] .theme-veil{
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cg fill='white'%3E%3Ccircle cx='24' cy='40' r='1' fill-opacity='.4'/%3E%3Ccircle cx='120' cy='18' r='1.2' fill-opacity='.3'/%3E%3Ccircle cx='210' cy='74' r='1' fill-opacity='.4'/%3E%3Ccircle cx='170' cy='128' r='.9' fill-opacity='.35'/%3E%3Ccircle cx='66' cy='180' r='1.1' fill-opacity='.3'/%3E%3Ccircle cx='250' cy='232' r='1.2' fill-opacity='.3'/%3E%3C/g%3E%3C/svg%3E") repeat,
+    linear-gradient(170deg, rgba(4,12,22,.95), rgba(10,28,44,.90) 55%, rgba(3,8,16,.97));
+}
+.app[data-ptheme="aurora"] .theme-veil::before{
+  opacity:.55;
+  background:
+    radial-gradient(60% 26% at 30% 18%, rgba(64,235,166,.34), transparent 70%),
+    radial-gradient(50% 22% at 66% 30%, rgba(94,140,255,.26), transparent 70%),
+    radial-gradient(40% 18% at 50% 10%, rgba(180,110,255,.20), transparent 70%);
+  animation:veilDrift 26s ease-in-out infinite alternate;
+}
+
+/* --- Deep Space: nebulae and a sky that twinkles --- */
 .app[data-ptheme="space"] .theme-veil{
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cg fill='white'%3E%3Ccircle cx='24' cy='40' r='1' fill-opacity='.5'/%3E%3Ccircle cx='120' cy='18' r='1.4' fill-opacity='.35'/%3E%3Ccircle cx='210' cy='74' r='1' fill-opacity='.5'/%3E%3Ccircle cx='276' cy='150' r='1.3' fill-opacity='.3'/%3E%3Ccircle cx='170' cy='128' r='.9' fill-opacity='.45'/%3E%3Ccircle cx='66' cy='180' r='1.2' fill-opacity='.4'/%3E%3Ccircle cx='140' cy='240' r='1' fill-opacity='.5'/%3E%3Ccircle cx='250' cy='262' r='1.4' fill-opacity='.3'/%3E%3Ccircle cx='36' cy='276' r='1' fill-opacity='.4'/%3E%3C/g%3E%3C/svg%3E") repeat,
@@ -1714,6 +1803,65 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     radial-gradient(46% 42% at 14% 84%, rgba(38,58,168,.30), transparent 72%),
     linear-gradient(158deg, rgba(6,8,22,.95), rgba(26,20,64,.88) 52%, rgba(4,5,14,.97));
 }
+.app[data-ptheme="space"] .theme-veil::after{
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cg fill='white'%3E%3Ccircle cx='80' cy='90' r='1.3' fill-opacity='.8'/%3E%3Ccircle cx='230' cy='40' r='1.1' fill-opacity='.7'/%3E%3Ccircle cx='190' cy='200' r='1.4' fill-opacity='.8'/%3E%3Ccircle cx='40' cy='250' r='1' fill-opacity='.7'/%3E%3C/g%3E%3C/svg%3E") repeat;
+  animation:veilTwinkle 3.4s ease-in-out infinite alternate;
+}
+
+/* --- Midnight Rain: indigo glass, streaks running down --- */
+.app[data-ptheme="rainnight"] .theme-veil{
+  background:
+    radial-gradient(56% 42% at 78% 6%, rgba(90,120,220,.18), transparent 70%),
+    radial-gradient(48% 44% at 14% 90%, rgba(40,56,130,.26), transparent 74%),
+    linear-gradient(166deg, rgba(8,11,26,.95), rgba(22,30,66,.88) 54%, rgba(5,7,18,.97));
+}
+.app[data-ptheme="rainnight"] .theme-veil::before{
+  inset:-360px 0 0 0;opacity:1;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='360'%3E%3Cg stroke='%23aac4ff' stroke-opacity='.10' stroke-width='1.4' stroke-linecap='round'%3E%3Cline x1='30' y1='10' x2='26' y2='44'/%3E%3Cline x1='110' y1='80' x2='106' y2='118'/%3E%3Cline x1='180' y1='30' x2='176' y2='62'/%3E%3Cline x1='70' y1='200' x2='66' y2='236'/%3E%3Cline x1='150' y1='260' x2='146' y2='300'/%3E%3Cline x1='200' y1='180' x2='196' y2='214'/%3E%3Cline x1='40' y1='310' x2='36' y2='344'/%3E%3C/g%3E%3C/svg%3E") repeat;
+  animation:veilFall 5.5s linear infinite;
+}
+
+/* --- First Snow: hushed slate, flakes drifting --- */
+.app[data-ptheme="snow"] .theme-veil{
+  background:
+    radial-gradient(58% 42% at 50% 0%, rgba(200,220,240,.14), transparent 70%),
+    radial-gradient(46% 40% at 86% 88%, rgba(90,110,140,.22), transparent 74%),
+    linear-gradient(170deg, rgba(20,26,36,.94), rgba(44,56,74,.86) 55%, rgba(14,18,26,.96));
+}
+.app[data-ptheme="snow"] .theme-veil::before{
+  inset:-360px 0 0 0;opacity:1;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='360'%3E%3Cg fill='white'%3E%3Ccircle cx='30' cy='30' r='1.8' fill-opacity='.16'/%3E%3Ccircle cx='140' cy='70' r='1.3' fill-opacity='.12'/%3E%3Ccircle cx='210' cy='140' r='1.9' fill-opacity='.15'/%3E%3Ccircle cx='80' cy='190' r='1.2' fill-opacity='.12'/%3E%3Ccircle cx='170' cy='250' r='1.7' fill-opacity='.16'/%3E%3Ccircle cx='50' cy='310' r='1.4' fill-opacity='.12'/%3E%3Ccircle cx='230' cy='330' r='1.2' fill-opacity='.12'/%3E%3C/g%3E%3C/svg%3E") repeat;
+  animation:veilFall 22s linear infinite;
+}
+
+/* --- Nordic Fjord: steel water, ice light --- */
+.app[data-ptheme="nordic"] .theme-veil{
+  background:
+    radial-gradient(60% 42% at 50% 0%, rgba(140,190,210,.16), transparent 70%),
+    radial-gradient(44% 40% at 12% 90%, rgba(50,80,100,.26), transparent 74%),
+    linear-gradient(170deg, rgba(14,22,30,.94), rgba(32,52,66,.88) 55%, rgba(9,14,20,.96));
+}
+
+/* --- Velvet Noir: near-black violet, a sheen passing rarely --- */
+.app[data-ptheme="noir"] .theme-veil{
+  background:
+    radial-gradient(52% 40% at 82% 8%, rgba(120,80,200,.14), transparent 72%),
+    radial-gradient(46% 42% at 12% 92%, rgba(60,30,90,.20), transparent 74%),
+    linear-gradient(160deg, rgba(10,7,16,.96), rgba(28,18,44,.92) 55%, rgba(6,4,10,.97));
+}
+.app[data-ptheme="noir"] .theme-veil::after{
+  opacity:1;
+  background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.045) 50%, transparent 58%);
+  animation:veilSheen 14s ease-in-out infinite;
+}
+
+/* --- Minimal Dark: nothing but night --- */
+.app[data-ptheme="dark"] .theme-veil{
+  background:
+    radial-gradient(50% 40% at 50% 0%, rgba(255,255,255,.05), transparent 70%),
+    linear-gradient(165deg, rgba(9,10,13,.96), rgba(21,23,29,.94));
+}
+
 
 /* ---------- mode switch (Clocks <-> Focus) ---------- */
 .mode-switch{
@@ -1790,23 +1938,24 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .pomo-tool:hover{opacity:1}
 
 /* ---------- settings sheet controls ---------- */
-.ptheme-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}
-.ptheme-card{
-  position:relative;height:64px;border-radius:14px;overflow:hidden;cursor:pointer;
-  border:1.5px solid rgba(255,255,255,.28);color:#fff;
-  transition:border-color .18s ease,transform .14s ease;
+/* Theme and sound pickers are dropdowns built on the assign flow's af-*
+   dropdown skin, so the two flows read as one system. Long lists scroll. */
+.pdrop{margin-bottom:16px}
+.pdrop .af-panel{max-height:264px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.4) transparent}
+.pdrop .af-panel::-webkit-scrollbar{width:6px}
+.pdrop .af-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.4);border-radius:999px}
+.pdrop-swatch{
+  flex:none;width:26px;height:26px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.35);
+  background:rgba(255,255,255,.1);
 }
-.ptheme-card:hover{transform:translateY(-1px)}
-.ptheme-card span{
-  position:absolute;left:11px;bottom:8px;font-family:var(--wk);font-size:10.5px;
-  font-weight:600;letter-spacing:.1em;text-transform:uppercase;
-  text-shadow:0 1px 5px rgba(0,0,0,.65);
+.pdrop .af-trigger .pdrop-swatch{margin-right:12px}
+.pdrop .af-opt .pdrop-swatch{margin-right:2px}
+.pdrop .af-opt{gap:12px}
+.pdrop .af-opt-sub{
+  display:block;font-size:11px;color:var(--wk-white-60);letter-spacing:.01em;
+  margin-top:2px;text-transform:none;font-weight:400;
 }
-.ptheme-card[aria-pressed="true"]{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.45)}
-.ptheme-card.t-autumn{background:linear-gradient(140deg,#5b2c0e,#b06a1c 58%,#2e1608)}
-.ptheme-card.t-dark{background:linear-gradient(140deg,#101217,#262a33)}
-.ptheme-card.t-forest{background:linear-gradient(140deg,#0d2818,#1f5e38 58%,#0a1a10)}
-.ptheme-card.t-space{background:linear-gradient(140deg,#0b1030,#3d2a80 55%,#060814)}
 .pnum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:6px}
 .pnum-grid label.fld{margin-bottom:8px}
 .pnum-grid input{padding:13px 10px;text-align:center}
