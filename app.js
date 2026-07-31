@@ -3123,7 +3123,9 @@ if (!FB_READY){
       $("appScreen").classList.remove("panes", "has-team", "has-tasks", "side-open");
       $("teamPanel").classList.add("hidden");
       teamPaneRows = null; teamPendingCount = 0;
-      pomoAmbientStop();   // nobody signed in, nothing should be playing
+      // park the departing account's focus timer and reset to neutral -
+      // the next sign-in loads its own, so sessions never leak across accounts
+      pomoUnload();
       return;
     }
     try {
@@ -3142,6 +3144,7 @@ if (!FB_READY){
         $("teamPanel").classList.toggle("hidden", !isAdmin);
         if (isAdmin) { watchCompletionNotifications(); loadTeamPane(); }
         Store.setUser(user.uid, user.email);
+        pomoLoadFor(user.uid);   // this account's own focus timer, no one else's
         screen("app");
         startWorkerApp();
       }
@@ -3271,15 +3274,24 @@ const POMO_TRACKS = {
 };
 const POMO_LIMITS = { focusMin: [1, 90], shortMin: [1, 30], longMin: [5, 45] };
 
-let PM = Object.assign({
+/* The timer is PERSONAL: state is keyed by the signed-in uid, so two people
+   sharing a browser each get their own running session, theme and sound.
+   Loaded on sign-in (pomoLoadFor), saved + torn down on sign-out. */
+const pomoDefaults = () => ({
   on: false, theme: "autumn",
   focusMin: 25, shortMin: 5, longMin: 20,
   autoBreak: true, autoFocus: false,
   track: "rain", vol: 0.6, muted: false, chime: true,
   phase: "focus", round: 1, running: false, endAt: null, remainMs: 25 * 60000
-}, (() => { try { return JSON.parse(localStorage.getItem(POMO_LS) || "{}"); } catch { return {}; } })());
+});
+let PM = pomoDefaults();
+let pomoUid = null;   // whose state PM currently is; null = nobody signed in
 
-const pomoSave = () => { try { localStorage.setItem(POMO_LS, JSON.stringify(PM)); } catch {} };
+const pomoKey = () => POMO_LS + ":" + pomoUid;
+const pomoSave = () => {
+  if (!pomoUid) return;   // signed out: nothing to attribute the state to
+  try { localStorage.setItem(pomoKey(), JSON.stringify(PM)); } catch (e) {}
+};
 const pomoTotalMs = (phase = PM.phase) =>
   (phase === "focus" ? PM.focusMin : phase === "short" ? PM.shortMin : PM.longMin) * 60000;
 const pomoRemainMs = () => (PM.running && PM.endAt) ? Math.max(0, PM.endAt - Date.now()) : PM.remainMs;
@@ -3782,23 +3794,53 @@ function openPomoSettings(){
   });
 }
 
+/* Bring one account's saved state in and make it live. Called on sign-in. */
+function pomoLoadFor(uid){
+  pomoUid = uid;
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(pomoKey()) || "null");
+    if (!saved){
+      // one-time migration: state saved before it was per-account belongs
+      // to whoever signs in first; after that the shared key is gone
+      const legacy = JSON.parse(localStorage.getItem(POMO_LS) || "null");
+      if (legacy){ saved = legacy; localStorage.removeItem(POMO_LS); }
+    }
+  } catch (e) { saved = null; }
+  PM = Object.assign(pomoDefaults(), saved || {});
+  // saved prefs may predate the current theme/track catalogs
+  if (!POMO_THEMES[PM.theme]) PM.theme = "autumn";
+  if (!POMO_TRACKS[PM.track]) PM.track = "rain";
+  // a session that was running when they left: settle it honestly
+  if (PM.running && PM.endAt && PM.endAt <= Date.now()){
+    PM.running = false; PM.remainMs = 0;
+    pomoAdvance(false);
+    PM.running = false; PM.endAt = null;
+    pomoSave();
+  } else if (!PM.running){
+    PM.endAt = null;
+    PM.remainMs = Math.min(PM.remainMs, pomoTotalMs()) || pomoTotalMs();
+  }
+  pomoSetMode(PM.on);
+}
+
+/* Park the current account's state and clear the deck. Called on sign-out.
+   Order matters: save with the real uid first, THEN reset to defaults so the
+   login screen (and the next person) starts from a neutral timer. */
+function pomoUnload(){
+  if (pomoUid) pomoSave();
+  clearTimeout(pomoPreviewTimer);
+  pomoAmbientStop();
+  pomoUid = null;
+  PM = pomoDefaults();
+  pomoSetMode(false);
+}
+
 /* ---------- boot ---------- */
 (function pomoInit(){
   const pomo = $("pomo");
   if (!pomo) return;
   pomo.removeAttribute("hidden");   // CSS classes own visibility from here on
-  // saved prefs may predate the current theme/track catalogs
-  if (!POMO_THEMES[PM.theme]) PM.theme = "autumn";
-  if (!POMO_TRACKS[PM.track]) PM.track = "rain";
-  // a session that was running when the tab closed: settle it honestly
-  if (PM.running && PM.endAt && PM.endAt <= Date.now()){
-    PM.running = false; PM.remainMs = 0;
-    pomoAdvance(false);
-    PM.running = false; PM.endAt = null;
-  } else if (!PM.running){
-    PM.endAt = null;
-    PM.remainMs = Math.min(PM.remainMs, pomoTotalMs()) || pomoTotalMs();
-  }
   $("modeClocks").onclick = () => pomoSetMode(false);
   $("modeFocus").onclick = () => pomoSetMode(true);
   $("pomoPlay").onclick = () => PM.running ? pomoPause() : pomoStart();
@@ -3812,5 +3854,5 @@ function openPomoSettings(){
     if (PM.muted) pomoAmbientStop();
     pomoRender(); pomoSave();
   };
-  pomoSetMode(PM.on);
+  pomoSetMode(false);   // neutral until someone signs in and loads their own
 })();
