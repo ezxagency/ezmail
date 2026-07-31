@@ -1,3 +1,16 @@
+/* ---------- tablet / zoomed-desktop tier ----------
+   Between phone and the two-pane desktop (640-1023px CSS width - real
+   tablets, but also a desktop zoomed to 150-200%), the single column caps
+   and centres instead of stretching phone proportions across the window:
+   the rings stay adjacent, controls keep a hand-sized width. */
+@media (min-width:640px) and (max-width:1023.98px){
+  .stage{align-items:center}
+  .clock,.shiftbar,.dock,.card,.assign-panel{width:100%;max-width:680px}
+  .clock{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:8%}
+  .dock{padding-left:0;padding-right:0;margin-left:auto;margin-right:auto}
+  .card{margin-left:auto;margin-right:auto}
+}
+
 /* ---------- desktop: two-pane workspace, edge to edge ---------- */
 /* The app fills the viewport at every size. There is no centred-card
    treatment and no letterboxing: .app inherits width:100% / height:100dvh

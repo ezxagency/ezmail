@@ -25,6 +25,7 @@
           calc(env(safe-area-inset-bottom) + 60px) max(24px,env(safe-area-inset-left));
 }
 .admin-page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:8px}
+.admin-page-head > div{min-width:0}
 .admin-page-title{font-family:var(--wk);font-weight:700;font-size:28px;text-transform:uppercase;margin:0}
 .admin-page-hint{font-family:var(--body);color:var(--wk-white-70);margin:0 0 22px;font-size:14px}
 /* the sub-pages' way home: a quiet icon + word, not a pill. It sits flush
@@ -138,7 +139,7 @@
   display:flex;align-items:center;gap:14px;width:100%;padding:15px 16px;
   background:none;border:0;cursor:pointer;text-align:left;color:var(--wk-white);
 }
-.hx-when{flex:none;display:flex;flex-direction:column;gap:2px;width:112px}
+.hx-when{flex:none;display:flex;flex-direction:column;gap:2px;width:clamp(84px,14vw,112px)}
 .hx-date{font-family:var(--wk);font-weight:600;font-size:13.5px}
 .hx-clock{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);font-variant-numeric:tabular-nums}
 .hx-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
