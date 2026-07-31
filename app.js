@@ -281,6 +281,7 @@ function updateRingProgress(ringId, elapsedMs, cycleMs){
 function tick(){
   const bar = $("shiftbar");
   updateMissionTick();
+  pomoTick();
   if (S.status === "IDLE"){
     setRingTime("shiftClock", 0);
     setRingTime("taskClock", 0);
@@ -3122,6 +3123,7 @@ if (!FB_READY){
       $("appScreen").classList.remove("panes", "has-team", "has-tasks", "side-open");
       $("teamPanel").classList.add("hidden");
       teamPaneRows = null; teamPendingCount = 0;
+      pomoAmbientStop();   // nobody signed in, nothing should be playing
       return;
     }
     try {
@@ -3229,3 +3231,386 @@ if (!FB_READY){
   };
   $("pendingSignOut").onclick = () => auth.signOut();
 }
+
+/* ============================================================
+   POMODORO / FOCUS MODE
+   The left rail's second personality. All state is local to this
+   browser (localStorage) - it is a personal focus tool, not shift
+   data, so it never touches Firestore.
+   ============================================================ */
+const POMO_LS = "ez-pomo-v1";
+const POMO_ROUNDS = 4;
+const POMO_THEMES = { autumn: "Autumn", dark: "Minimal dark", forest: "Cozy forest", space: "Deep space" };
+const POMO_TRACKS = { none: "None", rain: "Autumn rain", fire: "Cozy fireplace", lofi: "Lo-fi chill", wind: "Gentle wind" };
+const POMO_LIMITS = { focusMin: [1, 90], shortMin: [1, 30], longMin: [5, 45] };
+
+let PM = Object.assign({
+  on: false, theme: "autumn",
+  focusMin: 25, shortMin: 5, longMin: 20,
+  autoBreak: true, autoFocus: false,
+  track: "rain", vol: 0.6, muted: false, chime: true,
+  phase: "focus", round: 1, running: false, endAt: null, remainMs: 25 * 60000
+}, (() => { try { return JSON.parse(localStorage.getItem(POMO_LS) || "{}"); } catch { return {}; } })());
+
+const pomoSave = () => { try { localStorage.setItem(POMO_LS, JSON.stringify(PM)); } catch {} };
+const pomoTotalMs = (phase = PM.phase) =>
+  (phase === "focus" ? PM.focusMin : phase === "short" ? PM.shortMin : PM.longMin) * 60000;
+const pomoRemainMs = () => (PM.running && PM.endAt) ? Math.max(0, PM.endAt - Date.now()) : PM.remainMs;
+const POMO_PHASE_LABEL = { focus: "Focus", short: "Short break", long: "Long break" };
+const pomoMMSS = ms => { const s = Math.max(0, Math.round(ms / 1000)); return pad(Math.floor(s / 60)) + ":" + pad(s % 60); };
+
+function pomoArcPath(p){
+  if (p <= 0.002) return "";
+  const theta = Math.min(p, 0.9999) * 360, rad = (theta * Math.PI) / 180;
+  const x = (100 + 95.5 * Math.sin(rad)).toFixed(2);
+  const y = (100 - 95.5 * Math.cos(rad)).toFixed(2);
+  return `M100,4.5 A95.5,95.5 0 ${theta > 180 ? 1 : 0} 1 ${x},${y}`;
+}
+
+/* ---------- audio engine: everything is synthesized with Web Audio, so
+   the app stays a static bundle with no media files to host or fetch.
+   Ambient runs only while the timer runs; the chime is one-shot. ---------- */
+let pomoAC = null, pomoMaster = null, pomoAmbient = null;
+function pomoCtx(){
+  pomoAC = pomoAC || new (window.AudioContext || window.webkitAudioContext)();
+  if (pomoAC.state === "suspended") pomoAC.resume();
+  if (!pomoMaster){ pomoMaster = pomoAC.createGain(); pomoMaster.connect(pomoAC.destination); }
+  pomoMaster.gain.value = PM.muted ? 0 : PM.vol;
+  return pomoAC;
+}
+let pomoNoiseBuf = null;
+function pomoNoise(ctx){
+  if (!pomoNoiseBuf){
+    pomoNoiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const d = pomoNoiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return pomoNoiseBuf;
+}
+
+function pomoAmbientStop(){
+  if (!pomoAmbient) return;
+  try { pomoAmbient.stop(); } catch (e) {}
+  pomoAmbient = null;
+}
+
+function pomoAmbientStart(){
+  pomoAmbientStop();
+  if (PM.track === "none" || PM.muted || !PM.running) return;
+  const ctx = pomoCtx();
+  const bus = ctx.createGain(); bus.connect(pomoMaster);
+  const stops = [], timers = [];
+
+  // looping filtered-noise voice - the base of rain, fire and wind
+  const noiseVoice = (vol, type, freq, q) => {
+    const src = ctx.createBufferSource(); src.buffer = pomoNoise(ctx); src.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; if (q) f.Q.value = q;
+    const g = ctx.createGain(); g.gain.value = vol;
+    src.connect(f); f.connect(g); g.connect(bus);
+    src.start();
+    stops.push(() => { try { src.stop(); } catch (e) {} });
+    return { src, f, g };
+  };
+  const lfo = (target, base, depth, hz) => {
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.frequency.value = hz; og.gain.value = depth;
+    target.value = base; o.connect(og); og.connect(target); o.start();
+    stops.push(() => { try { o.stop(); } catch (e) {} });
+  };
+  // a short one-shot noise burst (fire crackle, vinyl tick)
+  const burst = (vol, freq, dur) => {
+    const src = ctx.createBufferSource(); src.buffer = pomoNoise(ctx);
+    const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    src.connect(f); f.connect(g); g.connect(bus);
+    src.start(); src.stop(ctx.currentTime + dur + 0.05);
+  };
+
+  if (PM.track === "rain"){
+    const body = noiseVoice(0.42, "lowpass", 1300);
+    lfo(body.g.gain, 0.42, 0.08, 0.14);          // slow swells
+    noiseVoice(0.1, "highpass", 5200);            // the fine hiss of drops
+  } else if (PM.track === "fire"){
+    const rumble = noiseVoice(0.5, "lowpass", 300);
+    lfo(rumble.g.gain, 0.5, 0.1, 0.3);
+    const crackle = () => {
+      burst(0.16 + Math.random() * 0.2, 2400 + Math.random() * 2500, 0.03 + Math.random() * 0.05);
+      timers.push(setTimeout(crackle, 90 + Math.random() * 420));
+    };
+    crackle();
+  } else if (PM.track === "wind"){
+    const w = noiseVoice(0.5, "bandpass", 420, 0.9);
+    lfo(w.f.frequency, 420, 190, 0.06);           // the gust wandering
+    lfo(w.g.gain, 0.5, 0.14, 0.1);
+    noiseVoice(0.07, "highpass", 3800);           // leaves
+  } else if (PM.track === "lofi"){
+    // a two-chord pad, a soft kick, and vinyl dust - enough to sit behind work
+    const pad = (freqs) => freqs.map(fr => {
+      const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = fr;
+      o.detune.value = (Math.random() - 0.5) * 14;
+      const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 850;
+      const g = ctx.createGain(); g.gain.value = 0.05;
+      o.connect(f); f.connect(g); g.connect(bus); o.start();
+      stops.push(() => { try { o.stop(); } catch (e) {} });
+      return o;
+    });
+    const chords = [[130.8, 196.0, 246.9, 329.6], [98.0, 146.8, 220.0, 293.7]]; // Cmaj7 / Gsus feel
+    let oscs = pad(chords[0]), which = 0;
+    timers.push(setInterval(() => {
+      which = 1 - which;
+      oscs.forEach((o, i) => o.frequency.setTargetAtTime(chords[which][i], ctx.currentTime, 0.4));
+    }, 8000));
+    const kick = () => {
+      const o = ctx.createOscillator(); o.type = "sine";
+      const g = ctx.createGain();
+      o.frequency.setValueAtTime(120, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(45, ctx.currentTime + 0.12);
+      g.gain.setValueAtTime(0.11, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+      o.connect(g); g.connect(bus); o.start(); o.stop(ctx.currentTime + 0.3);
+    };
+    timers.push(setInterval(kick, 60000 / 72));   // 72 bpm heartbeat
+    const dust = () => {
+      burst(0.05 + Math.random() * 0.05, 5000, 0.02);
+      timers.push(setTimeout(dust, 300 + Math.random() * 1400));
+    };
+    dust();
+  }
+
+  pomoAmbient = { stop(){
+    stops.forEach(fn => fn());
+    timers.forEach(t => { clearTimeout(t); clearInterval(t); });
+    try { bus.disconnect(); } catch (e) {}
+  } };
+}
+
+function pomoChime(){
+  if (!PM.chime) return;
+  try {
+    const ctx = pomoCtx();
+    [[880, 0], [1174.7, 0.18]].forEach(([fr, at]) => {
+      const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = fr;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+      g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 1.1);
+      o.connect(g); g.connect(pomoMaster);
+      o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + 1.2);
+    });
+  } catch (e) { console.error(e); }
+}
+function pomoApplyVolume(){ if (pomoMaster) pomoMaster.gain.value = PM.muted ? 0 : PM.vol; }
+
+/* ---------- engine ---------- */
+function pomoSetMode(on){
+  PM.on = on;
+  $("appScreen").classList.toggle("pomo-on", on);
+  $("modeClocks").classList.toggle("is-on", !on);
+  $("modeFocus").classList.toggle("is-on", on);
+  $("modeClocks").setAttribute("aria-selected", String(!on));
+  $("modeFocus").setAttribute("aria-selected", String(on));
+  pomoApplyTheme(on ? PM.theme : null);
+  if (!on){ if (PM.running) pomoPause(); pomoAmbientStop(); }
+  pomoRender();
+  pomoSave();
+}
+
+// swap through transparent so a theme-to-theme change is also a fade
+function pomoApplyTheme(theme){
+  const app = $("appScreen");
+  if (!theme){ delete app.dataset.ptheme; return; }
+  if (app.dataset.ptheme === theme) return;
+  if (!app.dataset.ptheme){ app.dataset.ptheme = theme; return; }
+  const veil = app.querySelector(".theme-veil");
+  veil.style.opacity = "0";
+  setTimeout(() => { app.dataset.ptheme = theme; veil.style.opacity = ""; }, 200);
+}
+
+function pomoStart(){
+  PM.running = true;
+  PM.endAt = Date.now() + pomoRemainMs();
+  pomoCtx();               // unlock audio inside the user gesture
+  pomoAmbientStart();
+  pomoRender(); pomoSave();
+}
+function pomoPause(){
+  PM.remainMs = pomoRemainMs();
+  PM.running = false; PM.endAt = null;
+  pomoAmbientStop();
+  pomoRender(); pomoSave();
+}
+function pomoResetPhase(){
+  PM.remainMs = pomoTotalMs();
+  if (PM.running) PM.endAt = Date.now() + PM.remainMs;
+  pomoRender(); pomoSave();
+}
+
+/* One session ended (naturally or skipped). Standard rules: focus 1-3 earn a
+   short break, focus 4 earns the long one; a finished break starts the next
+   focus round; the long break wraps the set back to round 1. */
+function pomoAdvance(natural){
+  const wasRunning = PM.running;
+  let auto = false;
+  if (PM.phase === "focus"){
+    PM.phase = PM.round >= POMO_ROUNDS ? "long" : "short";
+    auto = PM.autoBreak;
+  } else {
+    PM.round = PM.phase === "long" ? 1 : Math.min(POMO_ROUNDS, PM.round + 1);
+    PM.phase = "focus";
+    auto = PM.autoFocus;
+  }
+  PM.remainMs = pomoTotalMs();
+  PM.running = wasRunning && auto;
+  PM.endAt = PM.running ? Date.now() + PM.remainMs : null;
+  if (natural){
+    pomoChime();
+    toast(PM.phase === "focus"
+      ? "Break over — round " + PM.round + " of " + POMO_ROUNDS
+      : (PM.phase === "long" ? "Set complete — long break earned" : "Focus done — take " + PM.shortMin + " minutes"));
+  }
+  if (PM.running) pomoAmbientStart(); else pomoAmbientStop();
+  pomoRender(); pomoSave();
+}
+
+function pomoTick(){
+  if (!PM.on) return;
+  if (PM.running && pomoRemainMs() <= 0){ pomoAdvance(true); return; }
+  if (PM.running) pomoRenderTime();
+}
+
+function pomoRenderTime(){
+  const remain = pomoRemainMs(), total = pomoTotalMs();
+  $("pomoTime").textContent = pomoMMSS(remain);
+  $("pomoArc").setAttribute("d", pomoArcPath(1 - remain / total));
+}
+
+function pomoRender(){
+  const pomo = $("pomo");
+  if (!pomo) return;
+  pomo.classList.toggle("is-focus", PM.phase === "focus");
+  pomo.classList.toggle("is-break", PM.phase !== "focus");
+  $("pomoPhase").textContent = POMO_PHASE_LABEL[PM.phase];
+  $("pomoRound").textContent = PM.phase === "long"
+    ? "Long break · set complete"
+    : "Round " + PM.round + " of " + POMO_ROUNDS;
+  const done = PM.phase === "focus" ? PM.round - 1 : PM.round;
+  $("pomoDots").innerHTML = Array.from({ length: POMO_ROUNDS }, (_, i) =>
+    `<span class="pomo-dot${i < done ? " is-done" : (i === done && PM.phase === "focus" ? " is-now" : "")}"></span>`).join("");
+  $("pomoPlay").textContent = PM.running ? "Pause"
+    : (pomoRemainMs() < pomoTotalMs() ? "Resume" : "Start");
+  $("pomoSoundOnIco").classList.toggle("hidden", PM.muted || PM.track === "none");
+  $("pomoSoundOffIco").classList.toggle("hidden", !(PM.muted || PM.track === "none"));
+  pomoRenderTime();
+}
+
+/* ---------- settings sheet ---------- */
+function pomoClamp(key, v){
+  const lim = POMO_LIMITS[key];
+  return Math.max(lim[0], Math.min(lim[1], Math.round(v) || lim[0]));
+}
+function openPomoSettings(){
+  const themeCards = Object.entries(POMO_THEMES).map(([k, label]) =>
+    `<button type="button" class="ptheme-card t-${k}" data-theme="${k}" aria-pressed="${String(PM.theme === k)}"><span>${label}</span></button>`).join("");
+  const trackChips = Object.entries(POMO_TRACKS).map(([k, label]) =>
+    `<button type="button" class="chip" data-track="${k}" aria-pressed="${String(PM.track === k)}">${label}</button>`).join("");
+  const sw = (id, label, sub, on) => `
+    <div class="prow">
+      <span class="prow-label">${label}<span class="prow-sub">${sub}</span></span>
+      <button type="button" class="pswitch" id="${id}" role="switch" aria-pressed="${String(on)}" aria-label="${label}"></button>
+    </div>`;
+  openSheet(`
+    <h2>Focus settings</h2>
+    <p class="hint">Tune the timer, the scenery and the sound. Everything here sticks on this device.</p>
+
+    <label class="fld"><span>Theme</span></label>
+    <div class="ptheme-grid" id="pThemeGrid">${themeCards}</div>
+
+    <label class="fld"><span>Session lengths (minutes)</span></label>
+    <div class="pnum-grid">
+      <label class="fld"><span>Focus</span><input type="number" id="pFocus" min="1" max="90" value="${PM.focusMin}"></label>
+      <label class="fld"><span>Short</span><input type="number" id="pShort" min="1" max="30" value="${PM.shortMin}"></label>
+      <label class="fld"><span>Long</span><input type="number" id="pLong" min="5" max="45" value="${PM.longMin}"></label>
+    </div>
+    ${sw("pAutoBreak", "Auto-start breaks", "Roll into the break when focus ends", PM.autoBreak)}
+    ${sw("pAutoFocus", "Auto-start focus", "Roll into focus when a break ends", PM.autoFocus)}
+
+    <label class="fld" style="margin-top:10px"><span>Ambient sound</span></label>
+    <div class="chips" id="pTrackChips">${trackChips}</div>
+    <div class="pvol">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>
+      <input type="range" id="pVol" min="0" max="100" value="${Math.round(PM.vol * 100)}" aria-label="Volume">
+    </div>
+    ${sw("pChime", "Completion chime", "A soft bell when a session ends", PM.chime)}
+
+    <button class="btn btn-go" id="pDone">Done</button>
+  `, () => {
+    $("pThemeGrid").querySelectorAll("[data-theme]").forEach(b => b.onclick = () => {
+      PM.theme = b.dataset.theme;
+      $("pThemeGrid").querySelectorAll("[data-theme]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      if (PM.on) pomoApplyTheme(PM.theme);
+      pomoSave();
+    });
+    // a changed length applies to the current session immediately unless it
+    // is mid-run - a running session keeps the deal it started with
+    const num = (id, key) => {
+      $(id).onchange = () => {
+        PM[key] = pomoClamp(key, Number($(id).value));
+        $(id).value = PM[key];
+        if (!PM.running) PM.remainMs = pomoTotalMs();
+        pomoRender(); pomoSave();
+      };
+    };
+    num("pFocus", "focusMin"); num("pShort", "shortMin"); num("pLong", "longMin");
+    const wireSwitch = (id, key, after) => {
+      $(id).onclick = () => {
+        PM[key] = !PM[key];
+        $(id).setAttribute("aria-pressed", String(PM[key]));
+        if (after) after();
+        pomoSave();
+      };
+    };
+    wireSwitch("pAutoBreak", "autoBreak");
+    wireSwitch("pAutoFocus", "autoFocus");
+    wireSwitch("pChime", "chime", () => { if (PM.chime) pomoChime(); });
+    $("pTrackChips").querySelectorAll("[data-track]").forEach(b => b.onclick = () => {
+      PM.track = b.dataset.track;
+      $("pTrackChips").querySelectorAll("[data-track]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      if (PM.running) pomoAmbientStart(); else pomoAmbientStop();
+      pomoRender(); pomoSave();
+    });
+    $("pVol").oninput = () => { PM.vol = Number($("pVol").value) / 100; pomoApplyVolume(); pomoSave(); };
+    $("pDone").onclick = closeSheet;
+  });
+}
+
+/* ---------- boot ---------- */
+(function pomoInit(){
+  const pomo = $("pomo");
+  if (!pomo) return;
+  pomo.removeAttribute("hidden");   // CSS classes own visibility from here on
+  // a session that was running when the tab closed: settle it honestly
+  if (PM.running && PM.endAt && PM.endAt <= Date.now()){
+    PM.running = false; PM.remainMs = 0;
+    pomoAdvance(false);
+    PM.running = false; PM.endAt = null;
+  } else if (!PM.running){
+    PM.endAt = null;
+    PM.remainMs = Math.min(PM.remainMs, pomoTotalMs()) || pomoTotalMs();
+  }
+  $("modeClocks").onclick = () => pomoSetMode(false);
+  $("modeFocus").onclick = () => pomoSetMode(true);
+  $("pomoPlay").onclick = () => PM.running ? pomoPause() : pomoStart();
+  $("pomoReset").onclick = pomoResetPhase;
+  $("pomoSkip").onclick = () => pomoAdvance(false);
+  $("pomoGear").onclick = openPomoSettings;
+  $("pomoSound").onclick = () => {
+    PM.muted = !PM.muted;
+    pomoApplyVolume();
+    if (!PM.muted && PM.running) pomoAmbientStart();
+    if (PM.muted) pomoAmbientStop();
+    pomoRender(); pomoSave();
+  };
+  pomoSetMode(PM.on);
+})();

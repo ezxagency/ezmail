@@ -114,7 +114,16 @@
   </header>
 
   <main class="stage">
+    <!-- theme veil: the Pomodoro themes paint over the marble through this,
+         so switching is a crossfade rather than a background snap -->
+    <div class="theme-veil" aria-hidden="true"></div>
     <div class="clock">
+      <!-- Clocks <-> Focus: swaps the dual rings for the Pomodoro timer -->
+      <div class="mode-switch" id="modeSwitch" role="tablist" aria-label="Timer mode">
+        <span class="mode-thumb" aria-hidden="true"></span>
+        <button type="button" class="mode-opt is-on" id="modeClocks" role="tab" aria-selected="true">Clocks</button>
+        <button type="button" class="mode-opt" id="modeFocus" role="tab" aria-selected="false">Focus</button>
+      </div>
       <div class="clock-panel">
         <div class="ring" id="shiftRing">
           <svg class="ring-svg" viewBox="0 0 200 200" aria-hidden="true">
@@ -152,6 +161,43 @@
         </div>
         <div class="clock-label">Task clock</div>
         <div class="clock-meta" id="taskMeta">Idle</div>
+      </div>
+
+      <!-- Pomodoro / Focus timer: replaces the two rings while Focus mode is on -->
+      <div class="pomo" id="pomo" hidden>
+        <div class="ring pomo-ring" id="pomoRing">
+          <svg class="ring-svg" viewBox="0 0 200 200" aria-hidden="true">
+            <defs>
+              <marker id="ringArrowPomo" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 Z"/>
+              </marker>
+            </defs>
+            <circle class="ring-track" cx="100" cy="100" r="95.5"/>
+            <path class="ring-progress" id="pomoArc" marker-end="url(#ringArrowPomo)"/>
+          </svg>
+          <div class="ring-center">
+            <span class="pomo-phase" id="pomoPhase">Focus</span>
+            <span class="ring-time pomo-time" id="pomoTime">25:00</span>
+            <span class="pomo-dots" id="pomoDots" aria-label="Round progress"></span>
+          </div>
+        </div>
+        <p class="pomo-round" id="pomoRound">Round 1 of 4</p>
+        <div class="pomo-controls">
+          <button type="button" class="pomo-side" id="pomoReset" aria-label="Reset this session" title="Reset">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8a9 9 0 1 1-1 5.5"/><path d="M3 3v5h5"/></svg>
+          </button>
+          <button type="button" class="pomo-main" id="pomoPlay">Start</button>
+          <button type="button" class="pomo-side" id="pomoSkip" aria-label="Skip to next session" title="Skip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l9 7-9 7V5z"/><path d="M17 5v14"/></svg>
+          </button>
+          <button type="button" class="pomo-side pomo-tool" id="pomoSound" aria-label="Mute or unmute ambient sound" title="Sound">
+            <svg id="pomoSoundOnIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+            <svg id="pomoSoundOffIco" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 5M22 9l-5 5"/></svg>
+          </button>
+          <button type="button" class="pomo-side pomo-tool" id="pomoGear" aria-label="Focus timer settings" title="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></svg>
+          </button>
+        </div>
       </div>
     </div>
     <div class="shiftbar" id="shiftbar"></div>
