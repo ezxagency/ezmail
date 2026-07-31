@@ -1282,9 +1282,13 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   /* Comp: two 195 circles 52 apart = 442, inside the 444 control column. With
      the svg now filling its box (r95.5), the box IS the circle, so the gap is
      simply 52/442. */
+  /* The mode switch adds a ~56px row above the rings; subtracting it from
+     the top margin keeps the rings and everything below them exactly where
+     the comp put them before the switch existed. Row gap is fixed - the
+     inherited 11.8% was a column measure and must not open up vertically. */
   .app.panes .clock{
-    padding:0;max-width:73.75%;margin-top:15.36vh;
-    grid-template-columns:repeat(2,minmax(0,1fr));gap:11.8%;
+    padding:0;max-width:73.75%;margin-top:max(10px, calc(15.36vh - 56px));
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 11.8%;
   }
   .app.panes .clock-panel{padding:0}
   .app.panes .ring{max-width:none}
@@ -1607,7 +1611,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.panes{padding-top:3vh}
   .app.panes .band{padding-bottom:0}
   .app.panes .brand-rule{margin:6px 0 12px}
-  .app.panes .clock{margin-top:5vh}
+  .app.panes .clock{margin-top:max(0px, calc(5vh - 56px))}
   .app.panes .dock{margin-top:3.4vh}
   .app.panes .card,
   .app.panes .team-panel,
@@ -1620,7 +1624,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
    rhythm down hard rather than clip the nav off the bottom */
 @media (min-width:1024px) and (max-height:660px){
   .app.panes{padding-top:2vh}
-  .app.panes .clock{margin-top:2.6vh}
+  .app.panes .clock{margin-top:0}
   .app.panes .dock{margin-top:2.2vh}
   .app.panes .clock-label{font-size:11px}
   .app.panes .card{padding-top:2.6vh}
