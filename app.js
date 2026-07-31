@@ -1143,7 +1143,10 @@ function renderCompletionLog(){
   const box = $("teamRecentlyDone");
   const rows = assignLogRows || [];
   if (!rows.length) { box.innerHTML = ""; return; }
-  const visible = rows.slice(0, assignLogShown);
+  // one row per thread - a six-task group is one line with a progress count,
+  // and its Delete removes the whole group, matching how it was assigned
+  const threads = groupAssignments(rows);
+  const visible = threads.slice(0, assignLogShown);
   box.innerHTML = `
     <p class="hint" style="margin-bottom:8px">Assignments:</p>
     <div class="table-card">
@@ -1152,45 +1155,58 @@ function renderCompletionLog(){
           <th>To</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th><th>Completed</th><th></th>
         </tr></thead>
         <tbody>
-          ${visible.map(r => `
+          ${visible.map(t => {
+            const r = t.rows[0];
+            const doneN = t.rows.filter(x => x.done).length, all = doneN === t.rows.length;
+            const doneAts = t.rows.map(x => x.doneAt).filter(Boolean);
+            const doneAt = all && doneAts.length ? Math.max(...doneAts) : null;
+            return `
             <tr>
               <td data-label="To">${esc(r.toName || "Someone")}</td>
-              <td data-label="Store">${esc(r.store || "—")}</td>
-              <td data-label="Task">${esc(r.task || "—")}</td>
-              <td data-label="Status" class="nowrap"><span class="assign-status ${r.done ? "done" : "open"}">${r.done ? "Done" : "Open"}</span></td>
+              <td data-label="Store">${esc(threadStores(t).join(", ") || "—")}</td>
+              <td data-label="Task">${esc(threadTasks(t).join(", ") || "—")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}</td>
+              <td data-label="Status" class="nowrap"><span class="assign-status ${all ? "done" : "open"}">${all ? "Done" : "Open"}</span></td>
               <td data-label="Assigned">${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
               <td data-label="Due" class="nowrap">${r.dueDate ? esc(r.dueDate) : "—"}</td>
-              <td data-label="Completed">${r.doneAt ? dayStamp(r.doneAt) + " " + clock(r.doneAt) : "—"}</td>
+              <td data-label="Completed">${doneAt ? dayStamp(doneAt) + " " + clock(doneAt) : "—"}</td>
               <td class="assign-del-cell">
-                <button type="button" class="assign-del" data-del="${esc(r.id)}"
+                <button type="button" class="assign-del" data-del="${esc(t.rows.map(x => x.id).join(","))}"
                         aria-label="Delete this assignment" title="Delete this assignment">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
                 </button>
               </td>
-            </tr>`).join("")}
+            </tr>`;
+          }).join("")}
         </tbody>
       </table>
     </div>
-    ${rows.length > assignLogShown ? `<button class="btn btn-ghost btn-sm" id="loadMoreCompleted" style="width:auto;margin-bottom:18px">Load more (${rows.length - assignLogShown} older)</button>` : ""}
+    ${threads.length > assignLogShown ? `<button class="btn btn-ghost btn-sm" id="loadMoreCompleted" style="width:auto;margin-bottom:18px">Load more (${threads.length - assignLogShown} older)</button>` : ""}
   `;
   const moreBtn = $("loadMoreCompleted");
   if (moreBtn) moreBtn.onclick = () => { assignLogShown += 8; renderCompletionLog(); };
   box.querySelectorAll("button[data-del]").forEach(b => b.onclick = () => deleteAssignment(b.dataset.del));
 }
 
-// Admin-only: remove an assignment outright. Names what is being deleted so
-// the confirm isn't a blind "are you sure", and drops the row locally rather
-// than re-fetching the whole collection.
-async function deleteAssignment(id){
-  const row = (assignLogRows || []).find(r => r.id === id);
-  const what = row ? `${row.task || "task"} at ${row.store || "—"} for ${row.toName || "someone"}` : "this assignment";
+// Admin-only: remove an assignment (or a whole group - the ids arrive as one
+// comma-joined list) outright. Names what is being deleted so the confirm
+// isn't a blind "are you sure", and drops the rows locally rather than
+// re-fetching the whole collection.
+async function deleteAssignment(idsCsv){
+  const ids = String(idsCsv).split(",").filter(Boolean);
+  const row = (assignLogRows || []).find(r => r.id === ids[0]);
+  const what = !row ? "this assignment"
+    : ids.length > 1
+      ? `all ${ids.length} tasks in this group for ${row.toName || "someone"}`
+      : `${row.task || "task"} at ${row.store || "—"} for ${row.toName || "someone"}`;
   if (!confirm(`Delete ${what}?\n\nThis removes it for them too, and can't be undone.`)) return;
   try {
-    await db.collection("assignments").doc(id).delete();
-    assignLogRows = (assignLogRows || []).filter(r => r.id !== id);
+    const batch = db.batch();
+    ids.forEach(id => batch.delete(db.collection("assignments").doc(id)));
+    await batch.commit();
+    assignLogRows = (assignLogRows || []).filter(r => !ids.includes(r.id));
     renderCompletionLog();
     loadTeamPane();
-    toast("Assignment deleted");
+    toast(ids.length > 1 ? "Group deleted" : "Assignment deleted");
   } catch (e) {
     console.error(e);
     toast("Couldn't delete — check Firestore rules allow admin deletes");
@@ -1223,6 +1239,30 @@ const STATUS_GLYPH = {
   open: ""
 };
 const STATUS_LABEL = { done: "Done", late: "Overdue", open: "Open" };
+
+/* ---------- assignment threads ----------
+   Rows born from one multi-select submit share a groupId; fold those back
+   into one thread so every table and list shows what the admin meant: one
+   grouped brief, not six lookalike rows. Rows without a groupId (assigned
+   one at a time, or written before groups existed) each stay their own
+   thread. Order of first appearance is kept, so a sorted input stays sorted. */
+function groupAssignments(rows){
+  const threads = [], byGroup = new Map();
+  rows.forEach(r => {
+    if (!r.groupId){ threads.push({ groupId: null, rows: [r] }); return; }
+    let t = byGroup.get(r.groupId);
+    if (!t){ t = { groupId: r.groupId, rows: [] }; byGroup.set(r.groupId, t); threads.push(t); }
+    t.rows.push(r);
+  });
+  return threads;
+}
+// a thread is done only when every task in it is; one late task makes it late
+function threadState(t){
+  if (t.rows.every(r => r.done)) return "done";
+  return t.rows.some(r => assignState(r) === "late") ? "late" : "open";
+}
+const threadStores = t => [...new Set(t.rows.map(r => r.store).filter(Boolean))];
+const threadTasks  = t => [...new Set(t.rows.map(r => r.task).filter(Boolean))];
 
 // "Jul 26, 2026 · 21:37" is the least important line in the card and was
 // taking the most room. Anchor it to now instead.
@@ -1259,10 +1299,12 @@ function renderTeamPane(){
 
   // The three states are counted as a partition, not overlapping sets - an
   // overdue task is not also counted as open, or the numbers don't add up to
-  // the table you see after Proceed.
-  const doneCount = rows.filter(r => r.done).length;
-  const late = rows.filter(r => assignState(r) === "late").length;
-  const openNow = rows.filter(r => assignState(r) === "open").length;
+  // the table you see after Proceed. Counted per thread, same as the table
+  // shows them, so a six-task group reads as one thing everywhere.
+  const threads = groupAssignments(rows);
+  const doneCount = threads.filter(t => threadState(t) === "done").length;
+  const late = threads.filter(t => threadState(t) === "late").length;
+  const openNow = threads.filter(t => threadState(t) === "open").length;
 
   // Same pips the expanded table uses, so the collapsed card reads as its
   // legend rather than as a separate vocabulary. Zeroes stay in place but
@@ -1291,12 +1333,13 @@ function renderTeamPane(){
       <th>User</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th>
     </tr></thead>
     <tbody>
-      ${rows.map(r => {
-        const st = assignState(r);
+      ${threads.map(t => {
+        const r = t.rows[0], st = threadState(t);
+        const doneN = t.rows.filter(x => x.done).length;
         return `<tr>
           <td class="team-td-user">${esc(r.toName || "Someone")}</td>
-          <td>${esc(r.store || "—")}</td>
-          <td>${esc(r.task || "—")}</td>
+          <td>${esc(threadStores(t).join(", ") || "—")}</td>
+          <td>${esc(threadTasks(t).join(", ") || "—")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}</td>
           <td><span class="team-dot is-${st}" title="${STATUS_LABEL[st]}" aria-label="${STATUS_LABEL[st]}">${STATUS_GLYPH[st]}</span></td>
           <td class="team-td-muted">${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
           <td class="team-td-muted">${r.dueDate ? esc(r.dueDate) : "—"}</td>
@@ -1853,9 +1896,9 @@ function afRenderSentence(){
     + ` at ` + tok(s.stores.join(", "), "a store")
     + ` — ` + tok(s.tasks.join(", "), "a task")
     + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}</b>` : "")
-    // every store x task pair becomes its own assignment, so say so before
-    // they commit rather than after four of them appear
-    + (n > 1 ? `<span class="af-count">${n} separate tasks</span>` : "");
+    // every store x task pair still lands as its own tick-able item, but they
+    // travel together - say so before they commit
+    + (n > 1 ? `<span class="af-count">${n} tasks · one group</span>` : "");
 }
 
 // Locks, pips and the Assign button all derive from afDone() so there is one
@@ -2090,8 +2133,11 @@ async function loadAssignOptions(){
 /* Every store x task pair becomes its own assignment rather than one record
    holding arrays. It keeps the existing single-value shape - so the roster,
    the tables and the exports need no changes - and it means each one can be
-   ticked off on its own, which is how they actually get worked. Written as a
-   batch so a partial set can't land. */
+   ticked off on its own, which is how they actually get worked. Pairs born
+   from one submit share a groupId, so every surface can fold them back into
+   the single thread the admin meant them as; assigned one at a time there is
+   no groupId and each stays its own thread. Written as a batch so a partial
+   set can't land. */
 async function afSubmit(){
   const s = afState;
   const btn = $("afSave");
@@ -2102,6 +2148,9 @@ async function afSubmit(){
 
   try {
     const batch = db.batch();
+    // groupSize rides on every doc because the open-tasks listener only sees
+    // rows still open - "4 of 6 done" needs to know it started as 6
+    const groupId = pairs.length > 1 ? db.collection("assignments").doc().id : null;
     const base = {
       toUid: s.uid, toName: s.name,
       // who assigned it, by name - an email is not an answer to "who asked
@@ -2109,7 +2158,8 @@ async function afSubmit(){
       fromName: S.worker || "",
       fromEmail: (auth.currentUser && auth.currentUser.email) || "",
       note: s.note.trim(), dueDate: s.due || null,
-      createdAt: Date.now(), done: false, doneAt: null
+      createdAt: Date.now(), done: false, doneAt: null,
+      groupId, groupSize: pairs.length
     };
     pairs.forEach(p => batch.set(db.collection("assignments").doc(), { ...base, ...p }));
     await batch.commit();
@@ -2136,6 +2186,7 @@ const askAssignTask = (uid, name) => openAssignFlow(uid, name);
    load, so a task assigned while you're already on the page shows up
    (and toasts) without needing a reload ---------- */
 let assignedTasksSeen = null; // null = first snapshot hasn't landed yet
+let assignedOpenRows = [];    // last snapshot, so "All done" knows the group's ids
 function watchAssignedTasks(){
   const box = $("assignedTasksSection"), list = $("assignedTasksList");
   if (!box || !auth.currentUser) return;
@@ -2150,10 +2201,20 @@ function watchAssignedTasks(){
       const rows = [];
       snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
       rows.sort((a,b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+      assignedOpenRows = rows;
+      const threads = groupAssignments(rows);
 
+      // one toast per thread, not per task - six tasks assigned in one go is
+      // one piece of news, not six
       if (assignedTasksSeen) {
-        rows.filter(r => !assignedTasksSeen.has(r.id))
-          .forEach(r => toast("New task from " + (r.fromEmail || "admin") + ": " + r.store + " · " + r.task));
+        threads.forEach(t => {
+          const fresh = t.rows.filter(r => !assignedTasksSeen.has(r.id));
+          if (!fresh.length) return;
+          const from = t.rows[0].fromName || t.rows[0].fromEmail || "admin";
+          toast(fresh.length === 1
+            ? `New task from ${from}: ${fresh[0].store} · ${fresh[0].task}`
+            : `New from ${from}: ${fresh.length} tasks · ${threadStores(t).join(", ")}`);
+        });
       }
       assignedTasksSeen = new Set(rows.map(r => r.id));
 
@@ -2172,24 +2233,70 @@ function watchAssignedTasks(){
       app.classList.toggle("has-tasks", !isAdmin);
       if (count) count.textContent = rows.length + " open";
       renderAssignedBrief(rows);
-      list.innerHTML = rows.map(r => `
+      list.innerHTML = threads.map(t => t.groupId ? assignedGroupMarkup(t) : `
         <li>
           <div>
-            <div class="h-c">${esc(r.store)} · ${esc(r.task)}</div>
-            <div class="h-d">${esc(r.note)}</div>
-            <div class="h-d">${r.dueDate ? "Due " + esc(r.dueDate) : "No due date"} · from ${esc(r.fromName || r.fromEmail || "admin")}</div>
+            <div class="h-c">${esc(t.rows[0].store)} · ${esc(t.rows[0].task)}</div>
+            <div class="h-d">${esc(t.rows[0].note)}</div>
+            <div class="h-d">${t.rows[0].dueDate ? "Due " + esc(t.rows[0].dueDate) : "No due date"} · from ${esc(t.rows[0].fromName || t.rows[0].fromEmail || "admin")}</div>
           </div>
-          <button class="btn btn-ghost btn-sm" style="width:auto" data-id="${r.id}">Done</button>
+          <button class="btn btn-ghost btn-sm" style="width:auto" data-id="${t.rows[0].id}">Done</button>
         </li>
       `).join("");
       list.querySelectorAll("button[data-id]").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
+      list.querySelectorAll("button[data-gid]").forEach(b => b.onclick = () => markGroupDone(b.dataset.gid));
     }, e => console.error(e));
   onSessionEnd(() => {
-    unsub(); assignedTasksSeen = null;
+    unsub(); assignedTasksSeen = null; assignedOpenRows = [];
     box.classList.add("hidden");
     $("appScreen").classList.remove("has-tasks");
     list.innerHTML = "";
   });
+}
+
+/* A batch assigned in one go is one thread: the shared brief (note, due,
+   who) told once up top, then each store · task pair as its own tick-able
+   line. groupSize keeps the "x of n done" honest once ticked items drop out
+   of the open-tasks query. */
+function assignedGroupMarkup(t){
+  const g = t.rows[0];
+  const total = g.groupSize || t.rows.length;
+  const doneN = Math.max(0, total - t.rows.length);
+  return `
+    <li class="assign-group">
+      <div class="ag-head">
+        <div>
+          <div class="h-c">${esc(threadStores(t).join(", "))} · ${esc(threadTasks(t).join(", "))}</div>
+          <div class="h-d">${esc(g.note)}</div>
+          <div class="h-d">${g.dueDate ? "Due " + esc(g.dueDate) : "No due date"} · from ${esc(g.fromName || g.fromEmail || "admin")} · ${doneN ? `${doneN} of ${total} done` : `${total} tasks`}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:auto" data-gid="${esc(t.groupId)}">All done</button>
+      </div>
+      <ul class="ag-items">
+        ${t.rows.map(r => `
+          <li>
+            <span class="ag-item-name">${esc(r.store)} · ${esc(r.task)}</span>
+            <button class="btn btn-ghost btn-sm ag-tick" style="width:auto" data-id="${r.id}">Done</button>
+          </li>`).join("")}
+      </ul>
+    </li>`;
+}
+
+// tick off everything still open in a group at once; written as a batch so
+// the thread can't half-complete
+async function markGroupDone(gid){
+  const ids = assignedOpenRows.filter(r => r.groupId === gid).map(r => r.id);
+  if (!ids.length) return;
+  try {
+    const batch = db.batch();
+    ids.forEach(id => batch.update(db.collection("assignments").doc(id),
+      { done: true, doneAt: Date.now(), ack: false }));
+    await batch.commit();
+    toast(ids.length === 1 ? "Marked done" : `All ${ids.length} marked done`);
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't update — check Firestore rules allow it");
+  }
 }
 
 /* The collapsed state of the employee's pane. Same shape as the admin's Team
