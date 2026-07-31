@@ -357,21 +357,144 @@ body{
 .btn-icon{display:inline-flex;vertical-align:-3px;margin-right:8px}
 .btn-icon svg{width:18px;height:18px}
 
-/* ---------- bottom nav ---------- */
-.bottom-nav{
-  display:flex;justify-content:space-around;align-items:center;
-  padding:10px 12px calc(env(safe-area-inset-bottom) + 10px);
-  background:rgba(255,255,255,.1);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-  border-top:1px solid rgba(255,255,255,.2);
-}
-.nav-btn{
-  border:0;background:none;cursor:pointer;color:var(--wk-white-70);
+/* ---------- hamburger (left of the wordmark) ---------- */
+.brand-row{display:flex;align-items:flex-start;gap:14px;min-width:0}
+.menu-btn{
+  flex:none;width:42px;height:42px;margin-top:2px;
   display:flex;align-items:center;justify-content:center;
-  width:44px;height:44px;border-radius:50%;transition:background .15s ease,color .15s ease;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);border-radius:12px;
+  cursor:pointer;color:var(--wk-white);
+  transition:background .18s ease,border-color .18s ease,transform .12s ease;
 }
-.nav-btn svg{width:22px;height:22px}
-.nav-btn:hover{color:var(--wk-white)}
-.nav-btn.active{background:var(--wk-white);color:var(--wk-navy)}
+.menu-btn:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.4)}
+.menu-btn:active{transform:scale(.94)}
+.menu-btn:focus-visible{outline:2px solid var(--wk-white);outline-offset:2px}
+.menu-lines{display:flex;flex-direction:column;gap:4px;width:17px}
+.menu-lines span{
+  display:block;height:2px;border-radius:2px;background:currentColor;
+  transition:width .22s cubic-bezier(.22,1,.36,1);
+}
+/* the three lines are staggered widths at rest and square up on hover -
+   a quiet tell that this is a control, not a logo mark */
+.menu-lines span:nth-child(2){width:72%}
+.menu-lines span:nth-child(3){width:88%}
+.menu-btn:hover .menu-lines span{width:100%}
+
+/* ---------- off-canvas drawer ---------- */
+.drawer-scrim{
+  position:fixed;inset:0;z-index:58;
+  background:rgba(6,7,10,.55);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  opacity:0;pointer-events:none;transition:opacity .28s ease;
+}
+.drawer-scrim.on{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;bottom:0;left:0;z-index:59;
+  width:min(340px,88vw);
+  display:flex;flex-direction:column;
+  padding:calc(env(safe-area-inset-top) + 22px) 18px calc(env(safe-area-inset-bottom) + 18px);
+  background:rgba(13,15,21,.86);
+  backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);
+  border-right:1px solid rgba(255,255,255,.14);
+  box-shadow:24px 0 60px rgba(0,0,0,.45);
+  transform:translateX(-102%);visibility:hidden;
+  transition:transform .34s cubic-bezier(.22,1,.36,1),visibility 0s linear .34s;
+}
+.drawer.on{transform:none;visibility:visible;transition-delay:0s}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 10px 20px}
+.drawer-brand{font-family:var(--wk);text-transform:uppercase;font-size:21px;line-height:1;white-space:nowrap;color:var(--wk-white)}
+.drawer-brand .ez{font-weight:700}
+.drawer-brand .rest{font-weight:300;margin-left:.22em}
+.drawer-close{
+  width:36px;height:36px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:none;border:0;border-radius:10px;cursor:pointer;color:var(--wk-white-60);
+  transition:background .15s ease,color .15s ease;
+}
+.drawer-close:hover{background:rgba(255,255,255,.1);color:var(--wk-white)}
+.drawer-close svg{width:17px;height:17px}
+.drawer-label{
+  margin:4px 10px 10px;font-family:var(--wk);font-size:10px;font-weight:600;
+  letter-spacing:.22em;text-transform:uppercase;color:var(--wk-white-60);
+}
+.drawer-nav{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;overflow-y:auto}
+.drawer-item{
+  position:relative;display:flex;align-items:center;gap:14px;
+  padding:11px 12px;border-radius:13px;text-decoration:none;
+  color:var(--wk-white-70);
+  transition:background .16s ease,color .16s ease,transform .16s ease;
+}
+.drawer-item:hover{background:rgba(255,255,255,.07);color:var(--wk-white);transform:translateX(2px)}
+.drawer-item:focus-visible{outline:2px solid var(--wk-white);outline-offset:-2px}
+.drawer-item .drawer-ico{
+  flex:none;width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+  border-radius:11px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+  transition:background .16s ease,border-color .16s ease;
+}
+.drawer-item .drawer-ico svg{width:18px;height:18px}
+.drawer-item .drawer-txt{
+  flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;
+  font-family:var(--wk);font-weight:500;font-size:14px;letter-spacing:.02em;
+}
+.drawer-item .drawer-txt small{
+  font-weight:400;font-size:11px;color:var(--wk-white-60);letter-spacing:.01em;
+}
+.drawer-kbd{
+  flex:none;min-width:22px;height:22px;padding:0 6px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:11px;color:var(--wk-white-60);
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:6px;
+}
+/* active route: filled row + an indicator bar hugging the left edge */
+.drawer-item.active{background:rgba(255,255,255,.12);color:var(--wk-white)}
+.drawer-item.active .drawer-ico{background:var(--wk-white);border-color:transparent;color:var(--wk-navy)}
+.drawer-item.active::before{
+  content:"";position:absolute;left:-18px;top:22%;bottom:22%;width:3px;
+  border-radius:0 3px 3px 0;background:var(--wk-white);
+}
+/* staggered entrance: items rise in reading order once the panel commits */
+.drawer-item{opacity:1}
+.drawer.on .drawer-item,.drawer.on .drawer-label,.drawer.on .drawer-foot{
+  animation:drawerItemIn .38s cubic-bezier(.22,1,.36,1) backwards;
+}
+.drawer.on .drawer-label{animation-delay:.05s}
+.drawer.on .drawer-item:nth-child(1){animation-delay:.08s}
+.drawer.on .drawer-item:nth-child(2){animation-delay:.11s}
+.drawer.on .drawer-item:nth-child(3){animation-delay:.14s}
+.drawer.on .drawer-item:nth-child(4){animation-delay:.17s}
+.drawer.on .drawer-item:nth-child(5){animation-delay:.20s}
+.drawer.on .drawer-foot{animation-delay:.24s}
+@keyframes drawerItemIn{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+.drawer-foot{
+  display:flex;align-items:center;gap:8px;
+  margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.12);
+}
+.drawer-profile{
+  flex:1;min-width:0;display:flex;align-items:center;gap:12px;
+  background:none;border:0;padding:8px 10px;border-radius:12px;cursor:pointer;text-align:left;
+  transition:background .15s ease;
+}
+.drawer-profile:hover{background:rgba(255,255,255,.07)}
+.drawer-avatar{
+  flex:none;width:36px;height:36px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--wk-white);color:var(--wk-navy);
+  font-family:var(--wk);font-weight:700;font-size:15px;text-transform:uppercase;
+}
+.drawer-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.drawer-name{
+  font-family:var(--wk);font-weight:600;font-size:13.5px;color:var(--wk-white);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.drawer-mail{
+  font-family:var(--wk);font-size:11px;color:var(--wk-white-60);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.drawer-signout{
+  flex:none;width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+  background:none;border:1px solid rgba(255,255,255,.18);border-radius:11px;cursor:pointer;
+  color:var(--wk-white-60);transition:background .15s ease,color .15s ease,border-color .15s ease;
+}
+.drawer-signout:hover{background:rgba(224,72,60,.16);border-color:rgba(224,72,60,.5);color:#ff8a7e}
+.drawer-signout svg{width:16px;height:16px}
 
 .btn{
   width:100%;border:0;border-radius:16px;padding:18px 16px;position:relative;overflow:hidden;
@@ -436,6 +559,160 @@ body{
 .admin-page-hint{font-family:var(--body);color:var(--wk-white-70);margin:0 0 22px;font-size:14px}
 .admin-page-back{display:inline-flex;align-items:center;gap:8px}
 .admin-page-back svg{width:16px;height:16px}
+
+/* ---------- standalone feature pages (Daily Mission / History / Assign) ---------- */
+/* Each page re-runs its entrance when routed to: display:none -> block
+   restarts the animation, so navigation always lands with the same settle. */
+.fpage .admin-page-inner{animation:fpageIn .4s cubic-bezier(.22,1,.36,1) both}
+@keyframes fpageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.fpage-eyebrow{
+  margin:0 0 6px;font-family:var(--wk);font-size:11px;font-weight:600;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--wk-white-60);
+}
+.fpage-section-title{
+  margin:0 0 14px;font-family:var(--wk);font-weight:700;font-size:15px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--wk-white);
+}
+/* contextual action bar: status on the left, the page's verbs on the right */
+.fpage-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin:0 0 20px;
+}
+.fpage-bar-note{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);margin:0}
+.fpage-bar-acts{display:flex;gap:10px;flex-wrap:wrap}
+.fpage-bar-acts .btn{width:auto}
+
+/* headline stats: the "is everything okay?" row before any drill-down */
+.stat-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:12px;margin:0 0 22px;
+}
+.stat-tile{
+  padding:16px 18px;border-radius:16px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+}
+.stat-tile-label{
+  font-family:var(--wk);font-size:10.5px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--wk-white-60);margin:0 0 7px;
+}
+.stat-tile-value{
+  font-family:var(--wk);font-weight:700;font-size:24px;line-height:1.1;
+  color:var(--wk-white);font-variant-numeric:tabular-nums;margin:0;overflow-wrap:anywhere;
+}
+.stat-tile-value small{font-size:13px;font-weight:500;color:var(--wk-white-70);margin-left:4px}
+.stat-tile-sub{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin:6px 0 0}
+
+/* glass section panels shared by the three pages */
+.fpage-panel{
+  padding:20px 20px 22px;border-radius:18px;margin:0 0 18px;
+  background:rgba(12,14,20,.42);border:1px solid rgba(255,255,255,.16);
+  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+}
+.fpage-panel > .fpage-section-title{margin-bottom:16px}
+
+/* per-task time bars (mission page + history detail) */
+.tbar-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.tbar-row:last-child{margin-bottom:0}
+.tbar-name{
+  flex:none;width:min(42%,220px);font-family:var(--wk);font-size:12.5px;color:var(--wk-white);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tbar-track{display:block;flex:1;height:8px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+.tbar-fill{
+  display:block;height:100%;border-radius:999px;background:var(--wk-white);
+  transform-origin:left;animation:tbarIn .6s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes tbarIn{from{transform:scaleX(0)}to{transform:none}}
+.tbar-ms{
+  flex:none;min-width:52px;text-align:right;font-family:var(--wk);font-size:12px;
+  font-weight:600;color:var(--wk-white-70);font-variant-numeric:tabular-nums;
+}
+
+/* status pill reused across pages */
+.fpage-status{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;
+  font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  background:rgba(255,255,255,.12);color:var(--wk-white);
+}
+.fpage-status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.8}
+.fpage-status.is-active{background:var(--wk-green);color:#08210a}
+.fpage-status.is-break{background:rgba(255,255,255,.26);color:#fff}
+
+/* filter chips row (history) */
+.fpage-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+.fpage-filters .chip{padding:9px 15px;font-size:13px}
+.fpage-search{flex:1;min-width:180px;max-width:320px}
+.fpage-search input{padding:11px 14px;font-size:14px;border-radius:12px}
+
+/* history: one row per shift, expandable */
+.hx-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.hx-row{
+  border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.13);
+  overflow:hidden;transition:border-color .16s ease,background .16s ease;
+}
+.hx-row:hover{border-color:rgba(255,255,255,.28)}
+.hx-row.is-open{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.3)}
+.hx-head{
+  display:flex;align-items:center;gap:14px;width:100%;padding:15px 16px;
+  background:none;border:0;cursor:pointer;text-align:left;color:var(--wk-white);
+}
+.hx-when{flex:none;display:flex;flex-direction:column;gap:2px;width:112px}
+.hx-date{font-family:var(--wk);font-weight:600;font-size:13.5px}
+.hx-clock{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);font-variant-numeric:tabular-nums}
+.hx-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.hx-store{font-family:var(--wk);font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hx-meta{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60)}
+.hx-net{
+  flex:none;font-family:var(--wk);font-weight:700;font-size:15px;
+  font-variant-numeric:tabular-nums;text-align:right;
+}
+.hx-caret{flex:none;width:16px;height:16px;color:var(--wk-white-60);transition:transform .22s cubic-bezier(.22,1,.36,1)}
+.hx-row.is-open .hx-caret{transform:rotate(180deg)}
+.hx-body{
+  display:none;padding:2px 16px 18px;
+  border-top:1px solid rgba(255,255,255,.1);
+}
+.hx-row.is-open .hx-body{display:block;animation:paneContentIn .3s cubic-bezier(.22,1,.36,1) both}
+.hx-body .fpage-section-title{font-size:11px;letter-spacing:.14em;color:var(--wk-white-60);margin:16px 0 10px}
+.hx-note{
+  font-family:var(--wk);font-size:13px;line-height:1.55;color:var(--wk-white);
+  background:rgba(255,255,255,.06);border-left:2px solid rgba(255,255,255,.4);
+  border-radius:0 10px 10px 0;padding:10px 14px;margin:0;
+}
+.hx-stars{color:var(--wk-white);letter-spacing:3px;font-size:14px}
+.hx-acts{display:flex;gap:10px;margin-top:16px}
+.hx-acts .btn{width:auto}
+.hx-day{
+  margin:8px 0 2px;font-family:var(--wk);font-size:10.5px;font-weight:600;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--wk-white-60);
+}
+.hx-day:first-child{margin-top:0}
+
+/* assign page: flow beside the log on wide screens, stacked otherwise */
+.assign-page-grid{display:flex;flex-direction:column;gap:22px}
+@media (min-width:1100px){
+  .assign-page-grid{display:grid;grid-template-columns:400px minmax(0,1fr);gap:26px;align-items:start}
+  .assign-flow-panel{position:sticky;top:10px}
+}
+.assign-flow-panel{
+  padding:22px 20px;border-radius:18px;
+  background:rgba(12,14,20,.5);border:1px solid rgba(255,255,255,.16);
+  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+}
+
+/* skeleton shimmer for async loads */
+.skel{
+  position:relative;overflow:hidden;border-radius:12px;
+  background:rgba(255,255,255,.07);min-height:16px;
+}
+.skel::after{
+  content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);
+  animation:skelSweep 1.4s ease infinite;
+}
+@keyframes skelSweep{to{transform:translateX(100%)}}
+.skel-row{height:52px;margin-bottom:10px}
+.skel-tile{height:84px}
 
 /* ---------- sheet (History / Profile / prompts) ---------- */
 .scrim{position:fixed;inset:0;background:rgba(8,9,13,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:40}
@@ -899,7 +1176,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
        instead of everything bunching at the top. The spacers collapse to 0
        on a short window, and every real row stays auto, so nothing can
        overlap when space runs out. */
-    grid-template-rows:auto minmax(0,1fr) auto auto minmax(0,1fr) auto minmax(0,1fr) auto;
+    grid-template-rows:auto minmax(0,1fr) auto auto minmax(0,1fr) auto minmax(0,1fr);
     grid-template-areas:
       "band     band"
       ".        card"
@@ -907,8 +1184,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
       "shiftbar card"
       ".        card"
       "dock     card"
-      ".        card"
-      "nav      card";
+      ".        card";
     column-gap:34px;row-gap:0;
     overflow:hidden;
     background-image:
@@ -927,11 +1203,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
      paint on top of the clock labels. Letting the track keep its content
      height means a cramped window pushes the nav down instead. */
   .dock{grid-area:dock;min-height:auto;padding:20px 0 10px 34px;justify-content:flex-end}
-  .bottom-nav{
-    grid-area:nav;justify-content:flex-start;gap:8px;
-    padding:6px 0 24px 30px;
-    background:transparent;border-top:0;backdrop-filter:none;-webkit-backdrop-filter:none;
-  }
   /* spans every content row, so the card's top and bottom edges line up with
      the left column instead of stopping short above the nav. min-height:0 is
      what actually lets it scroll inside its grid area. */
@@ -953,17 +1224,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
     /* NB: these resolve against the padding-box content width (1870 - 115 - 44
        = 1711), not the full frame width. Getting that wrong shifts every
        track left. Tracks: rail 602, Daily Mission 496, Team 593 + 20 gutter. */
-    grid-template-rows:auto auto auto auto auto minmax(0,1fr);
+    grid-template-rows:auto auto auto auto minmax(0,1fr);
     /* Two columns by default. The panes stop at the dock row, so the card's
        bottom edge is collinear with the Clock out button rather than running
-       past it to the nav. */
+       past it. */
     grid-template-columns:35.18% minmax(0,1fr);
     grid-template-areas:
       "band     band"
       "clock    card"
       "shiftbar card"
       "dock     card"
-      "nav      ."
       ".        .";
   }
   /* The third column appears when there is something to put in it: Team for an
@@ -978,7 +1248,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
       "clock    card side"
       "shiftbar card side"
       "dock     card side"
-      "nav      .    ."
       ".        .    .";
   }
   /* Page-load reveal, left to right in reading order: the rail's clocks, then
@@ -989,7 +1258,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.panes .clock,
   .app.panes .shiftbar,
   .app.panes .dock,
-  .app.panes .bottom-nav,
   .app.panes .card,
   .app.panes .team-panel,
   .app.panes .assign-panel{
@@ -1001,7 +1269,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.panes .dock{animation-delay:.15s}
   .app.panes .team-panel,
   .app.panes .assign-panel{animation-delay:.19s}
-  .app.panes .bottom-nav{animation-delay:.23s}
 
   .app.panes .band{padding:0;align-items:flex-start}
   /* comp: rule is 281 wide under a 385-wide wordmark, 3px, r12.5 */
@@ -1009,18 +1276,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.panes .shiftbar{padding:0;min-height:0}
   /* comp gaps down the rail: labels 603 -> button 661, button 757 -> nav 795 */
   .app.panes .dock{padding:0;margin-top:8.1vh}
-  /* comp insets the nav row 35px from the rail's left edge (circle at x=150).
-     Gap is 3.6% so a fourth icon (Assign, admins only) still fits the 444px
-     control column - four 97px circles at the old 8.6% came to 502px. At
-     three icons this spans 323px against the comp's 329, so the default case
-     is unchanged. */
-  .app.panes .bottom-nav{padding:0;margin:4.12vh 0 0 5.81%;gap:3.6%;justify-content:flex-start}
-  .app.panes .nav-btn{width:10.52vh;height:10.52vh;max-width:97px;max-height:97px}
-  .app.panes .nav-btn svg{width:46%;height:46%}
   /* controls occupy 444 of the 615 rail track */
   .app.panes .shiftbar,
-  .app.panes .dock,
-  .app.panes .bottom-nav{max-width:73.75%}
+  .app.panes .dock{max-width:73.75%}
   /* Comp: two 195 circles 52 apart = 442, inside the 444 control column. With
      the svg now filling its box (r95.5), the box IS the circle, so the gap is
      simply 52/442. */
@@ -1351,7 +1609,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.panes .brand-rule{margin:6px 0 12px}
   .app.panes .clock{margin-top:5vh}
   .app.panes .dock{margin-top:3.4vh}
-  .app.panes .bottom-nav{margin-top:2.4vh}
   .app.panes .card,
   .app.panes .team-panel,
   .app.panes .assign-panel{margin-top:2.4vh}
@@ -1365,7 +1622,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .app.panes{padding-top:2vh}
   .app.panes .clock{margin-top:2.6vh}
   .app.panes .dock{margin-top:2.2vh}
-  .app.panes .bottom-nav{margin-top:1.8vh}
   .app.panes .clock-label{font-size:11px}
   .app.panes .card{padding-top:2.6vh}
   .app.panes .empty{padding-top:2.5vh}
@@ -1387,7 +1643,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .shiftbar{padding-top:10px}
   .dock{padding:12px 0 6px 34px;gap:9px}
   .dock .btn{padding:14px 14px}
-  .bottom-nav{padding:4px 0 16px 30px}
   .card{margin:12px 34px 18px 0;padding:18px 20px 22px}
 }
 /* Genuinely tiny window: let the app grow past the viewport and the page
