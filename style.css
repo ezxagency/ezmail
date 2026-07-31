@@ -135,7 +135,14 @@ body{
 }
 .ring-lap-fill.on{opacity:1}
 .ring-progress{fill:none;stroke:var(--wk-green);stroke-width:9;stroke-linecap:butt;transition:stroke .2s ease}
-.ring-svg marker path{fill:var(--wk-green);fill:context-stroke}
+/* the arrowhead inherits the arc's stroke colour, and a same-colour rounded
+   stroke on the triangle softens its corners so the tip reads as a clean
+   pointer instead of a hard spike */
+.ring-svg marker path{
+  fill:var(--wk-green);fill:context-stroke;
+  stroke:var(--wk-green);stroke:context-stroke;
+  stroke-width:1.6;stroke-linejoin:round;
+}
 .band[data-s="ON_BREAK"] ~ .stage .ring-progress{stroke:rgba(255,255,255,.5)}
 .band[data-s="ON_BREAK"] ~ .stage .ring-lap-fill{stroke:rgba(255,255,255,.25)}
 .ring-center{
