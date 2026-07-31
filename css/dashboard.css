@@ -99,7 +99,7 @@
 .ring-main{font-size:clamp(22px,6vw,28px);letter-spacing:.01em}
 .ring-sec{font-size:.5em;font-weight:400;margin-left:2px;line-height:1.6}
 .clock-label{
-  margin-top:12px;font-family:var(--wk);text-transform:uppercase;letter-spacing:.14em;
+  margin-top:22px;font-family:var(--wk);text-transform:uppercase;letter-spacing:.14em;
   font-size:13px;color:var(--wk-white);font-weight:500;
 }
 .clock-meta{margin-top:4px;font-family:var(--wk);font-size:11px;color:var(--wk-white-60);letter-spacing:.1em;text-transform:uppercase}

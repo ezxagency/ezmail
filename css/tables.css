@@ -116,7 +116,7 @@
   .clock{padding:0}
   .ring{max-width:104px}
   .ring-main{font-size:18px}
-  .clock-label{margin-top:6px;font-size:11px;letter-spacing:.1em}
+  .clock-label{margin-top:14px;font-size:11px;letter-spacing:.1em}
   .clock-meta{font-size:10px}
   .shiftbar{padding-top:6px;min-height:0}
   .dock{min-height:0;padding:8px 16px}

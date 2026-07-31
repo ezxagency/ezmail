@@ -142,7 +142,7 @@
   .app.panes .ring-main{font-size:clamp(20px,1.875vw,40px)}
   .app.panes .ring-sec{font-size:.42em}
   .app.panes .clock-label{
-    margin-top:0;font-weight:600;letter-spacing:.12em;
+    margin-top:14px;font-weight:600;letter-spacing:.12em;
     font-size:clamp(12px,1.146vw,24px);
   }
   .app.panes .dock .btn{
@@ -430,7 +430,7 @@
      art have to come down with it or they overflow their cells */
   .ring{max-width:150px}
   .ring-main{font-size:24px}
-  .clock-label{margin-top:10px;font-size:12px}
+  .clock-label{margin-top:20px;font-size:12px}
   .empty-icon{width:150px;height:150px}
 
   .admin-page-inner{max-width:1000px;padding:48px 40px 72px}
@@ -493,7 +493,7 @@
   .clock{padding:8px 0 0 34px}
   .ring{max-width:118px}
   .ring-main{font-size:19px}
-  .clock-label{margin-top:8px;font-size:11px}
+  .clock-label{margin-top:16px;font-size:11px}
   .clock-meta{font-size:10px}
   .shiftbar{padding-top:10px}
   .dock{padding:12px 0 6px 34px;gap:9px}
