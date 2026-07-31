@@ -1,0 +1,524 @@
+/* ---------- desktop: two-pane workspace, edge to edge ---------- */
+/* The app fills the viewport at every size. There is no centred-card
+   treatment and no letterboxing: .app inherits width:100% / height:100dvh
+   from the base rule, so the only thing this breakpoint changes is the
+   single column becoming two panes. Below 1024px the same full-bleed app
+   just stacks into one column. */
+@media (min-width:1024px){
+  body{background:var(--wk-navy)}
+
+  .app{
+    display:grid;
+    /* left column scales with the viewport instead of sitting at a fixed
+       width, so a 1920 screen doesn't leave the rings marooned beside a
+       1500px card */
+    grid-template-columns:clamp(300px,26%,440px) minmax(0,1fr);
+    /* Slack goes in a trailing spacer row, so the rail stacks from the top
+       the way the comp does instead of being pushed to the bottom edge.
+       minmax(0,1fr) lets that spacer collapse to nothing on a short window,
+       which keeps the dock from ever being squeezed shorter than its buttons
+       and spilling upward over the shiftbar. */
+    /* Equal 1fr spacers between the rail's blocks rather than one at the end,
+       so the leftover height is shared evenly and the controls sit low
+       instead of everything bunching at the top. The spacers collapse to 0
+       on a short window, and every real row stays auto, so nothing can
+       overlap when space runs out. */
+    grid-template-rows:auto minmax(0,1fr) auto auto minmax(0,1fr) auto minmax(0,1fr);
+    grid-template-areas:
+      "band     band"
+      ".        card"
+      "clock    card"
+      "shiftbar card"
+      ".        card"
+      "dock     card"
+      ".        card";
+    column-gap:34px;row-gap:0;
+    overflow:hidden;
+    background-image:
+      linear-gradient(90deg, rgba(13,15,20,.66), rgba(13,15,20,.2) 62%),
+      url('../assets/bg-marble.webp');
+  }
+  .band{grid-area:band;align-items:center;padding:30px 34px 12px}
+  .band-actions{flex-direction:row;align-items:center;gap:12px}
+  .brand-rule{margin-bottom:12px}
+  .stage{display:contents}
+  .clock{grid-area:clock;padding:16px 0 0 34px;min-width:0}
+  .shiftbar{grid-area:shiftbar;justify-content:flex-start;padding:16px 0 0 34px;min-height:0}
+  /* min-height must stay auto. With min-height:0 the dock's auto track can
+     collapse to zero when the column is short, and because the dock is a
+     flex column justified to flex-end its buttons then overflow UPWARD and
+     paint on top of the clock labels. Letting the track keep its content
+     height means a cramped window pushes the nav down instead. */
+  .dock{grid-area:dock;min-height:auto;padding:20px 0 10px 34px;justify-content:flex-end}
+  /* spans every content row, so the card's top and bottom edges line up with
+     the left column instead of stopping short above the nav. min-height:0 is
+     what actually lets it scroll inside its grid area. */
+  .card{grid-area:card;flex:none;min-height:0;margin:16px 34px 26px 0;padding:24px 24px 28px;overflow-y:auto}
+
+  /* --- admin: third pane, measured off Figma frame 28:12 (1920x1080) ---
+     Read from the file rather than a screenshot, so these are the design's
+     own numbers rather than something scaled off an image:
+       page inset      left 115  right 41
+       rail track      115 -> 730   (615)   controls 444 wide inside it
+       Daily Mission   730 -> 1226  (496)
+       Team            1246 -> 1879 (633)   20px gutter
+     As percentages of 1920 those are the tracks below, and they sum to 100. */
+  .app.panes{
+    padding:4.56vh 2.35% 0 6.15%;
+    /* the inter-pane gutter is the team's margin-left, so the inherited
+       column-gap has to go or every track shifts right */
+    column-gap:0;
+    /* NB: these resolve against the padding-box content width (1870 - 115 - 44
+       = 1711), not the full frame width. Getting that wrong shifts every
+       track left. Tracks: rail 602, Daily Mission 496, Team 593 + 20 gutter. */
+    grid-template-rows:auto auto auto auto minmax(0,1fr);
+    /* Two columns by default. The panes stop at the dock row, so the card's
+       bottom edge is collinear with the Clock out button rather than running
+       past it. */
+    grid-template-columns:35.18% minmax(0,1fr);
+    grid-template-areas:
+      "band     band"
+      "clock    card"
+      "shiftbar card"
+      "dock     card"
+      ".        .";
+  }
+  /* The third column appears when there is something to put in it: Team for an
+     admin, Assigned tasks for everyone else. Both occupy the same grid area, so
+     the two roles get the same layout, proportions and animation - only the
+     contents differ. */
+  .app.panes.has-team,
+  .app.panes.has-tasks{
+    grid-template-columns:35.18% 28.99% minmax(0,1fr);
+    grid-template-areas:
+      "band     band band"
+      "clock    card side"
+      "shiftbar card side"
+      "dock     card side"
+      ".        .    .";
+  }
+  /* Page-load reveal, left to right in reading order: the rail's clocks, then
+     the controls, then the two panes. Short offsets - this should register as
+     the dashboard assembling, not as a sequence you have to sit through.
+     No fill-mode on the descendants of .dock, so button hover transforms are
+     not frozen by the animation's end state. */
+  .app.panes .clock,
+  .app.panes .shiftbar,
+  .app.panes .dock,
+  .app.panes .card,
+  .app.panes .team-panel,
+  .app.panes .assign-panel{
+    animation:paneContentIn .52s cubic-bezier(.22,1,.36,1) backwards;
+  }
+  .app.panes .clock{animation-delay:.05s}
+  .app.panes .shiftbar{animation-delay:.09s}
+  .app.panes .card{animation-delay:.11s}
+  .app.panes .dock{animation-delay:.15s}
+  .app.panes .team-panel,
+  .app.panes .assign-panel{animation-delay:.19s}
+
+  .app.panes .band{padding:0;align-items:flex-start}
+  /* comp: rule is 281 wide under a 385-wide wordmark, 3px, r12.5 */
+  .app.panes .brand-rule{width:73%;height:3px;border-radius:12.5px;margin:6px 0 22px}
+  .app.panes .shiftbar{padding:0;min-height:0}
+  /* comp gaps down the rail: labels 603 -> button 661, button 757 -> nav 795 */
+  .app.panes .dock{padding:0;margin-top:8.1vh}
+  /* controls occupy 444 of the 615 rail track */
+  .app.panes .shiftbar,
+  .app.panes .dock{max-width:73.75%}
+  /* Comp: two 195 circles 52 apart = 442, inside the 444 control column. With
+     the svg now filling its box (r95.5), the box IS the circle, so the gap is
+     simply 52/442. */
+  /* The mode switch adds a ~56px row above the rings; subtracting it from
+     the top margin keeps the rings and everything below them exactly where
+     the comp put them before the switch existed. Row gap is fixed - the
+     inherited 11.8% was a column measure and must not open up vertically. */
+  .app.panes .clock{
+    padding:0;max-width:73.75%;margin-top:max(10px, calc(15.36vh - 56px));
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 11.8%;
+  }
+  .app.panes .clock-panel{padding:0}
+  .app.panes .ring{max-width:none}
+  .app.panes .ring-main{font-size:clamp(20px,1.875vw,40px)}
+  .app.panes .ring-sec{font-size:.42em}
+  .app.panes .clock-label{
+    margin-top:0;font-weight:600;letter-spacing:.12em;
+    font-size:clamp(12px,1.146vw,24px);
+  }
+  .app.panes .dock .btn{
+    height:10.41vh;max-height:96px;padding:0 16px;border-radius:13px;
+    font-weight:600;letter-spacing:.12em;font-size:clamp(13px,1.146vw,24px);
+  }
+  .app.panes .dock .btn-go{box-shadow:0 8px 6px rgba(255,255,255,.25)}
+
+  /* Daily Mission: 496x662, r27, 20% white -- a LIGHT panel in the comp, not
+     the dark scrim the mobile card uses. */
+  .app.panes .card{
+    margin:1.31vh 0 0;padding:5.42vh 33px 0;
+    /* 100% of the grid area, which spans down to the dock row - same result
+       as stretch, but a definite value so it can animate to the collapsed
+       tile's height instead of snapping */
+    height:100%;align-self:stretch;min-height:0;
+    border-radius:27px;
+    background:rgba(255,255,255,.2);border:0;
+    box-shadow:5px 8px 8px rgba(0,0,0,.25);
+  }
+  .app.panes .card-head{
+    position:relative;border-bottom:0;
+    /* comp: 23px between the title's baseline box and the rule */
+    padding-bottom:23px;margin-bottom:2.6vh;
+  }
+  .app.panes .card-head > span:first-child{
+    font-weight:800;letter-spacing:.12em;line-height:.97;
+    font-size:clamp(18px,1.875vw,40px);
+  }
+  /* the comp draws the divider as its own 2px bar, not a border */
+  /* The rule is drawn as its own 2px bar in the comp, not a border, so it
+     keeps its rounded ends. Anchored to the BOTTOM of the heading rather
+     than a fixed offset from the card's top: the title's height comes from a
+     vw-based font size while a vh offset does not track it, so on a short
+     window the two drift apart and the rule lands across "MISSION". */
+  .app.panes .card-head::after{
+    content:"";position:absolute;left:0;right:0;bottom:0;
+    height:2px;border-radius:4.5px;background:var(--wk-white);
+  }
+  .app.panes .empty{padding-top:9vh;font-weight:500;font-size:clamp(13px,1.146vw,24px)}
+  .app.panes .empty-icon{width:10.9vw;height:10.9vw;max-width:210px;max-height:210px}
+
+  /* Team: 633x343, r43, rgba(20,20,20,.43), Inter throughout */
+  .app.panes .team-panel{
+    grid-area:side;display:flex;flex-direction:column;
+    margin:.45vh 0 0 3.26%;padding:4.88vh 38px 0;
+    /* definite at both ends so the swap can animate; the px floor keeps the
+       Proceed row inside the box on a short window */
+    height:max(41vh,300px);border-radius:43px;
+    background:rgba(20,20,20,.43);border:0;
+    backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+    font-family:"Inter",var(--body);
+    align-self:start;
+  }
+  .app.panes .team-panel-full{display:none}
+
+  /* --- assigned-tasks pane: the non-admin's second block --- */
+  /* Deliberately identical to the collapsed Team card so the two roles get the
+     same screen, with the contents doing the differentiating. */
+  .app.panes.has-tasks .assign-panel{
+    grid-area:side;display:flex;flex-direction:column;min-height:0;
+    margin:.45vh 0 0 3.26%;padding:4.88vh 38px 3vh;
+    /* max-height and the mobile scroll are reset here - the inner list does
+       the scrolling once this is a pane */
+    height:max(41vh,300px);max-height:none;border-radius:43px;border:0;
+    background:rgba(20,20,20,.43);
+    backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+    align-self:start;overflow:hidden;
+  }
+  /* Collapsed it shows the brief and hides the list, exactly like the Team
+     pane; expanded (.side-open) that flips. Both states are driven by the
+     shared .team-panel-* rules, so the two panes cannot drift apart. */
+  /* .has-tasks and .side-open are the same specificity and .has-tasks is
+     declared later, so the collapsed height was beating the expanded one.
+     Qualify with both so the open state actually wins, and let the list be
+     the scrolling part rather than overflowing under the Close button. */
+  .app.panes.has-tasks.side-open .assign-panel{height:61.3vh;overflow:hidden}
+  .app.panes.has-tasks.side-open .assign-panel .hist{
+    flex:1;min-height:0;overflow-y:auto;margin:0 0 1vh;
+  }
+  .app.panes.has-tasks .assign-panel-brief{display:block}
+  .app.panes.has-tasks .assign-panel-full{display:none}
+  .app.panes.side-open .assign-panel-full .team-panel-sub{display:block}
+  .app.panes.side-open .assign-panel-full .team-collapse{display:inline-flex}
+  .app.panes.has-tasks .assign-panel-head{gap:14px;margin-bottom:2.4vh}
+  .app.panes.has-tasks .assign-panel-mark{width:30px;height:30px}
+  .app.panes.has-tasks .assign-panel-title{
+    font-family:"Inter",var(--body);font-weight:700;letter-spacing:0;text-transform:none;
+    font-size:clamp(18px,1.875vw,40px);color:var(--wk-white);
+  }
+  .app.panes.has-tasks .assign-count{font-family:"Inter",var(--body);font-size:clamp(11px,.94vw,19px)}
+  /* the list is the scrolling part, so a long queue never pushes the pane out
+     of the grid area it shares with the Team card */
+  .app.panes.has-tasks .assign-panel .hist{
+    flex:1;min-height:0;overflow-y:auto;margin:0;
+    scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.5) transparent;
+  }
+  .app.panes.has-tasks .assign-panel .hist::-webkit-scrollbar{width:7px}
+  .app.panes.has-tasks .assign-panel .hist::-webkit-scrollbar-thumb{background:rgba(255,255,255,.5);border-radius:6px}
+  .app.panes.has-tasks .assign-panel .hist li{padding:1.5vh 0}
+  .app.panes.has-tasks .assign-panel .h-c{font-size:clamp(13px,1.15vw,23px)}
+  .app.panes.has-tasks .assign-panel .h-d{font-size:clamp(10px,.86vw,17px)}
+
+  /* --- the swap, animated ---
+     grid-template-columns carries the motion: both panes resize off a single
+     interpolation, so they stay in lockstep with no gap opening between them.
+     Fill, radius and height ride the same curve. The easing is a quint-style
+     ease-out - it commits early and settles long, which reads as "moved
+     deliberately" rather than the symmetric in-out that makes UI feel slow
+     at the start. prefers-reduced-motion already switches all of it off. */
+  .app.panes{transition:grid-template-columns .5s cubic-bezier(.22,1,.36,1)}
+  .app.panes .card,
+  .app.panes .team-panel,
+  .app.panes .assign-panel{
+    transition:
+      height .5s cubic-bezier(.22,1,.36,1),
+      padding .5s cubic-bezier(.22,1,.36,1),
+      border-radius .5s cubic-bezier(.22,1,.36,1),
+      background-color .38s ease;
+  }
+  /* Incoming content lands after the geometry has largely finished, and
+     rises the last few pixels into place instead of just appearing. */
+  .app.panes .team-panel-brief,
+  .app.panes .team-panel-full,
+  .app.panes .card-restore,
+  .app.panes .card-head,
+  .app.panes .punches,
+  .app.panes .empty{
+    animation:paneContentIn .34s cubic-bezier(.22,1,.36,1) .16s backwards;
+  }
+
+  /* The expensive part of this transition is not the layout - it's two
+     backdrop-filters re-blurring whatever is behind them on every frame while
+     the widths change. Suspend the blur for the duration of the swap and put
+     it back when the panes have settled; the panels keep their fill, so the
+     drop is not visible in motion. */
+  .app.panes.is-swapping .card,
+  .app.panes.is-swapping .team-panel,
+  .app.panes.is-swapping .assign-panel{
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+  }
+  .app.panes.is-swapping .card,
+  .app.panes.is-swapping .team-panel,
+  .app.panes.is-swapping .assign-panel,
+  .app.panes.is-swapping .team-table-wrap{will-change:width,height}
+  /* Team card type, straight off the comp: Inter Bold 36 title, Regular 32
+     body, Black 32 for Proceed; star 69x63. */
+  .app.panes .team-panel-head{gap:22px;margin-bottom:3.5vh}
+  .app.panes .team-panel-mark{width:3.6vw;height:3.3vw;max-width:69px;max-height:63px}
+  /* the comp's text node is literally "TEAM", so keep the uppercase */
+  .app.panes .team-panel-title{
+    font-family:"Inter",var(--body);font-weight:700;
+    letter-spacing:0;font-size:clamp(18px,1.875vw,40px);
+  }
+  .app.panes .team-panel-counts,
+  .app.panes .team-latest-who,
+  .app.panes .team-latest-what,
+  .app.panes .team-latest-when,
+  .app.panes .team-latest-none{
+    font-family:"Inter",var(--body);letter-spacing:0;text-transform:none;
+  }
+  .app.panes .team-panel-counts{margin-bottom:2.2vh}
+  .app.panes .team-stats{gap:9px 1.7vw}
+  .app.panes .team-stat{font-family:"Inter",var(--body);font-size:clamp(11px,.94vw,19px);gap:10px}
+  /* pips read smaller here than in the table - this is a legend, not data */
+  .app.panes .team-stat .team-dot{width:18px;height:18px}
+  .app.panes .team-stat .team-dot svg{width:11px;height:11px}
+  .app.panes .team-approve{font-family:"Inter",var(--body);font-size:clamp(10px,.83vw,17px);margin-top:1.4vh}
+  .app.panes .team-latest-who{font-weight:400;font-size:clamp(14px,1.35vw,28px)}
+  .app.panes .team-latest-what{font-weight:400;font-size:clamp(11px,1.04vw,21px);margin-top:.7vh}
+  .app.panes .team-latest{margin-bottom:2.2vh}
+  .app.panes .team-proceed{
+    font-family:"Inter",var(--body);font-weight:900;
+    font-size:clamp(14px,1.667vw,34px);gap:14px;
+  }
+  .app.panes .team-proceed svg{width:24px;height:24px;stroke-width:3}
+  .app.panes .card-restore-title{font-size:clamp(16px,1.6vw,34px)}
+  .app.panes .card-restore{gap:24px}
+
+  /* --- band, per the comp --- */
+  /* "EZ" Poppins Bold 64, "CLOCK IN" Rationale 64 */
+  .app.panes .brand-word{font-size:clamp(26px,3.33vw,68px)}
+  .app.panes .brand-word .rest{font-family:"Rationale",var(--wk);font-weight:400;margin-left:.14em}
+  /* person glyph 29px, name Roboto 24 with 14.4px tracking (0.6em) */
+  .app.panes .band-meta{font-size:clamp(12px,1.25vw,26px);letter-spacing:.6em}
+  .app.panes .band-meta-icon{width:1.51vw;height:1.56vw;max-width:29px;max-height:30px;margin-right:7px}
+  /* sign out 302x71, r38, 2px white border on 11% white, Poppins 30 */
+  .app.panes .band-signout{
+    padding:0 1.5vw;min-width:15.73vw;height:6.57vh;max-height:71px;
+    border-radius:38px;background:rgba(255,255,255,.11);
+    font-size:clamp(12px,1.56vw,32px);font-weight:400;letter-spacing:.02em;
+  }
+  .app.panes .admin-icon-btn{min-width:0;width:6.57vh;height:6.57vh;max-width:71px;max-height:71px;padding:0}
+
+  /* the comp carries no READY/IDLE meta under the ring labels, and no
+     CLOCKED OUT line under the name */
+  .app.panes .clock-meta,
+  .app.panes .band-state{display:none}
+
+  /* --- expanded, measured off Figma frame 29:150 ---
+     Daily Mission collapses to a 220x205 tile and Team takes 798, both at
+     r27 on 20% white. Note the Team panel CHANGES fill when it expands:
+     collapsed it is rgba(20,20,20,.43) at r43, expanded it matches the
+     Daily Mission card. That is the design's call, not an oversight. */
+  .app.panes.side-open{grid-template-columns:34.86% 12.47% minmax(0,1fr)}
+  .app.panes.side-open .team-panel,
+  .app.panes.side-open .assign-panel{
+    align-self:start;margin-left:5.49%;
+    height:61.3vh;min-height:0;
+    background:rgba(255,255,255,.2);border-radius:27px;
+    box-shadow:5px 8px 8px rgba(0,0,0,.25);
+    padding:3.05vh 38px 3.05vh;
+  }
+  .app.panes.side-open .team-panel-brief,
+  .app.panes.side-open .assign-panel-brief{display:none}
+  .app.panes.side-open .team-panel-full,
+  .app.panes.side-open .assign-panel-full{display:flex;flex-direction:column;min-height:0;flex:1}
+  /* everything except the restore tile drops out of the shrunken card */
+  .app.panes.side-open .card{
+    align-self:start;overflow:hidden;
+    height:19vh;padding:3.05vh 27px 2.4vh;
+  }
+  .app.panes.side-open .card > *{display:none}
+  .app.panes.side-open .card > .card-restore{display:flex;height:100%;justify-content:space-between}
+  .app.panes.side-open .card-restore-title{
+    font-weight:800;letter-spacing:.12em;line-height:1.09;
+    font-size:clamp(15px,1.667vw,34px);
+  }
+  .app.panes.side-open .card-restore svg{width:27px;height:27px;stroke-width:2.4}
+
+  /* Team head, expanded: Inter Bold 36 title, Regular 16 subtitle,
+     Bold 20 "Assigned Tasks:" */
+  .app.panes.side-open .team-panel-head{margin-bottom:1.4vh}
+  .app.panes.side-open .team-panel-mark{display:none}
+  .app.panes .team-panel-sub{
+    font-family:"Inter",var(--body);font-size:clamp(11px,.833vw,17px);
+    margin:0 0 2.4vh;line-height:1.3;
+  }
+  .app.panes .team-panel-label{
+    font-family:"Inter",var(--body);font-weight:700;
+    font-size:clamp(12px,1.04vw,21px);margin:0 0 1.6vh;
+  }
+  /* the table sits in its own darker box: 715x443, r18, rgba(43,43,43,.62) */
+  .app.panes .team-table-wrap{
+    background:rgba(43,43,43,.62);border:0;border-radius:18px;
+    padding:2.7vh 0 0;flex:1;min-height:0;
+    /* the comp fades the last row out rather than cutting it hard */
+    -webkit-mask-image:linear-gradient(to bottom,#000 88%,transparent 100%);
+    mask-image:linear-gradient(to bottom,#000 88%,transparent 100%);
+  }
+  .app.panes .team-table{table-layout:fixed}
+  /* th is sticky from the base rule, so it MUST keep an opaque fill - with
+     background:none the rows scrolled straight through the header and the
+     two sets of text drew on top of each other. #2b2b2b is the table box's
+     own rgba(43,43,43,.62) at full opacity. */
+  .app.panes .team-table th{
+    background:#2b2b2b;font-family:var(--wk);font-weight:700;letter-spacing:.12em;
+    font-size:clamp(9px,.73vw,15px);text-align:center;color:var(--wk-white);
+    padding:1.4vh 0;border-bottom:1px solid rgba(255,255,255,.55);
+  }
+  .app.panes .team-table th:first-child,
+  .app.panes .team-table td:first-child{padding-left:38px;text-align:left}
+  .app.panes .team-table th:last-child,
+  .app.panes .team-table td:last-child{padding-right:48px}
+  .app.panes .team-table td{
+    border-top:0;font-weight:300;color:var(--wk-white);text-align:center;
+    font-size:clamp(9px,.73vw,15px);padding:1.55vh 6px;
+  }
+  .app.panes .team-table td.team-td-user{
+    font-weight:300;letter-spacing:0;text-transform:uppercase;
+    font-size:clamp(9px,.73vw,15px);
+  }
+  .app.panes .team-table td.team-td-muted{color:var(--wk-white)}
+  /* comp status glyphs are 21x21 (Group 229/231/233/235) */
+  .app.panes .team-dot{width:21px;height:21px}
+  .app.panes .team-dot svg{width:12px;height:12px}
+  /* comp scrollbar: 7px, track rgba(159,159,159,.34), white thumb, r6 */
+  .app.panes .team-table-wrap::-webkit-scrollbar{width:7px}
+  .app.panes .team-table-wrap::-webkit-scrollbar-track{background:rgba(159,159,159,.34);border-radius:6px;margin:0 0 2vh}
+  .app.panes .team-table-wrap::-webkit-scrollbar-thumb{background:var(--wk-white);border-radius:6px}
+  .app.panes .team-table-wrap{scrollbar-color:var(--wk-white) rgba(159,159,159,.34)}
+  .app.panes .team-collapse{margin-top:1.6vh;font-family:"Inter",var(--body)}
+
+  /* the left column is narrower than a phone, so the rings and the empty-state
+     art have to come down with it or they overflow their cells */
+  .ring{max-width:150px}
+  .ring-main{font-size:24px}
+  .clock-label{margin-top:10px;font-size:12px}
+  .empty-icon{width:150px;height:150px}
+
+  .admin-page-inner{max-width:1000px;padding:48px 40px 72px}
+  .admin-page-title{font-size:34px}
+
+  .grab{display:none}
+  .sheet{
+    left:0;right:0;top:0;bottom:0;margin:auto;
+    width:min(92vw,460px);height:max-content;max-height:min(86vh,760px);
+    border-radius:22px;
+    transform:translateY(12px) scale(.985);opacity:0;pointer-events:none;
+    transition:transform .22s ease,opacity .2s ease;
+    box-shadow:0 30px 70px rgba(0,0,0,.5);
+    padding:24px 24px calc(env(safe-area-inset-bottom) + 24px);
+  }
+  .sheet.on{transform:none;opacity:1;pointer-events:auto}
+}
+
+/* The comp's vertical rhythm is derived from a 900px-tall frame. Below that
+   the vh-based gaps plus the 16.7vh bottom inset add up to more than the
+   window has, which squeezed the rail. Compress the rhythm instead - the
+   dock keeping its natural height (see min-height:auto above) is what stops
+   the squeeze from turning into an overlap. */
+@media (min-width:1024px) and (max-height:820px){
+  .app.panes{padding-top:3vh}
+  .app.panes .band{padding-bottom:0}
+  .app.panes .brand-rule{margin:6px 0 12px}
+  .app.panes .clock{margin-top:max(0px, calc(5vh - 56px))}
+  .app.panes .dock{margin-top:3.4vh}
+  .app.panes .card,
+  .app.panes .team-panel,
+  .app.panes .assign-panel{margin-top:2.4vh}
+  .app.panes .card{padding-top:3.4vh}
+  .app.panes .empty{padding-top:5vh}
+  .app.panes .empty-icon{width:7.4vw;height:7.4vw}
+}
+/* very short: the comp's proportions cannot fit, so trade the vertical
+   rhythm down hard rather than clip the nav off the bottom */
+@media (min-width:1024px) and (max-height:660px){
+  .app.panes{padding-top:2vh}
+  .app.panes .clock{margin-top:0}
+  .app.panes .dock{margin-top:2.2vh}
+  .app.panes .clock-label{font-size:11px}
+  .app.panes .card{padding-top:2.6vh}
+  .app.panes .empty{padding-top:2.5vh}
+  .app.panes .empty-icon{width:5.8vw;height:5.8vw}
+}
+
+/* Short desktop window (laptops at 1366x768 with browser chrome, or any
+   restored-down window). The left column's fixed furniture - band, rings,
+   dock, nav - adds up to more than the app's height allowance, so trim it
+   rather than let the bottom clip. */
+@media (min-width:1024px) and (max-height:780px){
+  .band{padding:18px 34px 8px}
+  .brand-rule{margin:6px 0 10px}
+  .clock{padding:8px 0 0 34px}
+  .ring{max-width:118px}
+  .ring-main{font-size:19px}
+  .clock-label{margin-top:8px;font-size:11px}
+  .clock-meta{font-size:10px}
+  .shiftbar{padding-top:10px}
+  .dock{padding:12px 0 6px 34px;gap:9px}
+  .dock .btn{padding:14px 14px}
+  .card{margin:12px 34px 18px 0;padding:18px 20px 22px}
+}
+/* Genuinely tiny window: let the app grow past the viewport and the page
+   scroll, rather than clipping the dock and nav off the bottom. The trimmed
+   left column above needs ~485px, so this only has to kick in below that -
+   at 600px it would just make the page scroll for no reason. */
+@media (min-width:1024px) and (max-height:500px){
+  .band{padding:12px 34px 4px}
+  .ring{max-width:96px}
+  .ring-main{font-size:17px}
+  .app{height:auto;min-height:100dvh;overflow:visible}
+}
+
+/* wide desktop: the rings can afford to be bigger in a wider left column */
+@media (min-width:1400px) and (min-height:781px){
+  .ring{max-width:170px}
+  .ring-main{font-size:26px}
+}
+
+/* ---------- fine details ---------- */
+.stage,.card,.sheet{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.35) transparent}
+.stage::-webkit-scrollbar,.card::-webkit-scrollbar,.sheet::-webkit-scrollbar{width:6px}
+.stage::-webkit-scrollbar-thumb,.card::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb{background:rgba(255,255,255,.35);border-radius:999px}
+.stage::-webkit-scrollbar-track,.card::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track{background:transparent}
+
+.btn:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.app :focus-visible,.sheet :focus-visible{outline:2px solid var(--wk-white);outline-offset:3px}
+

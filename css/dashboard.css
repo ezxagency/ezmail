@@ -1,0 +1,313 @@
+/* ---------- worker app shell ---------- */
+/* Full-bleed on phones. The old flat 380px cap left light-grey body gutters
+   down both sides of the dark app on every handset wider than that - which
+   is most of them now (Pixel 7 Pro 412, iPhone Pro Max 430). The cap comes
+   back at the tablet breakpoint, where centring a column is the right call. */
+.app{
+  display:flex;flex-direction:column;height:100dvh;width:100%;margin:0 auto;position:relative;
+  color:var(--wk-white);
+  background-color:var(--wk-navy);
+  background-image:
+    linear-gradient(90deg, rgba(13,15,20,.55), transparent 55%),
+    url('../assets/bg-marble-mobile.webp');
+  background-position:center;background-size:cover;background-repeat:no-repeat;
+  animation:appIn .55s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes appIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+/* shared entrance: used for the staggered pane reveal and for content
+   arriving after the pane swap */
+@keyframes paneContentIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+
+/* ---------- brand row (wordmark + username + sign out) ---------- */
+.band{
+  padding:calc(env(safe-area-inset-top) + 20px) 18px 8px;
+  display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;
+}
+.band-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none;margin-left:auto}
+.brand{min-width:0;flex:1 1 auto}
+.brand-title{display:inline-block}
+.brand-word{
+  font-family:var(--wk);text-transform:uppercase;line-height:1;white-space:nowrap;
+  font-size:clamp(26px,7vw,34px);letter-spacing:.01em;
+}
+.brand-word .ez{font-weight:700}
+.brand-word .rest{font-weight:300;margin-left:.22em}
+.brand-rule{width:100%;height:2px;background:var(--wk-white);margin:8px 0 14px;border-radius:1px}
+.band-meta-icon{width:17px;height:17px;flex:none;margin-right:9px}
+/* a button, not a label: the glyph + name is how you reach Profile */
+.band-meta{
+  display:flex;align-items:center;background:none;border:0;padding:4px 0;margin:0;
+  cursor:pointer;text-align:left;
+  font-family:var(--wk);font-weight:500;text-transform:uppercase;letter-spacing:.42em;
+  font-size:15px;color:var(--wk-white);
+  transition:opacity .15s ease;
+  /* "LUNCH · STORE EPSILON" at .42em tracking is wider than the band on a
+     narrow phone - let it wrap, and break mid-word if a store name has no
+     spaces to break at, rather than running under the sign-out button */
+  min-width:0;overflow-wrap:anywhere;
+}
+.band-meta:hover{opacity:.75}
+.band-state{
+  margin-top:5px;font-family:var(--wk);font-weight:400;text-transform:uppercase;letter-spacing:.14em;
+  font-size:11px;color:var(--wk-white-60);
+}
+.band-signout{
+  position:relative;flex:none;margin-top:2px;
+  background:transparent;border:2px solid var(--wk-white);color:var(--wk-white);
+  font-family:var(--wk);font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;
+  padding:11px 22px;border-radius:999px;cursor:pointer;transition:background .15s ease,transform .12s ease;
+}
+.band-signout:hover{background:rgba(255,255,255,.14)}
+.band-signout:active{transform:scale(.97)}
+.admin-icon-btn{width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%}
+.admin-icon-btn svg{width:20px;height:20px}
+.notif-badge{
+  position:absolute;top:-8px;right:-8px;min-width:20px;height:20px;padding:0 5px;
+  border-radius:999px;background:var(--wk-green);color:#08210a;
+  font-family:var(--wk);font-size:11px;font-weight:700;letter-spacing:0;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 10px rgba(0,0,0,.35);
+}
+
+/* ---------- ring timers ---------- */
+.stage{flex:1;min-height:0;overflow:auto;padding:6px 16px 8px;display:flex;flex-direction:column;gap:14px}
+.clock{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:6px 0 2px}
+.clock-panel{padding:6px 4px;text-align:center}
+.ring{position:relative;width:100%;max-width:190px;aspect-ratio:1/1;margin:0 auto}
+.ring-svg{width:100%;height:100%;overflow:visible}
+.ring-track{fill:none;stroke:rgba(255,255,255,.9);stroke-width:9}
+.ring-lap-fill{
+  fill:none;stroke:rgba(0,174,11,.35);stroke-width:9;
+  opacity:0;transition:opacity .4s ease,stroke .2s ease;
+}
+.ring-lap-fill.on{opacity:1}
+.ring-progress{fill:none;stroke:var(--wk-green);stroke-width:9;stroke-linecap:butt;transition:stroke .2s ease}
+/* the arrowhead inherits the arc's stroke colour, and a same-colour rounded
+   stroke on the triangle softens its corners so the tip reads as a clean
+   pointer instead of a hard spike */
+.ring-svg marker path{
+  fill:var(--wk-green);fill:context-stroke;
+  stroke:var(--wk-green);stroke:context-stroke;
+  stroke-width:1.6;stroke-linejoin:round;
+}
+.band[data-s="ON_BREAK"] ~ .stage .ring-progress{stroke:rgba(255,255,255,.5)}
+.band[data-s="ON_BREAK"] ~ .stage .ring-lap-fill{stroke:rgba(255,255,255,.25)}
+.ring-center{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+}
+.ring-time{font-family:var(--wk);font-weight:500;font-variant-numeric:tabular-nums;color:var(--wk-white);display:inline-flex;align-items:flex-start}
+.ring-main{font-size:clamp(22px,6vw,28px);letter-spacing:.01em}
+.ring-sec{font-size:.5em;font-weight:400;margin-left:2px;line-height:1.6}
+.clock-label{
+  margin-top:12px;font-family:var(--wk);text-transform:uppercase;letter-spacing:.14em;
+  font-size:13px;color:var(--wk-white);font-weight:500;
+}
+.clock-meta{margin-top:4px;font-family:var(--wk);font-size:11px;color:var(--wk-white-60);letter-spacing:.1em;text-transform:uppercase}
+.shiftbar{
+  display:flex;justify-content:center;gap:10px;align-items:baseline;
+  padding-top:10px;
+  font-family:var(--wk);font-size:12px;color:var(--wk-white-70);
+  letter-spacing:.04em;min-height:22px;text-transform:uppercase;
+}
+.shiftbar b{font-weight:600;color:var(--wk-white);font-variant-numeric:tabular-nums}
+
+/* ---------- punch card (glass panel) ---------- */
+.card{
+  /* A dark scrim, not a light one. At 3% white this panel was effectively
+     clear, so its contents inherited whatever the marble was doing behind
+     them - and the bright band of the photo runs straight through the card
+     on wide screens, which left the green store pill unreadable. */
+  background:rgba(12,14,20,.42);
+  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+  border:1px solid var(--wk-glass-border);border-radius:22px;position:relative;padding:20px 20px 32px;
+  /* flex:1 with no floor lets the card collapse to nothing when the assigned
+     panel above it is tall; the stage scrolls, so a floor costs nothing */
+  flex:1;min-height:190px;
+  margin-top:-6px;
+  /* Stacked (mobile/tablet) the punch card is flex:1, so anything after it in
+     the DOM gets pushed off the bottom of the scroll port. Ordering it last
+     keeps the assigned-tasks panel where it used to live - directly above the
+     card - without changing the DOM order the desktop grid depends on.
+     No effect on desktop, where .stage is display:contents and grid areas
+     govern placement instead. */
+  order:1;
+}
+/* ---------- Team pane (admin, desktop only) ---------- */
+/* Hidden everywhere by default; the desktop breakpoint turns it on for
+   admins. Below 1024px the shield icon's full-page Team screen is still the
+   way in - an assignments table needs more width than a phone has. */
+.team-panel{display:none}
+.team-panel-head{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+.team-panel-mark{display:flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;color:var(--wk-white)}
+.team-panel-mark svg{width:100%;height:100%}
+.team-panel-title{
+  font-family:var(--wk);font-weight:700;font-size:22px;text-transform:uppercase;
+  letter-spacing:.04em;margin:0;color:var(--wk-white);flex:1;min-width:0;
+}
+/* the vertical-dot affordance in the corner of both panes */
+.panel-menu{
+  flex:none;background:none;border:0;padding:6px 2px;margin:-6px -2px;cursor:pointer;
+  color:var(--wk-white);opacity:.85;transition:opacity .15s ease;
+}
+.panel-menu:hover{opacity:1}
+.panel-menu svg{display:block;width:20px;height:20px}
+.team-panel-counts{margin:0 0 14px}
+/* The status row reuses the expanded table's pips, so the collapsed card
+   doubles as its legend. Zero counts stay in place but dimmed - the row keeps
+   a stable shape and the eye goes straight to what is actually live. */
+.team-stats{list-style:none;display:flex;flex-wrap:wrap;gap:8px 20px;margin:0;padding:0}
+.team-stat{
+  display:flex;align-items:center;gap:9px;white-space:nowrap;
+  font-family:var(--wk);font-size:13px;color:var(--wk-white-60);letter-spacing:.01em;
+}
+.team-stat b{font-weight:600;color:var(--wk-white);font-variant-numeric:tabular-nums}
+.team-stat.is-zero{opacity:.38}
+.team-approve{
+  font-family:var(--wk);font-size:12px;color:var(--wk-white-60);
+  margin:10px 0 0;letter-spacing:.01em;
+}
+/* Two lines, not four: the event, then its context. The time rides along
+   with the store rather than claiming a line of its own. */
+.team-latest{margin-bottom:18px}
+.team-latest-who{font-family:var(--wk);font-weight:600;font-size:15px;color:var(--wk-white);line-height:1.35;overflow-wrap:anywhere}
+.team-latest-what{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-70);margin-top:4px;line-height:1.5;overflow-wrap:anywhere}
+.team-latest-when{color:var(--wk-white-60)}
+.team-latest-none{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);line-height:1.5}
+.team-proceed,.team-collapse{
+  display:inline-flex;align-items:center;gap:9px;background:none;border:0;padding:0;cursor:pointer;
+  font-family:var(--wk);font-weight:700;font-size:15px;color:var(--wk-white);letter-spacing:.02em;
+}
+.team-proceed svg,.team-collapse svg{width:17px;height:17px;transition:transform .16s ease}
+.team-proceed:hover svg{transform:translateX(3px)}
+.team-collapse{margin-top:14px;font-size:13px;color:var(--wk-white-70)}
+.team-collapse:hover{color:var(--wk-white)}
+.team-collapse:hover svg{transform:translateX(-3px)}
+.team-panel-sub{font-family:var(--wk);font-size:13.5px;color:var(--wk-white-70);margin:-8px 0 20px;line-height:1.5}
+.team-panel-label{font-family:var(--wk);font-weight:700;font-size:14px;color:var(--wk-white);margin:0 0 12px}
+.team-table-wrap{
+  background:rgba(9,11,16,.5);border:1px solid rgba(255,255,255,.1);border-radius:18px;
+  padding:6px 4px;overflow:auto;min-height:0;flex:1;
+  /* the comp shows a visible track, so keep the thumb always-on rather than
+     the hairline the rest of the app uses */
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.5) transparent;
+}
+.team-table-wrap::-webkit-scrollbar{width:8px}
+.team-table-wrap::-webkit-scrollbar-thumb{background:rgba(255,255,255,.5);border-radius:999px}
+.team-table-wrap::-webkit-scrollbar-track{background:transparent}
+.team-table{width:100%;border-collapse:collapse;font-family:var(--wk);font-size:12px}
+.team-table th{
+  position:sticky;top:0;z-index:1;background:#12151c;
+  text-align:left;padding:10px 12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--wk-white-60);font-weight:600;white-space:nowrap;
+}
+.team-table td{padding:10px 12px;border-top:1px solid rgba(255,255,255,.08);color:var(--wk-white);white-space:nowrap}
+.team-table td.team-td-user{font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:11px}
+.team-table td.team-td-muted{color:var(--wk-white-60)}
+/* grouped rows join several stores/tasks into one cell - let those two wrap
+   into a taller row instead of shoving the fixed-layout table sideways */
+.team-table td:nth-child(2),.team-table td:nth-child(3){white-space:normal;overflow-wrap:anywhere}
+.team-table tbody tr:first-child td{border-top:0}
+.team-dot{
+  display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;
+}
+.team-dot svg{width:11px;height:11px}
+.team-dot.is-done{background:#22B23A;color:#06230b}
+.team-dot.is-late{background:#E0483C;color:#2b0704}
+.team-dot.is-open{background:rgba(255,255,255,.34);color:transparent}
+.team-table-empty{padding:26px 12px;text-align:center;color:var(--wk-white-60);font-family:var(--wk);font-size:13px}
+
+/* the shrunken punch card, shown only while the Team pane is expanded */
+.card-restore{
+  display:none;width:100%;background:none;border:0;padding:0;cursor:pointer;color:var(--wk-white);
+  flex-direction:column;align-items:flex-start;gap:18px;text-align:left;
+}
+.card-restore-title{
+  font-family:var(--wk);font-weight:700;text-transform:uppercase;
+  font-size:19px;line-height:1.15;letter-spacing:.01em;
+}
+.card-restore svg{width:22px;height:22px;transition:transform .16s ease}
+.card-restore:hover svg{transform:translateX(3px)}
+
+/* ---------- assigned-tasks pane (non-admins) ---------- */
+/* Mobile: a plain section in the stage. Desktop: promoted to the second pane,
+   in the same slot and with the same treatment as the admin's Team card. */
+/* Stacked, a long task list would eat the whole scroll port and squeeze the
+   punch card to nothing, so it caps and scrolls on its own. */
+.assign-panel{
+  margin:14px 0 18px;padding-bottom:14px;
+  border-bottom:1px solid rgba(255,255,255,.18);
+  /* flex:none or it gets squeezed to nothing making room for the card's
+     min-height; capped and self-scrolling so it cannot do the squeezing
+     either. The stage scrolls when the two together exceed the viewport. */
+  flex:none;max-height:34vh;overflow-y:auto;
+}
+.assign-panel-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.assign-panel-mark{display:flex;align-items:center;justify-content:center;width:20px;height:20px;flex:none;color:var(--wk-white)}
+.assign-panel-mark svg{width:100%;height:100%}
+.assign-panel-title{
+  font-family:var(--wk);font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--wk-white-70);margin:0;flex:1;min-width:0;
+}
+.assign-count{
+  flex:none;font-family:var(--wk);font-size:11px;font-weight:600;color:var(--wk-white-60);
+  letter-spacing:.04em;
+}
+.assign-panel .hist{margin:0}
+.assign-panel .hist li:last-child{border-bottom:0}
+/* Stacked, there is no expand step - the list is simply shown. The brief and
+   the Close button belong to the desktop collapsed/expanded pair only. */
+.assign-panel-brief{display:none}
+.assign-panel-full .team-panel-sub,
+.assign-panel-full .team-collapse{display:none}
+.card-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.35);margin-bottom:4px;
+}
+.card-head > span:first-child{
+  font-family:var(--wk);font-weight:700;text-transform:uppercase;
+  font-size:20px;line-height:1.15;letter-spacing:.01em;color:var(--wk-white);
+}
+.link{background:none;border:0;padding:4px 0;margin-top:2px;font:inherit;cursor:pointer;white-space:nowrap}
+#appScreen .link,.sheet .link{
+  font-family:var(--wk);letter-spacing:.14em;text-transform:uppercase;font-size:11px;font-weight:500;
+  color:var(--wk-white-70);text-decoration:none;
+}
+#appScreen .link:hover,.sheet .link:hover{color:var(--wk-white)}
+#loginScreen .link,#pendingScreen .link,#adminScreen .link{
+  padding-left:12px;letter-spacing:inherit;text-transform:inherit;font-weight:inherit;
+  color:var(--ink);text-decoration:underline;text-underline-offset:3px;
+}
+.punches{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.punches li{
+  /* centre, not baseline: .punch-k is a padded pill, so baseline-aligning it
+     against the bare timestamp text sat the pill visibly low in the row */
+  display:flex;gap:10px;align-items:center;padding:12px 14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:12px;
+  font-family:var(--wk);font-size:13px;
+}
+.punch-t{font-weight:600;font-variant-numeric:tabular-nums;color:var(--wk-white)}
+.punch-k{
+  font-family:var(--wk);text-transform:uppercase;letter-spacing:.1em;
+  font-size:10px;font-weight:500;padding:4px 8px;
+  border:1px solid rgba(255,255,255,.4);border-radius:999px;color:var(--wk-white-70);white-space:nowrap;
+}
+.punch-k.k-task{border-color:rgba(255,255,255,.9);color:var(--wk-white)}
+.punch-k.k-break{border-color:rgba(255,255,255,.35);color:var(--wk-white-60)}
+.punch-k.k-store{border-color:var(--wk-green);color:var(--wk-green)}
+.punch-t{flex:none}
+.punch-n{color:var(--wk-white-60);flex:1;min-width:0;text-align:right;font-size:12px;overflow-wrap:anywhere}
+.stamp-in{animation:stamp .22s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes stamp{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+.empty{padding:20px 4px 24px;color:var(--wk-white-70);font-size:15px;line-height:1.6;text-align:center}
+.empty-icon{
+  display:flex;align-items:center;justify-content:center;margin:0 auto 18px;
+  width:clamp(120px,32vw,180px);height:clamp(120px,32vw,180px);border-radius:50%;
+  background:var(--wk-badge);color:var(--wk-white);
+}
+.empty-icon svg{width:38%;height:38%}
+
+/* ---------- dock (clock-in / clock-out controls) ---------- */
+.dock{padding:12px 16px 12px;display:flex;flex-direction:column;gap:12px;min-height:clamp(96px,22vh,132px);justify-content:flex-end}
+.btn-icon{display:inline-flex;vertical-align:-3px;margin-right:8px}
+.btn-icon svg{width:18px;height:18px}
+

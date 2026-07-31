@@ -1,0 +1,53 @@
+﻿:root{
+  --ink:#0F0C1B;
+  --ink-soft:#7B2CBF;
+  --paper:#F8F9FA;
+  --card:#ffffff;
+  --edge:#E4D6F5;
+  --active:#7B2CBF;
+  --break:#2D006B;
+  --idle:#9B4DDB;
+
+  --mint-100:#CFFCF6;
+  --mint-200:#9FF9ED;
+  --mint-300:#5FF5E1;
+  --mint-400:#00F5D4;
+  --mint-500:#00C7AC;
+
+  --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --cond:"IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --display:"Archivo Black", "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+
+  /* ---- worker app "Clean Marble" kit (scoped to #appScreen / .sheet only) ---- */
+  --wk:"Poppins", var(--body);
+  --wk-navy:#161922;
+  --wk-green:#00AE0B;
+  --wk-white:#FFFFFF;
+  --wk-white-70:rgba(255,255,255,.7);
+  --wk-white-60:rgba(255,255,255,.6);
+  --wk-glass:rgba(255,255,255,.14);
+  --wk-glass-border:rgba(255,255,255,.28);
+  --wk-sheet-bg:rgba(16,18,24,.88);
+  --wk-badge:rgba(0,0,0,.5);
+
+  /* ---- "Shift Card" login screen kit (scoped to #loginScreen only) ---- */
+  --sc-bg:#F2ECDD;
+  --sc-card:#FFFFFF;
+  --sc-input:#EAE2D2;
+  --sc-green:#2F6844;
+  --sc-green-dark:#1F4A30;
+  --sc-badge:#8FA888;
+  --sc-ink:#2B2B28;
+  --sc-muted:#6B6558;
+  --sc-footer:#A79E8C;
+  --sc-serif:"Lora", Georgia, serif;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;min-height:100%}
+body{
+  background:#F8F9FA;
+  color:var(--ink);font-family:var(--body);overscroll-behavior:none;-webkit-font-smoothing:antialiased;
+}
+

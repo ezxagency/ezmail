@@ -1,0 +1,186 @@
+@media (hover:hover){
+  .btn:not([disabled]):hover{transform:translateY(-2px)}
+  .btn-go:not([disabled]):hover{box-shadow:0 16px 30px rgba(0,0,0,.35)}
+  .btn-ghost:not([disabled]):hover{background:rgba(255,255,255,.18)}
+}
+
+/* ---------- admin full pages (Team, Assign task) - not sheets ---------- */
+.admin-page{
+  position:fixed;inset:0;z-index:30;overflow-y:auto;
+  background-color:var(--wk-navy);
+  /* The scrim has to hold a floor of darkness right across the page, not fade
+     to transparent at 55%. This is full-width text on a photo whose right half
+     is near-white marble - the roster's hours and the assignment table were
+     white-on-white out there, badly so once the desktop width widened them. */
+  background-image:
+    linear-gradient(90deg, rgba(11,13,18,.84), rgba(11,13,18,.62) 55%, rgba(11,13,18,.72)),
+    url('../assets/bg-marble.webp');
+  background-position:center;background-size:cover;background-repeat:no-repeat;
+  color:var(--wk-white);
+}
+.admin-page-inner{
+  max-width:720px;margin:0 auto;
+  /* max() on the sides keeps the content clear of a landscape notch */
+  padding:calc(env(safe-area-inset-top) + 32px) max(24px,env(safe-area-inset-right))
+          calc(env(safe-area-inset-bottom) + 60px) max(24px,env(safe-area-inset-left));
+}
+.admin-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.admin-page-title{font-family:var(--wk);font-weight:700;font-size:28px;text-transform:uppercase;margin:0}
+.admin-page-hint{font-family:var(--body);color:var(--wk-white-70);margin:0 0 22px;font-size:14px}
+.admin-page-back{display:inline-flex;align-items:center;gap:8px}
+.admin-page-back svg{width:16px;height:16px}
+
+/* ---------- standalone feature pages (Daily Mission / History / Assign) ---------- */
+/* Each page re-runs its entrance when routed to: display:none -> block
+   restarts the animation, so navigation always lands with the same settle. */
+.fpage .admin-page-inner{animation:fpageIn .4s cubic-bezier(.22,1,.36,1) both}
+@keyframes fpageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.fpage-eyebrow{
+  margin:0 0 6px;font-family:var(--wk);font-size:11px;font-weight:600;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--wk-white-60);
+}
+.fpage-section-title{
+  margin:0 0 14px;font-family:var(--wk);font-weight:700;font-size:15px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--wk-white);
+}
+/* contextual action bar: status on the left, the page's verbs on the right */
+.fpage-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin:0 0 20px;
+}
+.fpage-bar-note{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);margin:0}
+.fpage-bar-acts{display:flex;gap:10px;flex-wrap:wrap}
+.fpage-bar-acts .btn{width:auto}
+
+/* headline stats: the "is everything okay?" row before any drill-down */
+.stat-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:12px;margin:0 0 22px;
+}
+.stat-tile{
+  padding:16px 18px;border-radius:16px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+}
+.stat-tile-label{
+  font-family:var(--wk);font-size:10.5px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--wk-white-60);margin:0 0 7px;
+}
+.stat-tile-value{
+  font-family:var(--wk);font-weight:700;font-size:24px;line-height:1.1;
+  color:var(--wk-white);font-variant-numeric:tabular-nums;margin:0;overflow-wrap:anywhere;
+}
+.stat-tile-value small{font-size:13px;font-weight:500;color:var(--wk-white-70);margin-left:4px}
+.stat-tile-sub{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin:6px 0 0}
+
+/* glass section panels shared by the three pages */
+.fpage-panel{
+  padding:20px 20px 22px;border-radius:18px;margin:0 0 18px;
+  background:rgba(12,14,20,.42);border:1px solid rgba(255,255,255,.16);
+  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+}
+.fpage-panel > .fpage-section-title{margin-bottom:16px}
+
+/* per-task time bars (mission page + history detail) */
+.tbar-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.tbar-row:last-child{margin-bottom:0}
+.tbar-name{
+  flex:none;width:min(42%,220px);font-family:var(--wk);font-size:12.5px;color:var(--wk-white);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tbar-track{display:block;flex:1;height:8px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+.tbar-fill{
+  display:block;height:100%;border-radius:999px;background:var(--wk-white);
+  transform-origin:left;animation:tbarIn .6s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes tbarIn{from{transform:scaleX(0)}to{transform:none}}
+.tbar-ms{
+  flex:none;min-width:52px;text-align:right;font-family:var(--wk);font-size:12px;
+  font-weight:600;color:var(--wk-white-70);font-variant-numeric:tabular-nums;
+}
+
+/* status pill reused across pages */
+.fpage-status{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;
+  font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  background:rgba(255,255,255,.12);color:var(--wk-white);
+}
+.fpage-status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.8}
+.fpage-status.is-active{background:var(--wk-green);color:#08210a}
+.fpage-status.is-break{background:rgba(255,255,255,.26);color:#fff}
+
+/* filter chips row (history) */
+.fpage-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+.fpage-filters .chip{padding:9px 15px;font-size:13px}
+.fpage-search{flex:1;min-width:180px;max-width:320px}
+.fpage-search input{padding:11px 14px;font-size:14px;border-radius:12px}
+
+/* history: one row per shift, expandable */
+.hx-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.hx-row{
+  border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.13);
+  overflow:hidden;transition:border-color .16s ease,background .16s ease;
+}
+.hx-row:hover{border-color:rgba(255,255,255,.28)}
+.hx-row.is-open{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.3)}
+.hx-head{
+  display:flex;align-items:center;gap:14px;width:100%;padding:15px 16px;
+  background:none;border:0;cursor:pointer;text-align:left;color:var(--wk-white);
+}
+.hx-when{flex:none;display:flex;flex-direction:column;gap:2px;width:112px}
+.hx-date{font-family:var(--wk);font-weight:600;font-size:13.5px}
+.hx-clock{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);font-variant-numeric:tabular-nums}
+.hx-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.hx-store{font-family:var(--wk);font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hx-meta{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60)}
+.hx-net{
+  flex:none;font-family:var(--wk);font-weight:700;font-size:15px;
+  font-variant-numeric:tabular-nums;text-align:right;
+}
+.hx-caret{flex:none;width:16px;height:16px;color:var(--wk-white-60);transition:transform .22s cubic-bezier(.22,1,.36,1)}
+.hx-row.is-open .hx-caret{transform:rotate(180deg)}
+.hx-body{
+  display:none;padding:2px 16px 18px;
+  border-top:1px solid rgba(255,255,255,.1);
+}
+.hx-row.is-open .hx-body{display:block;animation:paneContentIn .3s cubic-bezier(.22,1,.36,1) both}
+.hx-body .fpage-section-title{font-size:11px;letter-spacing:.14em;color:var(--wk-white-60);margin:16px 0 10px}
+.hx-note{
+  font-family:var(--wk);font-size:13px;line-height:1.55;color:var(--wk-white);
+  background:rgba(255,255,255,.06);border-left:2px solid rgba(255,255,255,.4);
+  border-radius:0 10px 10px 0;padding:10px 14px;margin:0;
+}
+.hx-stars{color:var(--wk-white);letter-spacing:3px;font-size:14px}
+.hx-acts{display:flex;gap:10px;margin-top:16px}
+.hx-acts .btn{width:auto}
+.hx-day{
+  margin:8px 0 2px;font-family:var(--wk);font-size:10.5px;font-weight:600;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--wk-white-60);
+}
+.hx-day:first-child{margin-top:0}
+
+/* assign page: flow beside the log on wide screens, stacked otherwise */
+.assign-page-grid{display:flex;flex-direction:column;gap:22px}
+@media (min-width:1100px){
+  .assign-page-grid{display:grid;grid-template-columns:400px minmax(0,1fr);gap:26px;align-items:start}
+  .assign-flow-panel{position:sticky;top:10px}
+}
+.assign-flow-panel{
+  padding:22px 20px;border-radius:18px;
+  background:rgba(12,14,20,.5);border:1px solid rgba(255,255,255,.16);
+  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+}
+
+/* skeleton shimmer for async loads */
+.skel{
+  position:relative;overflow:hidden;border-radius:12px;
+  background:rgba(255,255,255,.07);min-height:16px;
+}
+.skel::after{
+  content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);
+  animation:skelSweep 1.4s ease infinite;
+}
+@keyframes skelSweep{to{transform:translateX(100%)}}
+.skel-row{height:52px;margin-bottom:10px}
+.skel-tile{height:84px}
+
