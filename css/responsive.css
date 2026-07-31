@@ -35,7 +35,7 @@
     column-gap:34px;row-gap:0;
     overflow:hidden;
     background-image:
-      linear-gradient(90deg, rgba(13,15,20,.66), rgba(13,15,20,.2) 62%),
+      linear-gradient(90deg, rgba(13,15,20,.66), rgba(13,15,20,.24) 62%, rgba(13,15,20,.5)),
       url('../assets/bg-marble.webp');
   }
   .band{grid-area:band;align-items:center;padding:30px 34px 12px}
@@ -160,7 +160,7 @@
        tile's height instead of snapping */
     height:100%;align-self:stretch;min-height:0;
     border-radius:27px;
-    background:rgba(255,255,255,.2);border:0;
+    background:rgba(255,244,229,.2);border:0;
     box-shadow:5px 8px 8px rgba(0,0,0,.25);
   }
   .app.panes .card-head{
@@ -192,8 +192,8 @@
     /* definite at both ends so the swap can animate; the px floor keeps the
        Proceed row inside the box on a short window */
     height:max(41vh,300px);border-radius:43px;
-    background:rgba(20,20,20,.43);border:0;
-    backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+    background:rgba(255,244,229,.18);border:0;
+    backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
     font-family:"Inter",var(--body);
     align-self:start;
   }
@@ -208,8 +208,8 @@
     /* max-height and the mobile scroll are reset here - the inner list does
        the scrolling once this is a pane */
     height:max(41vh,300px);max-height:none;border-radius:43px;border:0;
-    background:rgba(20,20,20,.43);
-    backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
+    background:rgba(255,244,229,.18);
+    backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
     align-self:start;overflow:hidden;
   }
   /* Collapsed it shows the brief and hides the list, exactly like the Team
@@ -352,7 +352,7 @@
   .app.panes.side-open .assign-panel{
     align-self:start;margin-left:5.49%;
     height:61.3vh;min-height:0;
-    background:rgba(255,255,255,.2);border-radius:27px;
+    background:rgba(255,244,229,.2);border-radius:27px;
     box-shadow:5px 8px 8px rgba(0,0,0,.25);
     padding:3.05vh 38px 3.05vh;
   }

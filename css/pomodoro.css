@@ -208,6 +208,13 @@
   transition:transform .32s cubic-bezier(.22,1,.36,1);
 }
 .app.pomo-on .mode-thumb{transform:translateX(92px)}
+/* a session running behind the clocks: the Focus tab wears a breathing dot */
+.mode-opt.is-live:not(.is-on)::after{
+  content:"";position:absolute;top:7px;right:10px;width:6px;height:6px;border-radius:50%;
+  background:var(--wk-green);box-shadow:0 0 6px rgba(0,174,11,.9);
+  animation:liveDot 1.6s ease-in-out infinite alternate;
+}
+@keyframes liveDot{from{opacity:.45}to{opacity:1}}
 
 /* ---------- the focus timer itself ---------- */
 /* Swap is display-based inside the same grid area, so the right-hand card's

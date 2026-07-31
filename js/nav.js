@@ -106,6 +106,15 @@ function applyRoute(){
 window.addEventListener("hashchange", applyRoute);
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(""));
 
+/* Sub-pages behave like modals: a click on the empty gutter AROUND the
+   page's content column walks back to the dashboard, same as Back or Esc.
+   Bound once at boot (no per-open listeners to leak); e.target === page
+   is only ever true for the gutter, never for anything inside the column. */
+Object.keys(PAGE_IDS).forEach(k => {
+  const el = $(PAGE_IDS[k]);
+  if (el) el.addEventListener("click", e => { if (e.target === el) go(""); });
+});
+
 // re-render whichever page is open when the shift state changes underneath it
 function refreshOpenPage(){
   const r = currentRoute();

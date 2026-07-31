@@ -6,7 +6,7 @@
 
 /* ---------- admin full pages (Team, Assign task) - not sheets ---------- */
 .admin-page{
-  position:fixed;inset:0;z-index:30;overflow-y:auto;
+  position:fixed;inset:0;z-index:30;overflow-y:auto;overscroll-behavior:contain;
   background-color:var(--wk-navy);
   /* The scrim has to hold a floor of darkness right across the page, not fade
      to transparent at 55%. This is full-width text on a photo whose right half
@@ -27,8 +27,20 @@
 .admin-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
 .admin-page-title{font-family:var(--wk);font-weight:700;font-size:28px;text-transform:uppercase;margin:0}
 .admin-page-hint{font-family:var(--body);color:var(--wk-white-70);margin:0 0 22px;font-size:14px}
-.admin-page-back{display:inline-flex;align-items:center;gap:8px}
-.admin-page-back svg{width:16px;height:16px}
+/* the sub-pages' way home: a quiet icon + word, not a pill. It sits flush
+   with the page title and only asserts itself on hover. */
+.page-back{
+  display:inline-flex;align-items:center;gap:7px;flex:none;
+  background:none;border:0;padding:8px 10px;margin:-4px -10px 0 0;
+  border-radius:10px;cursor:pointer;
+  font-family:var(--wk);font-size:12px;font-weight:500;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--wk-white-60);
+  transition:color .16s ease,background .16s ease;
+}
+.page-back:hover{color:var(--wk-white);background:rgba(255,255,255,.07)}
+.page-back:active{transform:scale(.96)}
+.page-back svg{width:15px;height:15px;transition:transform .18s ease}
+.page-back:hover svg{transform:translateX(-3px)}
 
 /* ---------- standalone feature pages (Daily Mission / History / Assign) ---------- */
 /* Each page re-runs its entrance when routed to: display:none -> block

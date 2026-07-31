@@ -8,7 +8,7 @@
   color:var(--wk-white);
   background-color:var(--wk-navy);
   background-image:
-    linear-gradient(90deg, rgba(13,15,20,.55), transparent 55%),
+    linear-gradient(90deg, rgba(13,15,20,.6), rgba(13,15,20,.28) 55%, rgba(13,15,20,.48)),
     url('../assets/bg-marble-mobile.webp');
   background-position:center;background-size:cover;background-repeat:no-repeat;
   animation:appIn .55s cubic-bezier(.2,.8,.2,1) both;
@@ -117,9 +117,9 @@
      clear, so its contents inherited whatever the marble was doing behind
      them - and the bright band of the photo runs straight through the card
      on wide screens, which left the green store pill unreadable. */
-  background:rgba(12,14,20,.42);
-  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
-  border:1px solid var(--wk-glass-border);border-radius:22px;position:relative;padding:20px 20px 32px;
+  background:rgba(255,244,229,.16);
+  backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
+  border:1px solid rgba(255,255,255,.26);border-radius:22px;position:relative;padding:20px 20px 32px;
   /* flex:1 with no floor lets the card collapse to nothing when the assigned
      panel above it is tall; the stage scrolls, so a floor costs nothing */
   flex:1;min-height:190px;

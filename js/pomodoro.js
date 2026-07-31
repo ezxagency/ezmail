@@ -318,13 +318,18 @@ function pomoChime(){
   if (!PM.chime) return;
   try {
     const ctx = pomoCtx();
+    // the alarm bypasses the ambient mute on purpose: muting the soundscape
+    // shouldn't silence the session boundary. Its own toggle is PM.chime.
+    const bell = ctx.createGain();
+    bell.gain.value = Math.max(PM.vol, 0.3);
+    bell.connect(ctx.destination);
     [[880, 0], [1174.7, 0.18]].forEach(([fr, at]) => {
       const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = fr;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, ctx.currentTime + at);
       g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + at + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 1.1);
-      o.connect(g); g.connect(pomoMaster);
+      o.connect(g); g.connect(bell);
       o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + 1.2);
     });
   } catch (e) { console.error(e); }
@@ -332,6 +337,10 @@ function pomoChime(){
 function pomoApplyVolume(){ if (pomoMaster) pomoMaster.gain.value = PM.muted ? 0 : PM.vol; }
 
 /* ---------- engine ---------- */
+/* The switch changes the VIEW, not the session: a running countdown (and
+   its ambient sound) carries on behind the clocks and the tab shows a live
+   dot, so flipping back lands on the exact remaining time. Only sign-out
+   ends a session. */
 function pomoSetMode(on){
   PM.on = on;
   $("appScreen").classList.toggle("pomo-on", on);
@@ -340,7 +349,7 @@ function pomoSetMode(on){
   $("modeClocks").setAttribute("aria-selected", String(!on));
   $("modeFocus").setAttribute("aria-selected", String(on));
   pomoApplyTheme(on ? PM.theme : null);
-  if (!on){ if (PM.running) pomoPause(); pomoAmbientStop(); }
+  if (!on && !PM.running) pomoAmbientStop();   // leftover previews etc.
   pomoRender();
   pomoSave();
 }
@@ -403,9 +412,10 @@ function pomoAdvance(natural){
 }
 
 function pomoTick(){
-  if (!PM.on) return;
+  // boundaries fire no matter which view is up - the alarm and the
+  // work/short/long branching don't care what you're looking at
   if (PM.running && pomoRemainMs() <= 0){ pomoAdvance(true); return; }
-  if (PM.running) pomoRenderTime();
+  if (PM.on && PM.running) pomoRenderTime();
 }
 
 function pomoRenderTime(){
@@ -430,6 +440,8 @@ function pomoRender(){
     : (pomoRemainMs() < pomoTotalMs() ? "Resume" : "Start");
   $("pomoSoundOnIco").classList.toggle("hidden", PM.muted || PM.track === "none");
   $("pomoSoundOffIco").classList.toggle("hidden", !(PM.muted || PM.track === "none"));
+  // the Focus tab wears a live dot while a session runs behind the clocks
+  $("modeFocus").classList.toggle("is-live", PM.running);
   pomoRenderTime();
 }
 
