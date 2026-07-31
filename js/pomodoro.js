@@ -588,10 +588,19 @@ function pomoLoadFor(uid){
 }
 
 /* Park the current account's state and clear the deck. Called on sign-out.
-   Order matters: save with the real uid first, THEN reset to defaults so the
-   login screen (and the next person) starts from a neutral timer. */
+   Signing out ENDS the focus session: the parked state keeps every
+   preference (mode, theme, sound, durations) but the countdown itself is
+   reset, so signing back in always starts a fresh round 1. A plain reload
+   never passes through here, which is why a refresh still resumes.
+   Order matters: save with the real uid first, THEN reset to defaults so
+   the login screen (and the next person) sees a neutral timer. */
 function pomoUnload(){
-  if (pomoUid) pomoSave();
+  if (pomoUid){
+    PM.running = false; PM.endAt = null;
+    PM.phase = "focus"; PM.round = 1;
+    PM.remainMs = PM.focusMin * 60000;
+    pomoSave();
+  }
   clearTimeout(pomoPreviewTimer);
   pomoAmbientStop();
   pomoUid = null;
