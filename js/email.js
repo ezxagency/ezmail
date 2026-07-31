@@ -34,10 +34,10 @@ function summaryEmailHTML(name, rangeLabel, rows){
   const m = summaryModel(rows);
   const kpi = (label, value) => `
     <td style="padding:14px 8px;text-align:center;background:#f6f4ef;border-radius:10px">
-      <div style="font:600 10px/1.4 Arial,sans-serif;letter-spacing:1.5px;color:#8a8578;text-transform:uppercase">${label}</div>
-      <div style="font:700 20px/1.3 Arial,sans-serif;color:#161922;margin-top:4px">${value}</div>
+      <div style="font:600 10px/1.4 -apple-system,'Segoe UI',Arial,sans-serif;letter-spacing:1.5px;color:#8a8578;text-transform:uppercase">${label}</div>
+      <div style="font:700 20px/1.3 -apple-system,'Segoe UI',Arial,sans-serif;color:#161922;margin-top:4px">${value}</div>
     </td>`;
-  const cell = s => `<td style="padding:9px 10px;font:13px/1.5 Arial,sans-serif;color:#2b2b28;border-bottom:1px solid #eee8db;vertical-align:top">${s}</td>`;
+  const cell = s => `<td style="padding:9px 10px;font:13px/1.5 -apple-system,'Segoe UI',Arial,sans-serif;color:#2b2b28;border-bottom:1px solid #eee8db;vertical-align:top">${s}</td>`;
   const body = rows.length ? [...rows].sort((a, b) => a.startedAt - b.startedAt).map(r => {
     const tasks = taskTally(r, r.endedAt).map(t => esc(t.store) + " · " + esc(t.task) + " " + humanDur(t.ms)).join("<br>") || "—";
     return `<tr>
@@ -50,14 +50,14 @@ function summaryEmailHTML(name, rangeLabel, rows){
       ${cell(tasks + (r.note ? `<div style="color:#8a8578;margin-top:4px">“${esc(r.note)}”</div>` : ""))}
     </tr>`;
   }).join("") : `<tr>${cell("No closed shifts in this range.")}</tr>`;
-  const head = s => `<td style="padding:9px 10px;font:600 10px/1.4 Arial,sans-serif;letter-spacing:1px;color:#8a8578;text-transform:uppercase;border-bottom:2px solid #161922;text-align:left">${s}</td>`;
+  const head = s => `<td style="padding:9px 10px;font:600 10px/1.4 -apple-system,'Segoe UI',Arial,sans-serif;letter-spacing:1px;color:#8a8578;text-transform:uppercase;border-bottom:2px solid #161922;text-align:left">${s}</td>`;
 
   return `<!doctype html><html><body style="margin:0;padding:0;background:#eeeae0">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eeeae0;padding:24px 12px"><tr><td align="center">
     <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden">
       <tr><td style="background:#161922;padding:26px 28px">
-        <div style="font:800 22px/1 Arial,sans-serif;color:#ffffff;letter-spacing:1px">EZ <span style="font-weight:300">CLOCK IN</span></div>
-        <div style="font:13px/1.6 Arial,sans-serif;color:#b9bcc4;margin-top:8px">Shift summary for <b style="color:#fff">${esc(name)}</b> · ${esc(rangeLabel)}</div>
+        <div style="font:800 22px/1 -apple-system,'Segoe UI',Arial,sans-serif;color:#ffffff;letter-spacing:1px">EZ <span style="font-weight:300">CLOCK IN</span></div>
+        <div style="font:13px/1.6 -apple-system,'Segoe UI',Arial,sans-serif;color:#b9bcc4;margin-top:8px">Shift summary for <b style="color:#fff">${esc(name)}</b> · ${esc(rangeLabel)}</div>
       </td></tr>
       <tr><td style="padding:22px 22px 6px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="6"><tr>
@@ -79,7 +79,7 @@ function summaryEmailHTML(name, rangeLabel, rows){
         </table>
       </td></tr>
       <tr><td style="padding:16px 28px;background:#f6f4ef">
-        <div style="font:11px/1.6 Arial,sans-serif;color:#8a8578">Sent by EZ Clock In · Ez Agency. Times are the device's local time.</div>
+        <div style="font:11px/1.6 -apple-system,'Segoe UI',Arial,sans-serif;color:#8a8578">Sent by EZ Clock In · Ez Agency. Times are the device's local time.</div>
       </td></tr>
     </table>
   </td></tr></table>

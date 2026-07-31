@@ -207,7 +207,7 @@
     height:100%;border-radius:43px;
     background:rgba(255,244,229,.18);border:0;
     backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
-    font-family:"Inter",var(--body);
+    font-family:var(--body);
     align-self:stretch;
   }
   .app.panes .team-panel-full{display:none}
@@ -243,10 +243,10 @@
   .app.panes.has-tasks .assign-panel-head{gap:14px;margin-bottom:2.4vh}
   .app.panes.has-tasks .assign-panel-mark{width:30px;height:30px}
   .app.panes.has-tasks .assign-panel-title{
-    font-family:"Inter",var(--body);font-weight:700;letter-spacing:0;text-transform:none;
+    font-family:var(--body);font-weight:700;letter-spacing:0;text-transform:none;
     font-size:clamp(18px,1.875vw,40px);color:var(--wk-white);
   }
-  .app.panes.has-tasks .assign-count{font-family:"Inter",var(--body);font-size:clamp(11px,.94vw,19px)}
+  .app.panes.has-tasks .assign-count{font-family:var(--body);font-size:clamp(11px,.94vw,19px)}
   /* the list is the scrolling part, so a long queue never pushes the pane out
      of the grid area it shares with the Team card */
   .app.panes.has-tasks .assign-panel .hist{
@@ -311,7 +311,7 @@
   .app.panes .team-panel-mark{width:3.6vw;height:3.3vw;max-width:69px;max-height:63px}
   /* the comp's text node is literally "TEAM", so keep the uppercase */
   .app.panes .team-panel-title{
-    font-family:"Inter",var(--body);font-weight:700;
+    font-family:var(--body);font-weight:700;
     letter-spacing:0;font-size:clamp(18px,1.875vw,40px);
   }
   .app.panes .team-panel-counts,
@@ -319,20 +319,20 @@
   .app.panes .team-latest-what,
   .app.panes .team-latest-when,
   .app.panes .team-latest-none{
-    font-family:"Inter",var(--body);letter-spacing:0;text-transform:none;
+    font-family:var(--body);letter-spacing:0;text-transform:none;
   }
   .app.panes .team-panel-counts{margin-bottom:2.2vh}
   .app.panes .team-stats{gap:9px 1.7vw}
-  .app.panes .team-stat{font-family:"Inter",var(--body);font-size:clamp(11px,.94vw,19px);gap:10px}
+  .app.panes .team-stat{font-family:var(--body);font-size:clamp(11px,.94vw,19px);gap:10px}
   /* pips read smaller here than in the table - this is a legend, not data */
   .app.panes .team-stat .team-dot{width:18px;height:18px}
   .app.panes .team-stat .team-dot svg{width:11px;height:11px}
-  .app.panes .team-approve{font-family:"Inter",var(--body);font-size:clamp(10px,.83vw,17px);margin-top:1.4vh}
+  .app.panes .team-approve{font-family:var(--body);font-size:clamp(10px,.83vw,17px);margin-top:1.4vh}
   .app.panes .team-latest-who{font-weight:400;font-size:clamp(14px,1.35vw,28px)}
   .app.panes .team-latest-what{font-weight:400;font-size:clamp(11px,1.04vw,21px);margin-top:.7vh}
   .app.panes .team-latest{margin-bottom:2.2vh}
   .app.panes .team-proceed{
-    font-family:"Inter",var(--body);font-weight:900;
+    font-family:var(--body);font-weight:900;
     font-size:clamp(14px,1.667vw,34px);gap:14px;
   }
   .app.panes .team-proceed svg{width:24px;height:24px;stroke-width:3}
@@ -342,7 +342,7 @@
   /* --- band, per the comp --- */
   /* "EZ" Poppins Bold 64, "CLOCK IN" Rationale 64 */
   .app.panes .brand-word{font-size:clamp(26px,3.33vw,68px)}
-  .app.panes .brand-word .rest{font-family:"Rationale",var(--wk);font-weight:400;margin-left:.14em}
+  .app.panes .brand-word .rest{font-weight:200;margin-left:.14em}
   /* person glyph 29px, name Roboto 24 with 14.4px tracking (0.6em) */
   .app.panes .band-meta{font-size:clamp(12px,1.25vw,26px);letter-spacing:.6em}
   .app.panes .band-meta-icon{width:1.51vw;height:1.56vw;max-width:29px;max-height:30px;margin-right:7px}
@@ -395,11 +395,11 @@
   .app.panes.side-open .team-panel-head{margin-bottom:1.4vh}
   .app.panes.side-open .team-panel-mark{display:none}
   .app.panes .team-panel-sub{
-    font-family:"Inter",var(--body);font-size:clamp(11px,.833vw,17px);
+    font-family:var(--body);font-size:clamp(11px,.833vw,17px);
     margin:0 0 2.4vh;line-height:1.3;
   }
   .app.panes .team-panel-label{
-    font-family:"Inter",var(--body);font-weight:700;
+    font-family:var(--body);font-weight:700;
     font-size:clamp(12px,1.04vw,21px);margin:0 0 1.6vh;
   }
   /* the table sits in its own darker box: 715x443, r18, rgba(43,43,43,.62) */
@@ -441,7 +441,7 @@
   .app.panes .team-table-wrap::-webkit-scrollbar-track{background:rgba(159,159,159,.34);border-radius:6px;margin:0 0 2vh}
   .app.panes .team-table-wrap::-webkit-scrollbar-thumb{background:var(--wk-white);border-radius:6px}
   .app.panes .team-table-wrap{scrollbar-color:var(--wk-white) rgba(159,159,159,.34)}
-  .app.panes .team-collapse{margin-top:1.6vh;font-family:"Inter",var(--body)}
+  .app.panes .team-collapse{margin-top:1.6vh;font-family:var(--body)}
 
   /* the left column is narrower than a phone, so the rings and the empty-state
      art have to come down with it or they overflow their cells */

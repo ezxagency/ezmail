@@ -14,13 +14,20 @@
   --mint-400:#00F5D4;
   --mint-500:#00C7AC;
 
-  --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --cond:"IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
-  --body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
-  --display:"Archivo Black", "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+  /* SF family via the system stack: renders as genuine SF Pro / SF Mono /
+     SF Compact on Apple devices, best-native equivalents elsewhere. The SF
+     fonts are Apple-licensed and must not be self-hosted as webfonts. */
+  --sf:-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --sf-compact:"SF Compact Display", "SF Compact Text", -apple-system, "Segoe UI", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --sf-mono:ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", monospace;
+
+  --mono:var(--sf-mono);
+  --cond:var(--sf-compact);
+  --body:var(--sf);
+  --display:var(--sf);
 
   /* ---- worker app "Clean Marble" kit (scoped to #appScreen / .sheet only) ---- */
-  --wk:"Poppins", var(--body);
+  --wk:var(--sf);
   --wk-navy:#161922;
   --wk-green:#00AE0B;
   --wk-white:#FFFFFF;
@@ -41,7 +48,7 @@
   --sc-ink:#2B2B28;
   --sc-muted:#6B6558;
   --sc-footer:#A79E8C;
-  --sc-serif:"Lora", Georgia, serif;
+  --sc-serif:var(--sf);
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
