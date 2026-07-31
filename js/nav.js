@@ -67,8 +67,15 @@ function updateDrawerIdentity(){
 document.addEventListener("keydown", e => {
   if ($("appScreen").classList.contains("hidden")) return;
   if (e.key === "Escape"){
+    // innermost layer first, one layer per press: a dropdown that already
+    // handled its own Esc (preventDefault) stops the ladder here
+    if (e.defaultPrevented) return;
+    const pdropOpen = document.querySelector(".pdrop .af-panel:not([hidden])");
     if ($("drawer").classList.contains("on")) { closeDrawer(); e.preventDefault(); }
-    else if (!$("sheet").classList.contains("on") && currentRoute()) { go(""); e.preventDefault(); }
+    else if (pdropOpen) { pomoDropCloseAll(); e.preventDefault(); }
+    else if (typeof afOpen !== "undefined" && afOpen) { afCloseMenu(); e.preventDefault(); }
+    else if (sheetIsOpen()) { if (sheetDismissible) closeSheet(); e.preventDefault(); }
+    else if (currentRoute()) { go(""); e.preventDefault(); }
     return;
   }
   if (e.altKey || e.ctrlKey || e.metaKey) return;

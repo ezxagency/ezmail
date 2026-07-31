@@ -11,7 +11,7 @@ function askName(){
     nm.oninput = () => ok.disabled = nm.value.trim().length < 2;
     ok.onclick = async () => { S.worker = nm.value.trim(); await save(); closeSheet(); render(); };
     nm.focus();
-  });
+  }, { dismissible: false });   // the one sheet with no way around it
 }
 
 /* ---------- Clock in: store + first task (both mandatory) ---------- */

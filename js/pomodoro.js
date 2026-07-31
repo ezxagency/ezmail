@@ -472,6 +472,15 @@ function pomoDropdownMarkup(id, items, currentKey){
       </div>
     </div>`;
 }
+// close every settings dropdown - Esc ladder and outside clicks both land here
+function pomoDropCloseAll(){
+  document.querySelectorAll(".pdrop .af-panel").forEach(pn => { pn.hidden = true; });
+  document.querySelectorAll(".pdrop .af-trigger").forEach(t => t.setAttribute("aria-expanded", "false"));
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest(".pdrop") && document.querySelector(".pdrop .af-panel:not([hidden])")) pomoDropCloseAll();
+});
+
 function pomoWireDropdown(id, items, onPick){
   const box = $(id), trig = box.querySelector(".af-trigger"), panel = box.querySelector(".af-panel");
   const close = () => { panel.hidden = true; trig.setAttribute("aria-expanded", "false"); };

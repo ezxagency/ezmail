@@ -83,6 +83,12 @@ function afSync(){
   if (save) save.disabled = !AF_ORDER.every(afDone) || afActivePairs().length === 0;
 }
 
+// a click anywhere outside the open dropdown's own step closes it - the
+// assign flow's menus behave like every other nested layer now
+document.addEventListener("click", e => {
+  if (afOpen && !e.target.closest(".af-step, .af-trigger, .af-panel")) afCloseMenu();
+});
+
 function afCloseMenu(){
   if (!afOpen) return;
   const panel = $("afPanel" + afOpen), trig = $("afTrig" + afOpen);

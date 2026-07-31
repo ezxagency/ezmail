@@ -154,7 +154,7 @@
   /* Daily Mission: 496x662, r27, 20% white -- a LIGHT panel in the comp, not
      the dark scrim the mobile card uses. */
   .app.panes .card{
-    margin:1.31vh 0 0;padding:5.42vh 33px 0;
+    margin:.45vh 0 0;padding:4.88vh 33px 0;
     /* 100% of the grid area, which spans down to the dock row - same result
        as stretch, but a definite value so it can animate to the collapsed
        tile's height instead of snapping */
@@ -463,7 +463,9 @@
   .app.panes .card,
   .app.panes .team-panel,
   .app.panes .assign-panel{margin-top:2.4vh}
-  .app.panes .card{padding-top:3.4vh}
+  .app.panes .card,
+  .app.panes .team-panel,
+  .app.panes .assign-panel{padding-top:3.4vh}
   .app.panes .empty{padding-top:5vh}
   .app.panes .empty-icon{width:7.4vw;height:7.4vw}
 }
@@ -474,7 +476,9 @@
   .app.panes .clock{margin-top:0}
   .app.panes .dock{margin-top:2.2vh}
   .app.panes .clock-label{font-size:11px}
-  .app.panes .card{padding-top:2.6vh}
+  .app.panes .card,
+  .app.panes .team-panel,
+  .app.panes .assign-panel{padding-top:2.6vh}
   .app.panes .empty{padding-top:2.5vh}
   .app.panes .empty-icon{width:5.8vw;height:5.8vw}
 }

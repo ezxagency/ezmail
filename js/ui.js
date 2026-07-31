@@ -1,14 +1,20 @@
 /* ============================================================
    SHEETS
    ============================================================ */
-function openSheet(html, setup){
+/* Sheets dismiss like modals should: tap the scrim or hit Esc and you are
+   back on the parent view. A sheet that genuinely must be answered (the
+   one-time name prompt) opts out with { dismissible: false }. */
+let sheetDismissible = true;
+function openSheet(html, setup, opts){
+  sheetDismissible = !opts || opts.dismissible !== false;
   $("sheetBody").innerHTML = html;
   $("scrim").classList.add("on");
   $("sheet").classList.add("on");
   if (setup) setup();
 }
 function closeSheet(){ $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
-$("scrim").onclick = () => {};   // gated: tapping outside never skips a required field
+const sheetIsOpen = () => $("sheet").classList.contains("on");
+$("scrim").onclick = () => { if (sheetDismissible) closeSheet(); };
 
 /* Optionally carries one action ("Undo"). An action toast lingers longer -
    it is asking for a decision, not just narrating - and a new toast always

@@ -24,14 +24,14 @@
   padding:calc(env(safe-area-inset-top) + 32px) max(24px,env(safe-area-inset-right))
           calc(env(safe-area-inset-bottom) + 60px) max(24px,env(safe-area-inset-left));
 }
-.admin-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.admin-page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:8px}
 .admin-page-title{font-family:var(--wk);font-weight:700;font-size:28px;text-transform:uppercase;margin:0}
 .admin-page-hint{font-family:var(--body);color:var(--wk-white-70);margin:0 0 22px;font-size:14px}
 /* the sub-pages' way home: a quiet icon + word, not a pill. It sits flush
    with the page title and only asserts itself on hover. */
 .page-back{
   display:inline-flex;align-items:center;gap:7px;flex:none;
-  background:none;border:0;padding:8px 10px;margin:-4px -10px 0 0;
+  background:none;border:0;padding:8px 10px;margin:0 -10px 2px 0;
   border-radius:10px;cursor:pointer;
   font-family:var(--wk);font-size:12px;font-weight:500;
   letter-spacing:.16em;text-transform:uppercase;color:var(--wk-white-60);
