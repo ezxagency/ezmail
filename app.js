@@ -310,7 +310,27 @@ function openSheet(html, setup){
 function closeSheet(){ $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
 $("scrim").onclick = () => {};   // gated: tapping outside never skips a required field
 
-function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"), 2100); }
+/* Optionally carries one action ("Undo"). An action toast lingers longer -
+   it is asking for a decision, not just narrating - and a new toast always
+   cancels the old timer so a quick pair of actions can't cut the second
+   toast short. */
+let toastTimer = null;
+function toast(msg, action){
+  const t = $("toast");
+  clearTimeout(toastTimer);
+  t.textContent = msg;
+  t.classList.toggle("has-act", !!action);
+  if (action){
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "toast-act";
+    b.textContent = action.label;
+    b.onclick = () => { clearTimeout(toastTimer); t.classList.remove("on"); action.run(); };
+    t.append(b);
+  }
+  t.classList.add("on");
+  toastTimer = setTimeout(() => t.classList.remove("on"), action ? 6000 : 2100);
+}
 
 function chipGroup(list, allowOther){
   return list.map(x => `<button type="button" class="chip" data-v="${esc(x)}" aria-pressed="false">${esc(x)}</button>`).join("")
@@ -1147,6 +1167,7 @@ function renderCompletionLog(){
   // and its Delete removes the whole group, matching how it was assigned
   const threads = groupAssignments(rows);
   const visible = threads.slice(0, assignLogShown);
+  assignLogThreads = visible; // the Edit buttons index into what is on screen
   box.innerHTML = `
     <p class="hint" style="margin-bottom:8px">Assignments:</p>
     <div class="table-card">
@@ -1155,7 +1176,7 @@ function renderCompletionLog(){
           <th>To</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th><th>Completed</th><th></th>
         </tr></thead>
         <tbody>
-          ${visible.map(t => {
+          ${visible.map((t, i) => {
             const r = t.rows[0];
             const doneN = t.rows.filter(x => x.done).length, all = doneN === t.rows.length;
             const doneAts = t.rows.map(x => x.doneAt).filter(Boolean);
@@ -1165,16 +1186,21 @@ function renderCompletionLog(){
               <td data-label="To">${esc(r.toName || "Someone")}</td>
               <td data-label="Store">${esc(threadStores(t).join(", ") || "—")}</td>
               <td data-label="Task">${esc(threadTasks(t).join(", ") || "—")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}</td>
-              <td data-label="Status" class="nowrap"><span class="assign-status ${all ? "done" : "open"}">${all ? "Done" : "Open"}</span></td>
+              <td data-label="Status" class="nowrap"><span class="assign-status ${all ? "done" : "open"}">${all ? "Done" : "Open"}</span>${seenMark(t)}</td>
               <td data-label="Assigned">${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
-              <td data-label="Due" class="nowrap">${r.dueDate ? esc(r.dueDate) : "—"}</td>
+              <td data-label="Due" class="nowrap">${threadDueCell(t)}</td>
               <td data-label="Completed">${doneAt ? dayStamp(doneAt) + " " + clock(doneAt) : "—"}</td>
-              <td class="assign-del-cell">
+              <td class="assign-del-cell"><div class="row-acts">
+                ${all ? "" : `
+                <button type="button" class="assign-del assign-edit" data-edit="${i}"
+                        aria-label="Edit this assignment" title="Edit this assignment">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                </button>`}
                 <button type="button" class="assign-del" data-del="${esc(t.rows.map(x => x.id).join(","))}"
                         aria-label="Delete this assignment" title="Delete this assignment">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
                 </button>
-              </td>
+              </div></td>
             </tr>`;
           }).join("")}
         </tbody>
@@ -1185,6 +1211,21 @@ function renderCompletionLog(){
   const moreBtn = $("loadMoreCompleted");
   if (moreBtn) moreBtn.onclick = () => { assignLogShown += 8; renderCompletionLog(); };
   box.querySelectorAll("button[data-del]").forEach(b => b.onclick = () => deleteAssignment(b.dataset.del));
+  box.querySelectorAll("button[data-edit]").forEach(b => b.onclick = () => {
+    const t = assignLogThreads[Number(b.dataset.edit)];
+    if (t) openAssignEdit(t);
+  });
+}
+
+let assignLogThreads = [];   // the threads currently rendered in the log
+
+// Edit reopens the same staged flow the thread was made with, prefilled.
+// Only the open tasks are up for editing - finished work is a record, not a
+// draft - so a half-done group keeps its done rows untouched.
+function openAssignEdit(t){
+  const open = t.rows.filter(r => !r.done);
+  if (!open.length) return;
+  openAssignFlow(open[0].toUid, open[0].toName, t);
 }
 
 // Admin-only: remove an assignment (or a whole group - the ids arrive as one
@@ -1263,6 +1304,28 @@ function threadState(t){
 }
 const threadStores = t => [...new Set(t.rows.map(r => r.store).filter(Boolean))];
 const threadTasks  = t => [...new Set(t.rows.map(r => r.task).filter(Boolean))];
+// lines in a group can carry their own due dates - a table cell shows the
+// earliest and admits there is more, rather than pretending there is one
+function threadDues(t){
+  const ds = [...new Set(t.rows.map(r => r.dueDate).filter(Boolean))].sort();
+  return { min: ds[0] || null, varied: ds.length > 1 || (ds.length === 1 && t.rows.some(r => !r.dueDate)) };
+}
+function threadDueCell(t){
+  const d = threadDues(t);
+  if (!d.min) return "—";
+  const all = t.rows.map(r => r.dueDate || "no date");
+  return `<span${d.varied ? ` title="${esc([...new Set(all)].join(", "))}"` : ""}>${esc(d.min)}${d.varied ? " +" : ""}</span>`;
+}
+// the receipt: every task still open has been on the assignee's screen.
+// Done rows vouch for themselves.
+const threadSeen = t => t.rows.every(r => r.seenAt || r.done);
+const threadSeenAt = t => Math.max(...t.rows.map(r => r.seenAt || r.doneAt || 0));
+const EYE_GLYPH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.7"/></svg>';
+// shown beside an open thread's status once the assignee has seen it
+function seenMark(t){
+  if (threadState(t) === "done" || !threadSeen(t)) return "";
+  return `<span class="seen-eye" title="Seen ${esc(whenLabel(threadSeenAt(t)))}" aria-label="Seen">${EYE_GLYPH}</span>`;
+}
 
 // "Jul 26, 2026 · 21:37" is the least important line in the card and was
 // taking the most room. Anchor it to now instead.
@@ -1340,9 +1403,9 @@ function renderTeamPane(){
           <td class="team-td-user">${esc(r.toName || "Someone")}</td>
           <td>${esc(threadStores(t).join(", ") || "—")}</td>
           <td>${esc(threadTasks(t).join(", ") || "—")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}</td>
-          <td><span class="team-dot is-${st}" title="${STATUS_LABEL[st]}" aria-label="${STATUS_LABEL[st]}">${STATUS_GLYPH[st]}</span></td>
+          <td class="nowrap"><span class="team-dot is-${st}" title="${STATUS_LABEL[st]}" aria-label="${STATUS_LABEL[st]}">${STATUS_GLYPH[st]}</span>${seenMark(t)}</td>
           <td class="team-td-muted">${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
-          <td class="team-td-muted">${r.dueDate ? esc(r.dueDate) : "—"}</td>
+          <td class="team-td-muted">${threadDueCell(t)}</td>
         </tr>`;
       }).join("")}
     </tbody>`;
@@ -1863,8 +1926,22 @@ function viewWorker(data, s, uid){
    ============================================================ */
 let afState = null;      // the answers so far
 let afOpen = null;       // key of the dropdown currently open, if any
+let afEdit = null;       // the thread being edited, or null when assigning fresh
 
 const AF_ORDER = ["who", "where", "what", "details"];
+
+// one key per store x task combination; a newline can't appear in either
+// name (both come from single-line inputs), so it is a safe separator
+const pairKey = (store, task) => store + "\n" + task;
+// the combos that will actually be written: the cross product minus any the
+// admin dropped in the fine-tune list
+function afActivePairs(){
+  const out = [];
+  afState.stores.forEach(store => afState.tasks.forEach(task => {
+    if (!afState.skip[pairKey(store, task)]) out.push({ store, task });
+  }));
+  return out;
+}
 // where/what are multi-select; the key here is also the afState field
 const AF_MULTI = { where: "stores", what: "tasks" };
 const afDone = key => {
@@ -1891,14 +1968,20 @@ function afRenderSentence(){
   const tok = (v, ph) => v
     ? `<b class="af-tok">${esc(v)}</b>`
     : `<i class="af-slot">${esc(ph)}</i>`;
-  const n = (s.stores.length || 1) * (s.tasks.length || 1);
+  const total = (s.stores.length || 1) * (s.tasks.length || 1);
+  const act = (s.stores.length && s.tasks.length) ? afActivePairs().length : total;
+  const dropped = total - act;
+  // every store x task pair still lands as its own tick-able item, but they
+  // travel together - say so before they commit, and own up to any combos
+  // dropped in the fine-tune list
+  const count = total > 1
+    ? `<span class="af-count">${act === 1 ? "1 task" : act + " tasks · one group"}${dropped ? ` · ${dropped} dropped` : ""}</span>`
+    : "";
   el.innerHTML = tok(s.name, "Someone")
     + ` at ` + tok(s.stores.join(", "), "a store")
     + ` — ` + tok(s.tasks.join(", "), "a task")
     + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}</b>` : "")
-    // every store x task pair still lands as its own tick-able item, but they
-    // travel together - say so before they commit
-    + (n > 1 ? `<span class="af-count">${n} tasks · one group</span>` : "");
+    + count;
 }
 
 // Locks, pips and the Assign button all derive from afDone() so there is one
@@ -1913,7 +1996,8 @@ function afSync(){
   });
   afRenderSentence();
   const save = $("afSave");
-  if (save) save.disabled = !AF_ORDER.every(afDone);
+  // dropping every combo in the fine-tune list leaves nothing to assign
+  if (save) save.disabled = !AF_ORDER.every(afDone) || afActivePairs().length === 0;
 }
 
 function afCloseMenu(){
@@ -2050,20 +2134,98 @@ function afToggle(key, value){
   if (i >= 0) arr.splice(i, 1); else arr.push(value);
   const val = $("afVal" + key);
   if (val) val.textContent = arr.length ? arr.join(", ") : AF_PLACEHOLDER[key];
+  afRenderPairs();
   afSync();
 }
 
-async function openAssignFlow(preUid, preName){
-  afState = { uid: preUid || "", name: preName || "", stores: [], tasks: [], note: "", due: "" };
+/* The fine-tune list (features it only earns with 2+ combos): every store x
+   task pair the selection implies, each with a toggle to drop it - so "Design
+   at AVERON but Task Assign only at Football" is expressible - and a date
+   field for a due date of its own, defaulting to the shared one. Rebuilt only
+   when the selection changes, not on every sync, so a date being typed into
+   isn't yanked out from under the cursor. */
+function afRenderPairs(){
+  const box = $("afPairs");
+  if (!box) return;
+  const combos = [];
+  afState.stores.forEach(store => afState.tasks.forEach(task =>
+    combos.push({ store, task, k: pairKey(store, task) })));
+  if (combos.length < 2){
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="af-step-head">
+      <span class="af-pip" aria-hidden="true"></span>
+      <span class="af-step-label">Fine-tune</span>
+      <span class="af-pairs-hint">optional · drop a combo, or give one its own due date</span>
+    </div>
+    ${combos.map(c => {
+      const off = !!afState.skip[c.k];
+      return `
+      <div class="af-pair${off ? " is-off" : ""}" data-k="${esc(c.k)}">
+        <button type="button" class="af-pair-tog" aria-pressed="${!off}"
+                title="${off ? "Include this one again" : "Drop this one"}">${AF_TICK}</button>
+        <span class="af-pair-name">${esc(c.store)} · ${esc(c.task)}</span>
+        <input type="date" class="af-pair-due" value="${esc(afState.dues[c.k] || "")}"
+               aria-label="Due date just for ${esc(c.store)} — ${esc(c.task)}"${off ? " disabled" : ""}>
+      </div>`;
+    }).join("")}`;
+  box.querySelectorAll(".af-pair").forEach(row => {
+    const k = row.dataset.k;
+    row.querySelector(".af-pair-tog").onclick = () => {
+      if (afState.skip[k]) delete afState.skip[k]; else afState.skip[k] = true;
+      afRenderPairs();
+      afSync();
+    };
+    row.querySelector(".af-pair-due").onchange = e => {
+      if (e.target.value) afState.dues[k] = e.target.value; else delete afState.dues[k];
+      afRenderSentence();
+    };
+  });
+}
+
+async function openAssignFlow(preUid, preName, editThread){
+  afEdit = editThread || null;
+  // editing prefills the flow from the thread's still-open rows: the shared
+  // due date is the one most of them carry, anything else becomes a per-line
+  // override, and combos absent from the cross product start dropped
+  const openRows = afEdit ? afEdit.rows.filter(r => !r.done) : [];
+  let sharedDue = "";
+  if (openRows.length){
+    const freq = new Map();
+    openRows.forEach(r => freq.set(r.dueDate || "", (freq.get(r.dueDate || "") || 0) + 1));
+    sharedDue = [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+  afState = {
+    uid: preUid || "", name: preName || "",
+    stores: [...new Set(openRows.map(r => r.store).filter(Boolean))],
+    tasks:  [...new Set(openRows.map(r => r.task).filter(Boolean))],
+    note: openRows.length ? (openRows[0].note || "") : "",
+    due: sharedDue, skip: {}, dues: {}
+  };
+  if (openRows.length){
+    const have = new Set(openRows.map(r => pairKey(r.store, r.task)));
+    afState.stores.forEach(store => afState.tasks.forEach(task => {
+      const k = pairKey(store, task);
+      if (!have.has(k)) afState.skip[k] = true;
+    }));
+    openRows.forEach(r => {
+      if (r.dueDate && r.dueDate !== sharedDue) afState.dues[pairKey(r.store, r.task)] = r.dueDate;
+    });
+  }
   afOpen = null;
   let members = [], stores = [];
 
   openSheet(`
-    <h2>Assign task</h2>
+    <h2>${afEdit ? "Edit assignment" : "Assign task"}</h2>
     <p class="af-sentence" id="afSentence"></p>
     ${afDropdownMarkup("who", "Who", "Choose a team member")}
     ${afDropdownMarkup("where", "Where", AF_PLACEHOLDER.where)}
     ${afDropdownMarkup("what", "What", AF_PLACEHOLDER.what)}
+    <div class="af-pairs" id="afPairs" hidden></div>
     <div class="af-step is-locked" id="afStepdetails">
       <div class="af-step-head">
         <span class="af-pip" aria-hidden="true"></span>
@@ -2072,7 +2234,7 @@ async function openAssignFlow(preUid, preName){
       <textarea id="afNote" placeholder="What should they do?"></textarea>
       <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
     </div>
-    <button class="btn btn-go" id="afSave" disabled>Assign</button>
+    <button class="btn btn-go" id="afSave" disabled>${afEdit ? "Save changes" : "Assign"}</button>
     <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
   `, () => {
     afWireDropdown("who", () => members, (v, l) => afSet("who", v, l));
@@ -2082,10 +2244,17 @@ async function openAssignFlow(preUid, preName){
 
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
-    $("afCancel").onclick = () => { afCloseMenu(); closeSheet(); };
+    $("afCancel").onclick = () => { afCloseMenu(); afEdit = null; closeSheet(); };
     $("afSave").onclick = afSubmit;
 
     if (preUid) $("afValwho").textContent = preName || "Selected";
+    if (afEdit){
+      if (afState.stores.length) $("afValwhere").textContent = afState.stores.join(", ");
+      if (afState.tasks.length)  $("afValwhat").textContent  = afState.tasks.join(", ");
+      $("afNote").value = afState.note;
+      if (afState.due) $("afDue").value = afState.due;
+    }
+    afRenderPairs();
     afSync();
     loadAssignOptions().then(d => { members = d.members; stores = d.stores; });
   });
@@ -2137,43 +2306,87 @@ async function loadAssignOptions(){
    from one submit share a groupId, so every surface can fold them back into
    the single thread the admin meant them as; assigned one at a time there is
    no groupId and each stays its own thread. Written as a batch so a partial
-   set can't land. */
+   set can't land.
+
+   Editing reuses the same submit: open rows are matched by store+task, so an
+   unchanged line keeps its doc id (no phantom "new task" for the assignee),
+   removed lines are deleted, added lines join under the same groupId, and
+   done rows are left alone apart from the group arithmetic. Whoever saves
+   the edit becomes the assignment's face - "who asked me to do this" should
+   name the person whose latest version it is. */
 async function afSubmit(){
   const s = afState;
   const btn = $("afSave");
   btn.disabled = true;
 
-  const pairs = [];
-  s.stores.forEach(store => s.tasks.forEach(task => pairs.push({ store, task })));
+  const pairs = afActivePairs();
+  const col = db.collection("assignments");
+  const pairDue = p => s.dues[pairKey(p.store, p.task)] || s.due || null;
+  const from = {
+    // who assigned it, by name - an email is not an answer to "who asked
+    // me to do this"
+    fromName: S.worker || "",
+    fromEmail: (auth.currentUser && auth.currentUser.email) || ""
+  };
 
   try {
     const batch = db.batch();
-    // groupSize rides on every doc because the open-tasks listener only sees
-    // rows still open - "4 of 6 done" needs to know it started as 6
-    const groupId = pairs.length > 1 ? db.collection("assignments").doc().id : null;
-    const base = {
-      toUid: s.uid, toName: s.name,
-      // who assigned it, by name - an email is not an answer to "who asked
-      // me to do this"
-      fromName: S.worker || "",
-      fromEmail: (auth.currentUser && auth.currentUser.email) || "",
-      note: s.note.trim(), dueDate: s.due || null,
-      createdAt: Date.now(), done: false, doneAt: null,
-      groupId, groupSize: pairs.length
-    };
-    pairs.forEach(p => batch.set(db.collection("assignments").doc(), { ...base, ...p }));
-    await batch.commit();
+    if (afEdit){
+      const openRows = afEdit.rows.filter(r => !r.done);
+      const doneRows = afEdit.rows.filter(r => r.done);
+      const oldByKey = new Map(openRows.map(r => [pairKey(r.store, r.task), r]));
+      const total = doneRows.length + pairs.length;
+      // a single edited into several needs the groupId it never had
+      const groupId = afEdit.groupId || (total > 1 ? col.doc().id : null);
+      const createdAt = afEdit.rows[0].createdAt || Date.now();
+      const base = {
+        toUid: s.uid, toName: s.name, ...from,
+        note: s.note.trim(), groupId, groupSize: total,
+        // edited means changed - the receipt resets so it needs seeing again
+        seenAt: null
+      };
+      pairs.forEach(p => {
+        const k = pairKey(p.store, p.task), old = oldByKey.get(k);
+        if (old){
+          oldByKey.delete(k);
+          batch.update(col.doc(old.id), { ...base, dueDate: pairDue(p) });
+        } else {
+          batch.set(col.doc(), { ...base, ...p, dueDate: pairDue(p), createdAt, done: false, doneAt: null });
+        }
+      });
+      oldByKey.forEach(old => batch.delete(col.doc(old.id)));
+      doneRows.forEach(r => batch.update(col.doc(r.id), { groupId, groupSize: total }));
+      await batch.commit();
+      toast("Assignment updated");
+    } else {
+      // groupSize rides on every doc because the open-tasks listener only
+      // sees rows still open - "4 of 6 done" needs to know it started as 6
+      const groupId = pairs.length > 1 ? col.doc().id : null;
+      const base = {
+        toUid: s.uid, toName: s.name, ...from,
+        note: s.note.trim(),
+        createdAt: Date.now(), done: false, doneAt: null,
+        groupId, groupSize: pairs.length
+      };
+      pairs.forEach(p => batch.set(col.doc(), { ...base, ...p, dueDate: pairDue(p) }));
+      await batch.commit();
+      toast(pairs.length === 1
+        ? `${pairs[0].task} assigned to ${s.name}`
+        : `${pairs.length} tasks assigned to ${s.name}`);
+    }
 
-    toast(pairs.length === 1
-      ? `${pairs[0].task} assigned to ${s.name}`
-      : `${pairs.length} tasks assigned to ${s.name}`);
+    const wasEdit = !!afEdit;
+    afEdit = null;
     afCloseMenu();
     closeSheet();
     if (isAdmin) loadTeamPane();
+    // an edit usually starts from the Team page's log - refresh it if open
+    if (wasEdit && !$("teamScreen").classList.contains("hidden")) loadCompletionLog(true);
   } catch (e) {
     console.error(e);
     btn.disabled = false;
-    toast("Couldn't assign — check Firestore rules allow it");
+    toast(afEdit ? "Couldn't save — check Firestore rules allow it"
+                 : "Couldn't assign — check Firestore rules allow it");
   }
 }
 
@@ -2202,6 +2415,17 @@ function watchAssignedTasks(){
       snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
       rows.sort((a,b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
       assignedOpenRows = rows;
+
+      // The receipt: the queue rendering on their screen is "seen". Stamped
+      // only on rows that lack it, so the write this triggers re-enters the
+      // listener exactly once and then goes quiet.
+      const unseen = rows.filter(r => !r.seenAt);
+      if (unseen.length){
+        const stamp = db.batch();
+        unseen.forEach(r => stamp.update(db.collection("assignments").doc(r.id), { seenAt: Date.now() }));
+        stamp.commit().catch(e => console.error(e));
+      }
+
       const threads = groupAssignments(rows);
 
       // one toast per thread, not per task - six tasks assigned in one go is
@@ -2262,20 +2486,25 @@ function assignedGroupMarkup(t){
   const g = t.rows[0];
   const total = g.groupSize || t.rows.length;
   const doneN = Math.max(0, total - t.rows.length);
+  // lines can carry their own due dates; when they do, the header gives the
+  // next one and each line owns up to its own, overdue ones in red
+  const d = threadDues(t), today = todayISO();
+  const dueTxt = !d.min ? "No due date" : (d.varied ? "Next due " : "Due ") + esc(d.min);
   return `
     <li class="assign-group">
       <div class="ag-head">
         <div>
           <div class="h-c">${esc(threadStores(t).join(", "))} · ${esc(threadTasks(t).join(", "))}</div>
           <div class="h-d">${esc(g.note)}</div>
-          <div class="h-d">${g.dueDate ? "Due " + esc(g.dueDate) : "No due date"} · from ${esc(g.fromName || g.fromEmail || "admin")} · ${doneN ? `${doneN} of ${total} done` : `${total} tasks`}</div>
+          <div class="h-d">${dueTxt} · from ${esc(g.fromName || g.fromEmail || "admin")} · ${doneN ? `${doneN} of ${total} done` : `${total} tasks`}</div>
         </div>
         <button class="btn btn-ghost btn-sm" style="width:auto" data-gid="${esc(t.groupId)}">All done</button>
       </div>
       <ul class="ag-items">
         ${t.rows.map(r => `
-          <li>
-            <span class="ag-item-name">${esc(r.store)} · ${esc(r.task)}</span>
+          <li${r.dueDate && r.dueDate < today ? ` class="is-late"` : ""}>
+            <span class="ag-item-name">${esc(r.store)} · ${esc(r.task)}${
+              d.varied ? `<span class="ag-item-due">${r.dueDate ? "due " + esc(r.dueDate) : "no due date"}</span>` : ""}</span>
             <button class="btn btn-ghost btn-sm ag-tick" style="width:auto" data-id="${r.id}">Done</button>
           </li>`).join("")}
       </ul>
@@ -2292,10 +2521,26 @@ async function markGroupDone(gid){
     ids.forEach(id => batch.update(db.collection("assignments").doc(id),
       { done: true, doneAt: Date.now(), ack: false }));
     await batch.commit();
-    toast(ids.length === 1 ? "Marked done" : `All ${ids.length} marked done`);
+    toast(ids.length === 1 ? "Marked done" : `All ${ids.length} marked done`,
+      { label: "Undo", run: () => undoDone(ids) });
   } catch (e) {
     console.error(e);
     toast("Couldn't update — check Firestore rules allow it");
+  }
+}
+
+// the other half of a Done toast: one mistap shouldn't be a conversation
+// with the admin, so the toast offers to reopen what it just closed
+async function undoDone(ids){
+  try {
+    const batch = db.batch();
+    ids.forEach(id => batch.update(db.collection("assignments").doc(id),
+      { done: false, doneAt: null }));
+    await batch.commit();
+    toast(ids.length === 1 ? "Brought back" : `Brought all ${ids.length} back`);
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't undo — check Firestore rules allow it");
   }
 }
 
@@ -2333,7 +2578,7 @@ async function markAssignmentDone(id){
   try {
     // ack:false so the admin notification badge picks this up as new
     await db.collection("assignments").doc(id).update({ done: true, doneAt: Date.now(), ack: false });
-    toast("Marked done");
+    toast("Marked done", { label: "Undo", run: () => undoDone([id]) });
   } catch (e) {
     console.error(e);
     toast("Couldn't update — check Firestore rules allow it");

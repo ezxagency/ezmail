@@ -603,6 +603,40 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-due input[type=date]{width:auto;flex:1;max-width:210px;padding:12px 14px;min-height:0}
 
+/* ---------- fine-tune: the cross product, one row per combo ----------
+   Appears only once the selection implies 2+ combos. Each row can be dropped
+   (the tick empties, the row dims) or given a due date of its own; the date
+   field left blank means "the shared one". */
+.af-pairs{margin-bottom:16px}
+.af-pairs-hint{
+  font-family:var(--wk);font-size:10.5px;color:var(--wk-white-60);
+  letter-spacing:.02em;text-transform:none;font-weight:400;
+}
+.af-pair{
+  display:flex;align-items:center;gap:11px;padding:7px 0;
+  border-bottom:1px dashed rgba(255,255,255,.14);
+}
+.af-pair:last-child{border-bottom:0}
+.af-pair-tog{
+  flex:none;width:19px;height:19px;border-radius:6px;cursor:pointer;padding:0;
+  border:1.5px solid rgba(255,255,255,.34);background:var(--wk-green);
+  border-color:var(--wk-green);color:#0a2a0d;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .14s ease,border-color .14s ease,color .14s ease;
+}
+.af-pair-tog svg{width:12px;height:12px}
+.af-pair.is-off .af-pair-tog{background:none;border-color:rgba(255,255,255,.34);color:transparent}
+.af-pair-name{
+  flex:1;min-width:0;font-family:var(--wk);font-size:13px;color:var(--wk-white);
+  overflow-wrap:anywhere;transition:opacity .14s ease;
+}
+.af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
+.af-pair input[type=date]{
+  flex:none;width:auto;max-width:150px;padding:7px 10px;min-height:0;
+  font-size:12px;transition:opacity .14s ease;
+}
+.af-pair.is-off input[type=date]{opacity:.25}
+
 .preview{
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.25);border-radius:16px;padding:16px;
   margin-bottom:16px;font-family:var(--wk);font-size:12.5px;line-height:1.65;color:var(--wk-white-70);
@@ -652,6 +686,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .hist .ag-items li{border-bottom:0;border-top:1px dashed rgba(255,255,255,.16);padding:8px 0;align-items:center}
 .ag-item-name{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);overflow-wrap:anywhere;min-width:0}
 .hist .ag-items .ag-tick{padding:9px 12px;font-size:11px}
+/* a line's own due date, when lines in the group differ; overdue goes red */
+.ag-item-due{display:block;font-size:10.5px;color:var(--wk-white-60);margin-top:2px}
+.hist .ag-items li.is-late .ag-item-due,
+.hist .ag-items li.is-late .ag-item-name{color:#ff8a7e}
 
 /* Fixed layout with declared column widths, so the table always fits its
    container and long values wrap into a taller row instead of pushing the
@@ -788,6 +826,18 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .assign-del svg{width:15px;height:15px}
 .assign-table tr:hover .assign-del{opacity:1}
 .assign-del:hover,.assign-del:focus-visible{background:rgba(224,72,60,.18);color:#ff8a7e;opacity:1}
+/* edit sits beside delete but is not destructive - it brightens, not reddens */
+.row-acts{display:flex;gap:2px;justify-content:flex-end}
+.assign-edit:hover,.assign-edit:focus-visible{background:rgba(255,255,255,.14);color:var(--wk-white)}
+.assign-table tr:hover .assign-edit{opacity:1}
+
+/* the receipt: an open thread the assignee has had on screen */
+.seen-eye{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:16px;height:16px;margin-left:7px;vertical-align:middle;
+  color:var(--wk-white-60);
+}
+.seen-eye svg{width:14px;height:14px}
 
 .toast{
   position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
@@ -798,6 +848,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   opacity:0;pointer-events:none;transition:.22s ease;z-index:80;
 }
 .toast.on{opacity:1;transform:translate(-50%,0)}
+/* a toast carrying an action (Undo) has to accept the click it invites */
+.toast.has-act{pointer-events:auto}
+.toast-act{
+  margin-left:14px;padding:5px 13px;border:0;border-radius:999px;cursor:pointer;
+  background:var(--wk-white);color:#12131a;
+  font-family:var(--wk);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+}
+.toast-act:hover{background:var(--wk-green);color:#08210a}
 
 /* ---------- notched phones in landscape ---------- */
 @media (max-width:1023.98px) and (orientation:landscape){
