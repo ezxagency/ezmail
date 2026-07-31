@@ -27,7 +27,7 @@
 .brand{min-width:0;flex:1 1 auto}
 .brand-title{display:inline-block}
 .brand-word{
-  font-family:var(--wk);text-transform:uppercase;line-height:1;white-space:nowrap;
+  font-family:"Poppins",var(--wk);text-transform:uppercase;line-height:1;white-space:nowrap;
   font-size:clamp(26px,7vw,34px);letter-spacing:.01em;
 }
 .brand-word .ez{font-weight:700}
