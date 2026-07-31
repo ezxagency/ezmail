@@ -243,7 +243,7 @@
   .app.panes.has-tasks .assign-panel-head{gap:14px;margin-bottom:2.4vh}
   .app.panes.has-tasks .assign-panel-mark{width:30px;height:30px}
   .app.panes.has-tasks .assign-panel-title{
-    font-family:var(--body);font-weight:700;letter-spacing:0;text-transform:uppercase;
+    font-family:var(--body);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
     font-size:clamp(18px,1.875vw,40px);color:var(--wk-white);
   }
   .app.panes.has-tasks .assign-count{font-family:var(--body);font-size:clamp(11px,.94vw,19px)}
@@ -312,7 +312,7 @@
   /* the comp's text node is literally "TEAM", so keep the uppercase */
   .app.panes .team-panel-title{
     font-family:var(--body);font-weight:700;
-    letter-spacing:0;font-size:clamp(18px,1.875vw,40px);
+    letter-spacing:.12em;font-size:clamp(18px,1.875vw,40px);
   }
   .app.panes .team-panel-counts,
   .app.panes .team-latest-who,
