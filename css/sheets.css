@@ -280,14 +280,23 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .assign-table .nowrap{white-space:nowrap}
 
 /* assignments log: To / Store / Task / Status / Assigned / Due / Completed / delete */
-.assign-table:not(.work-table):not(.metrics-table) th:nth-child(1),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(1){width:12%}
-.assign-table:not(.work-table):not(.metrics-table) th:nth-child(2),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(2){width:15%}
-.assign-table:not(.work-table):not(.metrics-table) th:nth-child(3),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(3){width:13%}
-.assign-table:not(.work-table):not(.metrics-table) th:nth-child(4),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(4){width:10%}
-.assign-table:not(.work-table):not(.metrics-table) th:nth-child(5),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(5){width:13%}
-.assign-table:not(.work-table):not(.metrics-table) th:nth-child(6),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(6){width:13%}
-.assign-table:not(.work-table):not(.metrics-table) th:nth-child(7),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(7){width:19%}
-.assign-table:not(.work-table):not(.metrics-table) th:nth-child(8),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(8){width:5%}
+.assign-table:not(.work-table):not(.metrics-table):not(.month-table) th:nth-child(1),.assign-table:not(.work-table):not(.metrics-table):not(.month-table) td:nth-child(1){width:12%}
+.assign-table:not(.work-table):not(.metrics-table):not(.month-table) th:nth-child(2),.assign-table:not(.work-table):not(.metrics-table):not(.month-table) td:nth-child(2){width:15%}
+.assign-table:not(.work-table):not(.metrics-table):not(.month-table) th:nth-child(3),.assign-table:not(.work-table):not(.metrics-table):not(.month-table) td:nth-child(3){width:13%}
+.assign-table:not(.work-table):not(.metrics-table):not(.month-table) th:nth-child(4),.assign-table:not(.work-table):not(.metrics-table):not(.month-table) td:nth-child(4){width:10%}
+.assign-table:not(.work-table):not(.metrics-table):not(.month-table) th:nth-child(5),.assign-table:not(.work-table):not(.metrics-table):not(.month-table) td:nth-child(5){width:13%}
+.assign-table:not(.work-table):not(.metrics-table):not(.month-table) th:nth-child(6),.assign-table:not(.work-table):not(.metrics-table):not(.month-table) td:nth-child(6){width:13%}
+.assign-table:not(.work-table):not(.metrics-table):not(.month-table) th:nth-child(7),.assign-table:not(.work-table):not(.metrics-table):not(.month-table) td:nth-child(7){width:19%}
+.assign-table:not(.work-table):not(.metrics-table):not(.month-table) th:nth-child(8),.assign-table:not(.work-table):not(.metrics-table):not(.month-table) td:nth-child(8){width:5%}
+
+/* member summary: Member / Status / Days / Total Hours / Avg per Day / Today / Break Today */
+.month-table th:nth-child(1),.month-table td:nth-child(1){width:26%}
+.month-table th:nth-child(2),.month-table td:nth-child(2){width:12%}
+.month-table th:nth-child(3),.month-table td:nth-child(3){width:8%}
+.month-table th:nth-child(4),.month-table td:nth-child(4){width:14%}
+.month-table th:nth-child(5),.month-table td:nth-child(5){width:12%}
+.month-table th:nth-child(6),.month-table td:nth-child(6){width:14%}
+.month-table th:nth-child(7),.month-table td:nth-child(7){width:14%}
 
 /* today's work: Member / Status / In / Out / Stores / Tasks / Break / Worked */
 .work-table th:nth-child(1),.work-table td:nth-child(1){width:14%}

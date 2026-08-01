@@ -205,25 +205,6 @@
 .monthly-head .team-panel-label,.monthly-head .hint{margin:0}
 .monthly-head input[type=month]{width:auto;min-height:0;padding:9px 12px;font-size:13px;border-radius:12px}
 .monthly-none{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);margin:0 0 18px}
-/* the picked month's numbers, riding inside each roster row as columns:
-   days worked · hours worked · avg hours per day */
-.roster-month{display:flex;gap:22px;flex:none;margin-left:auto;padding:0 8px}
-.rm-cell{display:flex;flex-direction:column;align-items:flex-end;min-width:52px}
-.rm-cell b{
-  font-family:var(--mono);font-weight:600;font-size:13px;color:var(--wk-white);
-  font-variant-numeric:tabular-nums;white-space:nowrap;
-}
-.rm-cell small{
-  font-family:var(--wk);font-size:9.5px;font-weight:600;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--wk-white-60);margin-top:2px;
-}
-/* narrow screens: the three columns take their own line under the name
-   rather than crushing the row */
-@media (max-width:620px){
-  #teamList li{flex-wrap:wrap}
-  .roster-month{order:3;width:100%;justify-content:flex-start;margin:8px 0 0;padding:0}
-  .rm-cell{align-items:flex-start}
-}
 
 /* ---------- @mention autocomplete ---------- */
 .mention-wrap{position:relative;margin-bottom:16px}

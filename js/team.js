@@ -40,13 +40,12 @@ async function loadTeamPending(){
   }
 }
 
-/* One appState read feeds the today table, the monthly summary and the
-   roster below them - they were separate .get() calls over the same
-   collection. The docs are kept so the month picker can re-render without
-   another round trip. */
+/* One appState read feeds the today table and the member summary below it -
+   they were separate .get() calls over the same collection. The docs are
+   kept so the month picker can re-render without another round trip. */
 let teamPageDocs = null;
 async function loadTeamData(){
-  const list = $("teamList"), today = $("teamToday");
+  const list = $("teamMonthly"), today = $("teamToday");
   if (!list) return;
   if (today) today.innerHTML = `<p class="hint">Loading today's work…</p>`;
   list.innerHTML = `<div class="empty">Loading…</div>`;
@@ -61,7 +60,6 @@ async function loadTeamData(){
     teamPageDocs = docs;
     renderTodaysWork(docs);
     renderTeamMonthly();
-    renderTeamRoster(docs);
     backfillDirectoryFrom(docs);   // keep every teammate @-mentionable
   } catch (e) {
     console.error(e);
@@ -201,58 +199,76 @@ function monthLabel(month){
   return new Date(p[0], p[1] - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
-// the Team page's month picker re-renders the roster from the cached docs
+// the Team page's month picker re-renders the summary from the cached docs
 function wireMonthPick(input){
   if (!input) return;
   input.onchange = () => {
     teamMonthSel = input.value || null;
     renderTeamMonthly();
-    if (teamPageDocs) renderTeamRoster(teamPageDocs);
   };
 }
 
-/* Team page: the monthly summary lives IN the roster - each member's row
-   carries their days / hours / avg-per-day for the picked month. This block
-   is just the roster's heading with the month picker. */
+/* Team page: the member summary is one organized table - every member is a
+   row carrying their live status, the picked month's days / hours / avg-
+   per-day, and today's worked + break time. Clicking a row opens the same
+   member detail the old roster list did. */
+const MEMBER_STATUS = {
+  ACTIVE:   { cls: "is-active", label: "Active" },
+  ON_BREAK: { cls: "is-break",  label: "On break" },
+  IDLE:     { cls: "is-idle",   label: "Idle" }
+};
 function renderTeamMonthly(){
   const box = $("teamMonthly");
   if (!box || !teamPageDocs) return;
   const month = teamMonth();
+  const now = Date.now();
+  const shortDate = (new Date().getMonth() + 1) + "/" + new Date().getDate();
+
+  const rows = teamPageDocs.map(d => ({
+    d,
+    name: d.state.worker || d.raw.email || "Unnamed",
+    status: MEMBER_STATUS[d.state.status] || MEMBER_STATUS.IDLE,
+    m: monthlyStatsFor(d.state, month, now),
+    w: todaysWorkFor(d.state, now)
+  }));
+  // on the clock first, then whoever has put in the biggest month
+  rows.sort((a, b) =>
+    ((a.status === MEMBER_STATUS.IDLE) - (b.status === MEMBER_STATUS.IDLE))
+    || (b.m.ms - a.m.ms));
+
+  const initials = n => n.trim().split(/\s+/).map(p => p[0]).slice(0, 2).join("").toUpperCase();
+
   box.innerHTML = `
     <div class="monthly-head">
       <p class="hint">Member summary · ${esc(monthLabel(month))}</p>
       <input type="month" id="teamMonthPick" value="${esc(month)}" max="${monthISO(Date.now())}" aria-label="Pick a month">
-    </div>`;
+    </div>
+    ${!rows.length ? `<div class="empty">No team members have signed in yet.</div>` : `
+    <div class="table-card">
+      <table class="assign-table month-table">
+        <thead><tr>
+          <th>Member</th><th>Status</th><th>Days</th><th>Total Hours</th><th>Avg / Day</th><th>Today (${shortDate})</th><th>Break Today</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((r, i) => `<tr data-row="${i}">
+            <td data-label="Member" class="work-name"><span class="mt-member"><span class="mt-avatar">${esc(initials(r.name))}</span>${esc(r.name)}</span></td>
+            <td data-label="Status" class="nowrap"><span class="work-status ${r.status.cls}">${r.status.label}</span></td>
+            <td data-label="Days" class="nowrap">${r.m.days}</td>
+            <td data-label="Total Hours" class="nowrap">${r.m.ms ? humanDur(r.m.ms) : "0h"}</td>
+            <td data-label="Avg / Day" class="nowrap">${r.m.avgMs ? humanDur(r.m.avgMs) : "—"}</td>
+            <td data-label="Today (${shortDate})" class="nowrap">${humanDur(r.w ? r.w.net : 0)}</td>
+            <td data-label="Break Today" class="nowrap">${humanDur(r.w ? r.w.brk : 0)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`}`;
   wireMonthPick($("teamMonthPick"));
-}
-
-function renderTeamRoster(docs){
-  const list = $("teamList");
-  list.innerHTML = "";
-  if (!docs.length){ list.innerHTML = `<div class="empty">No team members have signed in yet.</div>`; return; }
-  const now = Date.now();
-  const month = teamMonth();
-  const shortDate = (new Date().getMonth() + 1) + "/" + new Date().getDate();
-  const cell = (v, label) => `<span class="rm-cell"><b>${v}</b><small>${label}</small></span>`;
-  docs.forEach(d => {
-    const s = d.state, w = todaysWorkFor(s, now);
-    const m = monthlyStatsFor(s, month, now);
-    const li = document.createElement("li");
-    li.style.cursor = "pointer";
-    li.innerHTML = `
-      <div><div class="h-c">${esc(s.worker || d.raw.email || "Unnamed")}</div><div class="h-d">${esc(d.raw.email||"")} · ${esc((s.status||"").replace("_"," "))}</div></div>
-      <div class="roster-month" aria-label="Month summary">
-        ${cell(m.days, "days")}
-        ${cell(m.ms ? humanDur(m.ms) : "0h", "hours")}
-        ${cell(m.avgMs ? humanDur(m.avgMs) : "—", "avg/day")}
-      </div>
-      <div style="text-align:right">
-        <div class="h-h">${humanDur(w ? w.net : 0)} today · ${shortDate}</div>
-        <div class="h-d">${humanDur(w ? w.brk : 0)} break</div>
-      </div>
-    `;
-    li.onclick = () => viewWorker(d.raw, s, d.id);
-    list.append(li);
+  box.querySelectorAll("tr[data-row]").forEach(tr => {
+    tr.style.cursor = "pointer";
+    tr.onclick = () => {
+      const r = rows[Number(tr.dataset.row)];
+      viewWorker(r.d.raw, r.d.state, r.d.id);
+    };
   });
 }
 
