@@ -544,12 +544,14 @@ function watchAssignedTasks(){
       }
       assignedTasksSeen = new Set(rows.map(r => r.id));
 
-      // The pane is the non-admin's second block. An admin's third column is
-      // already the Team card, so on desktop theirs stays inside the stage
-      // flow rather than fighting for the same grid area.
+      // The pane is the non-admin's second block and it stays up even with
+      // an empty queue - the dashboard keeping both cards reads calmer than
+      // one wide card that reshapes whenever the queue drains. An admin's
+      // third column is already the Team card, so theirs still only mounts
+      // when there is something in it.
       const app = $("appScreen");
       const count = $("assignedCount");
-      if (!rows.length) {
+      if (!rows.length && isAdmin) {
         box.classList.add("hidden");
         app.classList.remove("has-tasks");
         list.innerHTML = "";
@@ -557,7 +559,7 @@ function watchAssignedTasks(){
       }
       box.classList.remove("hidden");
       app.classList.toggle("has-tasks", !isAdmin);
-      if (count) count.textContent = rows.length + " open";
+      if (count) count.textContent = rows.length ? rows.length + " open" : "";
       renderAssignedBrief(rows);
       renderAssignedList(rows);
     }, e => console.error(e));
@@ -582,6 +584,19 @@ const CARET_SVG = cls => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" st
 function renderAssignedList(rows){
   const list = $("assignedTasksList");
   if (!list) return;
+  // the pane stays mounted with an empty queue, so the expanded view needs
+  // words rather than a blank column
+  if (!rows.length){
+    list.innerHTML = `
+      <li class="atask-empty">
+        <span class="atask-empty-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.2 2.2L15.5 9"/><rect x="4.5" y="4" width="15" height="17" rx="2.4"/><path d="M9 4V2.8h6V4"/></svg>
+        </span>
+        <b>No tasks assigned</b>
+        <span>You're all caught up. New tasks from the admin land here.</span>
+      </li>`;
+    return;
+  }
   const stores = [];
   const byStore = new Map();
   rows.forEach(r => {
