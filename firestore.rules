@@ -31,9 +31,12 @@ service cloud.firestore {
     // Company directory for @mention autocomplete: every signed-in account
     // may read the whole list (names + emails only), but can write only its
     // own entry. Exists because workers can't read appState.
+    // Admins may also write anyone's entry: an admin session backfills the
+    // whole team from appState so colleagues are mentionable before their
+    // own next sign-in.
     match /directory/{uid} {
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow delete: if request.auth != null && (request.auth.uid == uid || isAdmin());
     }
     // In-app notifications (task-comment @mentions). Anyone signed in may

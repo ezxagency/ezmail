@@ -40,6 +40,7 @@ async function startWorkerApp(){
   watchAssignedTasks();
   watchNotifications();
   syncDirectory();   // keep this account's name findable for @mentions
+  backfillDirectory();   // admin only: seed the directory with the whole team
   applyRoute();   // honor a deep link (#/history etc.) present at sign-in
 
   const timer = setInterval(tick, 1000);

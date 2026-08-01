@@ -35,6 +35,29 @@ async function loadDirectory(){
   return notifDir;
 }
 
+/* An admin session refreshes the WHOLE directory from appState, so every
+   teammate is @-mentionable immediately - not only the ones who happen to
+   have signed in since the directory collection was born. */
+async function backfillDirectory(){
+  if (!isAdmin) return;
+  try {
+    const snap = await db.collection("appState").get();
+    const batch = db.batch();
+    let n = 0;
+    snap.forEach(doc => {
+      const data = doc.data();
+      let s; try { s = JSON.parse(data.json); } catch { s = null; }
+      const name = (s && s.worker) || data.name || data.email || "";
+      if (!name) return;
+      batch.set(db.collection("directory").doc(doc.id),
+        { name, email: data.email || "", updatedAt: Date.now() }, { merge: true });
+      n++;
+    });
+    if (n) await batch.commit();
+    notifDir = null;   // next autocomplete re-reads the fresh list
+  } catch (e) { console.error(e); }
+}
+
 /* ---------- @mention autocomplete ----------
    Typing @ inside the textarea opens a picker of directory names filtered
    by what follows the @; picking one splices "@Full Name " in at the caret. */
@@ -42,15 +65,21 @@ function wireMentionBox(ta, pop){
   loadDirectory();   // warm the cache while they type
   const close = () => { pop.hidden = true; };
   const tokenRe = /@([A-Za-z0-9][A-Za-z0-9 ]{0,24})?$/;
-  ta.addEventListener("input", () => {
+  let seq = 0;   // drops a stale async paint if they kept typing
+  const paint = async () => {
+    const my = ++seq;
     const upto = ta.value.slice(0, ta.selectionStart);
     const m = upto.match(tokenRe);
     if (!m){ close(); return; }
+    // a bare "@" waits for the directory and lists EVERYONE - the whole
+    // point is not having to remember a colleague's exact name
+    const dir = await loadDirectory();
+    if (my !== seq) return;   // they typed on; a newer paint owns the popup
     const q = (m[1] || "").toLowerCase();
     const me = (auth.currentUser || {}).uid;
-    const opts = (notifDir || [])
+    const opts = dir
       .filter(p => p.uid !== me && p.name && p.name.toLowerCase().startsWith(q))
-      .slice(0, 6);
+      .slice(0, 8);
     if (!opts.length){ close(); return; }
     pop.innerHTML = opts.map((p, i) => `
       <button type="button" class="af-opt" data-i="${i}">
@@ -66,7 +95,10 @@ function wireMentionBox(ta, pop){
       ta.focus();
       ta.setSelectionRange(head.length, head.length);
     });
-  });
+  };
+  ta.addEventListener("input", paint);
+  // clicking back into an "@" they already typed reopens the list
+  ta.addEventListener("focus", paint);
   ta.addEventListener("keydown", e => {
     if (e.key === "Escape" && !pop.hidden){ e.preventDefault(); close(); }
   });
