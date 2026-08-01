@@ -38,6 +38,8 @@ async function startWorkerApp(){
 
   render();
   watchAssignedTasks();
+  watchNotifications();
+  syncDirectory();   // keep this account's name findable for @mentions
   applyRoute();   // honor a deep link (#/history etc.) present at sign-in
 
   const timer = setInterval(tick, 1000);
@@ -64,6 +66,12 @@ async function startWorkerApp(){
   $("assignedCollapse").onclick = () => setSidePaneOpen(false);
   $("cardRestore").onclick = () => setSidePaneOpen(false);
   $("assignPanelMenu").onclick = openCardMenu;
+
+  // the quick-assign icons: header + section heads, shown only to people
+  // who can actually assign (auth.js toggles their visibility)
+  $("bandAssignBtn").onclick = () => openAssignFlow();
+  $("cardAssignBtn").onclick = () => openAssignFlow();
+  $("teamPanelAssignBtn").onclick = () => openAssignFlow();
 
   if (staleShift) {
     toast("Shift left open a long time — please review and close it");

@@ -39,8 +39,13 @@ if (!FB_READY){
       // blank state above over the previous user's stored shift history
       Store.setUser(null, null);
       assignLogRows = null; assignLogBox = null;
+      hxTeamRows = null; teamPageDocs = null; teamPaneDocs = null;
+      teamMonthSel = null; notifDir = null;
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
+      $("bandAssignBtn").classList.add("hidden");
+      $("cardAssignBtn").classList.add("hidden");
+      $("teamPanelAssignBtn").classList.add("hidden");
       $("drawerAssign").classList.add("hidden");
       $("drawerTeam").classList.add("hidden");
       closeDrawer();
@@ -65,6 +70,10 @@ if (!FB_READY){
         $("drawerAssign").classList.toggle("hidden", !canAssignTasks);
         $("drawerTeam").classList.toggle("hidden", !isAdmin);
         $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
+        // quick-assign icons follow the same permission as the Assign page
+        $("bandAssignBtn").classList.toggle("hidden", !canAssignTasks);
+        $("cardAssignBtn").classList.toggle("hidden", !canAssignTasks);
+        $("teamPanelAssignBtn").classList.toggle("hidden", !canAssignTasks);
         // everyone on desktop gets the two-pane shell; the role only decides
         // what the third column holds
         $("appScreen").classList.add("panes");

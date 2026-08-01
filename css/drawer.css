@@ -1,5 +1,4 @@
 /* ---------- hamburger (left of the wordmark) ---------- */
-.brand-row{display:flex;align-items:flex-start;gap:14px;min-width:0}
 .menu-btn{
   flex:none;width:42px;height:42px;margin-top:2px;
   display:flex;align-items:center;justify-content:center;

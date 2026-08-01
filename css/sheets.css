@@ -28,13 +28,14 @@ label.fld > span{
    the browser default - a white box with a black calendar glyph sitting in a
    dark sheet. color-scheme:dark also darkens the native picker popup.
    Keep font-size at 16px: anything smaller makes iOS Safari zoom on focus. */
-input[type=text],input[type=date],input[type=number],select,textarea{
+input[type=text],input[type=date],input[type=month],input[type=number],select,textarea{
   width:100%;font-family:var(--wk);font-size:16px;padding:16px 14px;
   border:1px solid rgba(255,255,255,.3);border-radius:14px;background:rgba(255,255,255,.08);color:var(--wk-white);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
 }
-input[type=date]{color-scheme:dark;min-height:56px}
-input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.7;cursor:pointer}
+input[type=date],input[type=month]{color-scheme:dark;min-height:56px}
+input[type=date]::-webkit-calendar-picker-indicator,
+input[type=month]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.7;cursor:pointer}
 textarea{min-height:110px;resize:vertical;line-height:1.6}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#fff 50%),linear-gradient(135deg,#fff 50%,transparent 50%);background-position:calc(100% - 20px) 22px,calc(100% - 14px) 22px;background-size:6px 6px;background-repeat:no-repeat}
 input::placeholder,textarea::placeholder{color:rgba(255,255,255,.4)}
@@ -168,10 +169,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
    Appears only once the selection implies 2+ combos. Each row can be dropped:
    the tick empties and the row dims. The due date in Details is the group's. */
 .af-pairs{margin-bottom:16px}
-.af-pairs-hint{
-  font-family:var(--wk);font-size:10.5px;color:var(--wk-white-60);
-  letter-spacing:.02em;text-transform:none;font-weight:400;
-}
 .af-pair{
   display:flex;align-items:center;gap:11px;padding:7px 0;
   border-bottom:1px dashed rgba(255,255,255,.14);
@@ -283,14 +280,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .assign-table .nowrap{white-space:nowrap}
 
 /* assignments log: To / Store / Task / Status / Assigned / Due / Completed / delete */
-.assign-table:not(.work-table) th:nth-child(1),.assign-table:not(.work-table) td:nth-child(1){width:12%}
-.assign-table:not(.work-table) th:nth-child(2),.assign-table:not(.work-table) td:nth-child(2){width:15%}
-.assign-table:not(.work-table) th:nth-child(3),.assign-table:not(.work-table) td:nth-child(3){width:13%}
-.assign-table:not(.work-table) th:nth-child(4),.assign-table:not(.work-table) td:nth-child(4){width:10%}
-.assign-table:not(.work-table) th:nth-child(5),.assign-table:not(.work-table) td:nth-child(5){width:13%}
-.assign-table:not(.work-table) th:nth-child(6),.assign-table:not(.work-table) td:nth-child(6){width:13%}
-.assign-table:not(.work-table) th:nth-child(7),.assign-table:not(.work-table) td:nth-child(7){width:19%}
-.assign-table:not(.work-table) th:nth-child(8),.assign-table:not(.work-table) td:nth-child(8){width:5%}
+.assign-table:not(.work-table):not(.metrics-table) th:nth-child(1),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(1){width:12%}
+.assign-table:not(.work-table):not(.metrics-table) th:nth-child(2),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(2){width:15%}
+.assign-table:not(.work-table):not(.metrics-table) th:nth-child(3),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(3){width:13%}
+.assign-table:not(.work-table):not(.metrics-table) th:nth-child(4),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(4){width:10%}
+.assign-table:not(.work-table):not(.metrics-table) th:nth-child(5),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(5){width:13%}
+.assign-table:not(.work-table):not(.metrics-table) th:nth-child(6),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(6){width:13%}
+.assign-table:not(.work-table):not(.metrics-table) th:nth-child(7),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(7){width:19%}
+.assign-table:not(.work-table):not(.metrics-table) th:nth-child(8),.assign-table:not(.work-table):not(.metrics-table) td:nth-child(8){width:5%}
 
 /* today's work: Member / Status / In / Out / Stores / Tasks / Break / Worked */
 .work-table th:nth-child(1),.work-table td:nth-child(1){width:14%}

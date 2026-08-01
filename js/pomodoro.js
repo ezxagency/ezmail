@@ -36,6 +36,9 @@ const POMO_TRACKS = {
   brown:    { label: "Brown Noise",      sub: "Pure low focus wash" }
 };
 const POMO_LIMITS = { focusMin: [1, 90], shortMin: [1, 30], longMin: [5, 45] };
+// the main control's two faces
+const POMO_PLAY_ICO = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6l11-6.8z"/></svg>';
+const POMO_PAUSE_ICO = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.2" y="5" width="4.2" height="14" rx="1.3"/><rect x="13.6" y="5" width="4.2" height="14" rx="1.3"/></svg>';
 
 /* The timer is PERSONAL: state is keyed by the signed-in uid, so two people
    sharing a browser each get their own running session, theme and sound.
@@ -436,8 +439,12 @@ function pomoRender(){
   const done = PM.phase === "focus" ? PM.round - 1 : PM.round;
   $("pomoDots").innerHTML = Array.from({ length: POMO_ROUNDS }, (_, i) =>
     `<span class="pomo-dot${i < done ? " is-done" : (i === done && PM.phase === "focus" ? " is-now" : "")}"></span>`).join("");
-  $("pomoPlay").textContent = PM.running ? "Pause"
-    : (pomoRemainMs() < pomoTotalMs() ? "Resume" : "Start");
+  // icons, not words: ▶ starts or resumes, ‖ pauses - the standard toggle
+  const play = $("pomoPlay");
+  play.innerHTML = PM.running ? POMO_PAUSE_ICO : POMO_PLAY_ICO;
+  const playLabel = PM.running ? "Pause" : (pomoRemainMs() < pomoTotalMs() ? "Resume" : "Start");
+  play.setAttribute("aria-label", playLabel);
+  play.title = playLabel;
   $("pomoSoundOnIco").classList.toggle("hidden", PM.muted || PM.track === "none");
   $("pomoSoundOffIco").classList.toggle("hidden", !(PM.muted || PM.track === "none"));
   // the Focus tab wears a live dot while a session runs behind the clocks

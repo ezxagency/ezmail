@@ -246,13 +246,16 @@
 .app .pomo.is-break .ring-progress{stroke:rgba(255,255,255,.85)}
 .app .pomo.is-focus .ring-progress{stroke:var(--wk-green)}
 .pomo-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+/* icon-only now: ▶ to start/resume, ‖ to pause - still the big white pill
+   so the primary control keeps its visual weight */
 .pomo-main{
-  min-width:128px;height:46px;border-radius:999px;border:0;cursor:pointer;
+  min-width:88px;height:46px;border-radius:999px;border:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
   background:var(--wk-white);color:#12131a;
-  font-family:var(--wk);font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;
   box-shadow:0 10px 22px rgba(0,0,0,.3);
   transition:transform .14s ease,box-shadow .2s ease;
 }
+.pomo-main svg{width:21px;height:21px}
 .pomo-main:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(0,0,0,.36)}
 .pomo-main:active{transform:scale(.97)}
 .pomo-side{

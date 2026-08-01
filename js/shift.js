@@ -9,7 +9,7 @@ function askName(){
   `, () => {
     const nm = $("nm"), ok = $("ok");
     nm.oninput = () => ok.disabled = nm.value.trim().length < 2;
-    ok.onclick = async () => { S.worker = nm.value.trim(); await save(); closeSheet(); render(); };
+    ok.onclick = async () => { S.worker = nm.value.trim(); await save(); syncDirectory(); closeSheet(); render(); };
     nm.focus();
   }, { dismissible: false });   // the one sheet with no way around it
 }
@@ -473,7 +473,7 @@ function showProfile(){
     $("profSave").onclick = async () => {
       const v = $("profName").value.trim();
       if (v.length < 2) return;
-      S.worker = v; await save(); render();
+      S.worker = v; await save(); syncDirectory(); render();
       closeSheet(); toast("Name updated");
     };
     $("profSignOut").onclick = () => auth.signOut();

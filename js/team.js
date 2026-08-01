@@ -40,8 +40,11 @@ async function loadTeamPending(){
   }
 }
 
-/* One appState read feeds both the today table and the roster below it -
-   they were two separate .get() calls over the same collection. */
+/* One appState read feeds the today table, the monthly summary and the
+   roster below them - they were separate .get() calls over the same
+   collection. The docs are kept so the month picker can re-render without
+   another round trip. */
+let teamPageDocs = null;
 async function loadTeamData(){
   const list = $("teamList"), today = $("teamToday");
   if (!list) return;
@@ -55,7 +58,9 @@ async function loadTeamData(){
       let s; try { s = JSON.parse(data.json); } catch { s = null; }
       if (s) docs.push({ id: doc.id, raw: data, state: s });
     });
+    teamPageDocs = docs;
     renderTodaysWork(docs);
+    renderTeamMonthly();
     renderTeamRoster(docs);
   } catch (e) {
     console.error(e);
@@ -125,7 +130,9 @@ function renderTodaysWork(docs){
 
   box.innerHTML = `
     <div class="work-head">
-      <p class="hint" style="margin:0">Today's work</p>
+      <p class="hint" style="margin:0">Today's work
+        ${canAssignTasks ? `<button type="button" class="panel-menu head-assign" id="twAssign" aria-label="Assign task" title="Assign task" style="vertical-align:middle;margin-left:6px">${ASSIGN_ICON_SVG}</button>` : ""}
+      </p>
       <p class="work-sum">${rows.length} on the clock today · <b>${humanDur(totalNet)}</b> net${onNow ? ` · ${onNow} still on shift` : ""}</p>
     </div>
     <div class="table-card">
@@ -154,6 +161,90 @@ function renderTodaysWork(docs){
         </tbody>
       </table>
     </div>`;
+  const tw = $("twAssign");
+  if (tw) tw.onclick = () => openAssignFlow();
+}
+
+// the quick-assign glyph that rides on section headers
+const ASSIGN_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>';
+
+/* ---------- monthly report ----------
+   Per-member columns for one calendar month: days worked, hours worked,
+   average hours per day, plus the standing summary metrics (shifts, avg
+   rating). Everything is bucketed by the shift's START date - a shift that
+   clocks in Aug 1 at 23:00 and out Aug 2 at 02:00 counts wholly under
+   Aug 1 - and the month picker walks back through the archive. Defaulting
+   to the running month is the "reset on the 1st": a new month simply
+   starts its own bucket. */
+let teamMonthSel = null;   // "YYYY-MM"; null = the current month
+const monthISO = ts => { const d = new Date(ts); return d.getFullYear() + "-" + pad(d.getMonth() + 1); };
+const teamMonth = () => teamMonthSel || monthISO(Date.now());
+
+function monthlyStats(docs, month){
+  const now = Date.now();
+  return docs.map(d => {
+    const s = d.state;
+    const hist = (s.history || []).filter(r => monthISO(r.startedAt) === month);
+    const live = (s.shift && s.status !== "IDLE" && monthISO(s.shift.startedAt) === month) ? s.shift : null;
+    const days = new Set(hist.map(r => dayStamp(r.startedAt)));
+    let ms = hist.reduce((t, r) => t + r.netMs, 0);
+    if (live){ ms += netMs(live, now); days.add(dayStamp(live.startedAt)); }
+    const rated = hist.filter(r => r.rating);
+    return {
+      name: s.worker || d.raw.email || "Unnamed",
+      days: days.size, ms, avgMs: days.size ? ms / days.size : 0,
+      shifts: hist.length + (live ? 1 : 0),
+      rating: rated.length ? (rated.reduce((t, r) => t + r.rating, 0) / rated.length).toFixed(1) : null
+    };
+  }).filter(m => m.shifts).sort((a, b) => b.ms - a.ms);
+}
+
+function monthLabel(month){
+  const p = month.split("-").map(Number);
+  return new Date(p[0], p[1] - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+// one <input type=month> wiring shared by the Team page and the side pane
+function wireMonthPick(input){
+  if (!input) return;
+  input.onchange = () => {
+    teamMonthSel = input.value || null;
+    renderTeamMonthly();
+    renderTeamPane();
+  };
+}
+
+/* Team page variant: a labelled table-card that stacks into blocks on
+   phones, same as the other admin tables. */
+function renderTeamMonthly(){
+  const box = $("teamMonthly");
+  if (!box || !teamPageDocs) return;
+  const month = teamMonth();
+  const stats = monthlyStats(teamPageDocs, month);
+  box.innerHTML = `
+    <div class="monthly-head">
+      <p class="hint">Monthly summary · ${esc(monthLabel(month))}</p>
+      <input type="month" id="teamMonthPick" value="${esc(month)}" max="${monthISO(Date.now())}" aria-label="Pick a month">
+    </div>
+    ${stats.length ? `
+    <div class="table-card">
+      <table class="assign-table metrics-table">
+        <thead><tr>
+          <th style="width:26%">Member</th><th>Days Worked</th><th>Hours Worked</th><th>Avg Hours/Day</th><th>Shifts</th><th>Avg Rating</th>
+        </tr></thead>
+        <tbody>
+          ${stats.map(m => `<tr>
+            <td data-label="Member" class="work-name">${esc(m.name)}</td>
+            <td data-label="Days Worked" class="nowrap">${m.days}</td>
+            <td data-label="Hours Worked" class="nowrap work-net">${humanDur(m.ms)}</td>
+            <td data-label="Avg Hours/Day" class="nowrap">${m.avgMs ? humanDur(m.avgMs) : "—"}</td>
+            <td data-label="Shifts" class="nowrap">${m.shifts}</td>
+            <td data-label="Avg Rating" class="nowrap">${m.rating ? m.rating + "/5" : "—"}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : `<p class="monthly-none">Nobody logged hours in ${esc(monthLabel(month))}.</p>`}`;
+  wireMonthPick($("teamMonthPick"));
 }
 
 function renderTeamRoster(docs){
@@ -334,6 +425,7 @@ async function deleteAssignment(idsCsv){
    ============================================================ */
 let teamPaneRows = null;      // every assignment, newest first
 let teamPendingCount = 0;     // accounts waiting for approval
+let teamPaneDocs = null;      // every member's appState, for the monthly summary
 
 const todayISO = () => {
   const d = new Date();
@@ -424,6 +516,16 @@ async function loadTeamPane(){
     const p = await db.collection("users").where("role","==","pending").get();
     teamPendingCount = p.size;
   } catch (e) { console.error(e); teamPendingCount = 0; }
+  try {
+    const snap = await db.collection("appState").get();
+    const docs = [];
+    snap.forEach(doc => {
+      const data = doc.data();
+      let s; try { s = JSON.parse(data.json); } catch { s = null; }
+      if (s) docs.push({ id: doc.id, raw: data, state: s });
+    });
+    teamPaneDocs = docs;
+  } catch (e) { console.error(e); teamPaneDocs = teamPaneDocs || []; }
   renderTeamPane();
 }
 
@@ -452,6 +554,34 @@ function renderTeamPane(){
     ? `<ul class="team-stats">${stat(doneCount, "done", "done")}${stat(late, "overdue", "late")}${stat(openNow, "open", "open")}</ul>`
       + (teamPendingCount ? `<p class="team-approve">${teamPendingCount} waiting for approval</p>` : "")
     : `<p class="team-approve">No assignments yet.</p>`;
+
+  // rightmost panel, expanded: the monthly metric columns above the
+  // assignments table, on the same month picker as the Team page
+  const metrics = $("teamPanelMetrics");
+  if (metrics && teamPaneDocs){
+    const month = teamMonth();
+    const stats = monthlyStats(teamPaneDocs, month);
+    metrics.innerHTML = `
+      <div class="monthly-head">
+        <p class="team-panel-label">Monthly summary</p>
+        <input type="month" id="paneMonthPick" value="${esc(month)}" max="${monthISO(Date.now())}" aria-label="Pick a month">
+      </div>
+      ${stats.length ? `
+      <div class="team-table-wrap metrics-wrap">
+        <table class="team-table">
+          <thead><tr><th>Member</th><th>Days</th><th>Hours</th><th>Avg/Day</th></tr></thead>
+          <tbody>
+            ${stats.map(m => `<tr>
+              <td class="team-td-user">${esc(m.name)}</td>
+              <td>${m.days}</td>
+              <td>${humanDur(m.ms)}</td>
+              <td>${m.avgMs ? humanDur(m.avgMs) : "—"}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>` : `<p class="monthly-none">No hours in ${esc(monthLabel(month))}.</p>`}`;
+    wireMonthPick($("paneMonthPick"));
+  }
 
   const done = rows.filter(r => r.done && r.doneAt).sort((a,b) => b.doneAt - a.doneAt)[0];
   latest.innerHTML = done

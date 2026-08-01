@@ -198,6 +198,24 @@
 .skel-tile{height:84px}
 
 
+/* ---------- monthly report (admin) ----------
+   Metrics reset with the calendar: the picker defaults to the running month
+   and can be walked back to inspect any archived month. */
+.monthly-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.monthly-head .team-panel-label,.monthly-head .hint{margin:0}
+.monthly-head input[type=month]{width:auto;min-height:0;padding:9px 12px;font-size:13px;border-radius:12px}
+.monthly-none{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);margin:0 0 18px}
+
+/* ---------- @mention autocomplete ---------- */
+.mention-wrap{position:relative;margin-bottom:16px}
+.mention-wrap textarea{margin:0}
+.mention-pop{
+  position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:5;
+  margin:0;max-height:190px;
+}
+.notif-text{white-space:pre-wrap}
+.notif-item{cursor:pointer}
+
 /* calendar bounds for the history filter + emailed summaries */
 .fpage-dates{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:-6px 0 18px}
 .fpage-dates label{

@@ -247,7 +247,6 @@ function afRenderPairs(){
     <div class="af-step-head">
       <span class="af-pip" aria-hidden="true"></span>
       <span class="af-step-label">Fine-tune</span>
-      <span class="af-pairs-hint">optional · drop a combo you don't mean</span>
     </div>
     ${combos.map(c => {
       const off = !!afState.skip[c.k];
@@ -560,18 +559,7 @@ function watchAssignedTasks(){
       app.classList.toggle("has-tasks", !isAdmin);
       if (count) count.textContent = rows.length + " open";
       renderAssignedBrief(rows);
-      list.innerHTML = threads.map(t => t.groupId ? assignedGroupMarkup(t) : `
-        <li>
-          <div>
-            <div class="h-c">${esc(t.rows[0].store)} · ${esc(t.rows[0].task)}</div>
-            <div class="h-d">${esc(t.rows[0].note)}</div>
-            <div class="h-d">${t.rows[0].dueDate ? "Due " + esc(t.rows[0].dueDate) : "No due date"} · from ${esc(t.rows[0].fromName || t.rows[0].fromEmail || "admin")}</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" style="width:auto" data-id="${t.rows[0].id}">Done</button>
-        </li>
-      `).join("");
-      list.querySelectorAll("button[data-id]").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
-      list.querySelectorAll("button[data-gid]").forEach(b => b.onclick = () => markGroupDone(b.dataset.gid));
+      renderAssignedList(rows);
     }, e => console.error(e));
   onSessionEnd(() => {
     unsub(); assignedTasksSeen = null; assignedOpenRows = [];
@@ -581,55 +569,71 @@ function watchAssignedTasks(){
   });
 }
 
-/* A batch assigned in one go is one thread: the shared brief (note, due,
-   who) told once up top, then each store · task pair as its own tick-able
-   line. groupSize keeps the "x of n done" honest once ticked items drop out
-   of the open-tasks query. */
-function assignedGroupMarkup(t){
-  const g = t.rows[0];
-  const total = g.groupSize || t.rows.length;
-  const doneN = Math.max(0, total - t.rows.length);
-  // lines can carry their own due dates; when they do, the header gives the
-  // next one and each line owns up to its own, overdue ones in red
-  const d = threadDues(t), today = todayISO();
-  const dueTxt = !d.min ? "No due date" : (d.varied ? "Next due " : "Due ") + esc(d.min);
-  return `
-    <li class="assign-group">
-      <div class="ag-head">
-        <div>
-          <div class="h-c">${esc(threadStores(t).join(", "))} · ${esc(threadTasks(t).join(", "))}</div>
-          <div class="h-d">${esc(g.note)}</div>
-          <div class="h-d">${dueTxt} · from ${esc(g.fromName || g.fromEmail || "admin")} · ${doneN ? `${doneN} of ${total} done` : `${total} tasks`}</div>
-        </div>
-        <button class="btn btn-ghost btn-sm" style="width:auto" data-gid="${esc(t.groupId)}">All done</button>
-      </div>
-      <ul class="ag-items">
-        ${t.rows.map(r => `
-          <li${r.dueDate && r.dueDate < today ? ` class="is-late"` : ""}>
-            <span class="ag-item-name">${esc(r.store)} · ${esc(r.task)}${
-              d.varied ? `<span class="ag-item-due">${r.dueDate ? "due " + esc(r.dueDate) : "no due date"}</span>` : ""}</span>
-            <button class="btn btn-ghost btn-sm ag-tick" style="width:auto" data-id="${r.id}">Done</button>
-          </li>`).join("")}
+/* ---------- the queue itself, nested by store ----------
+   One collapsible group per store/brand; inside it one row per task. The
+   caret is the affordance: a task row expands inline into its full brief
+   (note, who assigned it, dates) with Done living in the expanded body.
+   Open/closed choices survive re-renders and snapshot updates. */
+let assignedClosedStores = new Set();  // store groups the user collapsed
+let assignedOpenTasks = new Set();     // task rows expanded to their details
+
+const CARET_SVG = cls => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
+
+function renderAssignedList(rows){
+  const list = $("assignedTasksList");
+  if (!list) return;
+  const stores = [];
+  const byStore = new Map();
+  rows.forEach(r => {
+    const k = r.store || "—";
+    if (!byStore.has(k)){ byStore.set(k, []); stores.push(k); }
+    byStore.get(k).push(r);
+  });
+  const today = todayISO();
+
+  list.innerHTML = stores.map((store, si) => {
+    const items = byStore.get(store);
+    const open = !assignedClosedStores.has(store);
+    return `
+    <li class="store-group${open ? " is-open" : ""}">
+      <button type="button" class="store-head" data-si="${si}" aria-expanded="${open}">
+        ${CARET_SVG("store-caret")}
+        <span class="store-name">${esc(store)}</span>
+        <span class="store-count">${items.length}</span>
+      </button>
+      <ul class="store-tasks">
+        ${items.map(r => {
+          const late = r.dueDate && r.dueDate < today;
+          const tOpen = assignedOpenTasks.has(r.id);
+          return `
+          <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
+            <button type="button" class="atask-head" data-tid="${r.id}" aria-expanded="${tOpen}">
+              <span class="atask-name">${esc(r.task)}</span>
+              <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(r.dueDate) : ""}</span>
+              ${CARET_SVG("atask-caret")}
+            </button>
+            <div class="atask-body">
+              ${r.note ? `<p class="atask-note">${esc(r.note)}</p>` : ""}
+              <p class="atask-meta">From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(r.dueDate) : "no due date"}</p>
+              <button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>
+            </div>
+          </li>`;
+        }).join("")}
       </ul>
     </li>`;
-}
+  }).join("");
 
-// tick off everything still open in a group at once; written as a batch so
-// the thread can't half-complete
-async function markGroupDone(gid){
-  const ids = assignedOpenRows.filter(r => r.groupId === gid).map(r => r.id);
-  if (!ids.length) return;
-  try {
-    const batch = db.batch();
-    ids.forEach(id => batch.update(db.collection("assignments").doc(id),
-      { done: true, doneAt: Date.now(), ack: false }));
-    await batch.commit();
-    toast(ids.length === 1 ? "Marked done" : `All ${ids.length} marked done`,
-      { label: "Undo", run: () => undoDone(ids) });
-  } catch (e) {
-    console.error(e);
-    toast("Couldn't update — check Firestore rules allow it");
-  }
+  list.querySelectorAll(".store-head").forEach(b => b.onclick = () => {
+    const s = stores[Number(b.dataset.si)];
+    if (assignedClosedStores.has(s)) assignedClosedStores.delete(s); else assignedClosedStores.add(s);
+    renderAssignedList(assignedOpenRows);
+  });
+  list.querySelectorAll(".atask-head").forEach(b => b.onclick = () => {
+    const id = b.dataset.tid;
+    if (assignedOpenTasks.has(id)) assignedOpenTasks.delete(id); else assignedOpenTasks.add(id);
+    renderAssignedList(assignedOpenRows);
+  });
+  list.querySelectorAll(".atask-done").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
 }
 
 // the other half of a Done toast: one mistap shouldn't be a conversation
@@ -677,13 +681,44 @@ function renderAssignedBrief(rows){
     : `<div class="team-latest-none">Nothing assigned right now.</div>`;
 }
 
-async function markAssignmentDone(id){
+/* Done opens a comment dialog first: say how it went, @mention teammates
+   (autocomplete from the company directory), and the mention engine turns
+   the tags into in-app notifications for the tagged people and the admin. */
+function markAssignmentDone(id){
+  const row = assignedOpenRows.find(r => r.id === id) || {};
+  openSheet(`
+    <h2>Task complete</h2>
+    <p class="hint"><b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team. Tag someone with @ and they're notified in-app.</p>
+    <div class="mention-wrap">
+      <textarea id="doneNote" placeholder="e.g. Drafts are up — @Jack please review"></textarea>
+      <div class="af-panel mention-pop" id="mentionPop" hidden></div>
+    </div>
+    <button class="btn btn-go" id="doneSend">Mark done</button>
+    <button class="btn btn-ghost btn-sm" id="doneCancel">Cancel</button>
+  `, () => {
+    wireMentionBox($("doneNote"), $("mentionPop"));
+    $("doneCancel").onclick = closeSheet;
+    $("doneSend").onclick = () => finishAssignment(id, row, $("doneNote").value.trim());
+    $("doneNote").focus();
+  });
+}
+
+async function finishAssignment(id, row, comment){
+  const btn = $("doneSend");
+  if (btn) btn.disabled = true;
   try {
+    const now = Date.now();
     // ack:false so the admin notification badge picks this up as new
-    await db.collection("assignments").doc(id).update({ done: true, doneAt: Date.now(), ack: false });
+    const patch = { done: true, doneAt: now, ack: false };
+    if (comment){ patch.comment = comment; patch.commentAt = now; }
+    await db.collection("assignments").doc(id).update(patch);
+    closeSheet();
+    // the notification fan-out is fire-and-forget: the task is done either way
+    if (comment) dispatchMentionNotifications(comment, id, row).catch(e => console.error(e));
     toast("Marked done", { label: "Undo", run: () => undoDone([id]) });
   } catch (e) {
     console.error(e);
+    if (btn) btn.disabled = false;
     toast("Couldn't update — check Firestore rules allow it");
   }
 }

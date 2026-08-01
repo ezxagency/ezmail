@@ -23,8 +23,11 @@
   padding:calc(env(safe-area-inset-top) + 20px) 18px 8px;
   display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;
 }
-.band-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none;margin-left:auto}
-.brand{min-width:0;flex:1 1 auto}
+.band-actions{display:flex;flex-direction:row;align-items:center;gap:8px;flex:none;margin-left:auto}
+/* hamburger on the left, then one column holding wordmark + user name +
+   state - all sharing a single strict left edge */
+.brand{min-width:0;flex:1 1 auto;display:flex;align-items:flex-start;gap:14px}
+.brand-col{display:flex;flex-direction:column;align-items:flex-start;min-width:0;flex:1}
 .brand-title{display:inline-block}
 .brand-word{
   font-family:"Poppins",var(--wk);text-transform:uppercase;line-height:1;white-space:nowrap;
@@ -59,7 +62,7 @@
 }
 .band-signout:hover{background:rgba(255,255,255,.14)}
 .band-signout:active{transform:scale(.97)}
-.admin-icon-btn{width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%}
+.admin-icon-btn{width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%;margin-top:0}
 .admin-icon-btn svg{width:20px;height:20px}
 .notif-badge{
   position:absolute;top:-8px;right:-8px;min-width:20px;height:20px;padding:0 5px;
@@ -139,7 +142,9 @@
 .team-panel{display:none}
 .team-panel-head{display:flex;align-items:center;gap:14px;margin-bottom:22px}
 .team-panel-mark{display:flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;color:var(--wk-white)}
-.team-panel-mark svg{width:100%;height:100%}
+/* overflow:visible belts what the padded viewBox braces: nothing the glyph
+   draws can ever be shaved off at the box edge again */
+.team-panel-mark svg{width:100%;height:100%;overflow:visible}
 .team-panel-title{
   font-family:var(--wk);font-weight:700;font-size:22px;text-transform:uppercase;
   letter-spacing:.12em;margin:0;color:var(--wk-white);flex:1;min-width:0;
@@ -151,6 +156,10 @@
 }
 .panel-menu:hover{opacity:1}
 .panel-menu svg{display:block;width:20px;height:20px}
+/* the quick "hand out a task" affordance that rides on section headers */
+.head-assign{opacity:.7}
+.head-assign:hover{opacity:1}
+.head-assign.hidden{display:none}
 .team-panel-counts{margin:0 0 14px}
 /* The status row reuses the expanded table's pips, so the collapsed card
    doubles as its legend. Zero counts stay in place but dimmed - the row keeps
@@ -305,6 +314,54 @@
   background:var(--wk-badge);color:var(--wk-white);
 }
 .empty-icon svg{width:38%;height:38%}
+
+/* ---------- assigned tasks, nested by store ----------
+   One group per store/brand; inside it one row per task. The row's caret is
+   the whole affordance: it expands the task inline into its full brief
+   (note, due date, who sent it) with the Done button living in there. */
+.hist li.store-group{display:block;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.18)}
+.store-head{
+  display:flex;align-items:center;gap:10px;width:100%;padding:6px 0;
+  background:none;border:0;cursor:pointer;text-align:left;color:var(--wk-white);
+}
+.store-head .store-caret,.atask-head .atask-caret{
+  flex:none;width:15px;height:15px;color:var(--wk-white-60);
+  transition:transform .22s cubic-bezier(.22,1,.36,1);
+}
+.store-head .store-caret{transform:rotate(-90deg)}
+.store-group.is-open > .store-head .store-caret{transform:none}
+.store-name{
+  flex:1;min-width:0;font-family:var(--wk);font-weight:600;font-size:15px;
+  letter-spacing:.04em;text-transform:uppercase;overflow-wrap:anywhere;
+}
+.store-count{
+  flex:none;min-width:22px;height:22px;padding:0 7px;border-radius:999px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.14);font-family:var(--wk);font-size:11px;
+  font-weight:600;color:var(--wk-white-70);
+}
+.store-tasks{list-style:none;margin:0;padding:0 0 0 25px;display:none}
+.store-group.is-open .store-tasks{display:block;animation:paneContentIn .26s cubic-bezier(.22,1,.36,1)}
+.hist .store-tasks li.atask{display:block;padding:0;border-bottom:0;border-top:1px dashed rgba(255,255,255,.14)}
+.hist .store-tasks li.atask:first-child{border-top:0}
+.atask-head{
+  display:flex;align-items:center;gap:10px;width:100%;padding:10px 0;
+  background:none;border:0;cursor:pointer;text-align:left;color:var(--wk-white);
+}
+.atask-name{flex:1;min-width:0;font-family:var(--wk);font-size:13.5px;overflow-wrap:anywhere}
+.atask-due{flex:none;font-family:var(--wk);font-size:10.5px;color:var(--wk-white-60);letter-spacing:.02em}
+.atask.is-late .atask-due,.atask.is-late .atask-name{color:#ff8a7e}
+.atask-head .atask-caret{transform:rotate(-90deg)}
+.atask.is-open > .atask-head .atask-caret{transform:none}
+.atask-body{display:none;padding:2px 0 12px}
+.atask.is-open .atask-body{display:block;animation:paneContentIn .26s cubic-bezier(.22,1,.36,1)}
+.atask-note{
+  font-family:var(--wk);font-size:12.5px;line-height:1.55;color:var(--wk-white);
+  background:rgba(255,255,255,.06);border-left:2px solid rgba(255,255,255,.4);
+  border-radius:0 10px 10px 0;padding:8px 12px;margin:0 0 8px;overflow-wrap:anywhere;
+}
+.atask-meta{font-family:var(--wk);font-size:11px;color:var(--wk-white-60);margin:0 0 10px;line-height:1.5}
+.atask-body .btn{width:auto;padding:10px 18px}
 
 /* ---------- dock (clock-in / clock-out controls) ---------- */
 .dock{padding:12px 16px 12px;display:flex;flex-direction:column;gap:12px;min-height:clamp(96px,22vh,132px);justify-content:flex-end}

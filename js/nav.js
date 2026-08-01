@@ -40,6 +40,14 @@ $("drawerSignOut").onclick = () => { closeDrawer(); if (auth) auth.signOut(); };
 document.querySelectorAll(".drawer-item").forEach(a => {
   a.addEventListener("click", () => { if ((a.dataset.route || "") === currentRoute()) closeDrawer(); });
 });
+// Dashboard is a reset, not just a route: it always lands on a clean home
+// screen - open sheet dismissed, expanded side pane collapsed - even when
+// the hash is already "#/" and no hashchange will fire.
+document.querySelector('.drawer-item[data-route=""]').addEventListener("click", () => {
+  if (sheetIsOpen() && sheetDismissible) closeSheet();
+  if ($("appScreen").classList.contains("side-open")) setSidePaneOpen(false);
+  go("");
+});
 // roving arrows inside the drawer, Raycast-style
 $("drawer").addEventListener("keydown", e => {
   if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
@@ -106,7 +114,9 @@ function applyRoute(){
     afOpen = null; afInPage = false;
   }
   if (r === "mission") renderMissionPage();
-  else if (r === "history") renderHistoryPage();
+  // walking into History refetches the team's record; while ON the page,
+  // refreshOpenPage re-renders from the cache without another round trip
+  else if (r === "history"){ if (isAdmin) hxTeamRows = null; renderHistoryPage(); }
   else if (r === "assign") enterAssignPage();
   else if (r === "team") loadTeamScreen();
 }
@@ -283,18 +293,39 @@ function updateMissionTick(){
 /* ============================================================
    HISTORY PAGE — every closed shift, filterable, each one expandable
    into the full story, with the Excel export alongside.
+   Defaults to TODAY's shifts. An admin sees the whole team's record here
+   (one fetch per visit); everyone else sees only their own.
    ============================================================ */
-let hxRange = "all";   // all | 7 | 30 | custom — survives leaving the page
+let hxRange = "today"; // today | all | 7 | 30 | custom — survives leaving the page
 let hxQuery = "";
 let hxStart = "", hxEnd = "";   // the custom range's calendar bounds
 let hxOpenKeys = new Set();
+let hxTeamRows = null;   // admin only: every member's closed shifts, flattened
 
-const hxKey = r => String(r.startedAt);
+// uid disambiguates two members clocking in at the same millisecond
+const hxKey = r => (r.uid ? r.uid + ":" : "") + r.startedAt;
+const hxRows = () => (isAdmin && hxTeamRows) ? hxTeamRows : S.history;
+
+async function loadTeamHistoryRows(){
+  const snap = await db.collection("appState").get();
+  const rows = [];
+  snap.forEach(doc => {
+    const data = doc.data();
+    let s; try { s = JSON.parse(data.json); } catch { s = null; }
+    if (!s) return;
+    (s.history || []).forEach(r =>
+      rows.push({ ...r, worker: r.worker || s.worker || data.email || "Unnamed", uid: doc.id }));
+  });
+  return rows;
+}
 
 function hxFiltered(){
   const q = hxQuery.trim().toLowerCase();
-  let rows = S.history;
-  if (hxRange === "custom"){
+  let rows = hxRows();
+  if (hxRange === "today"){
+    const key = dayStamp(Date.now());
+    rows = rows.filter(r => dayStamp(r.startedAt) === key);
+  } else if (hxRange === "custom"){
     rows = summaryFilterRows(rows, hxStart, hxEnd);
   } else if (hxRange !== "all"){
     const cut = Date.now() - Number(hxRange) * 86400000;
@@ -302,13 +333,14 @@ function hxFiltered(){
   }
   if (!q) return rows;
   return rows.filter(r => {
-    const hay = [r.client, r.note, ...taskTally(r, r.endedAt).map(t => t.store + " " + t.task)].join(" ").toLowerCase();
+    const hay = [r.worker, r.client, r.note, ...taskTally(r, r.endedAt).map(t => t.store + " " + t.task)].join(" ").toLowerCase();
     return hay.includes(q);
   });
 }
 
 // what the current filter means as words, for the email subject/header
 function hxRangeLabel(){
+  if (hxRange === "today") return "Today";
   if (hxRange === "7") return "Last 7 days";
   if (hxRange === "30") return "Last 30 days";
   if (hxRange === "custom") return summaryRangeLabel(hxStart, hxEnd);
@@ -318,15 +350,27 @@ function hxRangeLabel(){
 function renderHistoryPage(){
   const box = $("historyBody");
   if (!box) return;
+  const eyebrow = document.querySelector("#historyScreen .fpage-eyebrow");
+  if (eyebrow) eyebrow.textContent = isAdmin ? "Team record" : "Your record";
 
-  if (!S.history.length){
+  // the admin's view is the whole team - fetched once per visit, then the
+  // page filters it client-side like everything else
+  if (isAdmin && hxTeamRows === null){
+    box.innerHTML = `<div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>`;
+    loadTeamHistoryRows()
+      .then(rows => { hxTeamRows = rows; renderHistoryPage(); })
+      .catch(e => { console.error(e); hxTeamRows = []; renderHistoryPage(); });
+    return;
+  }
+
+  if (!hxRows().length){
     box.innerHTML = `
       <div class="fpage-panel">
         <div class="empty">
           <span class="empty-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9.5V13l2.5 1.8"/><path d="M9 2h6"/></svg>
           </span>
-          No closed shifts yet. Your first clock-out lands here, ready to export.
+          ${isAdmin ? "No closed shifts across the team yet." : "No closed shifts yet. Your first clock-out lands here, ready to export."}
         </div>
       </div>`;
     return;
@@ -335,11 +379,12 @@ function renderHistoryPage(){
   box.innerHTML = `
     <div id="hxStats"></div>
     <div class="fpage-filters">
-      <button type="button" class="chip" data-range="all">All time</button>
+      <button type="button" class="chip" data-range="today">Today</button>
       <button type="button" class="chip" data-range="7">Last 7 days</button>
       <button type="button" class="chip" data-range="30">Last 30 days</button>
+      <button type="button" class="chip" data-range="all">All time</button>
       <button type="button" class="chip" data-range="custom">Custom…</button>
-      <label class="fpage-search"><input type="text" id="hxSearch" placeholder="Search store, task or note…" value="${esc(hxQuery)}" autocomplete="off"></label>
+      <label class="fpage-search"><input type="text" id="hxSearch" placeholder="Search ${isAdmin ? "member, " : ""}store, task or note…" value="${esc(hxQuery)}" autocomplete="off"></label>
     </div>
     <div class="fpage-dates${hxRange === "custom" ? "" : " hidden"}" id="hxDates">
       <label>From <input type="date" id="hxStart" value="${esc(hxStart)}"></label>
@@ -386,15 +431,17 @@ function renderHistoryList(){
     <div class="fpage-bar">
       <p class="fpage-bar-note">${rows.length} shift${rows.length === 1 ? "" : "s"} shown${hxRange !== "all" || hxQuery ? " · filtered" : ""}</p>
       <div class="fpage-bar-acts">
-        <button class="btn btn-go btn-sm" id="hxEmail" ${rows.length ? "" : "disabled"}>Email my summary</button>
-        ${isAdmin ? `<button class="btn btn-sm" id="hxExport" ${S.history.length ? "" : "disabled"}>Export to Excel</button>` : ""}
+        ${isAdmin
+          ? `<button class="btn btn-go btn-sm" id="hxTeamExport">Export team report</button>`
+          : `<button class="btn btn-go btn-sm" id="hxEmail" ${rows.length ? "" : "disabled"}>Email my summary</button>`}
       </div>
     </div>`;
-  // the raw spreadsheet stays an audit tool - admins only; everyone else
-  // gets their summary as a formatted email instead
-  const xl = $("hxExport");
-  if (xl) xl.onclick = exportExcel;
-  $("hxEmail").onclick = async () => {
+  // the admin's page shows the whole team, so its export is the team
+  // workbook; everyone else gets their own summary as a formatted email
+  const teamXl = $("hxTeamExport");
+  if (teamXl) teamXl.onclick = exportAllExcel;
+  const em = $("hxEmail");
+  if (em) em.onclick = async () => {
     const me = (auth && auth.currentUser && auth.currentUser.email) || "";
     if (!me){ toast("No email on this account"); return; }
     const btn = $("hxEmail");
@@ -422,7 +469,7 @@ function renderHistoryList(){
         <button type="button" class="hx-head" aria-expanded="${open}">
           <span class="hx-when"><span class="hx-date">${day}</span>
             <span class="hx-clock">${clock(r.startedAt)}–${clock(r.endedAt)}</span></span>
-          <span class="hx-mid"><span class="hx-store">${esc(r.client)}</span>
+          <span class="hx-mid"><span class="hx-store">${esc((isAdmin && r.worker ? r.worker + " · " : "") + r.client)}</span>
             <span class="hx-meta">${tally.length} task${tally.length === 1 ? "" : "s"} · ${r.breakMs ? humanDur(r.breakMs) + " break · " : ""}${r.rating}/5</span></span>
           <span class="hx-net">${humanDur(r.netMs)}</span>
           <svg class="hx-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -460,7 +507,7 @@ function renderHistoryList(){
     if (open) hxOpenKeys.add(k); else hxOpenKeys.delete(k);
   });
   list.querySelectorAll("button[data-copy]").forEach(b => b.onclick = async () => {
-    const r = S.history.find(x => hxKey(x) === b.dataset.copy);
+    const r = hxRows().find(x => hxKey(x) === b.dataset.copy);
     if (!r) return;
     toast(await copyText(reportText(r)) ? "Report copied" : "Copy failed");
   });
