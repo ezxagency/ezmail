@@ -62,6 +62,7 @@ async function loadTeamData(){
     renderTodaysWork(docs);
     renderTeamMonthly();
     renderTeamRoster(docs);
+    backfillDirectoryFrom(docs);   // keep every teammate @-mentionable
   } catch (e) {
     console.error(e);
     if (today) today.innerHTML = "";
@@ -518,6 +519,7 @@ async function loadTeamPane(){
       if (s) docs.push({ id: doc.id, raw: data, state: s });
     });
     teamPaneDocs = docs;
+    backfillDirectoryFrom(docs);   // keep every teammate @-mentionable
   } catch (e) { console.error(e); teamPaneDocs = teamPaneDocs || []; }
   renderTeamPane();
 }

@@ -37,24 +37,43 @@ async function loadDirectory(){
 
 /* An admin session refreshes the WHOLE directory from appState, so every
    teammate is @-mentionable immediately - not only the ones who happen to
-   have signed in since the directory collection was born. */
+   have signed in since the directory collection was born. Runs at admin
+   boot AND whenever an admin surface has the team fetched anyway (Team
+   page, Team pane), writing only entries that are missing or changed -
+   so one healthy admin visit anywhere heals the list for everyone. */
+async function backfillDirectoryFrom(docs){
+  if (!isAdmin || !docs || !docs.length) return;
+  try {
+    const have = new Map((await loadDirectory()).map(p => [p.uid, p]));
+    const batch = db.batch();
+    let n = 0;
+    docs.forEach(d => {
+      const name = (d.state && d.state.worker) || d.raw.name || d.raw.email || "";
+      const email = d.raw.email || "";
+      if (!name) return;
+      const cur = have.get(d.id);
+      if (cur && cur.name === name && cur.email === email) return;
+      batch.set(db.collection("directory").doc(d.id), { name, email, updatedAt: Date.now() }, { merge: true });
+      n++;
+    });
+    if (n){
+      await batch.commit();
+      notifDir = null;   // next autocomplete re-reads the fresh list
+    }
+  } catch (e) { console.error(e); }
+}
+
 async function backfillDirectory(){
   if (!isAdmin) return;
   try {
     const snap = await db.collection("appState").get();
-    const batch = db.batch();
-    let n = 0;
+    const docs = [];
     snap.forEach(doc => {
       const data = doc.data();
       let s; try { s = JSON.parse(data.json); } catch { s = null; }
-      const name = (s && s.worker) || data.name || data.email || "";
-      if (!name) return;
-      batch.set(db.collection("directory").doc(doc.id),
-        { name, email: data.email || "", updatedAt: Date.now() }, { merge: true });
-      n++;
+      docs.push({ id: doc.id, raw: data, state: s });
     });
-    if (n) await batch.commit();
-    notifDir = null;   // next autocomplete re-reads the fresh list
+    await backfillDirectoryFrom(docs);
   } catch (e) { console.error(e); }
 }
 
