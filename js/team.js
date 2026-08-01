@@ -196,25 +196,18 @@ function monthlyStatsFor(s, month, now = Date.now()){
   };
 }
 
-function monthlyStats(docs, month){
-  const now = Date.now();
-  return docs.map(d => ({ name: d.state.worker || d.raw.email || "Unnamed", ...monthlyStatsFor(d.state, month, now) }))
-    .filter(m => m.shifts).sort((a, b) => b.ms - a.ms);
-}
-
 function monthLabel(month){
   const p = month.split("-").map(Number);
   return new Date(p[0], p[1] - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
-// one <input type=month> wiring shared by the Team page and the side pane
+// the Team page's month picker re-renders the roster from the cached docs
 function wireMonthPick(input){
   if (!input) return;
   input.onchange = () => {
     teamMonthSel = input.value || null;
     renderTeamMonthly();
     if (teamPageDocs) renderTeamRoster(teamPageDocs);
-    renderTeamPane();
   };
 }
 
@@ -419,7 +412,6 @@ async function deleteAssignment(idsCsv){
    ============================================================ */
 let teamPaneRows = null;      // every assignment, newest first
 let teamPendingCount = 0;     // accounts waiting for approval
-let teamPaneDocs = null;      // every member's appState, for the monthly summary
 
 const todayISO = () => {
   const d = new Date();
@@ -510,18 +502,8 @@ async function loadTeamPane(){
     const p = await db.collection("users").where("role","==","pending").get();
     teamPendingCount = p.size;
   } catch (e) { console.error(e); teamPendingCount = 0; }
-  try {
-    const snap = await db.collection("appState").get();
-    const docs = [];
-    snap.forEach(doc => {
-      const data = doc.data();
-      let s; try { s = JSON.parse(data.json); } catch { s = null; }
-      if (s) docs.push({ id: doc.id, raw: data, state: s });
-    });
-    teamPaneDocs = docs;
-    backfillDirectoryFrom(docs);   // keep every teammate @-mentionable
-  } catch (e) { console.error(e); teamPaneDocs = teamPaneDocs || []; }
   renderTeamPane();
+  backfillDirectory();   // keep every teammate @-mentionable
 }
 
 function renderTeamPane(){
@@ -549,34 +531,6 @@ function renderTeamPane(){
     ? `<ul class="team-stats">${stat(doneCount, "done", "done")}${stat(late, "overdue", "late")}${stat(openNow, "open", "open")}</ul>`
       + (teamPendingCount ? `<p class="team-approve">${teamPendingCount} waiting for approval</p>` : "")
     : `<p class="team-approve">No assignments yet.</p>`;
-
-  // rightmost panel, expanded: the monthly metric columns above the
-  // assignments table, on the same month picker as the Team page
-  const metrics = $("teamPanelMetrics");
-  if (metrics && teamPaneDocs){
-    const month = teamMonth();
-    const stats = monthlyStats(teamPaneDocs, month);
-    metrics.innerHTML = `
-      <div class="monthly-head">
-        <p class="team-panel-label">Monthly summary</p>
-        <input type="month" id="paneMonthPick" value="${esc(month)}" max="${monthISO(Date.now())}" aria-label="Pick a month">
-      </div>
-      ${stats.length ? `
-      <div class="team-table-wrap metrics-wrap">
-        <table class="team-table">
-          <thead><tr><th>Member</th><th>Days</th><th>Hours</th><th>Avg/Day</th></tr></thead>
-          <tbody>
-            ${stats.map(m => `<tr>
-              <td class="team-td-user">${esc(m.name)}</td>
-              <td>${m.days}</td>
-              <td>${humanDur(m.ms)}</td>
-              <td>${m.avgMs ? humanDur(m.avgMs) : "—"}</td>
-            </tr>`).join("")}
-          </tbody>
-        </table>
-      </div>` : `<p class="monthly-none">No hours in ${esc(monthLabel(month))}.</p>`}`;
-    wireMonthPick($("paneMonthPick"));
-  }
 
   const done = rows.filter(r => r.done && r.doneAt).sort((a,b) => b.doneAt - a.doneAt)[0];
   latest.innerHTML = done

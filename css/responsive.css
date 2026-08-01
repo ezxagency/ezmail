@@ -422,13 +422,6 @@
     mask-image:linear-gradient(to bottom,#000 88%,transparent 100%);
   }
   .app.panes .team-table{table-layout:fixed}
-  /* monthly summary sits above the assignments table; the assignments table
-     keeps flex:1 and stays the scrolling part. No fade mask here - the
-     bottom-edge fade belongs to the tall table, not this short one. */
-  .app.panes .metrics-wrap{
-    flex:0 0 auto;max-height:34%;margin-bottom:1.8vh;overflow:auto;
-    -webkit-mask-image:none;mask-image:none;
-  }
   /* the nested store groups bring their own rhythm - the flat per-li padding
      meant for the old one-level list would double up inside them */
   .app.panes.has-tasks .assign-panel .hist li.store-group{padding:1vh 0}
