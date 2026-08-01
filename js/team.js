@@ -180,23 +180,25 @@ let teamMonthSel = null;   // "YYYY-MM"; null = the current month
 const monthISO = ts => { const d = new Date(ts); return d.getFullYear() + "-" + pad(d.getMonth() + 1); };
 const teamMonth = () => teamMonthSel || monthISO(Date.now());
 
+// one member's numbers for one month, zeros included
+function monthlyStatsFor(s, month, now = Date.now()){
+  const hist = (s.history || []).filter(r => monthISO(r.startedAt) === month);
+  const live = (s.shift && s.status !== "IDLE" && monthISO(s.shift.startedAt) === month) ? s.shift : null;
+  const days = new Set(hist.map(r => dayStamp(r.startedAt)));
+  let ms = hist.reduce((t, r) => t + r.netMs, 0);
+  if (live){ ms += netMs(live, now); days.add(dayStamp(live.startedAt)); }
+  const rated = hist.filter(r => r.rating);
+  return {
+    days: days.size, ms, avgMs: days.size ? ms / days.size : 0,
+    shifts: hist.length + (live ? 1 : 0),
+    rating: rated.length ? (rated.reduce((t, r) => t + r.rating, 0) / rated.length).toFixed(1) : null
+  };
+}
+
 function monthlyStats(docs, month){
   const now = Date.now();
-  return docs.map(d => {
-    const s = d.state;
-    const hist = (s.history || []).filter(r => monthISO(r.startedAt) === month);
-    const live = (s.shift && s.status !== "IDLE" && monthISO(s.shift.startedAt) === month) ? s.shift : null;
-    const days = new Set(hist.map(r => dayStamp(r.startedAt)));
-    let ms = hist.reduce((t, r) => t + r.netMs, 0);
-    if (live){ ms += netMs(live, now); days.add(dayStamp(live.startedAt)); }
-    const rated = hist.filter(r => r.rating);
-    return {
-      name: s.worker || d.raw.email || "Unnamed",
-      days: days.size, ms, avgMs: days.size ? ms / days.size : 0,
-      shifts: hist.length + (live ? 1 : 0),
-      rating: rated.length ? (rated.reduce((t, r) => t + r.rating, 0) / rated.length).toFixed(1) : null
-    };
-  }).filter(m => m.shifts).sort((a, b) => b.ms - a.ms);
+  return docs.map(d => ({ name: d.state.worker || d.raw.email || "Unnamed", ...monthlyStatsFor(d.state, month, now) }))
+    .filter(m => m.shifts).sort((a, b) => b.ms - a.ms);
 }
 
 function monthLabel(month){
@@ -210,40 +212,23 @@ function wireMonthPick(input){
   input.onchange = () => {
     teamMonthSel = input.value || null;
     renderTeamMonthly();
+    if (teamPageDocs) renderTeamRoster(teamPageDocs);
     renderTeamPane();
   };
 }
 
-/* Team page variant: a labelled table-card that stacks into blocks on
-   phones, same as the other admin tables. */
+/* Team page: the monthly summary lives IN the roster - each member's row
+   carries their days / hours / avg-per-day for the picked month. This block
+   is just the roster's heading with the month picker. */
 function renderTeamMonthly(){
   const box = $("teamMonthly");
   if (!box || !teamPageDocs) return;
   const month = teamMonth();
-  const stats = monthlyStats(teamPageDocs, month);
   box.innerHTML = `
     <div class="monthly-head">
-      <p class="hint">Monthly summary · ${esc(monthLabel(month))}</p>
+      <p class="hint">Member summary · ${esc(monthLabel(month))}</p>
       <input type="month" id="teamMonthPick" value="${esc(month)}" max="${monthISO(Date.now())}" aria-label="Pick a month">
-    </div>
-    ${stats.length ? `
-    <div class="table-card">
-      <table class="assign-table metrics-table">
-        <thead><tr>
-          <th style="width:26%">Member</th><th>Days Worked</th><th>Hours Worked</th><th>Avg Hours/Day</th><th>Shifts</th><th>Avg Rating</th>
-        </tr></thead>
-        <tbody>
-          ${stats.map(m => `<tr>
-            <td data-label="Member" class="work-name">${esc(m.name)}</td>
-            <td data-label="Days Worked" class="nowrap">${m.days}</td>
-            <td data-label="Hours Worked" class="nowrap work-net">${humanDur(m.ms)}</td>
-            <td data-label="Avg Hours/Day" class="nowrap">${m.avgMs ? humanDur(m.avgMs) : "—"}</td>
-            <td data-label="Shifts" class="nowrap">${m.shifts}</td>
-            <td data-label="Avg Rating" class="nowrap">${m.rating ? m.rating + "/5" : "—"}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>` : `<p class="monthly-none">Nobody logged hours in ${esc(monthLabel(month))}.</p>`}`;
+    </div>`;
   wireMonthPick($("teamMonthPick"));
 }
 
@@ -252,13 +237,21 @@ function renderTeamRoster(docs){
   list.innerHTML = "";
   if (!docs.length){ list.innerHTML = `<div class="empty">No team members have signed in yet.</div>`; return; }
   const now = Date.now();
+  const month = teamMonth();
   const shortDate = (new Date().getMonth() + 1) + "/" + new Date().getDate();
+  const cell = (v, label) => `<span class="rm-cell"><b>${v}</b><small>${label}</small></span>`;
   docs.forEach(d => {
     const s = d.state, w = todaysWorkFor(s, now);
+    const m = monthlyStatsFor(s, month, now);
     const li = document.createElement("li");
     li.style.cursor = "pointer";
     li.innerHTML = `
       <div><div class="h-c">${esc(s.worker || d.raw.email || "Unnamed")}</div><div class="h-d">${esc(d.raw.email||"")} · ${esc((s.status||"").replace("_"," "))}</div></div>
+      <div class="roster-month" aria-label="Month summary">
+        ${cell(m.days, "days")}
+        ${cell(m.ms ? humanDur(m.ms) : "0h", "hours")}
+        ${cell(m.avgMs ? humanDur(m.avgMs) : "—", "avg/day")}
+      </div>
       <div style="text-align:right">
         <div class="h-h">${humanDur(w ? w.net : 0)} today · ${shortDate}</div>
         <div class="h-d">${humanDur(w ? w.brk : 0)} break</div>
