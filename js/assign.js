@@ -713,8 +713,10 @@ async function finishAssignment(id, row, comment){
     if (comment){ patch.comment = comment; patch.commentAt = now; }
     await db.collection("assignments").doc(id).update(patch);
     closeSheet();
-    // the notification fan-out is fire-and-forget: the task is done either way
-    if (comment) dispatchMentionNotifications(comment, id, row).catch(e => console.error(e));
+    // the notification fan-out is fire-and-forget: the task is done either
+    // way. Runs with or without a comment - a completion alone still rings
+    // the admin's bell; a comment adds its text and tags its @mentions.
+    dispatchMentionNotifications(comment, id, row).catch(e => console.error(e));
     toast("Marked done", { label: "Undo", run: () => undoDone([id]) });
   } catch (e) {
     console.error(e);

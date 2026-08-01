@@ -132,31 +132,31 @@ function parseMentions(text, dir){
   });
 }
 
-/* One comment fans out to: every tagged member (minus the author and minus
-   admins, who are covered by the role doc) plus a single toRole:"admin" doc
-   so the admin always sees the comment - unless the author IS the admin. */
+/* Every completion fans out: a toRole:"admin" doc so the admin's bell
+   rings for the finished task itself (comment or not - unless the author
+   IS the admin), plus one doc per @tagged member (minus the author and
+   minus admins, who are already covered by the role doc). */
 async function dispatchMentionNotifications(comment, assignmentId, row){
-  const dir = await loadDirectory();
   const me = auth.currentUser;
   if (!me) return;
   const base = {
     fromUid: me.uid,
     fromName: S.worker || (me.email ? me.email.split("@")[0] : "Someone"),
-    text: comment,
+    text: comment || "",
     store: (row && row.store) || "",
     task: (row && row.task) || "",
     assignmentId: assignmentId || null,
     createdAt: Date.now(),
     read: false
   };
-  const mentioned = parseMentions(comment, dir)
+  const mentioned = !comment ? [] : parseMentions(comment, await loadDirectory())
     .filter(p => p.uid !== me.uid)
     .filter(p => !ADMIN_EMAILS.includes((p.email || "").toLowerCase()));
+  if (!mentioned.length && isAdmin) return;   // admin finishing own task: nothing to tell
   const batch = db.batch();
   const col = db.collection("notifications");
   mentioned.forEach(p => batch.set(col.doc(), { ...base, toUid: p.uid }));
   if (!isAdmin) batch.set(col.doc(), { ...base, toRole: "admin" });
-  if (!mentioned.length && isAdmin) return;   // nothing to write
   await batch.commit();
 }
 
@@ -227,7 +227,7 @@ function openNotifCenter(){
       ${rows.map((n, i) => `
         <li class="notif-item${n.read ? "" : " is-unread"}" data-i="${i}">
           <div>
-            <div class="h-c">${esc(n.fromName || "Someone")} · ${esc([n.store, n.task].filter(Boolean).join(" · ") || "task")}</div>
+            <div class="h-c">${esc(n.fromName || "Someone")} finished ${esc([n.store, n.task].filter(Boolean).join(" · ") || "a task")}</div>
             ${n.text ? `<div class="h-d notif-text">${esc(n.text)}</div>` : ""}
             <div class="h-d">${whenLabel(n.createdAt)}</div>
           </div>
