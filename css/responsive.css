@@ -96,6 +96,17 @@
       "dock     card"
       ".        .";
   }
+  /* The panes must never size the grid. Their content can be arbitrarily
+     tall (assignments log, monthly summary, a long punch card), and a grid
+     item spanning auto rows grows them to its max-content - which is what
+     shoved the dock (CLOCK IN) down whenever the Team pane expanded.
+     contain:size zeroes the panes' intrinsic contribution, so the left
+     rail alone defines the row heights and the panes simply fill their
+     area, scrolling inside it. */
+  .app.panes .card,
+  .app.panes .team-panel,
+  .app.panes .assign-panel{contain:size}
+
   /* The third column appears when there is something to put in it: Team for an
      admin, Assigned tasks for everyone else. Both occupy the same grid area, so
      the two roles get the same layout, proportions and animation - only the
