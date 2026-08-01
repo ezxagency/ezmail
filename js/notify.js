@@ -192,13 +192,40 @@ function watchNotifications(){
   });
 }
 
+/* The centre is an inbox, not a badge-drain: EVERY notification ever sent
+   to this account stays listed (newest first, capped at the latest 50).
+   Unread ones wear a green dot; opening the centre marks them read, which
+   clears the bell badge but removes nothing from the list. Fetched without
+   an orderBy and sorted client-side so no composite index is needed. */
+async function fetchNotifHistory(){
+  const me = auth.currentUser;
+  if (!me) return [];
+  const out = [];
+  const q1 = await db.collection("notifications").where("toUid", "==", me.uid).get();
+  q1.forEach(d => out.push({ id: d.id, ...d.data() }));
+  if (isAdmin){
+    const q2 = await db.collection("notifications").where("toRole", "==", "admin").get();
+    q2.forEach(d => out.push({ id: d.id, ...d.data() }));
+  }
+  out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return out.slice(0, 50);
+}
+
 function openNotifCenter(){
-  const rows = notifRows.slice();   // the snapshot empties once marked read
   openSheet(`
     <h2>Notifications</h2>
-    ${rows.length ? `<ul class="hist notif-list">
+    <div id="ntBody">
+      <div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="ntClose">Close</button>
+  `, () => { $("ntClose").onclick = closeSheet; });
+
+  fetchNotifHistory().then(rows => {
+    const body = $("ntBody");
+    if (!body) return;   // the sheet moved on while we were fetching
+    body.innerHTML = rows.length ? `<ul class="hist notif-list">
       ${rows.map((n, i) => `
-        <li class="notif-item" data-i="${i}">
+        <li class="notif-item${n.read ? "" : " is-unread"}" data-i="${i}">
           <div>
             <div class="h-c">${esc(n.fromName || "Someone")} · ${esc([n.store, n.task].filter(Boolean).join(" · ") || "task")}</div>
             ${n.text ? `<div class="h-d notif-text">${esc(n.text)}</div>` : ""}
@@ -206,18 +233,17 @@ function openNotifCenter(){
           </div>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </li>`).join("")}
-    </ul>` : `<div class="empty">You're all caught up.</div>`}
-    <button class="btn btn-ghost btn-sm" id="ntClose">Close</button>
-  `, () => {
-    $("ntClose").onclick = closeSheet;
-    // opening the centre is reading it
-    if (rows.length){
+    </ul>` : `<div class="empty">Nothing here yet. When someone tags you in a task comment, it lands here — and stays.</div>`;
+
+    // opening the centre reads the unread; the docs stay for next time
+    const unread = rows.filter(n => !n.read);
+    if (unread.length){
       const batch = db.batch();
-      rows.forEach(n => batch.update(db.collection("notifications").doc(n.id), { read: true }));
+      unread.forEach(n => batch.update(db.collection("notifications").doc(n.id), { read: true }));
       batch.commit().catch(e => console.error(e));
     }
     // the task reference link: land where the task actually lives
-    document.querySelectorAll(".notif-item").forEach(li => li.onclick = () => {
+    body.querySelectorAll(".notif-item").forEach(li => li.onclick = () => {
       closeSheet();
       if (isAdmin){ go("team"); return; }
       go("");
@@ -225,5 +251,9 @@ function openNotifCenter(){
       const app = $("appScreen");
       if (app.classList.contains("has-tasks")) setSidePaneOpen(true);
     });
+  }).catch(e => {
+    console.error(e);
+    const body = $("ntBody");
+    if (body) body.innerHTML = `<div class="empty">Couldn't load notifications — check your connection.</div>`;
   });
 }

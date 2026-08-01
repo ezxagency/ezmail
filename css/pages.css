@@ -234,6 +234,12 @@
 }
 .notif-text{white-space:pre-wrap}
 .notif-item{cursor:pointer}
+/* unread wears a green dot; read rows dim slightly but never leave */
+.notif-item.is-unread .h-c::after{
+  content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--wk-green);margin-left:8px;vertical-align:middle;
+}
+.notif-item:not(.is-unread){opacity:.72}
 
 /* calendar bounds for the history filter + emailed summaries */
 .fpage-dates{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:-6px 0 18px}
