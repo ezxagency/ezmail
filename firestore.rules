@@ -56,6 +56,19 @@ service cloud.firestore {
       allow update: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin() || isAssignerEmail());
       allow delete: if request.auth != null && isAdmin();
     }
+    // Campaigns: the baton-pass pipeline. Only admins create, shape or
+    // delete them; everyone assigned to any stage may read the whole track
+    // and move the baton (stage-owner checks run app-side in a transaction
+    // - same trusted-team tradeoff the assignments collection already makes).
+    match /campaigns/{id} {
+      allow read, update: if request.auth != null
+        && (isAdmin() || request.auth.uid in resource.data.memberUids);
+      allow create, delete: if request.auth != null && isAdmin();
+    }
+    // Saved chains (stages + default owners): admin tooling only.
+    match /campaignTemplates/{id} {
+      allow read, create, update, delete: if request.auth != null && isAdmin();
+    }
     // Email summaries: the app queues a message here; the Trigger Email
     // extension (admin SDK, bypasses these rules) delivers it and stamps
     // delivery state back on the doc, which the requester watches.

@@ -17,15 +17,16 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=31">
-<link rel="stylesheet" href="css/dashboard.css?v=31">
-<link rel="stylesheet" href="css/drawer.css?v=31">
-<link rel="stylesheet" href="css/pages.css?v=31">
-<link rel="stylesheet" href="css/sheets.css?v=31">
-<link rel="stylesheet" href="css/tables.css?v=31">
-<link rel="stylesheet" href="css/responsive.css?v=31">
-<link rel="stylesheet" href="css/pomodoro.css?v=31">
-<link rel="stylesheet" href="css/login.css?v=31">
+<link rel="stylesheet" href="css/base.css?v=32">
+<link rel="stylesheet" href="css/dashboard.css?v=32">
+<link rel="stylesheet" href="css/drawer.css?v=32">
+<link rel="stylesheet" href="css/pages.css?v=32">
+<link rel="stylesheet" href="css/sheets.css?v=32">
+<link rel="stylesheet" href="css/tables.css?v=32">
+<link rel="stylesheet" href="css/responsive.css?v=32">
+<link rel="stylesheet" href="css/pomodoro.css?v=32">
+<link rel="stylesheet" href="css/campaigns.css?v=32">
+<link rel="stylesheet" href="css/login.css?v=32">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -354,15 +355,21 @@
         <span class="drawer-txt">History<small>Closed shifts &amp; exports</small></span>
         <kbd class="drawer-kbd">3</kbd>
       </a>
+      <a class="drawer-item" href="#/campaigns" data-route="campaigns">
+        <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><path d="M7.2 12h2.6M14.2 12h2.6"/></svg></span>
+        <span class="drawer-txt">Campaigns<small>The baton-pass pipeline</small></span>
+        <span class="drawer-badge hidden" id="cgNavBadge">0</span>
+        <kbd class="drawer-kbd">4</kbd>
+      </a>
       <a class="drawer-item hidden" id="drawerAssign" href="#/assign" data-route="assign">
         <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg></span>
         <span class="drawer-txt">Assign<small>Hand out tasks</small></span>
-        <kbd class="drawer-kbd">4</kbd>
+        <kbd class="drawer-kbd">5</kbd>
       </a>
       <a class="drawer-item hidden" id="drawerTeam" href="#/team" data-route="team">
         <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg></span>
         <span class="drawer-txt">Team<small>Roster &amp; approvals</small></span>
-        <kbd class="drawer-kbd">5</kbd>
+        <kbd class="drawer-kbd">6</kbd>
       </a>
     </nav>
 
@@ -410,6 +417,22 @@
         </button>
       </div>
       <div id="historyBody"></div>
+    </div>
+  </div>
+
+  <div class="admin-page fpage hidden" id="campaignsScreen">
+    <div class="admin-page-inner">
+      <div class="admin-page-head">
+        <div>
+          <p class="fpage-eyebrow">Pipeline</p>
+          <h1 class="admin-page-title">Campaigns</h1>
+        </div>
+        <button type="button" class="page-back" data-back>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          Back
+        </button>
+      </div>
+      <div id="campaignsBody"></div>
     </div>
   </div>
 
@@ -463,15 +486,16 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetBody"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=31"></script>
-<script src="js/render.js?v=31"></script>
-<script src="js/ui.js?v=31"></script>
-<script src="js/shift.js?v=31"></script>
-<script src="js/email.js?v=31"></script>
-<script src="js/nav.js?v=31"></script>
-<script src="js/boot.js?v=31"></script>
-<script src="js/team.js?v=31"></script>
-<script src="js/assign.js?v=31"></script>
-<script src="js/notify.js?v=31"></script>
-<script src="js/auth.js?v=31"></script>
-<script src="js/pomodoro.js?v=31"></script>
+<script src="js/config.js?v=32"></script>
+<script src="js/render.js?v=32"></script>
+<script src="js/ui.js?v=32"></script>
+<script src="js/shift.js?v=32"></script>
+<script src="js/email.js?v=32"></script>
+<script src="js/nav.js?v=32"></script>
+<script src="js/boot.js?v=32"></script>
+<script src="js/team.js?v=32"></script>
+<script src="js/assign.js?v=32"></script>
+<script src="js/notify.js?v=32"></script>
+<script src="js/campaigns.js?v=32"></script>
+<script src="js/auth.js?v=32"></script>
+<script src="js/pomodoro.js?v=32"></script>

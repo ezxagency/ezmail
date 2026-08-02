@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", assign: "assignScreen", team: "teamScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", assign: "assignScreen", team: "teamScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -90,7 +90,7 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if ($("sheet").classList.contains("on")) return;
-  const map = { "1": "", "2": "mission", "3": "history", "4": "assign", "5": "team" };
+  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "assign", "6": "team" };
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (r === "assign" && !canAssignTasks) return;
@@ -117,6 +117,7 @@ function applyRoute(){
   // walking into History refetches the team's record; while ON the page,
   // refreshOpenPage re-renders from the cache without another round trip
   else if (r === "history"){ if (isAdmin) hxTeamRows = null; renderHistoryPage(); }
+  else if (r === "campaigns") enterCampaignsPage();
   else if (r === "assign") enterAssignPage();
   else if (r === "team") loadTeamScreen();
 }

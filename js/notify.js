@@ -227,7 +227,9 @@ function openNotifCenter(){
       ${rows.map((n, i) => `
         <li class="notif-item${n.read ? "" : " is-unread"}" data-i="${i}">
           <div>
-            <div class="h-c">${esc(n.fromName || "Someone")} finished ${esc([n.store, n.task].filter(Boolean).join(" · ") || "a task")}</div>
+            <div class="h-c">${n.kind === "campaign"
+              ? esc(n.msg || "A campaign moved")
+              : esc(n.fromName || "Someone") + " finished " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task")}</div>
             ${n.text ? `<div class="h-d notif-text">${esc(n.text)}</div>` : ""}
             <div class="h-d">${whenLabel(n.createdAt)}</div>
           </div>
@@ -244,7 +246,10 @@ function openNotifCenter(){
     }
     // the task reference link: land where the task actually lives
     body.querySelectorAll(".notif-item").forEach(li => li.onclick = () => {
+      const n = rows[Number(li.dataset.i)];
       closeSheet();
+      // campaign news lives on the Campaigns page, whatever your role
+      if (n && n.kind === "campaign"){ go("campaigns"); return; }
       if (isAdmin){ go("team"); return; }
       go("");
       // desktop non-admins keep the queue in the side pane - open it

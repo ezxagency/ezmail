@@ -38,6 +38,7 @@ async function startWorkerApp(){
 
   render();
   watchAssignedTasks();
+  watchCampaigns();
   watchNotifications();
   syncDirectory();   // keep this account's name findable for @mentions
   backfillDirectory();   // admin only: seed the directory with the whole team
