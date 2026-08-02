@@ -847,29 +847,38 @@ function cgEdRowsHTML(){
     const uids = s.uids && s.uids.length ? s.uids : [""];
     return `
     <div class="cg-srow" data-i="${i}">
-      <div class="cg-srow-top">
-        <input type="text" class="cg-srow-name" value="${esc(s.name)}" placeholder="Stage name" autocomplete="off">
-        <input type="number" class="cg-srow-days" min="1" max="60" value="${s.days || ""}" placeholder="days" title="Time budget in days (optional)">
+      <div class="cg-srow-head">
+        <span class="cg-srow-step">Stage ${i + 1}</span>
         <span class="cg-srow-btns">
           <button type="button" class="cg-srow-b" data-mv="-1" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
           <button type="button" class="cg-srow-b" data-mv="1" title="Move down" ${i === cgEdStages.length - 1 ? "disabled" : ""}>↓</button>
           <button type="button" class="cg-srow-b cg-srow-x" data-del="1" title="Remove stage">×</button>
         </span>
       </div>
-      <div class="cg-srow-own">
-        <select class="cg-srow-who" data-o="0">
-          <option value="">Owner…</option>
-          <optgroup label="People">${cgEdPersonOpts(s.role ? "" : uids[0])}</optgroup>
-          ${crafts.length ? `<optgroup label="Anyone who is…">${crafts.map(cr =>
-            `<option value="role:${esc(cr)}"${s.role === cr ? " selected" : ""}>any ${esc(cr)}</option>`).join("")}</optgroup>` : ""}
-        </select>
-        ${s.role ? "" : uids.slice(1).map((u, k) => `
+      <label class="cg-fld"><span>Stage name</span>
+        <input type="text" class="cg-srow-name" value="${esc(s.name)}" placeholder="e.g. Copy, Design, Embed…" autocomplete="off">
+      </label>
+      <div class="cg-srow-grid">
+        <label class="cg-fld"><span>Owner</span>
+          <select class="cg-srow-who" data-o="0">
+            <option value="">Choose…</option>
+            <optgroup label="People">${cgEdPersonOpts(s.role ? "" : uids[0])}</optgroup>
+            ${crafts.length ? `<optgroup label="Anyone who is…">${crafts.map(cr =>
+              `<option value="role:${esc(cr)}"${s.role === cr ? " selected" : ""}>any ${esc(cr)}</option>`).join("")}</optgroup>` : ""}
+          </select>
+        </label>
+        <label class="cg-fld"><span>Days</span>
+          <input type="number" class="cg-srow-days" min="1" max="60" value="${s.days || ""}" placeholder="—" title="Time budget in days (optional)">
+        </label>
+      </div>
+      ${s.role ? "" : uids.slice(1).map((u, k) => `
+      <label class="cg-fld"><span>Co-owner — must also approve</span>
         <select class="cg-srow-who" data-o="${k + 1}">
           <option value="">— remove —</option>
-          <optgroup label="Co-owner">${cgEdPersonOpts(u)}</optgroup>
-        </select>`).join("")}
-        ${!s.role && uids[0] ? `<button type="button" class="cg-srow-add" title="Add a co-owner — all owners must approve">+</button>` : ""}
-      </div>
+          ${cgEdPersonOpts(u)}
+        </select>
+      </label>`).join("")}
+      ${!s.role && uids[0] ? `<button type="button" class="cg-srow-addco">+ Co-owner</button>` : ""}
     </div>`;
   }).join("");
 }
@@ -898,7 +907,7 @@ function cgEdPaintRows(){
         cgEdPaintRows();
       };
     });
-    const add = row.querySelector(".cg-srow-add");
+    const add = row.querySelector(".cg-srow-addco");
     if (add) add.onclick = () => { s.uids.push(""); cgEdPaintRows(); };
     row.querySelectorAll("[data-mv]").forEach(b => b.onclick = () => {
       const j = i + Number(b.dataset.mv);
@@ -960,12 +969,17 @@ async function cgEditorSheet(edit){
     <div class="cg-tpls">${templates.map((t, i) => `
       <span class="cg-tpl" data-t="${i}"><button type="button" class="cg-tpl-use">${esc(t.name)} <small>${t.stages.length}</small></button><button type="button" class="cg-tpl-del" title="Delete template">×</button></span>`).join("")}
     </div>` : ""}
-    <input type="text" id="cgEdTitle" placeholder="Campaign name — e.g. August Newsletter" value="${esc(edit ? edit.title : "")}" autocomplete="off">
-    <input type="text" id="cgEdStore" list="cgStoreList" placeholder="Store / client" value="${esc(edit ? edit.store || "" : "")}" autocomplete="off">
+    <label class="fld"><span>Campaign name</span>
+      <input type="text" id="cgEdTitle" placeholder="e.g. August Newsletter" value="${esc(edit ? edit.title : "")}" autocomplete="off"></label>
+    <label class="fld"><span>Store / client</span>
+      <input type="text" id="cgEdStore" list="cgStoreList" placeholder="Type or pick one" value="${esc(edit ? edit.store || "" : "")}" autocomplete="off"></label>
     <datalist id="cgStoreList">${stores.map(s => `<option value="${esc(s)}">`).join("")}</datalist>
-    <label class="af-due"><span>Due date</span><input type="date" id="cgEdDue" value="${esc(edit ? edit.dueDate || "" : "")}"></label>
-    <textarea id="cgEdBrief" placeholder="The brief — what is this campaign? (optional)">${esc(edit ? edit.brief || "" : "")}</textarea>
-    <p class="cg-dt-label">The chain — a name, a day budget (optional), owners. Several owners = all must approve.</p>
+    <label class="fld"><span>Due date — whole campaign, optional</span>
+      <input type="date" id="cgEdDue" value="${esc(edit ? edit.dueDate || "" : "")}"></label>
+    <label class="fld"><span>Brief — optional</span>
+      <textarea id="cgEdBrief" placeholder="What is this campaign about?">${esc(edit ? edit.brief || "" : "")}</textarea></label>
+    <p class="cg-dt-label">The chain</p>
+    <p class="cg-ed-help">Work travels top to bottom. Each stage gets a name, an owner and — if you want the clock running — a day budget. Give a stage several owners and all of them must approve.</p>
     <div id="cgEdRows"></div>
     <button type="button" class="btn btn-ghost btn-sm" id="cgEdAdd">+ Add stage</button>
     <label class="cg-tpl-save"><input type="checkbox" id="cgEdSaveTpl"><span>Save this chain as a template</span></label>

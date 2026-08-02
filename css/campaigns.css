@@ -185,35 +185,48 @@
 .cg-jump-live b{color:var(--wk-green)}
 
 /* ---------- chain builder ----------
-   Two lines per stage: name + day budget + order controls on top, the
-   owner picker(s) beneath — co-owners and role targets need the room. */
+   One card per stage, every field labeled. The narrow sheet gets a full
+   row for the name; owner + days share a grid so the grid does the sizing
+   and no flex/width fight with the sheet's global input rule can start.
+   A ↓ between cards says "this flows into that". */
+.cg-ed-help{font-family:var(--wk);font-size:12px;line-height:1.55;color:var(--wk-white-60);margin:-4px 0 14px}
 .cg-srow{
-  padding:12px 12px 10px;border-radius:14px;margin-bottom:10px;
-  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  position:relative;padding:14px 14px 12px;border-radius:16px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);
+  margin-bottom:26px;
 }
-.cg-srow-top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-/* the sheet's global input rule (input[type=…]{width:100%}) outranks a bare
-   class - these compact fields need the parent in the selector to win */
-.cg-srow-top .cg-srow-name{flex:1;width:auto;min-width:0;margin:0;padding:13px 12px;font-size:14px}
-.cg-srow-top .cg-srow-days{flex:none;width:80px;margin:0;min-height:0;padding:13px 10px;font-size:13px;text-align:center}
-.cg-srow-own{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.cg-srow-own .cg-srow-who{flex:1;width:auto;min-width:150px;margin:0;padding:13px 34px 13px 12px;font-size:14px;background-position:calc(100% - 18px) 19px,calc(100% - 12px) 19px}
-.cg-srow-add{
-  flex:none;width:34px;height:34px;border-radius:10px;cursor:pointer;
-  background:rgba(0,174,11,.14);border:1px solid rgba(0,174,11,.4);
-  color:var(--wk-green);font-size:16px;line-height:1;font-weight:700;
+#cgEdRows .cg-srow:not(:last-child)::after{
+  content:"↓";position:absolute;left:50%;bottom:-23px;transform:translateX(-50%);
+  color:var(--wk-white-60);font-size:15px;line-height:1;
 }
-.cg-srow-add:hover{background:rgba(0,174,11,.25)}
-.cg-srow-btns{flex:none;display:flex;gap:4px}
+.cg-srow-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cg-srow-step{
+  font-family:var(--wk);font-size:10.5px;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--wk-green);
+}
+.cg-srow-btns{display:flex;gap:4px}
 .cg-srow-b{
-  width:32px;height:32px;border-radius:9px;cursor:pointer;
+  width:30px;height:30px;border-radius:9px;cursor:pointer;
   background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);
-  color:var(--wk-white);font-size:14px;line-height:1;
+  color:var(--wk-white);font-size:13px;line-height:1;
 }
 .cg-srow-b:hover:not([disabled]){background:rgba(255,255,255,.18)}
 .cg-srow-b[disabled]{opacity:.3;cursor:default}
 .cg-srow-x{color:#FF8E8E}
-#cgEdRows{margin-top:2px}
+/* mini labelled fields inside a stage card (smaller than the sheet's .fld) */
+.cg-fld{display:block;margin:0 0 10px;min-width:0}
+.cg-fld > span{
+  display:block;font-family:var(--wk);font-size:10px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--wk-white-60);margin-bottom:6px;
+}
+.cg-srow-grid{display:grid;grid-template-columns:minmax(0,1fr) 86px;gap:10px}
+.cg-srow .cg-srow-days{text-align:center;padding-left:8px;padding-right:8px}
+.cg-srow-addco{
+  display:inline-block;margin:2px 0 4px;padding:8px 13px;border-radius:10px;cursor:pointer;
+  background:rgba(0,174,11,.12);border:1px solid rgba(0,174,11,.38);
+  color:var(--wk-green);font-family:var(--wk);font-size:12px;font-weight:600;
+}
+.cg-srow-addco:hover{background:rgba(0,174,11,.22)}
 
 /* template chips */
 .cg-tpls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
@@ -252,7 +265,10 @@
 /* ---------- v2: the board — columns are stages, dragging is jumping ---------- */
 .cg-board{
   display:flex;gap:14px;align-items:flex-start;overflow-x:auto;
-  padding:2px 2px 16px;margin:0 -2px 10px;
+  /* the page column caps at 720px, but a kanban earns the whole viewport:
+     bleed out of the column and carry the page gutter as own padding */
+  margin:0 calc(50% - 50vw) 10px;
+  padding:2px max(24px, env(safe-area-inset-right)) 16px max(24px, env(safe-area-inset-left));
   scrollbar-width:thin;
 }
 .cg-col{
