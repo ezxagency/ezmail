@@ -93,6 +93,9 @@ function watchCampaigns(){
   const unsub = q.onSnapshot(snap => {
     const rows = [];
     snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+    // a doc with no chain (malformed write, hand-edited in the console)
+    // must degrade to an empty track, not crash every render after it
+    rows.forEach(c => { if (!Array.isArray(c.stages)) c.stages = []; });
     rows.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
     if (cgBatonSeen){
@@ -1131,7 +1134,7 @@ async function cgEdSubmit(edit){
         dueAt: i === 0 && r.days ? now + r.days * CG_DAY : null
       }));
       const ref = await db.collection("campaigns").add({
-        ...common, status: "active", cur: 0, liveAt: null, links: [],
+        ...common, stages, status: "active", cur: 0, liveAt: null, links: [],
         createdAt: now, createdBy: { uid: me.uid, name: myName },
         history: [{ t: now, type: "created", by: myName }]
       });
