@@ -11,6 +11,13 @@ service cloud.firestore {
     function isAssignerEmail() {
       return request.auth.token.email in ['prashuchiha34@gmail.com'];
     }
+    // signed-in is NOT the same as team member: signup is open, so a
+    // stranger can hold a 'pending' account. Anything the whole TEAM may
+    // do (but a pending stranger may not) gates on this instead.
+    function isTeam() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'worker'];
+    }
     match /users/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow create: if request.auth != null && request.auth.uid == uid
@@ -44,9 +51,20 @@ service cloud.firestore {
     // toRole:"admin" fan-in doc - may read it or mark it read.
     match /notifications/{id} {
       allow create: if request.auth != null;
-      allow read, update: if request.auth != null && (
+      allow read: if request.auth != null && (
         resource.data.toUid == request.auth.uid ||
         (resource.data.toRole == 'admin' && isAdmin())
+      );
+      // the target may mark it read, or answer a pending hand-off once -
+      // never rewrite its content or flip a decided offer back to pending
+      allow update: if request.auth != null && (
+        resource.data.toUid == request.auth.uid ||
+        (resource.data.toRole == 'admin' && isAdmin())
+      ) && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+         && resource.data.status == 'pending'
+         && request.resource.data.status in ['accepted', 'declined'])
       );
       allow delete: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin());
     }
@@ -56,7 +74,15 @@ service cloud.firestore {
       // is how accepting a comment-tag hand-off lands on their own queue
       allow create: if request.auth != null && (isAdmin() || isAssignerEmail()
         || request.resource.data.toUid == request.auth.uid);
-      allow update: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin() || isAssignerEmail());
+      // the assignee's own updates are progress-only: they can finish,
+      // undo, comment and stamp seen - never re-address the task to
+      // someone else or rewrite what was asked of them
+      allow update: if request.auth != null && (
+        isAdmin() || isAssignerEmail() ||
+        (resource.data.toUid == request.auth.uid
+         && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['done', 'doneAt', 'ack', 'comment', 'commentAt', 'seenAt']))
+      );
       // the assigner's edit flow deletes rows it removes from a thread -
       // without this, any edit that drops a task fails wholesale for them
       allow delete: if request.auth != null && (isAdmin() || isAssignerEmail());
@@ -81,10 +107,15 @@ service cloud.firestore {
     // collection stays signed-in-only so tokens can't be enumerated.
     match /clientReviews/{token} {
       allow get: if true;
-      allow list: if request.auth != null;
-      allow create: if request.auth != null;
+      // listing is TEAM-only: signup is open, so a merely signed-in
+      // 'pending' stranger must not be able to harvest tokens
+      allow list: if request.auth != null && isTeam();
+      allow create: if request.auth != null && isTeam();
       allow update: if resource.data.status == 'pending'
         && request.resource.data.status in ['approved', 'changes']
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() <= 2000
+        && request.resource.data.decidedAt is int
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['status', 'comment', 'decidedAt']);
       allow delete: if request.auth != null && isAdmin();
@@ -93,11 +124,15 @@ service cloud.firestore {
     // extension (admin SDK, bypasses these rules) delivers it and stamps
     // delivery state back on the doc, which the requester watches.
     match /mail/{id} {
-      // workers may only queue mail addressed to themselves; admins to anyone
+      // workers may only queue mail addressed to themselves; admins to
+      // anyone. The key allowlists stop cc/bcc/replyTo riding along and
+      // turning the project's sender into anyone's relay.
       allow create: if request.auth != null && (
         isAdmin() ||
         (request.resource.data.to.size() == 1
-         && request.resource.data.to[0] == request.auth.token.email)
+         && request.resource.data.to[0] == request.auth.token.email
+         && request.resource.data.keys().hasOnly(['to', 'message', 'summary'])
+         && request.resource.data.message.keys().hasOnly(['subject', 'html']))
       );
       // reading back your own request is what powers the sent/failed toast
       allow read: if request.auth != null
