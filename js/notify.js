@@ -173,32 +173,47 @@ async function handoffAccept(n){
   const me = auth.currentUser;
   const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
   const now = Date.now();
-  await db.collection("assignments").add({
-    toUid: me.uid, toName: myName,
-    fromName: n.fromName || "teammate", fromEmail: "",
-    store: n.store || "", task: n.task || "",
-    note: n.text || "",
-    snote: "Accepted hand-off from " + (n.fromName || "a teammate"),
-    dueDate: null, createdAt: now, done: false, doneAt: null,
-    groupId: null, groupSize: 1, seenAt: null
+  const nref = db.collection("notifications").doc(n.id);
+  const aref = db.collection("assignments").doc();
+  // transactional so the same offer answered from two devices can't land
+  // the task twice - the second answer is told it came too late
+  await db.runTransaction(async tx => {
+    const doc = await tx.get(nref);
+    if (!doc.exists || doc.data().status !== "pending")
+      throw new Error("This offer was already answered");
+    tx.update(nref, { status: "accepted" });
+    tx.set(aref, {
+      toUid: me.uid, toName: myName,
+      fromName: n.fromName || "teammate", fromEmail: "",
+      store: n.store || "", task: n.task || "",
+      note: n.text || "",
+      snote: "Accepted hand-off from " + (n.fromName || "a teammate"),
+      dueDate: null, createdAt: now, done: false, doneAt: null,
+      groupId: null, groupSize: 1, seenAt: null
+    });
   });
-  await db.collection("notifications").doc(n.id).update({ status: "accepted" });
   if (!isAdmin) await db.collection("notifications").add({
     toRole: "admin", kind: "handoff-news",
     msg: `${myName} accepted ${n.fromName || "a teammate"}'s hand-off — ${[n.store, n.task].filter(Boolean).join(" · ") || "a task"}`,
     fromUid: me.uid, fromName: myName, createdAt: now, read: false
-  });
+  }).catch(e => console.error(e));
   toast("Added to your queue");
 }
 async function handoffDecline(n){
   const me = auth.currentUser;
   const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
-  await db.collection("notifications").doc(n.id).update({ status: "declined" });
+  const nref = db.collection("notifications").doc(n.id);
+  await db.runTransaction(async tx => {
+    const doc = await tx.get(nref);
+    if (!doc.exists || doc.data().status !== "pending")
+      throw new Error("This offer was already answered");
+    tx.update(nref, { status: "declined" });
+  });
   if (n.fromUid && n.fromUid !== me.uid) await db.collection("notifications").add({
     toUid: n.fromUid, kind: "handoff-news",
     msg: `${myName} declined the hand-off — ${[n.store, n.task].filter(Boolean).join(" · ") || "a task"}`,
     fromUid: me.uid, fromName: myName, createdAt: Date.now(), read: false
-  });
+  }).catch(e => console.error(e));
   toast("Declined — " + (n.fromName || "they") + " will know");
 }
 
@@ -302,7 +317,9 @@ function openNotifCenter(){
         openNotifCenter();
       } catch (err) {
         console.error(err);
-        toast("Couldn't do that — make sure the updated Firestore rules are published");
+        toast(String(err.message || "").startsWith("This offer")
+          ? err.message
+          : "Couldn't do that — make sure the updated Firestore rules are published");
         openNotifCenter();
       }
     });

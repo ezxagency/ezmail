@@ -57,7 +57,9 @@ service cloud.firestore {
       allow create: if request.auth != null && (isAdmin() || isAssignerEmail()
         || request.resource.data.toUid == request.auth.uid);
       allow update: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin() || isAssignerEmail());
-      allow delete: if request.auth != null && isAdmin();
+      // the assigner's edit flow deletes rows it removes from a thread -
+      // without this, any edit that drops a task fails wholesale for them
+      allow delete: if request.auth != null && (isAdmin() || isAssignerEmail());
     }
     // Campaigns: the baton-pass pipeline. Only admins create, shape or
     // delete them; everyone assigned to any stage may read the whole track
