@@ -99,7 +99,10 @@ let S = { worker:"", status:"IDLE", shift:null, history:[], lastReport:null };
 
 const $ = id => document.getElementById(id);
 const save = () => Store.write(S);
-const esc = s => String(s).replace(/[<>&]/g, c => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;" }[c]));
+// quotes are escaped too: user text (titles, stage names, links) lands in
+// double-quoted HTML attributes all over the app, and a stray " would end
+// the attribute early - worst case injecting attributes into a link
+const esc = s => String(s).replace(/[<>&"]/g, c => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;", '"':"&quot;" }[c]));
 
 const pad = n => String(n).padStart(2,"0");
 const clock = ts => { const d = new Date(ts); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };

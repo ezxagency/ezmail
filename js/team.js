@@ -526,15 +526,31 @@ function renderTeamPane(){
   const counts = $("teamPanelCounts"), latest = $("teamPanelLatest"), table = $("teamPanelTable");
   if (!counts || !latest || !table) return;
   const rows = teamPaneRows || [];
+  // campaigns share the pane: the admin's watchCampaigns holds every doc,
+  // so the merge is pure render-time - one campaign reads as one thread
+  const cgs = (typeof cgRows !== "undefined" && cgRows) ? cgRows : [];
+  const cgLate = c => {
+    if (c.status !== "active") return false;
+    const s = cgStage(c);
+    return !!((s && s.dueAt && s.dueAt < Date.now()) || (c.dueDate && c.dueDate < todayISO()));
+  };
+  const cgSeenAll = c => {
+    const s = cgStage(c);
+    const own = s ? cgOwnersOf(s) : [];
+    return own.length > 0 && own.every(o => ((s.seenBy || [])).includes(o.uid));
+  };
 
   // The three states are counted as a partition, not overlapping sets - an
   // overdue task is not also counted as open, or the numbers don't add up to
   // the table you see after Proceed. Counted per thread, same as the table
   // shows them, so a six-task group reads as one thing everywhere.
   const threads = groupAssignments(rows);
-  const doneCount = threads.filter(t => threadState(t) === "done").length;
-  const late = threads.filter(t => threadState(t) === "late").length;
-  const openNow = threads.filter(t => threadState(t) === "open").length;
+  const doneCount = threads.filter(t => threadState(t) === "done").length
+    + cgs.filter(c => c.status === "live").length;
+  const late = threads.filter(t => threadState(t) === "late").length
+    + cgs.filter(cgLate).length;
+  const openNow = threads.filter(t => threadState(t) === "open").length
+    + cgs.filter(c => c.status === "active" && !cgLate(c)).length;
 
   // Same pips the expanded table uses, so the collapsed card reads as its
   // legend rather than as a separate vocabulary. Zeroes stay in place but
@@ -543,21 +559,41 @@ function renderTeamPane(){
     `<li class="team-stat is-${cls}${n ? "" : " is-zero"}">
        <span class="team-dot is-${cls}">${STATUS_GLYPH[cls]}</span><b>${n}</b> ${label}
      </li>`;
-  counts.innerHTML = (rows.length || teamPendingCount)
+  counts.innerHTML = (rows.length || cgs.length || teamPendingCount)
     ? `<ul class="team-stats">${stat(doneCount, "done", "done")}${stat(late, "overdue", "late")}${stat(openNow, "open", "open")}</ul>`
       + (teamPendingCount ? `<p class="team-approve">${teamPendingCount} waiting for approval</p>` : "")
     : `<p class="team-approve">No assignments yet.</p>`;
 
+  // latest completion: newest of a finished assignment and a shipped campaign
   const done = rows.filter(r => r.done && r.doneAt).sort((a,b) => b.doneAt - a.doneAt)[0];
-  latest.innerHTML = done
+  const shipped = cgs.filter(c => c.status === "live" && c.liveAt).sort((a,b) => b.liveAt - a.liveAt)[0];
+  if (shipped && (!done || shipped.liveAt > done.doneAt)){
+    latest.innerHTML = `<div class="team-latest-who">${esc(shipped.title)} went LIVE</div>
+       <div class="team-latest-what">${esc(shipped.store || "campaign")}<span class="team-latest-when"> · ${whenLabel(shipped.liveAt)}</span></div>`;
+  } else latest.innerHTML = done
     ? `<div class="team-latest-who">${esc(done.toName || "Someone")} finished ${esc(done.task || "a task")}</div>
        <div class="team-latest-what">${esc(done.store || "—")}<span class="team-latest-when"> · ${whenLabel(done.doneAt)}</span></div>`
     : `<div class="team-latest-none">Nothing finished yet. Completed tasks land here.</div>`;
 
-  if (!rows.length){
+  if (!rows.length && !cgs.length){
     table.innerHTML = `<tbody><tr><td class="team-table-empty">No assignments yet.</td></tr></tbody>`;
     return;
   }
+  const cgRowsHtml = cgs.map(c => {
+    const s = cgStage(c);
+    const st = c.status === "live" ? "done" : cgLate(c) ? "late" : "open";
+    const seen = c.status === "active" && cgSeenAll(c)
+      ? `<span class="seen-eye" title="Seen by the stage owner${cgOwnersOf(s).length > 1 ? "s" : ""}" aria-label="Seen">${EYE_GLYPH}</span>` : "";
+    const due = (s && s.dueAt) ? dayStamp(s.dueAt) : (c.dueDate || "—");
+    return `<tr>
+      <td class="team-td-user">${esc(c.status === "live" ? "—" : cgOwnerNames(s) || "—")}</td>
+      <td>${esc(c.store || "—")}</td>
+      <td>${esc(c.title)}${s && c.status === "active" ? ` <span class="thread-count">${esc(s.name)}</span>` : ""}</td>
+      <td class="nowrap"><span class="team-dot is-${st}" title="${STATUS_LABEL[st]}" aria-label="${STATUS_LABEL[st]}">${STATUS_GLYPH[st]}</span>${seen}</td>
+      <td class="team-td-muted">${s && s.enteredAt ? dayStamp(s.enteredAt) : (c.createdAt ? dayStamp(c.createdAt) : "—")}</td>
+      <td class="team-td-muted">${esc(due)}</td>
+    </tr>`;
+  }).join("");
   table.innerHTML = `
     <thead><tr>
       <th>User</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th>
@@ -575,6 +611,7 @@ function renderTeamPane(){
           <td class="team-td-muted">${threadDueCell(t)}</td>
         </tr>`;
       }).join("")}
+      ${cgRowsHtml}
     </tbody>`;
 }
 

@@ -369,6 +369,11 @@ async function loadAssignOptions(){
 
   const openBy = new Map();
   rows.forEach(r => { if (!r.done && r.toUid) openBy.set(r.toUid, (openBy.get(r.toUid) || 0) + 1); });
+  // campaign batons weigh on a member too - "clear" must mean actually clear
+  (typeof cgRows !== "undefined" && cgRows ? cgRows : [])
+    .filter(c => c.status === "active")
+    .forEach(c => cgOwnersOf(cgStage(c)).forEach(o =>
+      openBy.set(o.uid, (openBy.get(o.uid) || 0) + 1)));
 
   const members = [];
   try {
@@ -544,24 +549,7 @@ function watchAssignedTasks(){
       }
       assignedTasksSeen = new Set(rows.map(r => r.id));
 
-      // The pane is the non-admin's second block and it stays up even with
-      // an empty queue - the dashboard keeping both cards reads calmer than
-      // one wide card that reshapes whenever the queue drains. An admin's
-      // third column is already the Team card, so theirs still only mounts
-      // when there is something in it.
-      const app = $("appScreen");
-      const count = $("assignedCount");
-      if (!rows.length && isAdmin) {
-        box.classList.add("hidden");
-        app.classList.remove("has-tasks");
-        list.innerHTML = "";
-        return;
-      }
-      box.classList.remove("hidden");
-      app.classList.toggle("has-tasks", !isAdmin);
-      if (count) count.textContent = rows.length ? rows.length + " open" : "";
-      renderAssignedBrief(rows);
-      renderAssignedList(rows);
+      renderAssignedQueue();
     }, e => console.error(e));
   onSessionEnd(() => {
     unsub(); assignedTasksSeen = null; assignedOpenRows = [];
@@ -569,6 +557,37 @@ function watchAssignedTasks(){
     $("appScreen").classList.remove("has-tasks");
     list.innerHTML = "";
   });
+}
+
+/* ---------- one queue, two sources ----------
+   The dashboard card renders assignments AND campaign batons as one list -
+   same store groups, same due sorting. Assignments stay the only thing in
+   assignedOpenRows (the seenAt stamping and Done flow depend on that);
+   batons come in as view-only rows from cgBatonRows() at render time and
+   are re-merged whenever EITHER watcher fires. The pane is the non-admin's
+   second block and stays up even empty - the dashboard keeping both cards
+   reads calmer than one wide card that reshapes whenever the queue drains.
+   An admin's third column is already the Team card, so theirs still only
+   mounts when there is something in it. */
+function renderAssignedQueue(){
+  const box = $("assignedTasksSection"), list = $("assignedTasksList");
+  if (!box || !list || !auth || !auth.currentUser) return;
+  const batons = (typeof cgBatonRows === "function") ? cgBatonRows() : [];
+  const rows = assignedOpenRows.concat(batons);
+  rows.sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+  const app = $("appScreen");
+  const count = $("assignedCount");
+  if (!rows.length && isAdmin) {
+    box.classList.add("hidden");
+    app.classList.remove("has-tasks");
+    list.innerHTML = "";
+    return;
+  }
+  box.classList.remove("hidden");
+  app.classList.toggle("has-tasks", !isAdmin);
+  if (count) count.textContent = rows.length ? rows.length + " open" : "";
+  renderAssignedBrief(rows);
+  renderAssignedList(rows);
 }
 
 /* ---------- the queue itself, nested by store ----------
@@ -620,17 +639,27 @@ function renderAssignedList(rows){
         ${items.map(r => {
           const late = r.dueDate && r.dueDate < today;
           const tOpen = assignedOpenTasks.has(r.id);
+          // a baton row is the same row, but finishing it IS the handoff -
+          // its buttons route to the campaign, never to markAssignmentDone
+          const acts = r.cg
+            ? `<button type="button" class="btn btn-go btn-sm atask-pass" data-cg="${esc(r.cg)}">${r.multi ? "Approve" : "Pass forward"}</button>
+               ${r.canBack ? `<button type="button" class="btn btn-ghost btn-sm atask-sendback" data-cg="${esc(r.cg)}">Send back</button>` : ""}
+               <button type="button" class="btn btn-ghost btn-sm atask-view" data-cg="${esc(r.cg)}">Open</button>`
+            : `<button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>`;
+          const meta = r.cg
+            ? `From ${esc(r.fromName || "admin")}${r.createdAt ? " · your stage since " + dayStamp(r.createdAt) : ""}${r.multi ? " · " + esc(r.multi) : ""} · ${r.dueDate ? "due " + esc(r.dueDate) : "no due date"}`
+            : `From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(r.dueDate) : "no due date"}`;
           return `
           <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
-            <button type="button" class="atask-head" data-tid="${r.id}" aria-expanded="${tOpen}">
-              <span class="atask-name">${esc(r.task)}</span>
+            <button type="button" class="atask-head" data-tid="${esc(r.id)}" aria-expanded="${tOpen}">
+              <span class="atask-name">${esc(r.task)}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}</span>
               <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(r.dueDate) : ""}</span>
               ${CARET_SVG("atask-caret")}
             </button>
             <div class="atask-body">
               ${r.note ? `<p class="atask-note">${esc(r.note)}</p>` : ""}
-              <p class="atask-meta">From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(r.dueDate) : "no due date"}</p>
-              <button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>
+              <p class="atask-meta">${meta}</p>
+              ${acts}
             </div>
           </li>`;
         }).join("")}
@@ -638,17 +667,22 @@ function renderAssignedList(rows){
     </li>`;
   }).join("");
 
+  // collapse/expand re-renders go through the merged queue, so batons
+  // don't vanish on the first tap
   list.querySelectorAll(".store-head").forEach(b => b.onclick = () => {
     const s = stores[Number(b.dataset.si)];
     if (assignedClosedStores.has(s)) assignedClosedStores.delete(s); else assignedClosedStores.add(s);
-    renderAssignedList(assignedOpenRows);
+    renderAssignedQueue();
   });
   list.querySelectorAll(".atask-head").forEach(b => b.onclick = () => {
     const id = b.dataset.tid;
     if (assignedOpenTasks.has(id)) assignedOpenTasks.delete(id); else assignedOpenTasks.add(id);
-    renderAssignedList(assignedOpenRows);
+    renderAssignedQueue();
   });
   list.querySelectorAll(".atask-done").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
+  list.querySelectorAll(".atask-pass").forEach(b => b.onclick = () => cgPassSheet(b.dataset.cg));
+  list.querySelectorAll(".atask-sendback").forEach(b => b.onclick = () => cgBackSheet(b.dataset.cg));
+  list.querySelectorAll(".atask-view").forEach(b => b.onclick = () => cgOpenDetail(b.dataset.cg));
 }
 
 // the other half of a Done toast: one mistap shouldn't be a conversation

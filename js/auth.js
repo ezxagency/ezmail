@@ -49,6 +49,10 @@ if (!FB_READY){
       $("drawerAssign").classList.add("hidden");
       $("drawerTeam").classList.add("hidden");
       closeDrawer();
+      // a sheet open at forced sign-out (token revoked, account disabled)
+      // would otherwise float the old account's data over the login screen
+      sheetDismissible = true;
+      closeSheet();
       // the next person to sign in starts on the dashboard, not wherever
       // the previous session happened to be parked
       Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.add("hidden"));

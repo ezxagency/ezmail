@@ -151,6 +151,16 @@ async function decide(status){
     paintDecided(status, comment);
   } catch (e) {
     console.error(e);
+    // the usual cause isn't the network - it's this link already being
+    // answered (second tab, second device). Check before blaming wifi.
+    try {
+      const doc = await ref.get();
+      const r = doc.exists ? doc.data() : null;
+      if (r && r.status && r.status !== "pending"){
+        paintDecided(r.status, r.comment || "");
+        return;
+      }
+    } catch {}
     $("rvApprove").disabled = false;
     $("rvChanges").disabled = false;
     alert("Couldn't send your decision — check your connection and try again.");

@@ -11,6 +11,9 @@ function openSheet(html, setup, opts){
   $("scrim").classList.add("on");
   $("sheet").classList.add("on");
   if (setup) setup();
+  // the dialog owns focus once open; a setup() that focused its own input
+  // (a textarea to type in) keeps that more specific choice
+  if (!$("sheet").contains(document.activeElement)) $("sheet").focus();
 }
 function closeSheet(){ $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
 const sheetIsOpen = () => $("sheet").classList.contains("on");

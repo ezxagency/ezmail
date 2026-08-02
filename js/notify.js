@@ -15,11 +15,13 @@ async function syncDirectory(){
   if (!db || !auth || !auth.currentUser) return;
   const u = auth.currentUser;
   try {
+    // merge, never replace: the doc also carries the craft (role label) the
+    // admin set - a plain set() here erased it on every sign-in
     await db.collection("directory").doc(u.uid).set({
       name: S.worker || (u.email ? u.email.split("@")[0] : "Someone"),
       email: u.email || "",
       updatedAt: Date.now()
-    });
+    }, { merge: true });
   } catch (e) { console.error(e); }
 }
 
@@ -235,7 +237,7 @@ function openNotifCenter(){
           </div>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </li>`).join("")}
-    </ul>` : `<div class="empty">Nothing here yet. When someone tags you in a task comment, it lands here — and stays.</div>`;
+    </ul>` : `<div class="empty">Nothing here yet. Task comments that tag you and campaign handoffs land here — and stay.</div>`;
 
     // opening the centre reads the unread; the docs stay for next time
     const unread = rows.filter(n => !n.read);
@@ -248,8 +250,13 @@ function openNotifCenter(){
     body.querySelectorAll(".notif-item").forEach(li => li.onclick = () => {
       const n = rows[Number(li.dataset.i)];
       closeSheet();
-      // campaign news lives on the Campaigns page, whatever your role
-      if (n && n.kind === "campaign"){ go("campaigns"); return; }
+      // campaign news lands on the campaign itself, not just the list page
+      if (n && n.kind === "campaign"){
+        go("campaigns");
+        if (n.campaignId && typeof cgOpenDetail === "function")
+          setTimeout(() => cgOpenDetail(n.campaignId), 80);
+        return;
+      }
       if (isAdmin){ go("team"); return; }
       go("");
       // desktop non-admins keep the queue in the side pane - open it
