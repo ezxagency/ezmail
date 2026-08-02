@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Review &amp; approve</title>
+<meta name="theme-color" content="#161922">
+<meta name="robots" content="noindex,nofollow">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<style>
+  /* Standalone on purpose: the client gets one small page, no app shell.
+     Same navy-glass language as the app so it still feels like the brand. */
+  :root{
+    --navy:#161922; --white:#fff; --w70:rgba(255,255,255,.7); --w60:rgba(255,255,255,.6);
+    --green:#00AE0B; --mint:#00F5D4; --red:#FF8E8E;
+    --sf:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:var(--navy);color:var(--white);font-family:var(--sf);
+    padding:24px;-webkit-font-smoothing:antialiased;
+  }
+  .card{
+    width:100%;max-width:520px;padding:30px 28px 26px;border-radius:22px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);
+  }
+  .eyebrow{margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--w60)}
+  h1{margin:0 0 4px;font-size:24px;font-weight:700}
+  .meta{margin:0 0 18px;font-size:13px;color:var(--w70)}
+  .brief{
+    font-size:13.5px;line-height:1.6;color:var(--white);margin:0 0 18px;
+    background:rgba(255,255,255,.06);border-left:2px solid rgba(255,255,255,.4);
+    border-radius:0 10px 10px 0;padding:10px 14px;white-space:pre-wrap;
+  }
+  .label{margin:20px 0 10px;font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--w60)}
+  ul.links{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  ul.links a{
+    display:block;padding:11px 14px;border-radius:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
+    color:var(--mint);text-decoration:none;font-size:13.5px;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  ul.links a:hover{border-color:rgba(255,255,255,.4)}
+  ul.links span{display:block;margin-top:2px;font-size:10.5px;color:var(--w60);font-family:var(--sf)}
+  textarea{
+    width:100%;min-height:96px;resize:vertical;margin:0 0 14px;padding:13px 14px;border-radius:14px;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:var(--white);
+    font-family:var(--sf);font-size:14px;line-height:1.55;
+  }
+  textarea::placeholder{color:rgba(255,255,255,.4)}
+  textarea:focus{outline:2px solid var(--white);outline-offset:2px}
+  .btn{
+    display:block;width:100%;padding:15px;border-radius:14px;border:0;cursor:pointer;
+    font-family:var(--sf);font-size:15px;font-weight:700;margin-bottom:10px;
+    transition:transform .14s ease,opacity .14s ease;
+  }
+  .btn:hover:not([disabled]){transform:translateY(-2px)}
+  .btn[disabled]{opacity:.5;cursor:default}
+  .btn-ok{background:var(--green);color:#08210a}
+  .btn-chg{background:rgba(255,255,255,.12);color:var(--white);border:1px solid rgba(255,255,255,.25)}
+  .status{
+    display:inline-block;padding:6px 14px;border-radius:999px;margin:0 0 14px;
+    font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  }
+  .status.ok{background:var(--green);color:#08210a}
+  .status.chg{background:rgba(255,178,36,.2);color:#FFC96B}
+  .quiet{font-size:13px;color:var(--w70);line-height:1.6;margin:0}
+  .hiddenx{display:none}
+  .footer{margin-top:22px;font-size:11px;color:var(--w60);text-align:center}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="stLoading"><p class="quiet">Loading the work…</p></div>
+
+  <div id="stMissing" class="hiddenx">
+    <p class="eyebrow">Review link</p>
+    <h1>This link isn't valid</h1>
+    <p class="quiet">It may have been mistyped or removed. Ask the team to send a fresh one.</p>
+  </div>
+
+  <div id="stMain" class="hiddenx">
+    <p class="eyebrow">For your approval</p>
+    <h1 id="rvTitle"></h1>
+    <p class="meta" id="rvMeta"></p>
+    <p class="brief hiddenx" id="rvBrief"></p>
+    <div id="rvLinksWrap" class="hiddenx">
+      <p class="label">The work</p>
+      <ul class="links" id="rvLinks"></ul>
+    </div>
+
+    <div id="rvForm">
+      <p class="label">Your decision</p>
+      <textarea id="rvComment" placeholder="Any comments? (required if you ask for changes)"></textarea>
+      <button type="button" class="btn btn-ok" id="rvApprove">Approve</button>
+      <button type="button" class="btn btn-chg" id="rvChanges">Request changes</button>
+    </div>
+
+    <div id="rvDone" class="hiddenx">
+      <span class="status" id="rvDoneStatus"></span>
+      <p class="quiet" id="rvDoneText"></p>
+    </div>
+  </div>
+
+  <p class="footer">EZ Agency · secure review link</p>
+</div>
+
+<script>
+// Keep in sync with js/config.js — this page stands alone (no login, no
+// app shell), so it carries its own copy of the project config.
+firebase.initializeApp({
+  apiKey: "AIzaSyDmSVB6MWWCA_dqdQIrGoZxFSA_fw1OcqY",
+  authDomain: "ez-agency-timeclock.firebaseapp.com",
+  projectId: "ez-agency-timeclock",
+  storageBucket: "ez-agency-timeclock.firebasestorage.app",
+  messagingSenderId: "233171568445",
+  appId: "1:233171568445:web:883b9f8038b3a346762754"
+});
+const db = firebase.firestore();
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[<>&]/g, c => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;" }[c]));
+const show = id => ["stLoading","stMissing","stMain"].forEach(x => $(x).classList.toggle("hiddenx", x !== id));
+
+const token = new URLSearchParams(location.search).get("t") || "";
+const ref = token ? db.collection("clientReviews").doc(token) : null;
+
+function paintDecided(status, comment){
+  $("rvForm").classList.add("hiddenx");
+  $("rvDone").classList.remove("hiddenx");
+  const ok = status === "approved";
+  $("rvDoneStatus").textContent = ok ? "Approved" : "Changes requested";
+  $("rvDoneStatus").className = "status " + (ok ? "ok" : "chg");
+  $("rvDoneText").textContent = ok
+    ? "Thank you — the team has your approval and will take it from here."
+    : "Thank you — the team has your notes" + (comment ? ": “" + comment + "”" : "") + " and will get to work.";
+}
+
+async function decide(status){
+  const comment = $("rvComment").value.trim();
+  if (status === "changes" && comment.length < 3){
+    $("rvComment").focus();
+    $("rvComment").placeholder = "Tell the team what to change first…";
+    return;
+  }
+  $("rvApprove").disabled = true;
+  $("rvChanges").disabled = true;
+  try {
+    await ref.update({ status, comment, decidedAt: Date.now() });
+    paintDecided(status, comment);
+  } catch (e) {
+    console.error(e);
+    $("rvApprove").disabled = false;
+    $("rvChanges").disabled = false;
+    alert("Couldn't send your decision — check your connection and try again.");
+  }
+}
+
+(async () => {
+  if (!ref){ show("stMissing"); return; }
+  try {
+    const doc = await ref.get();
+    if (!doc.exists){ show("stMissing"); return; }
+    const r = doc.data();
+    $("rvTitle").textContent = r.title || "Campaign";
+    $("rvMeta").textContent = [r.store, r.stage ? "stage: " + r.stage : ""].filter(Boolean).join(" · ");
+    if (r.brief){ $("rvBrief").textContent = r.brief; $("rvBrief").classList.remove("hiddenx"); }
+    const links = r.links || [];
+    if (links.length){
+      $("rvLinksWrap").classList.remove("hiddenx");
+      $("rvLinks").innerHTML = links.map(l => {
+        let host = l.url;
+        try { host = new URL(l.url).hostname.replace(/^www\./, ""); } catch {}
+        return `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(host)}${l.stage ? `<span>from ${esc(l.stage)}</span>` : ""}</a></li>`;
+      }).join("");
+    }
+    show("stMain");
+    if (r.status && r.status !== "pending") paintDecided(r.status, r.comment || "");
+    else {
+      $("rvApprove").onclick = () => decide("approved");
+      $("rvChanges").onclick = () => decide("changes");
+    }
+  } catch (e) {
+    console.error(e);
+    show("stMissing");
+  }
+})();
+</script>
+</body>
+</html>

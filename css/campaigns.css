@@ -184,10 +184,24 @@
 .cg-jump-live{border-color:rgba(0,174,11,.5)}
 .cg-jump-live b{color:var(--wk-green)}
 
-/* ---------- chain builder ---------- */
-.cg-srow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-.cg-srow-name{flex:1.2;min-width:0;margin:0}
-.cg-srow-who{flex:1;min-width:0;margin:0}
+/* ---------- chain builder ----------
+   Two lines per stage: name + day budget + order controls on top, the
+   owner picker(s) beneath — co-owners and role targets need the room. */
+.cg-srow{
+  padding:12px 12px 10px;border-radius:14px;margin-bottom:10px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+}
+.cg-srow-top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.cg-srow-name{flex:1;min-width:0;margin:0}
+.cg-srow-days{flex:none;width:74px;margin:0;min-height:0;padding:12px 10px;font-size:13px}
+.cg-srow-own{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cg-srow-who{flex:1;min-width:140px;margin:0}
+.cg-srow-add{
+  flex:none;width:34px;height:34px;border-radius:10px;cursor:pointer;
+  background:rgba(0,174,11,.14);border:1px solid rgba(0,174,11,.4);
+  color:var(--wk-green);font-size:16px;line-height:1;font-weight:700;
+}
+.cg-srow-add:hover{background:rgba(0,174,11,.25)}
 .cg-srow-btns{flex:none;display:flex;gap:4px}
 .cg-srow-b{
   width:32px;height:32px;border-radius:9px;cursor:pointer;
@@ -220,6 +234,89 @@
   font-family:var(--wk);font-size:13px;color:var(--wk-white);
 }
 .cg-tpl-save input{width:auto;min-height:0;accent-color:var(--wk-green)}
+
+/* ---------- v2: list/board view toggle (admin) ---------- */
+.cg-viewtog{
+  display:inline-flex;border-radius:12px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.2);
+}
+.cg-viewtog-b{
+  padding:9px 14px;border:0;cursor:pointer;background:rgba(255,255,255,.06);
+  color:var(--wk-white-70);font-family:var(--wk);font-size:12px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.cg-viewtog-b.is-on{background:var(--wk-white);color:var(--wk-navy)}
+
+/* ---------- v2: the board — columns are stages, dragging is jumping ---------- */
+.cg-board{
+  display:flex;gap:14px;align-items:flex-start;overflow-x:auto;
+  padding:2px 2px 16px;margin:0 -2px 10px;
+  scrollbar-width:thin;
+}
+.cg-col{
+  flex:none;width:250px;padding:12px;border-radius:16px;
+  background:rgba(12,14,20,.42);border:1px solid rgba(255,255,255,.14);
+  transition:border-color .16s ease,background .16s ease;
+}
+.cg-col.is-over{border-color:var(--wk-green);background:rgba(0,174,11,.08)}
+.cg-col-head{
+  margin:0 0 10px;font-family:var(--wk);font-size:11px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--wk-white-70);
+}
+.cg-col-head span{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:999px;
+  background:rgba(255,255,255,.12);font-family:var(--mono);font-size:10px;
+}
+.cg-col-live .cg-col-head{color:var(--wk-green)}
+.cg-col-body{display:flex;flex-direction:column;gap:10px;min-height:44px}
+.cg-card{
+  padding:12px 13px;border-radius:13px;cursor:grab;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
+  display:flex;flex-direction:column;gap:5px;
+  transition:border-color .16s ease,opacity .16s ease;
+}
+.cg-card:hover{border-color:rgba(255,255,255,.36)}
+.cg-card.is-drag{opacity:.4}
+.cg-card b{font-family:var(--wk);font-size:13.5px;color:var(--wk-white);font-weight:600}
+.cg-card > span{font-family:var(--wk);font-size:11px;color:var(--wk-white-60)}
+.cg-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+.cg-card.is-live{cursor:pointer;opacity:.75}
+
+/* ---------- v2: approvals + role tags ---------- */
+.cg-ap{
+  display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;
+  font-family:var(--mono);font-size:10px;font-weight:700;vertical-align:middle;
+  background:rgba(0,174,11,.16);color:var(--wk-green);
+}
+.cg-role-tag{
+  display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;
+  font-family:var(--wk);font-size:10px;font-weight:600;vertical-align:middle;
+  letter-spacing:.06em;text-transform:uppercase;
+  background:rgba(0,245,212,.12);color:var(--mint-400,#00F5D4);
+}
+
+/* ---------- v2: client approval, inside the detail sheet ---------- */
+.cg-cr-none{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);margin:0 0 10px}
+.cg-cr-list{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:9px}
+.cg-cr{display:flex;align-items:center;gap:11px}
+.cg-cr-pill{
+  flex:none;padding:4px 10px;border-radius:999px;
+  font-family:var(--wk);font-size:10px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;
+}
+.cg-cr-pill.is-wait{background:rgba(255,255,255,.1);color:var(--wk-white-70)}
+.cg-cr-pill.is-ok{background:var(--wk-green);color:#08210a}
+.cg-cr-pill.is-chg{background:rgba(255,178,36,.18);color:#FFC96B}
+.cg-cr-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.cg-cr-stage{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60)}
+.cg-cr-note{font-family:var(--wk);font-size:12.5px;color:var(--wk-white);font-style:italic}
+.cg-cr-copy{
+  flex:none;padding:6px 11px;border-radius:9px;cursor:pointer;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.2);
+  color:var(--wk-white);font-family:var(--wk);font-size:11px;font-weight:600;
+}
+.cg-cr-copy:hover{background:rgba(255,255,255,.18)}
 
 /* ---------- roles sheet ---------- */
 .cg-roles{display:flex;flex-direction:column;gap:10px;margin:0 0 16px;max-height:46vh;overflow-y:auto}

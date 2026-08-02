@@ -1,56 +1,92 @@
 /* ============================================================
-   CAMPAIGNS — the baton-pass pipeline.
+   CAMPAIGNS — the baton-pass pipeline (v2).
 
    One campaign = one piece of work travelling a chain of stages the admin
-   designed (Copy → Copy Review → Design → … → Live, or whatever the niche
-   calls its steps). Exactly one stage holds the baton at a time; finishing
-   a stage IS the handoff. The current owner can pass it forward (with links
-   and a comment) or send it back one step (with a required note, which
-   bumps the receiving stage's round counter). The last stage passing
-   forward sets the whole campaign LIVE.
+   designed. Exactly one stage holds the baton at a time; finishing a stage
+   IS the handoff. v2 grows four muscles on the v1 skeleton:
 
-   Everyone assigned to any stage sees the whole track live; only the
-   current owner can move it. Admin can do anything at any time: edit the
-   chain mid-flight, reassign owners, jump the baton anywhere, or delete.
+   - Stages can carry a time budget (days). The baton arriving starts the
+     clock: the age chip stops guessing ("3d in stage") and starts judging
+     ("due tomorrow", "overdue 2d"). Templates remember the budgets.
+   - A stage can have SEVERAL owners — all must approve before the baton
+     advances. Each approval is recorded; any owner can still send back.
+   - A stage can target a ROLE ("anyone who is a designer") instead of a
+     person; it resolves to the least-loaded member with that craft at
+     create time. Templates survive team changes this way.
+   - Admins get a Board view: columns are stages, cards are campaigns,
+     dragging a card IS jumping the baton.
+   - A stage can be sent to the CLIENT: an unguessable link (no login)
+     shows them the work and takes Approve / Request changes. Their
+     decision lands in the campaign's detail for the stage owner to act on.
 
-   Storage: campaigns/{id} — the chain, the baton position, accumulated
-   links and a full history, all in one doc so a single snapshot listener
-   powers every surface. campaignTemplates/{id} — saved chains (stages +
-   default owners) so a niche's pipeline is built once, not per campaign.
-   Role labels live on directory/{uid}.craft: freeform words the admin
-   gives people ("copywriter", "designer"), shown in owner pickers to make
-   choosing easy — routing stays fully manual in v1.
+   Storage: campaigns/{id} (chain + baton + links + history in one doc),
+   campaignTemplates/{id} (saved chains: stages, budgets, owners or roles),
+   clientReviews/{token} (the token IS the capability — random doc id in a
+   link; see client-review.html), directory/{uid}.craft (role labels).
+
+   v1 docs stay readable: stages written before owners[] existed carry
+   uid/uname — cgOwnersOf() normalizes both shapes everywhere.
    ============================================================ */
+
+const CG_DAY = 86400000;
 
 /* ---------- live cache + drawer badge ---------- */
 let cgRows = null;        // every campaign this account may see; null = loading
 let cgBatonSeen = null;   // "id:cur" pairs already on screen; null = first snapshot
 let cgLiveOpen = false;   // the Live section's disclosure survives re-renders
+let cgView = localStorage.getItem("cgView") || "list";   // admin: list | board
 
 const cgStage = c => c.stages && c.stages[c.cur] ? c.stages[c.cur] : null;
+const cgOwnersOf = s => s ? (s.owners || (s.uid ? [{ uid: s.uid, uname: s.uname }] : [])) : [];
+const cgOwnerNames = s => cgOwnersOf(s).map(o => o.uname).join(", ");
+const cgApproved = s => ((s && s.approvals) || []).filter(u => cgOwnersOf(s).some(o => o.uid === u));
+
+// my turn = I own the current stage and haven't approved this round yet
 const cgIsMyTurn = c => {
-  const s = cgStage(c);
-  return c.status === "active" && s && auth.currentUser && s.uid === auth.currentUser.uid;
+  const s = cgStage(c), me = auth.currentUser;
+  return c.status === "active" && s && me
+    && cgOwnersOf(s).some(o => o.uid === me.uid)
+    && !cgApproved(s).includes(me.uid);
 };
 const cgAgeDays = c => {
   const s = cgStage(c);
-  return s && s.enteredAt ? Math.floor((Date.now() - s.enteredAt) / 86400000) : 0;
+  return s && s.enteredAt ? Math.floor((Date.now() - s.enteredAt) / CG_DAY) : 0;
 };
-// quiet when fresh, amber when the baton has sat ~2 days, red at ~4 —
-// the bottleneck should be visible before it becomes a fire
-function cgAgeChip(c){
-  if (c.status !== "active") return "";
+
+/* The chip judges when it can, guesses when it can't: a stage with a time
+   budget compares against its deadline; one without falls back to raw age
+   (quiet, then amber ~2 days, red ~4). */
+function cgDueInfo(c){
+  if (c.status !== "active") return null;
+  const s = cgStage(c);
+  if (!s) return null;
+  if (s.dueAt){
+    const left = Math.floor((s.dueAt - Date.now()) / CG_DAY);
+    if (left < 0)  return { cls: " is-red",   label: "overdue " + (-left) + "d" };
+    if (left === 0) return { cls: " is-amber", label: "due today" };
+    if (left === 1) return { cls: " is-amber", label: "due tomorrow" };
+    return { cls: "", label: "due in " + left + "d" };
+  }
   const d = cgAgeDays(c);
-  const cls = d >= 4 ? " is-red" : d >= 2 ? " is-amber" : "";
-  return `<span class="cg-age${cls}">${d ? d + "d in stage" : "today"}</span>`;
+  return { cls: d >= 4 ? " is-red" : d >= 2 ? " is-amber" : "", label: d ? d + "d in stage" : "today" };
 }
+function cgAgeChip(c){
+  const i = cgDueInfo(c);
+  return i ? `<span class="cg-age${i.cls}">${i.label}</span>` : "";
+}
+// stuck-longest-first: overdue distance when a deadline exists, raw age
+// (zeroed at the amber threshold) when it doesn't — comparable enough
+const cgStuckScore = c => {
+  const s = cgStage(c);
+  if (!s) return -Infinity;
+  if (s.dueAt) return Date.now() - s.dueAt;
+  return (Date.now() - (s.enteredAt || Date.now())) - 2 * CG_DAY;
+};
 
 function watchCampaigns(){
   if (!db || !auth.currentUser) return;
   const uid = auth.currentUser.uid;
   cgRows = null; cgBatonSeen = null;
-  // members only ever receive campaigns they are part of; the admin's
-  // subscription is the whole board
   const q = isAdmin
     ? db.collection("campaigns")
     : db.collection("campaigns").where("memberUids", "array-contains", uid);
@@ -59,8 +95,6 @@ function watchCampaigns(){
     snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
     rows.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
-    // a baton newly arrived in my court is news; the first snapshot is
-    // baseline, not news
     if (cgBatonSeen){
       rows.filter(cgIsMyTurn)
         .filter(c => !cgBatonSeen.has(c.id + ":" + c.cur))
@@ -72,8 +106,6 @@ function watchCampaigns(){
     cgPaintBadge(rows.filter(cgIsMyTurn).length);
     if (currentRoute() === "campaigns") renderCampaignsPage();
 
-    // the detail sheet is a live view too: repaint it when its campaign
-    // changed underneath, close it if the campaign is gone
     const root = $("cgDetailRoot");
     if (root){
       const c = rows.find(x => x.id === root.dataset.id);
@@ -90,8 +122,6 @@ function cgPaintBadge(n){
 }
 
 /* ---------- notifications (ride the existing bell) ---------- */
-// one doc per person to tell; kind:"campaign" makes the centre render the
-// msg text and route taps to the Campaigns page
 async function cgNotify(uids, msg, c, opts){
   const me = auth.currentUser;
   if (!me) return;
@@ -109,7 +139,6 @@ async function cgNotify(uids, msg, c, opts){
     };
     const batch = db.batch();
     const col = db.collection("notifications");
-    // admins hear through the one toRole doc, never twice via their uid
     [...new Set(uids)].filter(u => u && u !== me.uid && !isAdminUid(u))
       .forEach(u => batch.set(col.doc(), { ...base, toUid: u }));
     if (opts && opts.admins && !isAdmin) batch.set(col.doc(), { ...base, toRole: "admin" });
@@ -130,8 +159,8 @@ function renderCampaignsPage(){
   const live = cgRows.filter(c => c.status === "live")
     .sort((a, b) => (b.liveAt || 0) - (a.liveAt || 0));
   const mine = act.filter(cgIsMyTurn);
-  // stuck-longest first: the list doubles as the admin's bottleneck radar
-  const flight = [...act].sort((a, b) => cgAgeDays(b) - cgAgeDays(a));
+  const flight = [...act].sort((a, b) => cgStuckScore(b) - cgStuckScore(a));
+  const board = isAdmin && cgView === "board";
 
   const note = act.length
     ? `${act.length} in flight${mine.length ? ` · <b>${mine.length} waiting on you</b>` : ""}${live.length ? ` · ${live.length} live` : ""}`
@@ -142,6 +171,10 @@ function renderCampaignsPage(){
       <p class="fpage-bar-note">${note}</p>
       <div class="fpage-bar-acts">
         ${isAdmin ? `
+          <span class="cg-viewtog" role="group" aria-label="View">
+            <button type="button" class="cg-viewtog-b${board ? "" : " is-on"}" data-v="list">List</button>
+            <button type="button" class="cg-viewtog-b${board ? " is-on" : ""}" data-v="board">Board</button>
+          </span>
           <button class="btn btn-ghost btn-sm" id="cgRolesBtn">Roles</button>
           <button class="btn btn-go btn-sm" id="cgNewBtn">New campaign</button>` : ""}
       </div>
@@ -151,6 +184,7 @@ function renderCampaignsPage(){
     <p class="fpage-section-title">Your turn</p>
     <div class="cg-turns">${mine.map(cgTurnCard).join("")}</div>` : ""}
 
+    ${board ? cgBoardHTML(act, live) : `
     <p class="fpage-section-title">In flight</p>
     ${flight.length ? `<ul class="cg-list">${flight.map(cgRowHTML).join("")}</ul>` : `
       <div class="fpage-panel"><div class="empty">
@@ -165,17 +199,23 @@ function renderCampaignsPage(){
     </button>
     <ul class="cg-list cg-list-live${cgLiveOpen ? "" : " hidden"}" id="cgLiveList">
       ${live.slice(0, 12).map(cgRowHTML).join("")}
-    </ul>` : ""}`;
+    </ul>` : ""}`}`;
 
   if (isAdmin){
     const nb = $("cgNewBtn"), rb = $("cgRolesBtn");
     if (nb) nb.onclick = () => cgEditorSheet(null);
     if (rb) rb.onclick = cgRolesSheet;
+    box.querySelectorAll(".cg-viewtog-b").forEach(b => b.onclick = () => {
+      cgView = b.dataset.v;
+      try { localStorage.setItem("cgView", cgView); } catch {}
+      renderCampaignsPage();
+    });
+    if (board) cgWireBoard(box);
   }
   const lh = $("cgLiveHead");
   if (lh) lh.onclick = () => { cgLiveOpen = !cgLiveOpen; renderCampaignsPage(); };
   box.querySelectorAll("[data-cg]").forEach(el => el.onclick = e => {
-    if (e.target.closest("[data-cga]")) return;   // the card's own buttons win
+    if (e.target.closest("[data-cga]")) return;
     cgOpenDetail(el.dataset.cg);
   });
   box.querySelectorAll("[data-cga]").forEach(b => b.onclick = () => {
@@ -185,44 +225,50 @@ function renderCampaignsPage(){
   });
 }
 
-// the dot track: one dot per stage — filled = done behind the baton,
-// pulsing = holds it now, hollow = still ahead
 function cgTrack(c){
   return `<span class="cg-track" aria-hidden="true">${c.stages.map((s, i) => {
     const cls = c.status === "live" || i < c.cur ? "is-done" : i === c.cur ? "is-cur" : "";
-    return `<i class="cg-dot ${cls}" title="${esc(s.name)} · ${esc(s.uname)}"></i>`;
+    return `<i class="cg-dot ${cls}" title="${esc(s.name)} · ${esc(cgOwnerNames(s))}"></i>`;
   }).join("")}</span>`;
 }
 
 const cgRoundsChip = s => (s && s.rounds > 1) ? `<span class="cg-rounds">R${s.rounds}</span>` : "";
+// "2/3" on a multi-owner stage mid-approval
+function cgApChip(s){
+  const own = cgOwnersOf(s);
+  if (own.length < 2) return "";
+  return `<span class="cg-ap">${cgApproved(s).length}/${own.length}</span>`;
+}
 
-// the last words that travelled with the baton — the context the next
-// person actually needs, surfaced without opening the detail
 function cgLastNote(c){
   for (let i = (c.history || []).length - 1; i >= 0; i--){
     const h = c.history[i];
-    if ((h.type === "forward" || h.type === "back") && h.note) return h;
+    if ((h.type === "forward" || h.type === "back" || h.type === "approve") && h.note) return h;
   }
   return null;
 }
 
 function cgTurnCard(c){
   const s = cgStage(c) || {};
+  const own = cgOwnersOf(s);
+  const multi = own.length > 1;
+  const last = c.cur >= c.stages.length - 1;
   const h = cgLastNote(c);
   const today = todayISO();
   const late = c.dueDate && c.dueDate < today;
   return `
   <div class="cg-turn" data-cg="${esc(c.id)}" role="button" tabindex="0">
     <div class="cg-turn-top">
-      <span class="cg-turn-stage">${esc(s.name || "")}${cgRoundsChip(s)}</span>
+      <span class="cg-turn-stage">${esc(s.name || "")}${cgRoundsChip(s)}${cgApChip(s)}</span>
       ${cgAgeChip(c)}
     </div>
     <p class="cg-turn-title">${esc(c.title)}</p>
-    <p class="cg-turn-meta">${esc(c.store || "")}${c.dueDate ? ` · ${late ? "overdue" : "due"} ${esc(c.dueDate)}` : ""}</p>
+    <p class="cg-turn-meta">${esc(c.store || "")}${c.dueDate ? ` · ${late ? "overdue" : "due"} ${esc(c.dueDate)}` : ""}${multi ? ` · with ${esc(own.filter(o => o.uid !== auth.currentUser.uid).map(o => o.uname).join(", "))}` : ""}</p>
     ${h ? `<p class="cg-turn-note">“${esc(h.note)}” <span>— ${esc(h.by)}</span></p>` : ""}
     ${cgTrack(c)}
     <div class="cg-turn-acts">
-      <button type="button" class="btn btn-go btn-sm" data-cga="pass">${c.cur >= c.stages.length - 1 ? "Pass · go live" : "Pass forward"}</button>
+      <button type="button" class="btn btn-go btn-sm" data-cga="pass">${
+        multi ? (last ? "Approve · go live" : "Approve") : (last ? "Pass · go live" : "Pass forward")}</button>
       ${c.cur > 0 ? `<button type="button" class="btn btn-ghost btn-sm" data-cga="back">Send back</button>` : ""}
     </div>
   </div>`;
@@ -233,12 +279,12 @@ function cgRowHTML(c){
   const liveRow = c.status === "live";
   const mid = liveRow
     ? `live ${c.liveAt ? whenLabel(c.liveAt).toLowerCase() : ""}`
-    : `${esc(s ? s.name : "")} · ${esc(s ? s.uname : "")}${cgIsMyTurn(c) ? " (you)" : ""}`;
+    : `${esc(s ? s.name : "")} · ${esc(s ? cgOwnerNames(s) : "")}${cgIsMyTurn(c) ? " (you)" : ""}`;
   return `
   <li class="cg-row${liveRow ? " is-live" : ""}${cgIsMyTurn(c) ? " is-mine" : ""}" data-cg="${esc(c.id)}" role="button" tabindex="0">
     <div class="cg-row-main">
       <span class="cg-row-title">${esc(c.title)}</span>
-      <span class="cg-row-meta">${esc(c.store || "")}${c.store ? " · " : ""}${mid}${cgRoundsChip(s)}</span>
+      <span class="cg-row-meta">${esc(c.store || "")}${c.store ? " · " : ""}${mid}${cgRoundsChip(s)}${liveRow ? "" : cgApChip(s)}</span>
     </div>
     ${cgTrack(c)}
     ${liveRow ? `<span class="cg-live-mark">LIVE</span>` : cgAgeChip(c)}
@@ -247,6 +293,69 @@ function cgRowHTML(c){
 
 function enterCampaignsPage(){ renderCampaignsPage(); }
 
+/* ---------- the Board (admin): columns are stages, dragging is jumping ----------
+   Columns are every stage name across in-flight campaigns, in first-
+   appearance order, plus LIVE at the end. Dropping a card on a column the
+   campaign's chain doesn't contain is refused with words, not silence. */
+function cgBoardHTML(act, live){
+  const cols = [];
+  act.forEach(c => c.stages.forEach(s => { if (!cols.includes(s.name)) cols.push(s.name); }));
+  const card = c => `
+    <div class="cg-card" draggable="true" data-cg="${esc(c.id)}" role="button" tabindex="0">
+      <b>${esc(c.title)}</b>
+      <span>${esc(c.store || "")}${c.store ? " · " : ""}${esc(cgOwnerNames(cgStage(c)) || "")}</span>
+      <div class="cg-card-foot">${cgTrack(c)}${cgAgeChip(c)}</div>
+    </div>`;
+  const liveCard = c => `
+    <div class="cg-card is-live" data-cg="${esc(c.id)}" role="button" tabindex="0">
+      <b>${esc(c.title)}</b>
+      <span>${c.liveAt ? esc(whenLabel(c.liveAt).toLowerCase()) : ""}</span>
+    </div>`;
+  return `
+  <div class="cg-board" id="cgBoard">
+    ${cols.map(name => {
+      const cards = act.filter(c => (cgStage(c) || {}).name === name);
+      return `
+      <div class="cg-col" data-col="${esc(name)}">
+        <p class="cg-col-head">${esc(name)}${cards.length ? ` <span>${cards.length}</span>` : ""}</p>
+        <div class="cg-col-body">${cards.map(card).join("")}</div>
+      </div>`;
+    }).join("")}
+    <div class="cg-col cg-col-live" data-col="__live">
+      <p class="cg-col-head">LIVE${live.length ? ` <span>${live.length}</span>` : ""}</p>
+      <div class="cg-col-body">${live.slice(0, 8).map(liveCard).join("")}</div>
+    </div>
+  </div>`;
+}
+
+function cgWireBoard(box){
+  box.querySelectorAll(".cg-card[draggable]").forEach(card => {
+    card.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", card.dataset.cg);
+      e.dataTransfer.effectAllowed = "move";
+      card.classList.add("is-drag");
+    });
+    card.addEventListener("dragend", () => card.classList.remove("is-drag"));
+  });
+  box.querySelectorAll(".cg-col").forEach(col => {
+    col.addEventListener("dragover", e => { e.preventDefault(); col.classList.add("is-over"); });
+    col.addEventListener("dragleave", () => col.classList.remove("is-over"));
+    col.addEventListener("drop", e => {
+      e.preventDefault();
+      col.classList.remove("is-over");
+      const id = e.dataTransfer.getData("text/plain");
+      const c = cgFind(id);
+      if (!c) return;
+      const name = col.dataset.col;
+      if (name === "__live"){ cgJumpTo(id, "live"); return; }
+      const idx = c.stages.findIndex(s => s.name === name);
+      if (idx < 0){ toast(`"${c.title}" has no ${name} stage`); return; }
+      if (c.status === "active" && idx === c.cur) return;
+      cgJumpTo(id, idx);
+    });
+  });
+}
+
 /* ---------- detail sheet: the whole story of one campaign ---------- */
 function cgFind(id){ return (cgRows || []).find(c => c.id === id) || null; }
 
@@ -254,8 +363,10 @@ function cgHistLine(h){
   const t = h.type;
   if (t === "created") return `${esc(h.by)} created the campaign`;
   if (t === "forward") return `${esc(h.by)} passed ${esc(h.from || "")} → ${esc(h.to || "")}`;
+  if (t === "approve") return `${esc(h.by)} approved ${esc(h.from || "")}`;
   if (t === "back")    return `${esc(h.by)} sent ${esc(h.from || "")} back to ${esc(h.to || "")}`;
   if (t === "jump")    return `${esc(h.by)} moved the baton ${esc(h.from || "")} → ${esc(h.to || "")}`;
+  if (t === "client")  return `${esc(h.by)} sent ${esc(h.to || "the work")} to the client`;
   if (t === "live")    return `${esc(h.by)} shipped it — LIVE`;
   if (t === "edit")    return `${esc(h.by)} edited the campaign`;
   return esc(h.by || "");
@@ -272,22 +383,33 @@ function cgLinkLabel(url){
 function cgOpenDetail(id){
   const c = cgFind(id);
   if (!c) return;
+  const me = auth.currentUser;
   const mine = cgIsMyTurn(c);
+  const cs = cgStage(c);
+  const iOwnCur = c.status === "active" && cs && cgOwnersOf(cs).some(o => o.uid === me.uid);
+  // owner who already approved: no buttons, but say why there are none
+  const waiting = iOwnCur && !mine;
   const today = todayISO();
   const late = c.status === "active" && c.dueDate && c.dueDate < today;
 
   const stages = c.stages.map((s, i) => {
     const done = c.status === "live" || i < c.cur;
     const cur = c.status === "active" && i === c.cur;
+    const own = cgOwnersOf(s);
+    const ap = cgApproved(s);
     const state = done
       ? (s.doneAt ? "done " + whenLabel(s.doneAt).toLowerCase() : "done")
-      : cur ? `holding${cgAgeDays(c) ? " · " + cgAgeDays(c) + "d" : ""}` : "waiting";
+      : cur
+        ? `${own.length > 1 ? ap.length + "/" + own.length + " approved · " : ""}${
+            s.dueAt ? (s.dueAt < Date.now() ? "overdue" : "due " + dayStamp(s.dueAt)) : "holding" + (cgAgeDays(c) ? " · " + cgAgeDays(c) + "d" : "")}`
+        : `waiting${s.days ? " · " + s.days + "d budget" : ""}`;
     return `
     <li class="cg-stg${done ? " is-done" : ""}${cur ? " is-cur" : ""}">
       <span class="cg-stg-pip">${done ? AF_TICK : ""}</span>
       <span class="cg-stg-main">
-        <span class="cg-stg-name">${esc(s.name)}${cgRoundsChip(s)}</span>
-        <span class="cg-stg-who">${esc(s.uname)}${auth.currentUser && s.uid === auth.currentUser.uid ? " (you)" : ""}</span>
+        <span class="cg-stg-name">${esc(s.name)}${cgRoundsChip(s)}${s.role ? `<span class="cg-role-tag">${esc(s.role)}</span>` : ""}</span>
+        <span class="cg-stg-who">${own.map(o =>
+          `${esc(o.uname)}${o.uid === me.uid ? " (you)" : ""}${cur && own.length > 1 && ap.includes(o.uid) ? " ✓" : ""}`).join(", ")}</span>
       </span>
       <span class="cg-stg-state">${state}</span>
     </li>`;
@@ -295,6 +417,7 @@ function cgOpenDetail(id){
 
   const links = (c.links || []).slice().reverse();
   const hist = (c.history || []).slice().reverse();
+  const canClientLink = c.status === "active" && (isAdmin || iOwnCur);
 
   openSheet(`
     <div id="cgDetailRoot" data-id="${esc(c.id)}" data-u="${esc(String(c.updatedAt || ""))}">
@@ -315,6 +438,12 @@ function cgOpenDetail(id){
         <span>${esc(l.stage)} · ${esc(l.by)}</span></li>`).join("")}
       </ul>` : ""}
 
+      <div id="cgCrWrap">
+        <p class="cg-dt-label">Client approval</p>
+        <div id="cgCrBox"><div class="skel skel-row"></div></div>
+        ${canClientLink ? `<button type="button" class="btn btn-ghost btn-sm" id="cgCrNew">New client link</button>` : ""}
+      </div>
+
       <p class="cg-dt-label">History</p>
       <ul class="cg-hist">${hist.slice(0, 14).map(h => `
         <li><span class="cg-hist-t">${esc(whenLabel(h.t))}</span>
@@ -322,8 +451,11 @@ function cgOpenDetail(id){
         ${hist.length > 14 ? `<li class="cg-hist-more">…and ${hist.length - 14} earlier</li>` : ""}
       </ul>
 
+      ${waiting ? `<p class="hint">You approved this round — waiting on ${esc(cgOwnersOf(cs).filter(o => !cgApproved(cs).includes(o.uid)).map(o => o.uname).join(", "))}.</p>` : ""}
       ${mine ? `
-      <button class="btn btn-go" id="cgDtPass">${c.cur >= c.stages.length - 1 ? "Pass forward · go live" : "Pass forward"}</button>
+      <button class="btn btn-go" id="cgDtPass">${cgOwnersOf(cs).length > 1
+        ? (c.cur >= c.stages.length - 1 ? "Approve · go live" : "Approve")
+        : (c.cur >= c.stages.length - 1 ? "Pass forward · go live" : "Pass forward")}</button>
       ${c.cur > 0 ? `<button class="btn btn-sm" id="cgDtBack">Send back</button>` : ""}` : ""}
       ${isAdmin ? `
       <div class="cg-admin-acts">
@@ -340,6 +472,7 @@ function cgOpenDetail(id){
     on("cgDtBack", () => cgBackSheet(c.id));
     on("cgDtEdit", () => cgEditorSheet(c));
     on("cgDtJump", () => cgJumpSheet(c.id));
+    on("cgCrNew", () => cgNewClientLink(c));
     on("cgDtDel", async () => {
       if (!confirm(`Delete "${c.title}"? The whole track, its links and history go with it. This can't be undone.`)) return;
       try {
@@ -348,72 +481,177 @@ function cgOpenDetail(id){
         toast("Campaign deleted");
       } catch (e) { console.error(e); toast("Couldn't delete — check Firestore rules allow it"); }
     });
+    cgLoadClientReviews(c, canClientLink);
   });
+}
+
+/* ---------- client approval ----------
+   The link is the key: clientReviews/{token} with a random doc id, opened
+   by client-review.html?t=TOKEN with no login. The client sees the work
+   links and answers Approve / Request changes; the answer lands here for
+   the stage owner to act on. Their decision never moves the baton itself —
+   the team does, with the client's words in hand. */
+async function cgLoadClientReviews(c, canCreate){
+  const box = $("cgCrBox");
+  if (!box) return;
+  try {
+    const snap = await db.collection("clientReviews").where("campaignId", "==", c.id).get();
+    const rows = [];
+    snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const wrap = $("cgCrWrap");
+    if (!rows.length){
+      if (!canCreate && wrap) wrap.classList.add("hidden");
+      else box.innerHTML = `<p class="cg-cr-none">No client link yet — send one and their Approve / Request changes lands right here.</p>`;
+      return;
+    }
+    const STATE = {
+      pending:  { cls: "is-wait", label: "waiting on client" },
+      approved: { cls: "is-ok",   label: "client approved" },
+      changes:  { cls: "is-chg",  label: "changes requested" }
+    };
+    box.innerHTML = `<ul class="cg-cr-list">${rows.map(r => {
+      const st = STATE[r.status] || STATE.pending;
+      return `
+      <li class="cg-cr">
+        <span class="cg-cr-pill ${st.cls}">${st.label}</span>
+        <span class="cg-cr-main">
+          <span class="cg-cr-stage">${esc(r.stage || "")} · sent ${esc(whenLabel(r.createdAt || 0).toLowerCase())}</span>
+          ${r.comment ? `<span class="cg-cr-note">“${esc(r.comment)}”</span>` : ""}
+        </span>
+        ${r.status === "pending" ? `<button type="button" class="cg-cr-copy" data-t="${esc(r.id)}" title="Copy link">Copy link</button>` : ""}
+      </li>`;
+    }).join("")}</ul>`;
+    box.querySelectorAll(".cg-cr-copy").forEach(b => b.onclick = async () => {
+      const url = new URL("client-review.html?t=" + b.dataset.t, location.href).href;
+      toast(await copyText(url) ? "Client link copied" : "Copy failed");
+    });
+  } catch (e) {
+    console.error(e);
+    box.innerHTML = `<p class="cg-cr-none">Couldn't load client reviews.</p>`;
+  }
+}
+
+async function cgNewClientLink(c){
+  const me = auth.currentUser;
+  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const st = cgStage(c);
+  if (!st) return;
+  try {
+    const now = Date.now();
+    const ref = db.collection("clientReviews").doc();
+    await ref.set({
+      campaignId: c.id, title: c.title, store: c.store || "",
+      stage: st.name, brief: c.brief || "",
+      // the client sees what the team has produced so far, newest first
+      links: (c.links || []).slice(-8).reverse().map(l => ({ url: l.url, stage: l.stage })),
+      status: "pending", comment: "", decidedAt: null,
+      createdAt: now, createdBy: myName
+    });
+    // the send is part of the campaign's story
+    await db.collection("campaigns").doc(c.id).update({
+      history: [...(c.history || []), { t: now, type: "client", by: myName, to: st.name }],
+      updatedAt: now
+    });
+    const url = new URL("client-review.html?t=" + ref.id, location.href).href;
+    toast(await copyText(url) ? "Client link copied — send it over" : "Link created — copy it from the list");
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't create the link — check Firestore rules allow it");
+  }
 }
 
 /* ---------- moving the baton ----------
    Every move runs in a transaction: two people acting on a stale view at
    once can't both win — the second one is told the campaign moved. */
+
+// a stage receiving the baton: another round, a fresh approval slate, and
+// its time budget (if any) starts counting from right now
+function cgReceive(stages, i, now){
+  const s = stages[i];
+  if (s.enteredAt) s.rounds = (s.rounds || 1) + 1;
+  s.enteredAt = now;
+  s.doneAt = null;
+  s.approvals = [];
+  s.dueAt = s.days ? now + s.days * CG_DAY : null;
+}
+
 async function cgMove(id, kind, note, links){
   const me = auth.currentUser;
   const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
   const ref = db.collection("campaigns").doc(id);
-  let tell = null;   // computed inside, sent after the commit
+  let tell = null;
 
   await db.runTransaction(async tx => {
     const doc = await tx.get(ref);
     if (!doc.exists) throw new Error("This campaign was deleted");
     const c = doc.data();
     if (c.status !== "active") throw new Error("This campaign is already live");
-    const st = c.stages[c.cur];
-    if (!isAdmin && !(st && me && st.uid === me.uid))
+    const stages = c.stages.map(s => ({ ...s }));
+    const st = stages[c.cur];
+    const owners = cgOwnersOf(st);
+    const iAmOwner = owners.some(o => o.uid === me.uid);
+    if (!isAdmin && !iAmOwner)
       throw new Error("This campaign just moved — it isn't on your stage anymore");
 
     const now = Date.now();
-    const stages = c.stages.map(s => ({ ...s }));
-    // a stage receiving the baton again is another round of that work
-    const receive = i => {
-      if (stages[i].enteredAt) stages[i].rounds = (stages[i].rounds || 1) + 1;
-      stages[i].enteredAt = now;
-      stages[i].doneAt = null;
-    };
     const newLinks = (links || []).map(u => ({ url: u, stage: st.name, by: myName, at: now }));
     const patch = { updatedAt: now, links: [...(c.links || []), ...newLinks] };
 
     if (kind === "pass"){
-      stages[c.cur].doneAt = now;
-      if (c.cur + 1 >= stages.length){
-        patch.status = "live"; patch.liveAt = now;
-        patch.history = [...(c.history || []), { t: now, type: "live", by: myName, note: note || "" }];
-        tell = { live: true, c: { ...c, id } };
+      const ap = (st.approvals || []).filter(u => owners.some(o => o.uid === u));
+      if (iAmOwner && ap.includes(me.uid))
+        throw new Error("You already approved this round — waiting on the others");
+      const newAp = iAmOwner ? [...ap, me.uid] : ap;
+      const allIn = owners.length > 0 && owners.every(o => newAp.includes(o.uid));
+
+      // an admin who isn't an owner passing = forcing the stage through
+      if (allIn || (isAdmin && !iAmOwner)){
+        st.doneAt = now;
+        st.approvals = newAp;
+        if (c.cur + 1 >= stages.length){
+          patch.status = "live"; patch.liveAt = now;
+          patch.history = [...(c.history || []), { t: now, type: "live", by: myName, note: note || "" }];
+          tell = { live: true, c: { ...c, id } };
+        } else {
+          cgReceive(stages, c.cur + 1, now);
+          patch.cur = c.cur + 1;
+          patch.history = [...(c.history || []),
+            { t: now, type: "forward", by: myName, from: st.name, to: stages[c.cur + 1].name, note: note || "" }];
+          tell = { uids: cgOwnersOf(stages[c.cur + 1]).map(o => o.uid),
+                   msg: `${myName} passed you "${c.title}" — ${stages[c.cur + 1].name}`, c: { ...c, id } };
+        }
       } else {
-        receive(c.cur + 1);
-        patch.cur = c.cur + 1;
+        // my approval lands; the baton stays until the co-owners weigh in
+        st.approvals = newAp;
         patch.history = [...(c.history || []),
-          { t: now, type: "forward", by: myName, from: st.name, to: stages[c.cur + 1].name, note: note || "" }];
-        tell = { uid: stages[c.cur + 1].uid, msg: `${myName} passed you "${c.title}" — ${stages[c.cur + 1].name}`, c: { ...c, id } };
+          { t: now, type: "approve", by: myName, from: st.name, note: note || "" }];
+        tell = { uids: owners.filter(o => !newAp.includes(o.uid)).map(o => o.uid),
+                 msg: `${myName} approved "${c.title}" · ${st.name} (${newAp.length}/${owners.length}) — waiting on you`,
+                 c: { ...c, id } };
       }
     } else { // back
       if (c.cur === 0) throw new Error("This is the first stage — nothing behind it");
       const t = c.cur - 1;
-      receive(t);
+      cgReceive(stages, t, now);
+      st.approvals = [];   // the interrupted round doesn't carry stale ticks
       patch.cur = t;
       patch.history = [...(c.history || []),
         { t: now, type: "back", by: myName, from: st.name, to: stages[t].name, note: note || "" }];
-      tell = { uid: stages[t].uid, msg: `${myName} sent "${c.title}" back to you — ${stages[t].name} (round ${stages[t].rounds})`, c: { ...c, id } };
+      tell = { uids: cgOwnersOf(stages[t]).map(o => o.uid),
+               msg: `${myName} sent "${c.title}" back to you — ${stages[t].name} (round ${stages[t].rounds})`,
+               c: { ...c, id } };
     }
     patch.stages = stages;
     tx.update(ref, patch);
   });
 
-  // fan-out after the commit: the move stands either way
   if (tell){
     if (tell.live) cgNotify(tell.c.memberUids || [], `"${tell.c.title}" is LIVE 🎉`, tell.c, { admins: true }).catch(e => console.error(e));
-    else cgNotify([tell.uid], tell.msg, tell.c).catch(e => console.error(e));
+    else cgNotify(tell.uids || [], tell.msg, tell.c).catch(e => console.error(e));
   }
 }
 
-// shared link-row builder for the pass sheet
 function cgLinkInputs(){
   return `
     <div id="cgLinksIn"><input type="text" class="cg-link-in" placeholder="Link to the work (Doc, Figma, preview…)" autocomplete="off"></div>
@@ -428,7 +666,6 @@ function cgWireLinkInputs(){
     inp.focus();
   };
 }
-// links only ever leave here as http(s) — anything else is refused
 function cgCleanUrl(raw){
   let v = String(raw || "").trim();
   if (!v) return null;
@@ -452,16 +689,24 @@ function cgCollectLinks(){
 function cgPassSheet(id){
   const c = cgFind(id);
   if (!c) return;
+  const st = cgStage(c) || {};
+  const own = cgOwnersOf(st);
+  const multi = own.length > 1;
+  const others = own.filter(o => !cgApproved(st).includes(o.uid) && o.uid !== auth.currentUser.uid);
   const last = c.cur >= c.stages.length - 1;
   const next = last ? null : c.stages[c.cur + 1];
+  // with co-owners still to approve, my pass is an approval, not the handoff
+  const willHold = multi && others.length > 0;
   openSheet(`
-    <h2>${last ? "Ship it" : "Pass forward"}</h2>
-    <p class="hint">${last
-      ? `<b>${esc((cgStage(c) || {}).name || "")}</b> is the last stage — passing sets <b>${esc(c.title)}</b> LIVE.`
-      : `<b>${esc((cgStage(c) || {}).name || "")}</b> done → hands to <b>${esc(next.uname)}</b> for <b>${esc(next.name)}</b>.`}</p>
+    <h2>${willHold ? "Approve" : last ? "Ship it" : "Pass forward"}</h2>
+    <p class="hint">${willHold
+      ? `Your approval on <b>${esc(st.name)}</b> — the baton moves once ${esc(others.map(o => o.uname).join(", "))} also approve${others.length === 1 ? "s" : ""}.`
+      : last
+        ? `<b>${esc(st.name)}</b> is the last stage — passing sets <b>${esc(c.title)}</b> LIVE.`
+        : `<b>${esc(st.name)}</b> done → hands to <b>${esc(cgOwnerNames(next))}</b> for <b>${esc(next.name)}</b>.`}</p>
     <textarea id="cgPassNote" placeholder="Anything the next person should know? (optional)"></textarea>
     ${cgLinkInputs()}
-    <button class="btn btn-go" id="cgPassGo">${last ? "Go live" : "Pass to " + esc(next.uname)}</button>
+    <button class="btn btn-go" id="cgPassGo">${willHold ? "Approve" : last ? "Go live" : "Pass forward"}</button>
     <button class="btn btn-ghost btn-sm" id="cgPassCancel">Cancel</button>
   `, () => {
     cgWireLinkInputs();
@@ -474,7 +719,7 @@ function cgPassSheet(id){
       try {
         await cgMove(id, "pass", $("cgPassNote").value.trim(), out);
         closeSheet();
-        toast(last ? "LIVE — nice work 🎉" : "Passed forward");
+        toast(willHold ? "Approved — waiting on the others" : last ? "LIVE — nice work 🎉" : "Passed forward");
       } catch (e) {
         console.error(e);
         btn.disabled = false;
@@ -491,7 +736,7 @@ function cgBackSheet(id){
   const prev = c.stages[c.cur - 1];
   openSheet(`
     <h2>Send back</h2>
-    <p class="hint">Back to <b>${esc(prev.uname)}</b> for another round of <b>${esc(prev.name)}</b>. Say exactly what needs fixing — they only have your words to go on.</p>
+    <p class="hint">Back to <b>${esc(cgOwnerNames(prev))}</b> for another round of <b>${esc(prev.name)}</b>. Say exactly what needs fixing — they only have your words to go on.</p>
     <textarea id="cgBackNote" placeholder="What needs to change?"></textarea>
     <button class="btn btn-go" id="cgBackGo" disabled>Send back</button>
     <button class="btn btn-ghost btn-sm" id="cgBackCancel">Cancel</button>
@@ -504,7 +749,7 @@ function cgBackSheet(id){
       try {
         await cgMove(id, "back", ta.value.trim());
         closeSheet();
-        toast("Sent back to " + prev.uname);
+        toast("Sent back to " + cgOwnerNames(prev));
       } catch (e) {
         console.error(e);
         btn.disabled = false;
@@ -515,7 +760,48 @@ function cgBackSheet(id){
   });
 }
 
-/* ---------- admin: jump the baton anywhere ---------- */
+/* ---------- admin: jump the baton anywhere (sheet + board drops) ---------- */
+async function cgJumpTo(id, target){
+  if (!isAdmin) return;
+  const me = auth.currentUser;
+  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const ref = db.collection("campaigns").doc(id);
+  let tell = null;
+  try {
+    await db.runTransaction(async tx => {
+      const doc = await tx.get(ref);
+      if (!doc.exists) throw new Error("This campaign was deleted");
+      const cc = doc.data();
+      const now = Date.now();
+      const stages = cc.stages.map(s => ({ ...s }));
+      const from = (stages[cc.cur] || {}).name || "";
+      if (target === "live"){
+        if (cc.status === "live") return;
+        tx.update(ref, {
+          status: "live", liveAt: now, updatedAt: now,
+          history: [...(cc.history || []), { t: now, type: "live", by: myName, note: "marked live by admin" }]
+        });
+        tell = { live: true, c: { ...cc, id } };
+      } else {
+        const i = Number(target);
+        if (cc.status === "active" && i === cc.cur) return;
+        cgReceive(stages, i, now);
+        tx.update(ref, {
+          stages, cur: i, status: "active", liveAt: null, updatedAt: now,
+          history: [...(cc.history || []), { t: now, type: "jump", by: myName, from, to: stages[i].name }]
+        });
+        tell = { uids: cgOwnersOf(stages[i]).map(o => o.uid),
+                 msg: `${myName} moved "${cc.title}" to you — ${stages[i].name}`, c: { ...cc, id } };
+      }
+    });
+    if (tell){
+      if (tell.live) cgNotify(tell.c.memberUids || [], `"${tell.c.title}" is LIVE 🎉`, tell.c, { admins: true }).catch(e => console.error(e));
+      else cgNotify(tell.uids || [], tell.msg, tell.c).catch(e => console.error(e));
+      toast("Baton moved");
+    }
+  } catch (e) { console.error(e); toast(e.message || "Couldn't move it"); }
+}
+
 function cgJumpSheet(id){
   const c = cgFind(id);
   if (!c || !isAdmin) return;
@@ -525,7 +811,7 @@ function cgJumpSheet(id){
     <div class="cg-jump">
       ${c.stages.map((s, i) => `
         <button type="button" class="cg-jump-opt${i === c.cur ? " is-cur" : ""}" data-j="${i}" ${i === c.cur ? "disabled" : ""}>
-          <b>${esc(s.name)}</b><span>${esc(s.uname)}${i === c.cur ? " · holds it now" : ""}</span>
+          <b>${esc(s.name)}</b><span>${esc(cgOwnerNames(s))}${i === c.cur ? " · holds it now" : ""}</span>
         </button>`).join("")}
       <button type="button" class="cg-jump-opt cg-jump-live" data-j="live"><b>LIVE</b><span>ship it as done</span></button>
     </div>
@@ -533,68 +819,59 @@ function cgJumpSheet(id){
   `, () => {
     $("cgJumpCancel").onclick = () => cgOpenDetail(id);
     document.querySelectorAll(".cg-jump-opt[data-j]").forEach(b => b.onclick = async () => {
-      const me = auth.currentUser;
-      const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
-      const ref = db.collection("campaigns").doc(id);
-      let tell = null;
-      try {
-        await db.runTransaction(async tx => {
-          const doc = await tx.get(ref);
-          if (!doc.exists) throw new Error("This campaign was deleted");
-          const cc = doc.data();
-          const now = Date.now();
-          const stages = cc.stages.map(s => ({ ...s }));
-          const from = (stages[cc.cur] || {}).name || "";
-          if (b.dataset.j === "live"){
-            tx.update(ref, {
-              status: "live", liveAt: now, updatedAt: now,
-              history: [...(cc.history || []), { t: now, type: "live", by: myName, note: "marked live by admin" }]
-            });
-            tell = { live: true, c: { ...cc, id } };
-          } else {
-            const i = Number(b.dataset.j);
-            if (i === cc.cur) return;
-            if (stages[i].enteredAt) stages[i].rounds = (stages[i].rounds || 1) + 1;
-            stages[i].enteredAt = now;
-            stages[i].doneAt = null;
-            tx.update(ref, {
-              stages, cur: i, status: "active", liveAt: null, updatedAt: now,
-              history: [...(cc.history || []), { t: now, type: "jump", by: myName, from, to: stages[i].name }]
-            });
-            tell = { uid: stages[i].uid, msg: `${myName} moved "${cc.title}" to you — ${stages[i].name}`, c: { ...cc, id } };
-          }
-        });
-        if (tell){
-          if (tell.live) cgNotify(tell.c.memberUids || [], `"${tell.c.title}" is LIVE 🎉`, tell.c, { admins: true }).catch(e => console.error(e));
-          else cgNotify([tell.uid], tell.msg, tell.c).catch(e => console.error(e));
-        }
-        closeSheet();
-        toast("Baton moved");
-      } catch (e) { console.error(e); toast(e.message || "Couldn't move it"); }
+      await cgJumpTo(id, b.dataset.j === "live" ? "live" : Number(b.dataset.j));
+      closeSheet();
     });
   });
 }
 
 /* ---------- admin: create / edit — the chain builder ----------
-   Stages are rows the admin writes and orders freely: any names, any
-   count, one owner each. Templates capture the whole chain (stages +
-   default owners) so a niche's pipeline is two clicks next time. */
-let cgEdStages = [];   // [{name, uid, uname}] — the builder's working copy
+   Each stage row: a name, an optional day budget, and either named owners
+   (one or several — all must approve) or a role target ("anyone who is a
+   designer") that resolves to the least-loaded member with that craft when
+   the campaign is created. Templates capture all of it. */
+let cgEdStages = [];   // [{name, days, role, uids:[uid,...]}]
 let cgEdMembers = [];  // directory rows for the owner selects
 
-function cgEdRowsHTML(){
-  const opts = sel => `<option value="">Owner…</option>` + cgEdMembers.map(p =>
+const cgEdCrafts = () =>
+  [...new Set(cgEdMembers.map(p => (p.craft || "").trim()).filter(Boolean))].sort();
+
+function cgEdPersonOpts(sel){
+  return cgEdMembers.map(p =>
     `<option value="${esc(p.uid)}"${p.uid === sel ? " selected" : ""}>${esc(p.name)}${p.craft ? " · " + esc(p.craft) : ""}</option>`).join("");
-  return cgEdStages.map((s, i) => `
+}
+
+function cgEdRowsHTML(){
+  const crafts = cgEdCrafts();
+  return cgEdStages.map((s, i) => {
+    const uids = s.uids && s.uids.length ? s.uids : [""];
+    return `
     <div class="cg-srow" data-i="${i}">
-      <input type="text" class="cg-srow-name" value="${esc(s.name)}" placeholder="Stage name" autocomplete="off">
-      <select class="cg-srow-who">${opts(s.uid)}</select>
-      <span class="cg-srow-btns">
-        <button type="button" class="cg-srow-b" data-mv="-1" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
-        <button type="button" class="cg-srow-b" data-mv="1" title="Move down" ${i === cgEdStages.length - 1 ? "disabled" : ""}>↓</button>
-        <button type="button" class="cg-srow-b cg-srow-x" data-del="1" title="Remove stage">×</button>
-      </span>
-    </div>`).join("");
+      <div class="cg-srow-top">
+        <input type="text" class="cg-srow-name" value="${esc(s.name)}" placeholder="Stage name" autocomplete="off">
+        <input type="number" class="cg-srow-days" min="1" max="60" value="${s.days || ""}" placeholder="days" title="Time budget in days (optional)">
+        <span class="cg-srow-btns">
+          <button type="button" class="cg-srow-b" data-mv="-1" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
+          <button type="button" class="cg-srow-b" data-mv="1" title="Move down" ${i === cgEdStages.length - 1 ? "disabled" : ""}>↓</button>
+          <button type="button" class="cg-srow-b cg-srow-x" data-del="1" title="Remove stage">×</button>
+        </span>
+      </div>
+      <div class="cg-srow-own">
+        <select class="cg-srow-who" data-o="0">
+          <option value="">Owner…</option>
+          <optgroup label="People">${cgEdPersonOpts(s.role ? "" : uids[0])}</optgroup>
+          ${crafts.length ? `<optgroup label="Anyone who is…">${crafts.map(cr =>
+            `<option value="role:${esc(cr)}"${s.role === cr ? " selected" : ""}>any ${esc(cr)}</option>`).join("")}</optgroup>` : ""}
+        </select>
+        ${s.role ? "" : uids.slice(1).map((u, k) => `
+        <select class="cg-srow-who" data-o="${k + 1}">
+          <option value="">— remove —</option>
+          <optgroup label="Co-owner">${cgEdPersonOpts(u)}</optgroup>
+        </select>`).join("")}
+        ${!s.role && uids[0] ? `<button type="button" class="cg-srow-add" title="Add a co-owner — all owners must approve">+</button>` : ""}
+      </div>
+    </div>`;
+  }).join("");
 }
 
 function cgEdPaintRows(){
@@ -602,12 +879,27 @@ function cgEdPaintRows(){
   box.innerHTML = cgEdRowsHTML();
   box.querySelectorAll(".cg-srow").forEach(row => {
     const i = Number(row.dataset.i);
-    row.querySelector(".cg-srow-name").oninput = e => { cgEdStages[i].name = e.target.value; };
-    row.querySelector(".cg-srow-who").onchange = e => {
-      cgEdStages[i].uid = e.target.value;
-      const p = cgEdMembers.find(m => m.uid === e.target.value);
-      cgEdStages[i].uname = p ? p.name : "";
+    const s = cgEdStages[i];
+    row.querySelector(".cg-srow-name").oninput = e => { s.name = e.target.value; };
+    row.querySelector(".cg-srow-days").oninput = e => {
+      const n = parseInt(e.target.value, 10);
+      s.days = (n && n > 0) ? Math.min(n, 60) : null;
     };
+    row.querySelectorAll(".cg-srow-who").forEach(selEl => {
+      const o = Number(selEl.dataset.o);
+      selEl.onchange = e => {
+        const v = e.target.value;
+        if (o === 0){
+          if (v.startsWith("role:")){ s.role = v.slice(5); s.uids = []; }
+          else { s.role = null; s.uids = s.uids || []; s.uids[0] = v; }
+        } else {
+          if (!v) s.uids.splice(o, 1); else s.uids[o] = v;
+        }
+        cgEdPaintRows();
+      };
+    });
+    const add = row.querySelector(".cg-srow-add");
+    if (add) add.onclick = () => { s.uids.push(""); cgEdPaintRows(); };
     row.querySelectorAll("[data-mv]").forEach(b => b.onclick = () => {
       const j = i + Number(b.dataset.mv);
       if (j < 0 || j >= cgEdStages.length) return;
@@ -616,6 +908,18 @@ function cgEdPaintRows(){
     });
     row.querySelector("[data-del]").onclick = () => { cgEdStages.splice(i, 1); cgEdPaintRows(); };
   });
+}
+
+// least-loaded member with the craft: fewest batons currently in hand
+function cgResolveRole(craft){
+  const pool = cgEdMembers.filter(p => (p.craft || "").trim().toLowerCase() === craft.toLowerCase());
+  if (!pool.length) return null;
+  const load = new Map();
+  (cgRows || []).filter(c => c.status === "active").forEach(c => {
+    cgOwnersOf(cgStage(c)).forEach(o => load.set(o.uid, (load.get(o.uid) || 0) + 1));
+  });
+  return [...pool].sort((a, b) =>
+    (load.get(a.uid) || 0) - (load.get(b.uid) || 0) || a.name.localeCompare(b.name))[0];
 }
 
 async function cgLoadTemplates(){
@@ -627,16 +931,26 @@ async function cgLoadTemplates(){
   } catch (e) { console.error(e); return []; }
 }
 
+// template/campaign stages → the builder's working shape (v1 rows carried
+// a single uid; v2 rows carry owners[] or a role)
+function cgToEdShape(s){
+  return {
+    name: s.name || "",
+    days: s.days || null,
+    role: s.role || null,
+    uids: s.role ? [] : (s.owners ? s.owners.map(o => o.uid) : (s.uid ? [s.uid] : []))
+  };
+}
+
 async function cgEditorSheet(edit){
   if (!isAdmin) return;
   const dir = await loadDirectory();
   cgEdMembers = dir.filter(p => p.name).sort((a, b) => a.name.localeCompare(b.name));
   cgEdStages = edit
-    ? edit.stages.map(s => ({ name: s.name, uid: s.uid, uname: s.uname }))
-    : [{ name: "", uid: "", uname: "" }, { name: "", uid: "", uname: "" }];
+    ? edit.stages.map(cgToEdShape)
+    : [{ name: "", days: null, role: null, uids: [] }, { name: "", days: null, role: null, uids: [] }];
   const templates = edit ? [] : await cgLoadTemplates();
 
-  // stores learned from campaigns already written, on top of CONFIG
   const stores = [...new Set([...CONFIG.clients, ...(cgRows || []).map(c => c.store).filter(Boolean)])].sort();
 
   openSheet(`
@@ -651,7 +965,7 @@ async function cgEditorSheet(edit){
     <datalist id="cgStoreList">${stores.map(s => `<option value="${esc(s)}">`).join("")}</datalist>
     <label class="af-due"><span>Due date</span><input type="date" id="cgEdDue" value="${esc(edit ? edit.dueDate || "" : "")}"></label>
     <textarea id="cgEdBrief" placeholder="The brief — what is this campaign? (optional)">${esc(edit ? edit.brief || "" : "")}</textarea>
-    <p class="cg-dt-label">The chain — top to bottom, one owner per stage</p>
+    <p class="cg-dt-label">The chain — a name, a day budget (optional), owners. Several owners = all must approve.</p>
     <div id="cgEdRows"></div>
     <button type="button" class="btn btn-ghost btn-sm" id="cgEdAdd">+ Add stage</button>
     <label class="cg-tpl-save"><input type="checkbox" id="cgEdSaveTpl"><span>Save this chain as a template</span></label>
@@ -660,7 +974,7 @@ async function cgEditorSheet(edit){
     <button class="btn btn-ghost btn-sm" id="cgEdCancel">Cancel</button>
   `, () => {
     cgEdPaintRows();
-    $("cgEdAdd").onclick = () => { cgEdStages.push({ name: "", uid: "", uname: "" }); cgEdPaintRows(); };
+    $("cgEdAdd").onclick = () => { cgEdStages.push({ name: "", days: null, role: null, uids: [] }); cgEdPaintRows(); };
     $("cgEdCancel").onclick = () => { if (edit) cgOpenDetail(edit.id); else closeSheet(); };
     $("cgEdSaveTpl").onchange = e => $("cgEdTplName").classList.toggle("hidden", !e.target.checked);
 
@@ -669,8 +983,9 @@ async function cgEditorSheet(edit){
       el.querySelector(".cg-tpl-use").onclick = () => {
         // template owners may have left the team — keep only ones still known
         cgEdStages = t.stages.map(s => {
-          const p = cgEdMembers.find(m => m.uid === s.uid);
-          return { name: s.name, uid: p ? s.uid : "", uname: p ? s.uname : "" };
+          const shape = cgToEdShape(s);
+          shape.uids = shape.uids.filter(u => cgEdMembers.some(m => m.uid === u));
+          return shape;
         });
         cgEdPaintRows();
         if (!$("cgEdTitle").value) $("cgEdTitle").focus();
@@ -689,13 +1004,31 @@ async function cgEditorSheet(edit){
 
 async function cgEdSubmit(edit){
   const title = $("cgEdTitle").value.trim();
+  // a row is real once it says anything; blank padding rows are dropped
   const rows = cgEdStages
-    .map(s => ({ name: s.name.trim(), uid: s.uid, uname: s.uname }))
-    .filter(s => s.name || s.uid);
+    .map(s => ({ name: s.name.trim(), days: s.days || null, role: s.role,
+                 uids: [...new Set((s.uids || []).filter(Boolean))] }))
+    .filter(s => s.name || s.role || s.uids.length);
   if (title.length < 2){ toast("Give the campaign a name"); $("cgEdTitle").focus(); return; }
   if (!rows.length){ toast("The chain needs at least one stage"); return; }
   if (rows.some(s => !s.name)){ toast("Every stage needs a name"); return; }
-  if (rows.some(s => !s.uid)){ toast("Every stage needs an owner"); return; }
+
+  // resolve owners: named people ride as-is; a role target picks the
+  // least-loaded member with that craft, right now
+  const resolved = [];
+  for (const r of rows){
+    if (r.role){
+      const p = cgResolveRole(r.role);
+      if (!p){ toast(`Nobody has the "${r.role}" role anymore — pick a person for ${r.name}`); return; }
+      resolved.push({ ...r, owners: [{ uid: p.uid, uname: p.name }] });
+    } else {
+      if (!r.uids.length){ toast(`${r.name} needs an owner`); return; }
+      resolved.push({ ...r, owners: r.uids.map(u => {
+        const p = cgEdMembers.find(m => m.uid === u);
+        return { uid: u, uname: p ? p.name : "Unknown" };
+      })});
+    }
+  }
 
   const btn = $("cgEdGo");
   btn.disabled = true;
@@ -707,7 +1040,7 @@ async function cgEdSubmit(edit){
     store: $("cgEdStore").value.trim(),
     brief: $("cgEdBrief").value.trim(),
     dueDate: $("cgEdDue").value || null,
-    memberUids: [...new Set(rows.map(s => s.uid))],
+    memberUids: [...new Set(resolved.flatMap(s => s.owners.map(o => o.uid)))],
     updatedAt: now
   };
 
@@ -715,56 +1048,84 @@ async function cgEdSubmit(edit){
     if ($("cgEdSaveTpl").checked){
       const tn = $("cgEdTplName").value.trim();
       if (tn.length < 2){ toast("Name the template first"); btn.disabled = false; $("cgEdTplName").focus(); return; }
-      await db.collection("campaignTemplates").add({ name: tn, stages: rows, updatedAt: now });
+      // role stages template as the role (they re-resolve per campaign);
+      // named stages template their people as defaults
+      await db.collection("campaignTemplates").add({
+        name: tn,
+        stages: rows.map(r => r.role
+          ? { name: r.name, days: r.days, role: r.role }
+          : { name: r.name, days: r.days,
+              owners: r.uids.map(u => {
+                const p = cgEdMembers.find(m => m.uid === u);
+                return { uid: u, uname: p ? p.name : "Unknown" };
+              }) }),
+        updatedAt: now
+      });
     }
 
     if (edit){
       /* Editing keeps every stage's earned state: rows are matched to the
          old chain by name (first unused match), carrying rounds/doneAt/
-         enteredAt across. The baton stays on the stage it was on; if that
-         stage was removed, the earliest unfinished stage takes it. */
+         enteredAt/approvals/dueAt across. The baton stays on the stage it
+         was on; if that stage was removed, the earliest unfinished stage
+         takes it. Approvals shed anyone no longer an owner. */
       const pool = edit.stages.map((s, i) => ({ ...s, i, used: false }));
       let curNew = -1;
-      const stages = rows.map((r, idx) => {
+      const stages = resolved.map((r, idx) => {
         const m = pool.find(p => !p.used && p.name.toLowerCase() === r.name.toLowerCase());
+        const base = { name: r.name, days: r.days, role: r.role || null, owners: r.owners };
         if (m){
           m.used = true;
           if (m.i === edit.cur) curNew = idx;
-          return { name: r.name, uid: r.uid, uname: r.uname, rounds: m.rounds || 1, doneAt: m.doneAt || null, enteredAt: m.enteredAt || null };
+          const keepAp = ((m.approvals || []).filter(u => r.owners.some(o => o.uid === u)));
+          const out = { ...base, rounds: m.rounds || 1, doneAt: m.doneAt || null,
+                        enteredAt: m.enteredAt || null, approvals: keepAp, dueAt: m.dueAt || null };
+          // a changed budget on a stage already holding the baton re-anchors
+          // its deadline to when the baton actually arrived
+          if (out.enteredAt && (r.days || null) !== (m.days || null))
+            out.dueAt = r.days ? out.enteredAt + r.days * CG_DAY : null;
+          return out;
         }
-        return { name: r.name, uid: r.uid, uname: r.uname, rounds: 1, doneAt: null, enteredAt: null };
+        return { ...base, rounds: 1, doneAt: null, enteredAt: null, approvals: [], dueAt: null };
       });
       let cur = curNew;
       if (edit.status === "active"){
         if (cur < 0) cur = Math.max(0, stages.findIndex(s => !s.doneAt));
-        if (!stages[cur].enteredAt) stages[cur].enteredAt = now;
+        if (!stages[cur].enteredAt){
+          stages[cur].enteredAt = now;
+          stages[cur].dueAt = stages[cur].days ? now + stages[cur].days * CG_DAY : null;
+        }
       } else cur = Math.min(edit.cur, stages.length - 1);
 
-      const prevOwner = (edit.stages[edit.cur] || {}).uid;
+      const prevOwners = cgOwnersOf(edit.stages[edit.cur] || {}).map(o => o.uid);
       const patch = {
         ...common, stages, cur,
         history: [...(edit.history || []), { t: now, type: "edit", by: myName }]
       };
       await db.collection("campaigns").doc(edit.id).update(patch);
       const c2 = { ...edit, ...patch };
-      if (edit.status === "active" && stages[cur].uid !== prevOwner)
-        cgNotify([stages[cur].uid], `${myName} put "${title}" in your court — ${stages[cur].name}`, c2).catch(e => console.error(e));
+      const fresh = cgOwnersOf(stages[cur]).map(o => o.uid).filter(u => !prevOwners.includes(u));
+      if (edit.status === "active" && fresh.length)
+        cgNotify(fresh, `${myName} put "${title}" in your court — ${stages[cur].name}`, c2).catch(e => console.error(e));
       closeSheet();
       toast("Campaign updated");
     } else {
-      const stages = rows.map((r, i) => ({
-        name: r.name, uid: r.uid, uname: r.uname,
-        rounds: 1, doneAt: null, enteredAt: i === 0 ? now : null
+      const stages = resolved.map((r, i) => ({
+        name: r.name, days: r.days, role: r.role || null, owners: r.owners,
+        rounds: 1, doneAt: null, approvals: [],
+        enteredAt: i === 0 ? now : null,
+        dueAt: i === 0 && r.days ? now + r.days * CG_DAY : null
       }));
       const ref = await db.collection("campaigns").add({
         ...common, status: "active", cur: 0, liveAt: null, links: [],
         createdAt: now, createdBy: { uid: me.uid, name: myName },
         history: [{ t: now, type: "created", by: myName }]
       });
-      cgNotify([stages[0].uid], `${myName} started "${title}" — you're up first: ${stages[0].name}`,
+      cgNotify(stages[0].owners.map(o => o.uid),
+        `${myName} started "${title}" — you're up first: ${stages[0].name}`,
         { id: ref.id, title, memberUids: common.memberUids }).catch(e => console.error(e));
       closeSheet();
-      toast(`"${title}" is rolling — ${stages[0].uname} is up`);
+      toast(`"${title}" is rolling — ${stages[0].owners.map(o => o.uname).join(", ")} ${stages[0].owners.length > 1 ? "are" : "is"} up`);
     }
   } catch (e) {
     console.error(e);
@@ -774,15 +1135,14 @@ async function cgEdSubmit(edit){
 }
 
 /* ---------- admin: role labels ----------
-   Freeform words on directory/{uid}.craft ("copywriter", "designer",
-   "welder" — whatever the niche calls its people). They surface in the
-   chain builder's owner pickers; routing stays manual in v1. */
+   Freeform words on directory/{uid}.craft. They surface in the chain
+   builder's owner pickers AND power "anyone who is a …" role targets. */
 async function cgRolesSheet(){
   if (!isAdmin) return;
   const dir = (await loadDirectory()).filter(p => p.name).sort((a, b) => a.name.localeCompare(b.name));
   openSheet(`
     <h2>Roles</h2>
-    <p class="hint">A word per person for what they do. It shows up when you build a chain, so picking owners is instant.</p>
+    <p class="hint">A word per person for what they do. It shows in the chain builder — and a stage can target "any designer" and route itself to whoever's least loaded.</p>
     <div class="cg-roles">${dir.map((p, i) => `
       <label class="cg-role-row">
         <span class="cg-role-who">${esc(p.name)}<small>${esc(p.email || "")}</small></span>
@@ -808,7 +1168,7 @@ async function cgRolesSheet(){
           }
         });
         if (n) await batch.commit();
-        notifDir = null;   // pickers re-read the fresh labels
+        notifDir = null;
         closeSheet();
         toast(n ? "Roles saved" : "Nothing changed");
       } catch (e) {
