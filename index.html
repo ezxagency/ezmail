@@ -17,16 +17,16 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=43">
-<link rel="stylesheet" href="css/dashboard.css?v=43">
-<link rel="stylesheet" href="css/drawer.css?v=43">
-<link rel="stylesheet" href="css/pages.css?v=43">
-<link rel="stylesheet" href="css/sheets.css?v=43">
-<link rel="stylesheet" href="css/tables.css?v=43">
-<link rel="stylesheet" href="css/responsive.css?v=43">
-<link rel="stylesheet" href="css/pomodoro.css?v=43">
-<link rel="stylesheet" href="css/campaigns.css?v=43">
-<link rel="stylesheet" href="css/login.css?v=43">
+<link rel="stylesheet" href="css/base.css?v=44">
+<link rel="stylesheet" href="css/dashboard.css?v=44">
+<link rel="stylesheet" href="css/drawer.css?v=44">
+<link rel="stylesheet" href="css/pages.css?v=44">
+<link rel="stylesheet" href="css/sheets.css?v=44">
+<link rel="stylesheet" href="css/tables.css?v=44">
+<link rel="stylesheet" href="css/responsive.css?v=44">
+<link rel="stylesheet" href="css/pomodoro.css?v=44">
+<link rel="stylesheet" href="css/campaigns.css?v=44">
+<link rel="stylesheet" href="css/login.css?v=44">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -190,6 +190,10 @@
       <!-- Pomodoro / Focus timer: replaces the two rings while Focus mode is on -->
       <div class="pomo" id="pomo" hidden>
         <div class="ring pomo-ring" id="pomoRing">
+          <div class="pomo-alarm" id="pomoAlarm" aria-hidden="true">
+            <svg class="pomo-bell pomo-bell-l" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4a5.5 5.5 0 0 0-5.5 5.5v2.6L4.5 15h15l-2-2.9V9.5A5.5 5.5 0 0 0 12 4z"/><path d="M9.8 18a2.3 2.3 0 0 0 4.4 0"/></svg>
+            <svg class="pomo-bell pomo-bell-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4a5.5 5.5 0 0 0-5.5 5.5v2.6L4.5 15h15l-2-2.9V9.5A5.5 5.5 0 0 0 12 4z"/><path d="M9.8 18a2.3 2.3 0 0 0 4.4 0"/></svg>
+          </div>
           <svg class="ring-svg" viewBox="0 0 200 200" aria-hidden="true">
             <defs>
               <marker id="ringArrowPomo" viewBox="0 0 11 9" refX="10.2" refY="4.5" markerWidth="11" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
@@ -486,16 +490,16 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" tabindex="-1"><div class="grab"></div><div id="sheetBody"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=43"></script>
-<script src="js/render.js?v=43"></script>
-<script src="js/ui.js?v=43"></script>
-<script src="js/shift.js?v=43"></script>
-<script src="js/email.js?v=43"></script>
-<script src="js/nav.js?v=43"></script>
-<script src="js/boot.js?v=43"></script>
-<script src="js/team.js?v=43"></script>
-<script src="js/assign.js?v=43"></script>
-<script src="js/notify.js?v=43"></script>
-<script src="js/campaigns.js?v=43"></script>
-<script src="js/auth.js?v=43"></script>
-<script src="js/pomodoro.js?v=43"></script>
+<script src="js/config.js?v=44"></script>
+<script src="js/render.js?v=44"></script>
+<script src="js/ui.js?v=44"></script>
+<script src="js/shift.js?v=44"></script>
+<script src="js/email.js?v=44"></script>
+<script src="js/nav.js?v=44"></script>
+<script src="js/boot.js?v=44"></script>
+<script src="js/team.js?v=44"></script>
+<script src="js/assign.js?v=44"></script>
+<script src="js/notify.js?v=44"></script>
+<script src="js/campaigns.js?v=44"></script>
+<script src="js/auth.js?v=44"></script>
+<script src="js/pomodoro.js?v=44"></script>

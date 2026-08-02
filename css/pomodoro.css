@@ -224,6 +224,35 @@
 .app.pomo-on .pomo{display:flex;animation:paneContentIn .45s cubic-bezier(.22,1,.36,1) both}
 .clock-panel{animation:paneContentIn .45s cubic-bezier(.22,1,.36,1) both}
 .pomo-ring{width:min(56vw,230px);max-width:230px}
+/* the top of the ring turns into a classic twin-bell alarm clock in the
+   last two minutes of focus - invisible and silent otherwise */
+.pomo-alarm{
+  position:absolute;top:-6px;left:50%;z-index:2;pointer-events:none;
+  display:flex;gap:30px;
+  opacity:0;transform:translateX(-50%) scale(.6);
+  transition:opacity .35s ease,transform .35s cubic-bezier(.22,1,.36,1);
+}
+.pomo.is-alarm-soon .pomo-alarm{opacity:1;transform:translateX(-50%) scale(1)}
+.pomo-bell{width:20px;height:20px;color:#ffb35a;transform-origin:50% 15%}
+.pomo-bell-r{transform:scaleX(-1)}
+.pomo.is-alarm-soon .pomo-bell-l{animation:pomoBellRingL .45s ease-in-out infinite}
+.pomo.is-alarm-soon .pomo-bell-r{animation:pomoBellRingR .45s ease-in-out infinite}
+@keyframes pomoBellRingL{
+  0%,100%{transform:rotate(0deg)}
+  25%{transform:rotate(-16deg)}
+  75%{transform:rotate(16deg)}
+}
+@keyframes pomoBellRingR{
+  0%,100%{transform:scaleX(-1) rotate(0deg)}
+  25%{transform:scaleX(-1) rotate(-16deg)}
+  75%{transform:scaleX(-1) rotate(16deg)}
+}
+/* the ring itself catches the alarm's light, pulsing warm while it rings */
+.pomo.is-alarm-soon .pomo-ring{animation:pomoRingPulse 1s ease-in-out infinite}
+@keyframes pomoRingPulse{
+  0%,100%{filter:drop-shadow(0 0 0 rgba(255,179,90,0))}
+  50%{filter:drop-shadow(0 0 9px rgba(255,179,90,.55))}
+}
 .pomo-ring .ring-center{flex-direction:column;gap:2px}
 .pomo-phase{
   font-family:var(--wk);font-size:10px;font-weight:600;letter-spacing:.3em;

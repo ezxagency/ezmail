@@ -44,6 +44,12 @@ const POMO_TRACKS = {
   mysticforest:  { label: "Mysterious Forest", sub: "SoulProd · moody lofi",            file: "mysterious-forest.m4a" },
   gildedsilence: { label: "Gilded Silence",    sub: "Turning Pages · zen lofi",         file: "gilded-silence.m4a" }
 };
+// one track loops forever, or the whole library plays in random order -
+// applied live if a track is already running when the pick changes
+const POMO_PLAYMODES = {
+  repeat:  { label: "Repeat",  sub: "Loop this track" },
+  shuffle: { label: "Shuffle", sub: "Cycle the whole library" }
+};
 const POMO_LIMITS = { focusMin: [1, 90], shortMin: [1, 30], longMin: [5, 45] };
 // the main control's two faces
 const POMO_PLAY_ICO = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6l11-6.8z"/></svg>';
@@ -55,8 +61,8 @@ const POMO_PAUSE_ICO = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.
 const pomoDefaults = () => ({
   on: false, theme: "autumn",
   focusMin: 25, shortMin: 5, longMin: 20,
-  autoBreak: true, autoFocus: false,
-  track: "coffeeshop", vol: 0.6, muted: false, chime: true,
+  autoBreak: true, autoFocus: true,
+  track: "coffeeshop", playMode: "repeat", vol: 0.6, muted: false, chime: true,
   phase: "focus", round: 1, running: false, endAt: null, remainMs: 25 * 60000
 });
 let PM = pomoDefaults();
@@ -106,13 +112,23 @@ function pomoAmbientStart(force){
   if (!t || !t.file) return;
   if (!pomoEl){
     pomoEl = new Audio();
-    pomoEl.loop = true;
     pomoEl.preload = "auto";
   }
+  pomoEl.loop = PM.playMode !== "shuffle";
+  pomoEl.onended = PM.playMode === "shuffle" ? pomoShuffleNext : null;
   // keep the element's buffer when the track hasn't changed - resume, not refetch
   if (!pomoEl.src || !pomoEl.src.endsWith("/" + t.file)) pomoEl.src = POMO_TRACK_DIR + t.file;
   pomoEl.volume = PM.muted ? 0 : PM.vol;
   pomoEl.play().catch(e => console.error(e));
+}
+
+// shuffle's "next": a different track than the one that just ended, picked
+// at random from the whole library - "none" never lands here on its own
+function pomoShuffleNext(){
+  const pool = Object.keys(POMO_TRACKS).filter(k => k !== "none" && k !== PM.track);
+  PM.track = pool.length ? pool[Math.floor(Math.random() * pool.length)] : PM.track;
+  pomoSave();
+  pomoAmbientStart();
 }
 
 // audition a track from the settings sheet without starting the timer:
@@ -144,7 +160,81 @@ function pomoChime(){
     });
   } catch (e) { console.error(e); }
 }
-function pomoApplyVolume(){ if (pomoEl) pomoEl.volume = PM.muted ? 0 : PM.vol; }
+function pomoApplyVolume(){
+  if (pomoEl) pomoEl.volume = PM.muted ? 0 : PM.vol;
+  pomoBreakApplyVolume();
+}
+
+/* ---------- break ambience: a small generative pad, synthesized live so a
+   break always SOUNDS different from whatever real track focus was playing.
+   No file, nothing cached - it exists only while the break does. ---------- */
+let pomoBreakNodes = null;   // { stops:[fn], timers:[id], master }
+function pomoBreakStop(){
+  if (!pomoBreakNodes) return;
+  pomoBreakNodes.timers.forEach(id => clearTimeout(id));
+  pomoBreakNodes.stops.forEach(fn => fn());
+  try { pomoBreakNodes.master.disconnect(); } catch (e) {}
+  pomoBreakNodes = null;
+}
+function pomoBreakApplyVolume(){
+  if (pomoBreakNodes) pomoBreakNodes.master.gain.value = (PM.muted ? 0 : PM.vol) * 0.5;
+}
+function pomoBreakStart(){
+  pomoBreakStop();
+  if (PM.muted) return;
+  const ctx = pomoCtx();
+  const R = (a, b) => a + Math.random() * (b - a);
+  const master = ctx.createGain();
+  master.gain.value = (PM.muted ? 0 : PM.vol) * 0.5;
+  master.connect(ctx.destination);
+  const stops = [], timers = [];
+
+  // a soft breathing pad - a major7 chord, filtered and slowly drifting
+  const filt = ctx.createBiquadFilter();
+  filt.type = "lowpass"; filt.frequency.value = 900;
+  filt.connect(master);
+  [261.6, 329.6, 392.0, 493.9].forEach(fr => {   // C E G B
+    const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = fr;
+    o.detune.value = R(-5, 5);
+    const g = ctx.createGain(); g.gain.value = 0.055;
+    o.connect(g); g.connect(filt); o.start();
+    stops.push(() => { try { o.stop(); } catch (e) {} });
+  });
+  const lfo = ctx.createOscillator(), lfoGain = ctx.createGain();
+  lfo.frequency.value = 0.045; lfoGain.gain.value = 260;
+  lfo.connect(lfoGain); lfoGain.connect(filt.frequency);
+  lfo.start();
+  stops.push(() => { try { lfo.stop(); } catch (e) {} });
+
+  // wind-chime blips wandering a pentatonic scale, unhurried
+  const notes = [523.3, 587.3, 659.3, 784.0, 880.0];   // C D E G A
+  const chime = () => {
+    const f = notes[Math.floor(Math.random() * notes.length)] * (Math.random() < 0.5 ? 1 : 2);
+    const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = f;
+    const g = ctx.createGain();
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.09, now + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
+    o.connect(g); g.connect(master);
+    o.start(now); o.stop(now + 2.3);
+    timers.push(setTimeout(chime, R(2600, 5200)));
+  };
+  timers.push(setTimeout(chime, R(600, 1800)));
+  pomoBreakNodes = { stops, timers, master };
+}
+
+/* Dispatch to whichever sound belongs to the current phase - the real
+   library on focus, the synthesized pad on a break - and tear the other
+   one down so they never overlap. */
+function pomoSoundStart(){
+  if (PM.phase === "focus"){ pomoBreakStop(); pomoAmbientStart(); }
+  else { pomoAmbientStop(); pomoBreakStart(); }
+}
+function pomoSoundStop(){
+  pomoAmbientStop();
+  pomoBreakStop();
+}
 
 /* ---------- engine ---------- */
 /* The switch changes the VIEW, not the session: a running countdown (and
@@ -159,7 +249,7 @@ function pomoSetMode(on){
   $("modeClocks").setAttribute("aria-selected", String(!on));
   $("modeFocus").setAttribute("aria-selected", String(on));
   pomoApplyTheme(on ? PM.theme : null);
-  if (!on && !PM.running) pomoAmbientStop();   // leftover previews etc.
+  if (!on && !PM.running) pomoSoundStop();   // leftover previews etc.
   pomoRender();
   pomoSave();
 }
@@ -179,13 +269,13 @@ function pomoStart(){
   PM.running = true;
   PM.endAt = Date.now() + pomoRemainMs();
   pomoCtx();               // unlock audio inside the user gesture
-  pomoAmbientStart();
+  pomoSoundStart();
   pomoRender(); pomoSave();
 }
 function pomoPause(){
   PM.remainMs = pomoRemainMs();
   PM.running = false; PM.endAt = null;
-  pomoAmbientStop();
+  pomoSoundStop();
   pomoRender(); pomoSave();
 }
 function pomoResetPhase(){
@@ -217,7 +307,7 @@ function pomoAdvance(natural){
       ? "Break over — round " + PM.round + " of " + POMO_ROUNDS
       : (PM.phase === "long" ? "Set complete — long break earned" : "Focus done — take " + PM.shortMin + " minutes"));
   }
-  if (PM.running) pomoAmbientStart(); else pomoAmbientStop();
+  if (PM.running) pomoSoundStart(); else pomoSoundStop();
   pomoRender(); pomoSave();
 }
 
@@ -232,6 +322,10 @@ function pomoRenderTime(){
   const remain = pomoRemainMs(), total = pomoTotalMs();
   $("pomoTime").textContent = pomoMMSS(remain);
   $("pomoArc").setAttribute("d", pomoArcPath(1 - remain / total));
+  // last two minutes of a focus round: the ring turns into an alarm clock
+  // ringing, so the break never arrives as a surprise
+  const soon = PM.phase === "focus" && PM.running && remain > 0 && remain <= 120000;
+  $("pomo").classList.toggle("is-alarm-soon", soon);
 }
 
 function pomoRender(){
@@ -336,6 +430,9 @@ function openPomoSettings(){
 
     <label class="fld"><span>Ambient sound</span></label>
     ${pomoDropdownMarkup("pTrackDrop", POMO_TRACKS, PM.track)}
+    <p class="hint" style="margin:-10px 0 14px;font-size:12px">Breaks get their own sound automatically — this picks focus's.</p>
+    <label class="fld"><span>Playback</span></label>
+    ${pomoDropdownMarkup("pPlayDrop", POMO_PLAYMODES, PM.playMode)}
     <div class="pvol">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>
       <input type="range" id="pVol" min="0" max="100" value="${Math.round(PM.vol * 100)}" aria-label="Volume">
@@ -360,10 +457,20 @@ function openPomoSettings(){
     });
     pomoWireDropdown("pTrackDrop", POMO_TRACKS, k => {
       PM.track = k;
-      if (PM.running) pomoAmbientStart();
+      // a break is playing its own synthesized pad right now - a focus pick
+      // just gets saved for when the next focus round starts
+      if (PM.running && PM.phase === "focus") pomoAmbientStart();
       else if (k !== "none" && !PM.muted) pomoPreview();  // audition it briefly
       else pomoAmbientStop();
       pomoRender(); pomoSave();
+    });
+    pomoWireDropdown("pPlayDrop", POMO_PLAYMODES, k => {
+      PM.playMode = k;
+      if (pomoEl){
+        pomoEl.loop = k !== "shuffle";
+        pomoEl.onended = k === "shuffle" ? pomoShuffleNext : null;
+      }
+      pomoSave();
     });
     // a changed length applies to the current session immediately unless it
     // is mid-run - a running session keeps the deal it started with
@@ -410,6 +517,7 @@ function pomoLoadFor(uid){
   if (!POMO_THEMES[PM.theme]) PM.theme = "autumn";
   // saved picks from the synthesized era (rain, fire, …) land on real music
   if (!POMO_TRACKS[PM.track]) PM.track = "coffeeshop";
+  if (!POMO_PLAYMODES[PM.playMode]) PM.playMode = "repeat";
   // a session that was running when they left: settle it honestly
   if (PM.running && PM.endAt && PM.endAt <= Date.now()){
     PM.running = false; PM.remainMs = 0;
@@ -438,7 +546,7 @@ function pomoUnload(){
     pomoSave();
   }
   clearTimeout(pomoPreviewTimer);
-  pomoAmbientStop();
+  pomoSoundStop();
   pomoUid = null;
   PM = pomoDefaults();
   pomoSetMode(false);
@@ -458,8 +566,8 @@ function pomoUnload(){
   $("pomoSound").onclick = () => {
     PM.muted = !PM.muted;
     pomoApplyVolume();
-    if (!PM.muted && PM.running) pomoAmbientStart();
-    if (PM.muted) pomoAmbientStop();
+    if (!PM.muted && PM.running) pomoSoundStart();
+    if (PM.muted) pomoSoundStop();
     pomoRender(); pomoSave();
   };
   pomoSetMode(false);   // neutral until someone signs in and loads their own
