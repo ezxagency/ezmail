@@ -72,14 +72,26 @@ function afSync(){
   set($("afStepdetails"), afState.note.trim().length >= 3, !allBlocks);
   const add = $("afAddPerson");
   if (add) add.disabled = !allBlocks;
+  // "+ Another store" belongs to the last block's person, by name, and only
+  // needs them picked - it drops the admin straight into their store menu
+  const more = $("afAddMore");
+  if (more){
+    const last = afState.people[afState.people.length - 1];
+    more.disabled = !last || !last.uid;
+    more.textContent = "+ Another store" + (last && last.name ? " for " + last.name : "");
+  }
   afRenderSentence();
   const save = $("afSave");
   if (save) save.disabled = !afReady();
 }
 
 // a click anywhere outside the open dropdown's own step closes it - the
-// assign flow's menus behave like every other nested layer now
+// assign flow's menus behave like every other nested layer now.
+// Ticking a checkbox repaints its panel, which detaches the clicked button
+// before this document-level listener runs - a detached target has no
+// ancestors to match, and multi-select would slam shut on every pick.
 document.addEventListener("click", e => {
+  if (!e.target.isConnected) return;
   if (afOpen && !e.target.closest(".af-step, .af-trigger, .af-panel")) afCloseMenu();
 });
 
@@ -439,7 +451,11 @@ async function openAssignFlow(preUid, preName, editThread){
   const body = `
     <p class="af-sentence" id="afSentence"></p>
     <div id="afPeople"></div>
-    ${afEdit ? "" : `<button type="button" class="af-add-person" id="afAddPerson" disabled>+ Another person</button>`}
+    ${afEdit ? "" : `
+    <div class="af-add-row">
+      <button type="button" class="af-add-person" id="afAddMore" disabled>+ Another store</button>
+      <button type="button" class="af-add-person" id="afAddPerson" disabled>+ New person</button>
+    </div>`}
     <div class="af-step is-locked" id="afStepdetails">
       <div class="af-step-head">
         <span class="af-pip" aria-hidden="true"></span>
@@ -459,6 +475,17 @@ async function openAssignFlow(preUid, preName, editThread){
       afRenderPeople();
       const t = $("afTrigwho" + (afState.people.length - 1));
       if (t) t.focus();
+    };
+    // more work for the SAME person: jump straight into their store picker
+    // instead of making the admin re-add who they already added
+    const more = $("afAddMore");
+    if (more) more.onclick = () => {
+      const pi = afState.people.length - 1;
+      const t = $("afTrigwhere" + pi);
+      if (!t || t.disabled) return;
+      t.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (t.getAttribute("aria-expanded") !== "true") t.click();
+      t.focus();
     };
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };

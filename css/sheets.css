@@ -181,10 +181,13 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   color:#FF8E8E;font-size:14px;line-height:1;
 }
 .af-person-x:hover{background:rgba(255,92,92,.16)}
+.af-add-row{display:flex;gap:10px;margin:0 0 16px}
+.af-add-row .af-add-person{margin:0;flex:1;min-width:0}
 .af-add-person{
   display:block;width:100%;margin:0 0 16px;padding:12px;border-radius:12px;cursor:pointer;
   background:rgba(0,174,11,.1);border:1px dashed rgba(0,174,11,.45);
   color:var(--wk-green);font-family:var(--wk);font-size:13px;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .af-add-person:hover:not([disabled]){background:rgba(0,174,11,.2)}
 .af-add-person[disabled]{opacity:.35;cursor:default}
