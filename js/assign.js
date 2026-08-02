@@ -16,22 +16,22 @@ const AF_ORDER = ["who", "where", "what", "details"];
 // one key per store x task combination; a newline can't appear in either
 // name (both come from single-line inputs), so it is a safe separator
 const pairKey = (store, task) => store + "\n" + task;
-// the combos that will actually be written: the cross product minus any the
-// admin dropped in the fine-tune list
+// tasks are chosen PER STORE now - "Design at Averon, Copy at Futbol" is
+// picked directly rather than assembled from a cross product and pruned
 function afActivePairs(){
   const out = [];
-  afState.stores.forEach(store => afState.tasks.forEach(task => {
-    if (!afState.skip[pairKey(store, task)]) out.push({ store, task });
-  }));
+  afState.stores.forEach(store =>
+    (afState.storeTasks[store] || []).forEach(task => out.push({ store, task })));
   return out;
 }
-// where/what are multi-select; the key here is also the afState field
-const AF_MULTI = { where: "stores", what: "tasks" };
+// only the store step is a generic multi-select; What renders its own rows
+const AF_MULTI = { where: "stores" };
 const afDone = key => {
   const s = afState || {};
   if (key === "who")     return !!s.uid;
   if (key === "where")   return (s.stores || []).length > 0;
-  if (key === "what")    return (s.tasks || []).length > 0;
+  if (key === "what")    return (s.stores || []).length > 0
+    && s.stores.every(st => ((s.storeTasks || {})[st] || []).length > 0);
   if (key === "details") return (s.note || "").trim().length >= 3;
   return false;
 };
@@ -51,18 +51,16 @@ function afRenderSentence(){
   const tok = (v, ph) => v
     ? `<b class="af-tok">${esc(v)}</b>`
     : `<i class="af-slot">${esc(ph)}</i>`;
-  const total = (s.stores.length || 1) * (s.tasks.length || 1);
-  const act = (s.stores.length && s.tasks.length) ? afActivePairs().length : total;
-  const dropped = total - act;
-  // every store x task pair still lands as its own tick-able item, but they
-  // travel together - say so before they commit, and own up to any combos
-  // dropped in the fine-tune list
-  const count = total > 1
-    ? `<span class="af-count">${act === 1 ? "1 task" : act + " tasks · one group"}${dropped ? ` · ${dropped} dropped` : ""}</span>`
+  const pairs = s.stores.length ? afActivePairs() : [];
+  // one shared set reads as itself; differing per-store sets read as such
+  const sets = s.stores.map(st => (s.storeTasks[st] || []).join(", "));
+  const allSame = sets.length > 0 && sets.every(x => x && x === sets[0]);
+  const count = pairs.length > 1
+    ? `<span class="af-count">${pairs.length} tasks · one group</span>`
     : "";
   el.innerHTML = tok(s.name, "Someone")
     + ` at ` + tok(s.stores.join(", "), "a store")
-    + ` — ` + tok(s.tasks.join(", "), "a task")
+    + ` — ` + tok(allSame ? sets[0] : (pairs.length ? "each their own tasks" : ""), "a task")
     + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}</b>` : "")
     + count;
 }
@@ -202,7 +200,8 @@ function afWireDropdown(key, getItems, onPick, customLabel){
 // step the admin forward rather than making them hunt for the next control
 function afAdvance(key){
   const next = AF_ORDER[AF_ORDER.indexOf(key) + 1];
-  const el = next && ($("afTrig" + next) || $("afNote"));
+  // the What step has no single trigger - its first store's picker stands in
+  const el = next && ($("afTrig" + next) || $("afTrigwhat0") || $("afNote"));
   if (el && !el.disabled) el.focus();
 }
 
@@ -214,57 +213,155 @@ function afSet(key, value, label){
   afAdvance(key);
 }
 
-const AF_PLACEHOLDER = { where: "Choose stores", what: "Choose tasks" };
+const AF_PLACEHOLDER = { where: "Choose stores" };
 
-// toggle one value in a multi-select step
+// toggle one store in the Where step; its task list follows it in and out
 function afToggle(key, value){
-  const field = AF_MULTI[key], arr = afState[field];
+  const arr = afState.stores;
   const i = arr.indexOf(value);
-  if (i >= 0) arr.splice(i, 1); else arr.push(value);
-  const val = $("afVal" + key);
-  if (val) val.textContent = arr.length ? arr.join(", ") : AF_PLACEHOLDER[key];
-  afRenderPairs();
+  if (i >= 0){
+    arr.splice(i, 1);
+    delete afState.storeTasks[value];
+  } else {
+    arr.push(value);
+    // when every store so far shares one task set, a new store inherits it -
+    // the common "same everywhere" case costs nothing extra; differing sets
+    // mean intent, so the new store starts empty and asks
+    const sets = arr.slice(0, -1).map(st => (afState.storeTasks[st] || []).join("\n"));
+    afState.storeTasks[value] =
+      (sets.length && sets.every(x => x && x === sets[0])) ? sets[0].split("\n") : [];
+  }
+  const val = $("afValwhere");
+  if (val) val.textContent = arr.length ? arr.join(", ") : AF_PLACEHOLDER.where;
+  afRenderWhat();
   afSync();
 }
 
-/* The fine-tune list (features it only earns with 2+ combos): every store x
-   task pair the selection implies, each with a toggle to drop it - so "Design
-   at AVERON but Task Assign only at Football" is expressible. The one due
-   date in Details covers the whole group. */
-function afRenderPairs(){
-  const box = $("afPairs");
+/* The What step: one task picker PER chosen store, so "abc at XYZ but def
+   at MNO" is picked directly where the stores are - no cross product, no
+   pruning list afterwards. Details' one due date still covers the group. */
+function afRenderWhat(){
+  const box = $("afWhatRows");
   if (!box) return;
-  const combos = [];
-  afState.stores.forEach(store => afState.tasks.forEach(task =>
-    combos.push({ store, task, k: pairKey(store, task) })));
-  if (combos.length < 2){
-    box.hidden = true;
-    box.innerHTML = "";
+  if (afOpen && String(afOpen).startsWith("what")) afCloseMenu();
+  const stores = afState.stores;
+  if (!stores.length){
+    box.innerHTML = `<p class="af-opt-none">Pick stores first — each gets its own tasks.</p>`;
     return;
   }
-  box.hidden = false;
-  box.innerHTML = `
-    <div class="af-step-head">
-      <span class="af-pip" aria-hidden="true"></span>
-      <span class="af-step-label">Fine-tune</span>
-    </div>
-    ${combos.map(c => {
-      const off = !!afState.skip[c.k];
+  box.innerHTML = stores.map((store, i) => {
+    const chosen = afState.storeTasks[store] || [];
+    return `
+    <div class="af-sub">
+      <span class="af-sub-store">${esc(store)}</span>
+      <button type="button" class="af-trigger" id="afTrigwhat${i}"
+              aria-expanded="false" aria-controls="afPanelwhat${i}">
+        <span class="af-value">${esc(chosen.join(", ") || "Choose tasks")}</span>
+        <svg class="af-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="af-panel" id="afPanelwhat${i}" hidden></div>
+      <div class="af-custom" id="afCustomwhat${i}" hidden>
+        <input type="text" id="afInputwhat${i}" placeholder="Type a task" autocomplete="off">
+        <button type="button" class="af-custom-ok" id="afOkwhat${i}">Use</button>
+      </div>
+    </div>`;
+  }).join("")
+  + (stores.length > 1 ? `<button type="button" class="af-sub-copy" id="afWhatCopy">Same tasks for every store</button>` : "");
+
+  stores.forEach((store, i) => afWireWhatRow(store, i));
+  const cp = $("afWhatCopy");
+  if (cp) cp.onclick = () => {
+    const src = afState.stores.map(st => afState.storeTasks[st] || []).find(a => a.length);
+    if (!src){ toast("Pick tasks under one store first"); return; }
+    afState.stores.forEach(st => { afState.storeTasks[st] = [...src]; });
+    afRenderWhat();
+    afSync();
+  };
+}
+
+// one store's picker: same open/roving-focus/custom-entry manners as the
+// generic dropdowns, but its checkbox state lives in storeTasks[store]
+function afWireWhatRow(store, i){
+  const key = "what" + i;
+  const trig = $("afTrig" + key), panel = $("afPanel" + key);
+  const custom = $("afCustom" + key), input = $("afInput" + key), ok = $("afOk" + key);
+  // CONFIG's list plus anything typed under any store this session - a
+  // custom task picked once is one click for the next store
+  const options = () => {
+    const seen = new Map();
+    CONFIG.tasks.forEach(t => seen.set(t.toLowerCase(), t));
+    Object.values(afState.storeTasks).flat().forEach(t => seen.set(t.toLowerCase(), t));
+    return [...seen.values()];
+  };
+  const paint = () => {
+    const chosen = afState.storeTasks[store] || [];
+    panel.innerHTML = options().map(t => {
+      const on = chosen.includes(t);
       return `
-      <div class="af-pair${off ? " is-off" : ""}" data-k="${esc(c.k)}">
-        <button type="button" class="af-pair-tog" aria-pressed="${!off}"
-                title="${off ? "Include this one again" : "Drop this one"}">${AF_TICK}</button>
-        <span class="af-pair-name">${esc(c.store)} · ${esc(c.task)}</span>
-      </div>`;
-    }).join("")}`;
-  box.querySelectorAll(".af-pair").forEach(row => {
-    const k = row.dataset.k;
-    row.querySelector(".af-pair-tog").onclick = () => {
-      if (afState.skip[k]) delete afState.skip[k]; else afState.skip[k] = true;
-      afRenderPairs();
-      afSync();
-    };
-  });
+      <button type="button" class="af-opt${on ? " is-on" : ""}" data-v="${esc(t)}" aria-pressed="${on}">
+        <span class="af-check" aria-hidden="true">${on ? AF_TICK : ""}</span>
+        <span class="af-opt-main">${esc(t)}</span>
+      </button>`;
+    }).join("")
+    + `<button type="button" class="af-opt af-opt-new" data-v="__new">+ Another task</button>
+       <button type="button" class="af-opt af-opt-done" data-v="__done">Done choosing</button>`;
+    panel.querySelectorAll("button[data-v]").forEach(b => {
+      b.onclick = () => {
+        const v = b.dataset.v;
+        if (v === "__done"){
+          afCloseMenu();
+          const nxt = $("afTrigwhat" + (i + 1)) || $("afNote");
+          if (nxt && !nxt.disabled) nxt.focus();
+          return;
+        }
+        if (v === "__new"){
+          afCloseMenu();
+          custom.hidden = false;
+          input.value = "";
+          input.focus();
+          return;
+        }
+        const arr = afState.storeTasks[store] = afState.storeTasks[store] || [];
+        const at = arr.indexOf(v);
+        if (at >= 0) arr.splice(at, 1); else arr.push(v);
+        trig.querySelector(".af-value").textContent = arr.join(", ") || "Choose tasks";
+        paint();
+        afSync();
+      };
+    });
+  };
+  const open = () => {
+    if (afOpen && afOpen !== key) afCloseMenu();
+    paint();
+    panel.hidden = false;
+    trig.setAttribute("aria-expanded", "true");
+    afOpen = key;
+    const first = panel.querySelector("button");
+    if (first) first.focus();
+  };
+  trig.onclick = () => (afOpen === key ? afCloseMenu() : open());
+  trig.onkeydown = e => { if (e.key === "ArrowDown"){ e.preventDefault(); open(); } };
+  panel.onkeydown = e => {
+    const opts = [...panel.querySelectorAll("button")];
+    const at = opts.indexOf(document.activeElement);
+    if (e.key === "ArrowDown"){ e.preventDefault(); (opts[at + 1] || opts[0]).focus(); }
+    else if (e.key === "ArrowUp"){ e.preventDefault(); (opts[at - 1] || opts[opts.length - 1]).focus(); }
+    else if (e.key === "Escape"){ e.preventDefault(); afCloseMenu(); trig.focus(); }
+  };
+  const commit = () => {
+    const v = input.value.trim();
+    if (!OTHER_RE.test(v)){ input.focus(); return; }
+    custom.hidden = true;
+    const arr = afState.storeTasks[store] = afState.storeTasks[store] || [];
+    if (!arr.includes(v)) arr.push(v);
+    trig.querySelector(".af-value").textContent = arr.join(", ");
+    afSync();
+  };
+  ok.onclick = commit;
+  input.onkeydown = e => {
+    if (e.key === "Enter"){ e.preventDefault(); commit(); }
+    else if (e.key === "Escape"){ e.preventDefault(); custom.hidden = true; trig.focus(); }
+  };
 }
 
 async function openAssignFlow(preUid, preName, editThread){
@@ -281,18 +378,18 @@ async function openAssignFlow(preUid, preName, editThread){
   }
   afState = {
     uid: preUid || "", name: preName || "",
-    stores: [...new Set(openRows.map(r => r.store).filter(Boolean))],
-    tasks:  [...new Set(openRows.map(r => r.task).filter(Boolean))],
+    stores: [], storeTasks: {},
     note: openRows.length ? (openRows[0].note || "") : "",
-    due: sharedDue, skip: {}
+    due: sharedDue
   };
-  if (openRows.length){
-    const have = new Set(openRows.map(r => pairKey(r.store, r.task)));
-    afState.stores.forEach(store => afState.tasks.forEach(task => {
-      const k = pairKey(store, task);
-      if (!have.has(k)) afState.skip[k] = true;
-    }));
-  }
+  // editing prefills each store's own task list straight from its rows -
+  // the per-store shape IS the stored shape, nothing to reconstruct
+  openRows.forEach(r => {
+    if (!r.store || !r.task) return;
+    if (!afState.stores.includes(r.store)) afState.stores.push(r.store);
+    const arr = afState.storeTasks[r.store] = afState.storeTasks[r.store] || [];
+    if (!arr.includes(r.task)) arr.push(r.task);
+  });
   afOpen = null;
   // On the Assign page the flow mounts inline; everywhere else (roster
   // quick-assign, small screens' menus) it stays a sheet. Only ever one
@@ -304,8 +401,13 @@ async function openAssignFlow(preUid, preName, editThread){
     <p class="af-sentence" id="afSentence"></p>
     ${afDropdownMarkup("who", "Who", "Choose a team member")}
     ${afDropdownMarkup("where", "Where", AF_PLACEHOLDER.where)}
-    ${afDropdownMarkup("what", "What", AF_PLACEHOLDER.what)}
-    <div class="af-pairs" id="afPairs" hidden></div>
+    <div class="af-step is-locked" id="afStepwhat">
+      <div class="af-step-head">
+        <span class="af-pip" aria-hidden="true"></span>
+        <span class="af-step-label">What — per store</span>
+      </div>
+      <div id="afWhatRows"></div>
+    </div>
     <div class="af-step is-locked" id="afStepdetails">
       <div class="af-step-head">
         <span class="af-pip" aria-hidden="true"></span>
@@ -320,8 +422,6 @@ async function openAssignFlow(preUid, preName, editThread){
   const setup = () => {
     afWireDropdown("who", () => members, (v, l) => afSet("who", v, l));
     afWireDropdown("where", () => stores, v => afToggle("where", v), "+ Another store");
-    afWireDropdown("what", () => CONFIG.tasks.map(t => ({ value: t, label: t })),
-      v => afToggle("what", v), "+ Another task");
 
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
@@ -335,11 +435,10 @@ async function openAssignFlow(preUid, preName, editThread){
     if (preUid) $("afValwho").textContent = preName || "Selected";
     if (afEdit){
       if (afState.stores.length) $("afValwhere").textContent = afState.stores.join(", ");
-      if (afState.tasks.length)  $("afValwhat").textContent  = afState.tasks.join(", ");
       $("afNote").value = afState.note;
       if (afState.due) $("afDue").value = afState.due;
     }
-    afRenderPairs();
+    afRenderWhat();
     afSync();
     loadAssignOptions().then(d => { members = d.members; stores = d.stores; });
   };

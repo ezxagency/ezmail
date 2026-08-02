@@ -165,6 +165,20 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-due input[type=date]{width:auto;flex:1;max-width:210px;padding:12px 14px;min-height:0}
 
+/* ---------- the What step: one task picker per chosen store ---------- */
+.af-sub{margin-bottom:12px}
+.af-sub-store{
+  display:block;margin-bottom:6px;
+  font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--wk-white);
+}
+.af-sub-copy{
+  display:inline-block;margin:2px 0 4px;padding:8px 13px;border-radius:10px;cursor:pointer;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);
+  color:var(--wk-white-70);font-family:var(--wk);font-size:12px;font-weight:600;
+}
+.af-sub-copy:hover{background:rgba(255,255,255,.16);color:var(--wk-white)}
+
 /* ---------- fine-tune: the cross product, one row per combo ----------
    Appears only once the selection implies 2+ combos. Each row can be dropped:
    the tick empties and the row dims. The due date in Details is the group's. */
