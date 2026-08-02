@@ -326,6 +326,7 @@ function pomoRenderTime(){
   // ringing, so the break never arrives as a surprise
   const soon = PM.phase === "focus" && PM.running && remain > 0 && remain <= 120000;
   $("pomo").classList.toggle("is-alarm-soon", soon);
+  $("pomoPhase").textContent = soon ? "Break soon" : POMO_PHASE_LABEL[PM.phase];
 }
 
 function pomoRender(){

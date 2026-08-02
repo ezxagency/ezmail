@@ -225,40 +225,58 @@
 .clock-panel{animation:paneContentIn .45s cubic-bezier(.22,1,.36,1) both}
 .pomo-ring{width:min(56vw,230px);max-width:230px}
 /* the top of the ring turns into a classic twin-bell alarm clock in the
-   last two minutes of focus - invisible and silent otherwise */
+   last two minutes of focus - invisible and silent otherwise. A gold-lit
+   halo blooms behind the ring, the arc itself goes amber, and the phase
+   label swaps to say so - the whole clock reads as "ringing", not just
+   two small icons. */
+.pomo-ring::before{
+  content:"";position:absolute;inset:-18%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle, transparent 64%, rgba(255,157,60,.5) 76%, transparent 92%);
+  opacity:0;transition:opacity .4s ease;
+}
+.pomo.is-alarm-soon .pomo-ring::before{opacity:1;animation:pomoRingGlow 1.1s ease-in-out infinite}
+@keyframes pomoRingGlow{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
 .pomo-alarm{
-  position:absolute;top:-6px;left:50%;z-index:2;pointer-events:none;
-  display:flex;gap:30px;
-  opacity:0;transform:translateX(-50%) scale(.6);
+  position:absolute;top:-15px;left:50%;z-index:2;pointer-events:none;
+  display:flex;gap:34px;
+  opacity:0;transform:translateX(-50%) scale(.55) translateY(6px);
   transition:opacity .35s ease,transform .35s cubic-bezier(.22,1,.36,1);
 }
-.pomo.is-alarm-soon .pomo-alarm{opacity:1;transform:translateX(-50%) scale(1)}
-.pomo-bell{width:20px;height:20px;color:#ffb35a;transform-origin:50% 15%}
+.pomo.is-alarm-soon .pomo-alarm{opacity:1;transform:translateX(-50%) scale(1) translateY(0)}
+.pomo-bell{
+  width:30px;height:27px;transform-origin:50% 12%;overflow:visible;
+  filter:drop-shadow(0 3px 5px rgba(0,0,0,.4)) drop-shadow(0 0 7px rgba(255,157,60,.6));
+}
 .pomo-bell-r{transform:scaleX(-1)}
-.pomo.is-alarm-soon .pomo-bell-l{animation:pomoBellRingL .45s ease-in-out infinite}
-.pomo.is-alarm-soon .pomo-bell-r{animation:pomoBellRingR .45s ease-in-out infinite}
+.pomo-bell-waves{opacity:0}
+.pomo.is-alarm-soon .pomo-bell-waves{animation:pomoWaveOut 1s ease-out infinite}
+@keyframes pomoWaveOut{0%{opacity:0}20%{opacity:1}70%{opacity:.15}100%{opacity:0}}
+.pomo.is-alarm-soon .pomo-bell-l{animation:pomoBellRingL .5s ease-in-out infinite}
+.pomo.is-alarm-soon .pomo-bell-r{animation:pomoBellRingR .5s ease-in-out infinite .08s}
 @keyframes pomoBellRingL{
   0%,100%{transform:rotate(0deg)}
-  25%{transform:rotate(-16deg)}
-  75%{transform:rotate(16deg)}
+  22%{transform:rotate(-22deg)}
+  55%{transform:rotate(16deg)}
+  80%{transform:rotate(-8deg)}
 }
 @keyframes pomoBellRingR{
   0%,100%{transform:scaleX(-1) rotate(0deg)}
-  25%{transform:scaleX(-1) rotate(-16deg)}
-  75%{transform:scaleX(-1) rotate(16deg)}
+  22%{transform:scaleX(-1) rotate(-22deg)}
+  55%{transform:scaleX(-1) rotate(16deg)}
+  80%{transform:scaleX(-1) rotate(-8deg)}
 }
-/* the ring itself catches the alarm's light, pulsing warm while it rings */
-.pomo.is-alarm-soon .pomo-ring{animation:pomoRingPulse 1s ease-in-out infinite}
-@keyframes pomoRingPulse{
-  0%,100%{filter:drop-shadow(0 0 0 rgba(255,179,90,0))}
-  50%{filter:drop-shadow(0 0 9px rgba(255,179,90,.55))}
-}
+/* the arc itself catches the alarm - amber overrides the usual focus green */
+.app .pomo.is-alarm-soon.is-focus .ring-progress{stroke:#ff9d3c;transition:stroke .4s ease}
 .pomo-ring .ring-center{flex-direction:column;gap:2px}
 .pomo-phase{
   font-family:var(--wk);font-size:10px;font-weight:600;letter-spacing:.3em;
-  text-transform:uppercase;color:var(--wk-white-70);
+  text-transform:uppercase;color:var(--wk-white-70);transition:color .3s ease;
 }
-.pomo-time{font-size:clamp(30px,9vw,42px);font-weight:500}
+.pomo.is-alarm-soon .pomo-phase{color:#ffb35a;animation:pomoLabelPulse 1.1s ease-in-out infinite}
+@keyframes pomoLabelPulse{0%,100%{opacity:.7}50%{opacity:1}}
+.pomo-time{font-size:clamp(30px,9vw,42px);font-weight:500;display:inline-block}
+.pomo.is-alarm-soon .pomo-time{animation:pomoTimePulse 1s ease-in-out infinite}
+@keyframes pomoTimePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
 .pomo-dots{display:flex;gap:7px;margin-top:8px}
 .pomo-dot{
   width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25);
