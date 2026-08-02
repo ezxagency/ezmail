@@ -907,7 +907,7 @@ function markAssignmentDone(id){
   const row = assignedOpenRows.find(r => r.id === id) || {};
   openSheet(`
     <h2>Task complete</h2>
-    <p class="hint"><b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team. Tag someone with @ and they're notified in-app.</p>
+    <p class="hint"><b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team. Tag someone with @ and they get an Accept / Decline hand-off in their inbox.</p>
     <div class="mention-wrap">
       <textarea id="doneNote" placeholder="e.g. Drafts are up — @Jack please review"></textarea>
       <div class="af-panel mention-pop" id="mentionPop" hidden></div>

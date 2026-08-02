@@ -52,7 +52,10 @@ service cloud.firestore {
     }
     match /assignments/{id} {
       allow read: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin() || isAssignerEmail());
-      allow create: if request.auth != null && (isAdmin() || isAssignerEmail());
+      // workers may also create assignments addressed to THEMSELVES - that
+      // is how accepting a comment-tag hand-off lands on their own queue
+      allow create: if request.auth != null && (isAdmin() || isAssignerEmail()
+        || request.resource.data.toUid == request.auth.uid);
       allow update: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin() || isAssignerEmail());
       allow delete: if request.auth != null && isAdmin();
     }

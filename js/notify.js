@@ -157,9 +157,49 @@ async function dispatchMentionNotifications(comment, assignmentId, row){
   if (!mentioned.length && isAdmin) return;   // admin finishing own task: nothing to tell
   const batch = db.batch();
   const col = db.collection("notifications");
-  mentioned.forEach(p => batch.set(col.doc(), { ...base, toUid: p.uid }));
+  // a tag is an OFFER of work, not an FYI: the tagged teammate gets
+  // Accept / Decline in their inbox, and the doc keeps the outcome
+  mentioned.forEach(p => batch.set(col.doc(), { ...base, toUid: p.uid, kind: "handoff", status: "pending" }));
   if (!isAdmin) batch.set(col.doc(), { ...base, toRole: "admin" });
   await batch.commit();
+}
+
+/* ---------- comment-tag hand-offs ----------
+   Accepting writes a real assignment addressed to the accepter (the rules
+   allow self-addressed creates), so the work lands straight on their
+   dashboard card as an open task - and the admin hears. Declining tells
+   the tagger. Either way the offer doc keeps its decided state. */
+async function handoffAccept(n){
+  const me = auth.currentUser;
+  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const now = Date.now();
+  await db.collection("assignments").add({
+    toUid: me.uid, toName: myName,
+    fromName: n.fromName || "teammate", fromEmail: "",
+    store: n.store || "", task: n.task || "",
+    note: n.text || "",
+    snote: "Accepted hand-off from " + (n.fromName || "a teammate"),
+    dueDate: null, createdAt: now, done: false, doneAt: null,
+    groupId: null, groupSize: 1, seenAt: null
+  });
+  await db.collection("notifications").doc(n.id).update({ status: "accepted" });
+  if (!isAdmin) await db.collection("notifications").add({
+    toRole: "admin", kind: "handoff-news",
+    msg: `${myName} accepted ${n.fromName || "a teammate"}'s hand-off — ${[n.store, n.task].filter(Boolean).join(" · ") || "a task"}`,
+    fromUid: me.uid, fromName: myName, createdAt: now, read: false
+  });
+  toast("Added to your queue");
+}
+async function handoffDecline(n){
+  const me = auth.currentUser;
+  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  await db.collection("notifications").doc(n.id).update({ status: "declined" });
+  if (n.fromUid && n.fromUid !== me.uid) await db.collection("notifications").add({
+    toUid: n.fromUid, kind: "handoff-news",
+    msg: `${myName} declined the hand-off — ${[n.store, n.task].filter(Boolean).join(" · ") || "a task"}`,
+    fromUid: me.uid, fromName: myName, createdAt: Date.now(), read: false
+  });
+  toast("Declined — " + (n.fromName || "they") + " will know");
 }
 
 /* ---------- the bell ---------- */
@@ -225,19 +265,47 @@ function openNotifCenter(){
   fetchNotifHistory().then(rows => {
     const body = $("ntBody");
     if (!body) return;   // the sheet moved on while we were fetching
+    const meUid = (auth.currentUser || {}).uid;
     body.innerHTML = rows.length ? `<ul class="hist notif-list">
-      ${rows.map((n, i) => `
+      ${rows.map((n, i) => {
+        const head = n.msg ? esc(n.msg)
+          : n.kind === "campaign" ? "A campaign moved"
+          : esc(n.fromName || "Someone") + " finished " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task");
+        const pending = n.kind === "handoff" && n.status === "pending" && n.toUid === meUid;
+        const decided = n.kind === "handoff" && n.status && n.status !== "pending";
+        return `
         <li class="notif-item${n.read ? "" : " is-unread"}" data-i="${i}">
           <div>
-            <div class="h-c">${n.kind === "campaign"
-              ? esc(n.msg || "A campaign moved")
-              : esc(n.fromName || "Someone") + " finished " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task")}</div>
+            <div class="h-c">${head}${decided ? ` <span class="hf-chip is-${esc(n.status)}">${esc(n.status)}</span>` : ""}</div>
             ${n.text ? `<div class="h-d notif-text">${esc(n.text)}</div>` : ""}
             <div class="h-d">${whenLabel(n.createdAt)}</div>
+            ${pending ? `
+            <div class="hf-acts">
+              <button type="button" class="hf-btn hf-acc" data-hf="acc" data-i="${i}">Accept</button>
+              <button type="button" class="hf-btn hf-dec" data-hf="dec" data-i="${i}">Decline</button>
+            </div>` : ""}
           </div>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </li>`).join("")}
+        </li>`;
+      }).join("")}
     </ul>` : `<div class="empty">Nothing here yet. Task comments that tag you and campaign handoffs land here — and stay.</div>`;
+
+    // Accept / Decline act right here in the inbox; the row click below
+    // must not also fire, and the list repaints with the decided state
+    body.querySelectorAll("[data-hf]").forEach(b => b.onclick = async e => {
+      e.stopPropagation();
+      const n = rows[Number(b.dataset.i)];
+      b.closest(".hf-acts").querySelectorAll("button").forEach(x => { x.disabled = true; });
+      try {
+        if (b.dataset.hf === "acc") await handoffAccept(n);
+        else await handoffDecline(n);
+        openNotifCenter();
+      } catch (err) {
+        console.error(err);
+        toast("Couldn't do that — make sure the updated Firestore rules are published");
+        openNotifCenter();
+      }
+    });
 
     // opening the centre reads the unread; the docs stay for next time
     const unread = rows.filter(n => !n.read);

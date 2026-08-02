@@ -221,6 +221,22 @@
   background:var(--wk-green);margin-left:8px;vertical-align:middle;
 }
 .notif-item:not(.is-unread){opacity:.72}
+/* hand-off offers: act right in the inbox */
+.hf-acts{display:flex;gap:8px;margin-top:9px}
+.hf-btn{
+  padding:8px 16px;border-radius:10px;cursor:pointer;
+  font-family:var(--wk);font-size:12px;font-weight:700;
+}
+.hf-btn[disabled]{opacity:.5;cursor:default}
+.hf-acc{background:var(--wk-green);border:1px solid var(--wk-green);color:#08210a}
+.hf-dec{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:var(--wk-white)}
+.hf-chip{
+  display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;
+  vertical-align:middle;font-family:var(--wk);font-size:9.5px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+}
+.hf-chip.is-accepted{background:rgba(0,174,11,.18);color:var(--wk-green)}
+.hf-chip.is-declined{background:rgba(255,178,36,.16);color:#FFC96B}
 
 /* calendar bounds for the history filter + emailed summaries */
 .fpage-dates{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:-6px 0 18px}
