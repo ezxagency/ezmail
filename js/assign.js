@@ -70,15 +70,18 @@ function afSync(){
   });
   const allBlocks = afState.people.every(afPersonValid);
   set($("afStepdetails"), afState.note.trim().length >= 3, !allBlocks);
+  // the add buttons never disable (their click explains itself); they just
+  // dim while pressing them couldn't succeed, and the store one's tooltip
+  // names whose block it extends
   const add = $("afAddPerson");
-  if (add) add.disabled = !allBlocks;
-  // "+ Another store" belongs to the last block's person, by name, and only
-  // needs them picked - it drops the admin straight into their store menu
+  if (add) add.classList.toggle("is-idle", !allBlocks);
   const more = $("afAddMore");
   if (more){
     const last = afState.people[afState.people.length - 1];
-    more.disabled = !last || !last.uid;
-    more.textContent = "+ Another store" + (last && last.name ? " for " + last.name : "");
+    more.classList.toggle("is-idle", !last || !last.uid);
+    const label = "Another store" + (last && last.name ? " for " + last.name : "");
+    more.title = label;
+    more.setAttribute("aria-label", label);
   }
   afRenderSentence();
   const save = $("afSave");
@@ -453,8 +456,12 @@ async function openAssignFlow(preUid, preName, editThread){
     <div id="afPeople"></div>
     ${afEdit ? "" : `
     <div class="af-add-row">
-      <button type="button" class="af-add-person" id="afAddMore" disabled>+ Another store</button>
-      <button type="button" class="af-add-person" id="afAddPerson" disabled>+ New person</button>
+      <button type="button" class="af-add-ico" id="afAddMore" aria-label="Another store" title="Another store">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5 5 4h14l1.5 5.5"/><path d="M5 9.5V20h14V9.5"/><path d="M12 12v5.4M9.3 14.7h5.4"/></svg>
+      </button>
+      <button type="button" class="af-add-ico" id="afAddPerson" aria-label="New person" title="New person">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>
+      </button>
     </div>`}
     <div class="af-step is-locked" id="afStepdetails">
       <div class="af-step-head">
@@ -469,8 +476,18 @@ async function openAssignFlow(preUid, preName, editThread){
   `;
   const setup = () => {
     afRenderPeople();
+    // both add buttons stay clickable at all times: a press that can't be
+    // honoured yet SAYS why, instead of a dead disabled button that reads
+    // as broken
     const add = $("afAddPerson");
     if (add) add.onclick = () => {
+      const bad = afState.people.find(p => !afPersonValid(p));
+      if (bad){
+        toast(!bad.uid ? "Pick who first — then add the next person"
+          : !bad.stores.length ? `Give ${bad.name || "them"} a store first`
+          : `Every store under ${bad.name || "this person"} needs a task first`);
+        return;
+      }
       afState.people.push(afBlankPerson());
       afRenderPeople();
       const t = $("afTrigwho" + (afState.people.length - 1));
@@ -481,8 +498,10 @@ async function openAssignFlow(preUid, preName, editThread){
     const more = $("afAddMore");
     if (more) more.onclick = () => {
       const pi = afState.people.length - 1;
+      const p = afState.people[pi];
+      if (!p.uid){ toast("Pick who first — the store belongs to a person"); return; }
       const t = $("afTrigwhere" + pi);
-      if (!t || t.disabled) return;
+      if (!t) return;
       t.scrollIntoView({ behavior: "smooth", block: "center" });
       if (t.getAttribute("aria-expanded") !== "true") t.click();
       t.focus();

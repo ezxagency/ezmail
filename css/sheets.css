@@ -182,15 +182,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-person-x:hover{background:rgba(255,92,92,.16)}
 .af-add-row{display:flex;gap:10px;margin:0 0 16px}
-.af-add-row .af-add-person{margin:0;flex:1;min-width:0}
-.af-add-person{
-  display:block;width:100%;margin:0 0 16px;padding:12px;border-radius:12px;cursor:pointer;
+.af-add-ico{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  padding:12px;border-radius:12px;cursor:pointer;
   background:rgba(0,174,11,.1);border:1px dashed rgba(0,174,11,.45);
-  color:var(--wk-green);font-family:var(--wk);font-size:13px;font-weight:600;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--wk-green);
 }
-.af-add-person:hover:not([disabled]){background:rgba(0,174,11,.2)}
-.af-add-person[disabled]{opacity:.35;cursor:default}
+.af-add-ico svg{width:22px;height:22px}
+.af-add-ico:hover{background:rgba(0,174,11,.2)}
+.af-add-ico.is-idle{opacity:.55}
 
 /* each store's own note + due, riding under its task picker */
 .af-sub-extra{display:flex;gap:8px;margin-top:8px}
