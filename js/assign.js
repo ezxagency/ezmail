@@ -6,37 +6,28 @@
    so the confirmation is the form rather than a separate summary step.
    Replaces the old two-surface flow (full-page member picker, then a form).
    ============================================================ */
-let afState = null;      // the answers so far
+let afState = null;      // { people: [...], note, due } - the answers so far
 let afOpen = null;       // key of the dropdown currently open, if any
 let afEdit = null;       // the thread being edited, or null when assigning fresh
 let afInPage = false;    // mounted inline on the Assign page vs. in a sheet
-
-const AF_ORDER = ["who", "where", "what", "details"];
+let afMembers = [], afStores = [];   // dropdown feeds, loaded async per open
 
 // one key per store x task combination; a newline can't appear in either
 // name (both come from single-line inputs), so it is a safe separator
 const pairKey = (store, task) => store + "\n" + task;
-// tasks are chosen PER STORE now - "Design at Averon, Copy at Futbol" is
-// picked directly rather than assembled from a cross product and pruned
-function afActivePairs(){
-  const out = [];
-  afState.stores.forEach(store =>
-    (afState.storeTasks[store] || []).forEach(task => out.push({ store, task })));
-  return out;
-}
-// only the store step is a generic multi-select; What renders its own rows
-const AF_MULTI = { where: "stores" };
-const afDone = key => {
-  const s = afState || {};
-  if (key === "who")     return !!s.uid;
-  if (key === "where")   return (s.stores || []).length > 0;
-  if (key === "what")    return (s.stores || []).length > 0
-    && s.stores.every(st => ((s.storeTasks || {})[st] || []).length > 0);
-  if (key === "details") return (s.note || "").trim().length >= 3;
-  return false;
-};
-// a step is reachable once everything before it is answered
-const afUnlocked = key => AF_ORDER.slice(0, AF_ORDER.indexOf(key)).every(afDone);
+
+/* The form is PEOPLE-first, exactly as sketched: each person block nests
+   their stores, each store nests its own tasks - plus an optional note and
+   due date of its own. "+ Another person" repeats the whole block, so one
+   submit can hand different work at different stores to different
+   teammates: Pz gets Design at abc while Jack gets Copy at mno. */
+const afBlankPerson = () => ({ uid: "", name: "", stores: [], storeTasks: {}, storeNotes: {}, storeDues: {} });
+const afPersonPairs = p => p.stores.flatMap(st => (p.storeTasks[st] || []).map(task => ({ store: st, task })));
+const afPersonValid = p => !!p.uid && p.stores.length > 0
+  && p.stores.every(st => (p.storeTasks[st] || []).length > 0);
+const afAllPairs = () => afState.people.flatMap(afPersonPairs);
+const afReady = () => afState.people.every(afPersonValid)
+  && afAllPairs().length > 0 && afState.note.trim().length >= 3;
 
 function afDueLabel(iso){
   const p = String(iso).split("-").map(Number);
@@ -48,37 +39,42 @@ function afDueLabel(iso){
 function afRenderSentence(){
   const s = afState, el = $("afSentence");
   if (!el) return;
-  const tok = (v, ph) => v
-    ? `<b class="af-tok">${esc(v)}</b>`
-    : `<i class="af-slot">${esc(ph)}</i>`;
-  const pairs = s.stores.length ? afActivePairs() : [];
-  // one shared set reads as itself; differing per-store sets read as such
-  const sets = s.stores.map(st => (s.storeTasks[st] || []).join(", "));
-  const allSame = sets.length > 0 && sets.every(x => x && x === sets[0]);
-  const count = pairs.length > 1
-    ? `<span class="af-count">${pairs.length} tasks · one group</span>`
-    : "";
-  el.innerHTML = tok(s.name, "Someone")
-    + ` at ` + tok(s.stores.join(", "), "a store")
-    + ` — ` + tok(allSame ? sets[0] : (pairs.length ? "each their own tasks" : ""), "a task")
+  const bits = s.people.map(p => {
+    if (!p.name) return `<i class="af-slot">someone</i>`;
+    const n = afPersonPairs(p).length;
+    return `<b class="af-tok">${esc(p.name)}</b>${n
+      ? ` — ${n} task${n === 1 ? "" : "s"} at ${esc(p.stores.join(", "))}` : ""}`;
+  });
+  const total = afAllPairs().length;
+  el.innerHTML = bits.join(" · ")
     + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}</b>` : "")
-    + count;
+    + (total > 1 ? `<span class="af-count">${total} tasks · one send</span>` : "");
 }
 
-// Locks, pips and the Assign button all derive from afDone() so there is one
-// source of truth for "is this step answered".
+/* Locks, pips and the Assign button all derive from the same validity
+   checks, per person block: Where waits for Who, the store rows wait for
+   Where, Details waits for every block being whole. */
 function afSync(){
-  AF_ORDER.forEach(key => {
-    const step = $("afStep" + key);
-    if (!step) return;
-    step.classList.toggle("is-done", afDone(key));
-    step.classList.toggle("is-locked", !afUnlocked(key));
-    step.querySelectorAll("button,input,textarea").forEach(c => { c.disabled = !afUnlocked(key); });
+  const set = (el, done, locked) => {
+    if (!el) return;
+    el.classList.toggle("is-done", done);
+    el.classList.toggle("is-locked", locked);
+    el.querySelectorAll("button,input,textarea").forEach(c => { c.disabled = locked; });
+  };
+  afState.people.forEach((p, pi) => {
+    set($("afStepwho" + pi), !!p.uid, false);
+    set($("afStepwhere" + pi), p.stores.length > 0, !p.uid);
+    set($("afStepwhat" + pi),
+      p.stores.length > 0 && p.stores.every(st => (p.storeTasks[st] || []).length > 0),
+      !p.stores.length);
   });
+  const allBlocks = afState.people.every(afPersonValid);
+  set($("afStepdetails"), afState.note.trim().length >= 3, !allBlocks);
+  const add = $("afAddPerson");
+  if (add) add.disabled = !allBlocks;
   afRenderSentence();
   const save = $("afSave");
-  // dropping every combo in the fine-tune list leaves nothing to assign
-  if (save) save.disabled = !AF_ORDER.every(afDone) || afActivePairs().length === 0;
+  if (save) save.disabled = !afReady();
 }
 
 // a click anywhere outside the open dropdown's own step closes it - the
@@ -119,14 +115,15 @@ function afDropdownMarkup(key, label, placeholder){
 
 const AF_TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg>';
 
-function afWireDropdown(key, getItems, onPick, customLabel){
+function afWireDropdown(key, getItems, onPick, customLabel, opts){
   const trig = $("afTrig" + key), panel = $("afPanel" + key);
   const custom = $("afCustom" + key), input = $("afInput" + key), ok = $("afOk" + key);
-  const multi = AF_MULTI[key];
+  // multi-select state now lives with the caller (per person block)
+  const multi = !!(opts && opts.chosen);
 
   const paint = () => {
     const items = getItems();
-    const chosen = multi ? afState[multi] : [];
+    const chosen = multi ? opts.chosen() : [];
     panel.innerHTML = (items.length
       ? items.map(it => {
           const on = multi && chosen.includes(it.value);
@@ -144,7 +141,7 @@ function afWireDropdown(key, getItems, onPick, customLabel){
     panel.querySelectorAll("button[data-v]").forEach(b => {
       b.onclick = () => {
         const v = b.dataset.v;
-        if (v === "__done"){ afCloseMenu(); afAdvance(key); return; }
+        if (v === "__done"){ afCloseMenu(); if (opts && opts.onDone) opts.onDone(); return; }
         if (v === "__new"){
           afCloseMenu();
           custom.hidden = false;
@@ -197,104 +194,139 @@ function afWireDropdown(key, getItems, onPick, customLabel){
   };
 }
 
-// step the admin forward rather than making them hunt for the next control
-function afAdvance(key){
-  const next = AF_ORDER[AF_ORDER.indexOf(key) + 1];
-  // the What step has no single trigger - its first store's picker stands in
-  const el = next && ($("afTrig" + next) || $("afTrigwhat0") || $("afNote"));
-  if (el && !el.disabled) el.focus();
-}
-
-function afSet(key, value, label){
-  if (key === "who"){ afState.uid = value; afState.name = label; }
-  const val = $("afVal" + key);
-  if (val) val.textContent = label;
-  afSync();
-  afAdvance(key);
-}
-
-const AF_PLACEHOLDER = { where: "Choose stores" };
-
-// toggle one store in the Where step; its task list follows it in and out
-function afToggle(key, value){
-  const arr = afState.stores;
-  const i = arr.indexOf(value);
-  if (i >= 0){
-    arr.splice(i, 1);
-    delete afState.storeTasks[value];
-  } else {
-    arr.push(value);
-    // when every store so far shares one task set, a new store inherits it -
-    // the common "same everywhere" case costs nothing extra; differing sets
-    // mean intent, so the new store starts empty and asks
-    const sets = arr.slice(0, -1).map(st => (afState.storeTasks[st] || []).join("\n"));
-    afState.storeTasks[value] =
-      (sets.length && sets.every(x => x && x === sets[0])) ? sets[0].split("\n") : [];
-  }
-  const val = $("afValwhere");
-  if (val) val.textContent = arr.length ? arr.join(", ") : AF_PLACEHOLDER.where;
-  afRenderWhat();
-  afSync();
-}
-
-/* The What step: one task picker PER chosen store, so "abc at XYZ but def
-   at MNO" is picked directly where the stores are - no cross product, no
-   pruning list afterwards. Details' one due date still covers the group. */
-function afRenderWhat(){
-  const box = $("afWhatRows");
+/* One block per person, rebuilt whole whenever the roster of blocks
+   changes. Each block owns its Who dropdown, its Where multi-select and
+   its per-store task rows; the closures below carry the person object, so
+   there is no global "current person" to get confused about. */
+function afRenderPeople(){
+  const box = $("afPeople");
   if (!box) return;
-  if (afOpen && String(afOpen).startsWith("what")) afCloseMenu();
-  const stores = afState.stores;
-  if (!stores.length){
+  afCloseMenu();
+  box.innerHTML = afState.people.map((p, pi) => `
+    <div class="af-person">
+      ${afState.people.length > 1 ? `
+      <div class="af-person-head">
+        <span class="af-person-n">Person ${pi + 1}</span>
+        <button type="button" class="af-person-x" data-px="${pi}" title="Remove this block">×</button>
+      </div>` : ""}
+      ${afDropdownMarkup("who" + pi, "Who", "Choose a team member")}
+      ${afDropdownMarkup("where" + pi, "Where", "Choose stores")}
+      <div class="af-step is-locked" id="afStepwhat${pi}">
+        <div class="af-step-head">
+          <span class="af-pip" aria-hidden="true"></span>
+          <span class="af-step-label">What — per store</span>
+        </div>
+        <div id="afWhatRows${pi}"></div>
+      </div>
+    </div>`).join("");
+
+  afState.people.forEach((p, pi) => {
+    afWireDropdown("who" + pi, () => afMembers, (v, l) => {
+      p.uid = v; p.name = l;
+      const val = $("afValwho" + pi);
+      if (val) val.textContent = l;
+      afSync();
+      const nxt = $("afTrigwhere" + pi);
+      if (nxt && !nxt.disabled) nxt.focus();
+    });
+    afWireDropdown("where" + pi, () => afStores, v => {
+      const i = p.stores.indexOf(v);
+      if (i >= 0){
+        p.stores.splice(i, 1);
+        delete p.storeTasks[v]; delete p.storeNotes[v]; delete p.storeDues[v];
+      } else {
+        p.stores.push(v);
+        // when this person's stores so far share one task set, a new store
+        // inherits it - the same-everywhere case costs nothing extra
+        const sets = p.stores.slice(0, -1).map(st => (p.storeTasks[st] || []).join("\n"));
+        p.storeTasks[v] =
+          (sets.length && sets.every(x => x && x === sets[0])) ? sets[0].split("\n") : [];
+      }
+      const val = $("afValwhere" + pi);
+      if (val) val.textContent = p.stores.length ? p.stores.join(", ") : "Choose stores";
+      afRenderStores(p, pi);
+      afSync();
+    }, "+ Another store", {
+      chosen: () => p.stores,
+      onDone: () => { const t = $(`afTrigwhat${pi}_0`); if (t && !t.disabled) t.focus(); }
+    });
+    if (p.name){ const v = $("afValwho" + pi); if (v) v.textContent = p.name; }
+    if (p.stores.length){ const v = $("afValwhere" + pi); if (v) v.textContent = p.stores.join(", "); }
+    afRenderStores(p, pi);
+  });
+
+  box.querySelectorAll(".af-person-x").forEach(b => b.onclick = () => {
+    afState.people.splice(Number(b.dataset.px), 1);
+    if (!afState.people.length) afState.people.push(afBlankPerson());
+    afRenderPeople();
+    afSync();
+  });
+  afSync();
+}
+
+/* One person's store rows: task picker per store, plus that store's own
+   optional note and due date - "Task is nested to the store", exactly as
+   sketched. The shared Details brief and date below stay the defaults. */
+function afRenderStores(p, pi){
+  const box = $("afWhatRows" + pi);
+  if (!box) return;
+  if (afOpen && String(afOpen).startsWith("what" + pi + "_")) afCloseMenu();
+  if (!p.stores.length){
     box.innerHTML = `<p class="af-opt-none">Pick stores first — each gets its own tasks.</p>`;
     return;
   }
-  box.innerHTML = stores.map((store, i) => {
-    const chosen = afState.storeTasks[store] || [];
+  box.innerHTML = p.stores.map((store, si) => {
+    const k = `what${pi}_${si}`;
+    const chosen = p.storeTasks[store] || [];
     return `
     <div class="af-sub">
       <span class="af-sub-store">${esc(store)}</span>
-      <button type="button" class="af-trigger" id="afTrigwhat${i}"
-              aria-expanded="false" aria-controls="afPanelwhat${i}">
+      <button type="button" class="af-trigger" id="afTrig${k}"
+              aria-expanded="false" aria-controls="afPanel${k}">
         <span class="af-value">${esc(chosen.join(", ") || "Choose tasks")}</span>
         <svg class="af-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
       </button>
-      <div class="af-panel" id="afPanelwhat${i}" hidden></div>
-      <div class="af-custom" id="afCustomwhat${i}" hidden>
-        <input type="text" id="afInputwhat${i}" placeholder="Type a task" autocomplete="off">
-        <button type="button" class="af-custom-ok" id="afOkwhat${i}">Use</button>
+      <div class="af-panel" id="afPanel${k}" hidden></div>
+      <div class="af-custom" id="afCustom${k}" hidden>
+        <input type="text" id="afInput${k}" placeholder="Type a task" autocomplete="off">
+        <button type="button" class="af-custom-ok" id="afOk${k}">Use</button>
+      </div>
+      <div class="af-sub-extra">
+        <input type="text" class="af-sub-note" id="afSnote${k}" placeholder="Note just for ${esc(store)} (optional)" value="${esc(p.storeNotes[store] || "")}" autocomplete="off">
+        <input type="date" class="af-sub-due" id="afSdue${k}" value="${esc(p.storeDues[store] || "")}" title="Due date for ${esc(store)} only (optional)">
       </div>
     </div>`;
   }).join("")
-  + (stores.length > 1 ? `<button type="button" class="af-sub-copy" id="afWhatCopy">Same tasks for every store</button>` : "");
+  + (p.stores.length > 1 ? `<button type="button" class="af-sub-copy" data-cp="1">Same tasks for every store</button>` : "");
 
-  stores.forEach((store, i) => afWireWhatRow(store, i));
-  const cp = $("afWhatCopy");
+  p.stores.forEach((store, si) => afWireStoreRow(p, pi, store, si));
+  const cp = box.querySelector("[data-cp]");
   if (cp) cp.onclick = () => {
-    const src = afState.stores.map(st => afState.storeTasks[st] || []).find(a => a.length);
+    const src = p.stores.map(st => p.storeTasks[st] || []).find(a => a.length);
     if (!src){ toast("Pick tasks under one store first"); return; }
-    afState.stores.forEach(st => { afState.storeTasks[st] = [...src]; });
-    afRenderWhat();
+    p.stores.forEach(st => { p.storeTasks[st] = [...src]; });
+    afRenderStores(p, pi);
     afSync();
   };
 }
 
 // one store's picker: same open/roving-focus/custom-entry manners as the
-// generic dropdowns, but its checkbox state lives in storeTasks[store]
-function afWireWhatRow(store, i){
-  const key = "what" + i;
+// generic dropdowns, but its checkbox state lives on the person block
+function afWireStoreRow(p, pi, store, si){
+  const key = `what${pi}_${si}`;
   const trig = $("afTrig" + key), panel = $("afPanel" + key);
   const custom = $("afCustom" + key), input = $("afInput" + key), ok = $("afOk" + key);
-  // CONFIG's list plus anything typed under any store this session - a
-  // custom task picked once is one click for the next store
+  // CONFIG's list plus anything typed under any block this session - a
+  // custom task picked once is one click everywhere else
   const options = () => {
     const seen = new Map();
     CONFIG.tasks.forEach(t => seen.set(t.toLowerCase(), t));
-    Object.values(afState.storeTasks).flat().forEach(t => seen.set(t.toLowerCase(), t));
+    afState.people.forEach(pp => Object.values(pp.storeTasks).flat()
+      .forEach(t => seen.set(t.toLowerCase(), t)));
     return [...seen.values()];
   };
   const paint = () => {
-    const chosen = afState.storeTasks[store] || [];
+    const chosen = p.storeTasks[store] || [];
     panel.innerHTML = options().map(t => {
       const on = chosen.includes(t);
       return `
@@ -310,7 +342,7 @@ function afWireWhatRow(store, i){
         const v = b.dataset.v;
         if (v === "__done"){
           afCloseMenu();
-          const nxt = $("afTrigwhat" + (i + 1)) || $("afNote");
+          const nxt = $(`afTrigwhat${pi}_${si + 1}`) || $("afTrigwho" + (pi + 1)) || $("afNote");
           if (nxt && !nxt.disabled) nxt.focus();
           return;
         }
@@ -321,7 +353,7 @@ function afWireWhatRow(store, i){
           input.focus();
           return;
         }
-        const arr = afState.storeTasks[store] = afState.storeTasks[store] || [];
+        const arr = p.storeTasks[store] = p.storeTasks[store] || [];
         const at = arr.indexOf(v);
         if (at >= 0) arr.splice(at, 1); else arr.push(v);
         trig.querySelector(".af-value").textContent = arr.join(", ") || "Choose tasks";
@@ -352,7 +384,7 @@ function afWireWhatRow(store, i){
     const v = input.value.trim();
     if (!OTHER_RE.test(v)){ input.focus(); return; }
     custom.hidden = true;
-    const arr = afState.storeTasks[store] = afState.storeTasks[store] || [];
+    const arr = p.storeTasks[store] = p.storeTasks[store] || [];
     if (!arr.includes(v)) arr.push(v);
     trig.querySelector(".af-value").textContent = arr.join(", ");
     afSync();
@@ -362,6 +394,9 @@ function afWireWhatRow(store, i){
     if (e.key === "Enter"){ e.preventDefault(); commit(); }
     else if (e.key === "Escape"){ e.preventDefault(); custom.hidden = true; trig.focus(); }
   };
+  const sn = $("afSnote" + key), sd = $("afSdue" + key);
+  if (sn) sn.oninput = () => { p.storeNotes[store] = sn.value; };
+  if (sd) sd.onchange = () => { p.storeDues[store] = sd.value; afRenderSentence(); };
 }
 
 async function openAssignFlow(preUid, preName, editThread){
@@ -376,53 +411,55 @@ async function openAssignFlow(preUid, preName, editThread){
     openRows.forEach(r => freq.set(r.dueDate || "", (freq.get(r.dueDate || "") || 0) + 1));
     sharedDue = [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
   }
+  // the first (often only) person block; editing rebuilds it from the
+  // thread's rows - the nested shape IS the stored shape
+  const first = afBlankPerson();
+  first.uid = preUid || (openRows[0] ? openRows[0].toUid : "") || "";
+  first.name = preName || (openRows[0] ? openRows[0].toName : "") || "";
+  openRows.forEach(r => {
+    if (!r.store || !r.task) return;
+    if (!first.stores.includes(r.store)) first.stores.push(r.store);
+    const arr = first.storeTasks[r.store] = first.storeTasks[r.store] || [];
+    if (!arr.includes(r.task)) arr.push(r.task);
+    if (r.snote) first.storeNotes[r.store] = r.snote;
+    if (r.dueDate && r.dueDate !== sharedDue) first.storeDues[r.store] = r.dueDate;
+  });
   afState = {
-    uid: preUid || "", name: preName || "",
-    stores: [], storeTasks: {},
+    people: [first],
     note: openRows.length ? (openRows[0].note || "") : "",
     due: sharedDue
   };
-  // editing prefills each store's own task list straight from its rows -
-  // the per-store shape IS the stored shape, nothing to reconstruct
-  openRows.forEach(r => {
-    if (!r.store || !r.task) return;
-    if (!afState.stores.includes(r.store)) afState.stores.push(r.store);
-    const arr = afState.storeTasks[r.store] = afState.storeTasks[r.store] || [];
-    if (!arr.includes(r.task)) arr.push(r.task);
-  });
   afOpen = null;
   // On the Assign page the flow mounts inline; everywhere else (roster
   // quick-assign, small screens' menus) it stays a sheet. Only ever one
   // instance at a time, so the af* element ids stay unique.
   afInPage = currentRoute() === "assign" && !!$("assignFlowMount");
-  let members = [], stores = [];
+  afMembers = []; afStores = [];
 
   const body = `
     <p class="af-sentence" id="afSentence"></p>
-    ${afDropdownMarkup("who", "Who", "Choose a team member")}
-    ${afDropdownMarkup("where", "Where", AF_PLACEHOLDER.where)}
-    <div class="af-step is-locked" id="afStepwhat">
-      <div class="af-step-head">
-        <span class="af-pip" aria-hidden="true"></span>
-        <span class="af-step-label">What — per store</span>
-      </div>
-      <div id="afWhatRows"></div>
-    </div>
+    <div id="afPeople"></div>
+    ${afEdit ? "" : `<button type="button" class="af-add-person" id="afAddPerson" disabled>+ Another person</button>`}
     <div class="af-step is-locked" id="afStepdetails">
       <div class="af-step-head">
         <span class="af-pip" aria-hidden="true"></span>
-        <span class="af-step-label">Details</span>
+        <span class="af-step-label">Details — for everyone</span>
       </div>
-      <textarea id="afNote" placeholder="What should they do?"></textarea>
+      <textarea id="afNote" placeholder="The shared brief — per-store notes above ride along with it"></textarea>
       <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
     </div>
     <button class="btn btn-go" id="afSave" disabled>${afEdit ? "Save changes" : "Assign"}</button>
     <button class="btn btn-ghost btn-sm" id="afCancel">${afInPage ? (afEdit ? "Discard edit" : "Start over") : "Cancel"}</button>
   `;
   const setup = () => {
-    afWireDropdown("who", () => members, (v, l) => afSet("who", v, l));
-    afWireDropdown("where", () => stores, v => afToggle("where", v), "+ Another store");
-
+    afRenderPeople();
+    const add = $("afAddPerson");
+    if (add) add.onclick = () => {
+      afState.people.push(afBlankPerson());
+      afRenderPeople();
+      const t = $("afTrigwho" + (afState.people.length - 1));
+      if (t) t.focus();
+    };
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
     $("afCancel").onclick = () => {
@@ -431,16 +468,9 @@ async function openAssignFlow(preUid, preName, editThread){
       else closeSheet();
     };
     $("afSave").onclick = afSubmit;
-
-    if (preUid) $("afValwho").textContent = preName || "Selected";
-    if (afEdit){
-      if (afState.stores.length) $("afValwhere").textContent = afState.stores.join(", ");
-      $("afNote").value = afState.note;
-      if (afState.due) $("afDue").value = afState.due;
-    }
-    afRenderWhat();
-    afSync();
-    loadAssignOptions().then(d => { members = d.members; stores = d.stores; });
+    $("afNote").value = afState.note;
+    if (afState.due) $("afDue").value = afState.due;
+    loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; });
   };
 
   if (afInPage){
@@ -520,7 +550,6 @@ async function afSubmit(){
   const btn = $("afSave");
   btn.disabled = true;
 
-  const pairs = afActivePairs();
   const col = db.collection("assignments");
   const from = {
     // who assigned it, by name - an email is not an answer to "who asked
@@ -528,10 +557,21 @@ async function afSubmit(){
     fromName: S.worker || "",
     fromEmail: (auth.currentUser && auth.currentUser.email) || ""
   };
+  // one row per store x task, carrying that store's own note and due date
+  // when given; the shared brief and date are the defaults
+  const rowFor = (p, pr) => ({
+    toUid: p.uid, toName: p.name, ...from,
+    store: pr.store, task: pr.task,
+    note: s.note.trim(),
+    snote: (p.storeNotes[pr.store] || "").trim() || null,
+    dueDate: p.storeDues[pr.store] || s.due || null
+  });
 
   try {
     const batch = db.batch();
     if (afEdit){
+      const p = s.people[0];
+      const pairs = afPersonPairs(p);
       const openRows = afEdit.rows.filter(r => !r.done);
       const doneRows = afEdit.rows.filter(r => r.done);
       const oldByKey = new Map(openRows.map(r => [pairKey(r.store, r.task), r]));
@@ -539,20 +579,18 @@ async function afSubmit(){
       // a single edited into several needs the groupId it never had
       const groupId = afEdit.groupId || (total > 1 ? col.doc().id : null);
       const createdAt = afEdit.rows[0].createdAt || Date.now();
-      const base = {
-        toUid: s.uid, toName: s.name, ...from,
-        note: s.note.trim(), dueDate: s.due || null,
-        groupId, groupSize: total,
-        // edited means changed - the receipt resets so it needs seeing again
-        seenAt: null
-      };
-      pairs.forEach(p => {
-        const k = pairKey(p.store, p.task), old = oldByKey.get(k);
+      pairs.forEach(pr => {
+        const base = {
+          ...rowFor(p, pr), groupId, groupSize: total,
+          // edited means changed - the receipt resets so it needs seeing again
+          seenAt: null
+        };
+        const k = pairKey(pr.store, pr.task), old = oldByKey.get(k);
         if (old){
           oldByKey.delete(k);
           batch.update(col.doc(old.id), base);
         } else {
-          batch.set(col.doc(), { ...base, ...p, createdAt, done: false, doneAt: null });
+          batch.set(col.doc(), { ...base, createdAt, done: false, doneAt: null });
         }
       });
       oldByKey.forEach(old => batch.delete(col.doc(old.id)));
@@ -560,20 +598,25 @@ async function afSubmit(){
       await batch.commit();
       toast("Assignment updated");
     } else {
+      // one batch, several people: each person's pairs travel as THEIR
+      // group (own groupId, own thread, own notification on their side).
       // groupSize rides on every doc because the open-tasks listener only
       // sees rows still open - "4 of 6 done" needs to know it started as 6
-      const groupId = pairs.length > 1 ? col.doc().id : null;
-      const base = {
-        toUid: s.uid, toName: s.name, ...from,
-        note: s.note.trim(), dueDate: s.due || null,
-        createdAt: Date.now(), done: false, doneAt: null,
-        groupId, groupSize: pairs.length
-      };
-      pairs.forEach(p => batch.set(col.doc(), { ...base, ...p }));
+      const now = Date.now();
+      s.people.forEach(p => {
+        const pairs = afPersonPairs(p);
+        const groupId = pairs.length > 1 ? col.doc().id : null;
+        pairs.forEach(pr => batch.set(col.doc(), {
+          ...rowFor(p, pr), createdAt: now, done: false, doneAt: null,
+          groupId, groupSize: pairs.length
+        }));
+      });
       await batch.commit();
-      toast(pairs.length === 1
-        ? `${pairs[0].task} assigned to ${s.name}`
-        : `${pairs.length} tasks assigned to ${s.name}`);
+      const total = afAllPairs().length;
+      const who = s.people.map(p => p.name).join(", ");
+      toast(total === 1
+        ? `${afAllPairs()[0].task} assigned to ${who}`
+        : `${total} tasks assigned to ${who}`);
     }
 
     afEdit = null;
@@ -757,6 +800,7 @@ function renderAssignedList(rows){
             </button>
             <div class="atask-body">
               ${r.note ? `<p class="atask-note">${esc(r.note)}</p>` : ""}
+              ${r.snote ? `<p class="atask-note">${esc(r.snote)}</p>` : ""}
               <p class="atask-meta">${meta}</p>
               ${acts}
             </div>
