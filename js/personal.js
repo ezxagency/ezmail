@@ -51,6 +51,18 @@ function ptUnload(){
 const PT_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg>';
 const PT_FOCUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/></svg>';
 
+/* Same convention as pomoArcPath (12 o'clock start, clockwise), just its
+   own smaller coordinate space so the anchor ring's stroke-width is a
+   normal small number instead of needing to be scaled for a 200-unit
+   viewBox rendered at a fraction of the size. */
+function anchorArcPath(p){
+  if (p <= 0.002) return "";
+  const theta = Math.min(p, 0.9999) * 360, rad = (theta * Math.PI) / 180;
+  const x = (50 + 44 * Math.sin(rad)).toFixed(2);
+  const y = (50 - 44 * Math.cos(rad)).toFixed(2);
+  return `M50,6 A44,44 0 ${theta > 180 ? 1 : 0} 1 ${x},${y}`;
+}
+
 function ptRender(){
   const list = $("ptList");
   if (!list) return;
@@ -181,7 +193,19 @@ function renderFocusAnchor(){
   const doneRounds = PM.round - 1;
   const dots = Array.from({ length: POMO_ROUNDS }, (_, i) =>
     `<span class="pomo-dot${i < doneRounds ? " is-done" : (i === doneRounds && focusing ? " is-now" : "")}"></span>`).join("");
+  // Not another countdown - the rail's ring already owns that. This is the
+  // zoomed-out number: how far through the whole 4-round set, completed
+  // rounds plus this round's own fraction, folded into one value.
+  const sessionFrac = Math.max(0, Math.min(1, (doneRounds + (pomoTotalMs("focus") - pomoRemainMs()) / pomoTotalMs("focus")) / POMO_ROUNDS));
+  const pct = Math.round(sessionFrac * 100);
   inner.innerHTML = `
+    <div class="anchor-ring-wrap">
+      <svg class="anchor-ring" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="anchor-ring-track" cx="50" cy="50" r="44"></circle>
+        <path class="anchor-ring-fill" d="${anchorArcPath(sessionFrac)}"></path>
+      </svg>
+      <span class="anchor-ring-pct">${pct}%</span>
+    </div>
     <p class="anchor-eyebrow">${focusing ? "Focusing on" : "Up next"}</p>
     <h2 class="anchor-title">${esc(task.text)}</h2>
     <div class="anchor-rule"></div>
