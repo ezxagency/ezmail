@@ -187,7 +187,11 @@ async function handoffAccept(n){
       fromName: n.fromName || "teammate", fromEmail: "",
       store: n.store || "", task: n.task || "",
       note: n.text || "",
-      snote: "Accepted hand-off from " + (n.fromName || "a teammate"),
+      // both a chip the queue shows at a glance and a full sentence in the
+      // expanded body - accepting shouldn't leave the "who gave me this"
+      // answer buried behind a tap
+      transferredFrom: n.fromName || "a teammate",
+      snote: "Transferred from " + (n.fromName || "a teammate"),
       dueDate: null, createdAt: now, done: false, doneAt: null,
       groupId: null, groupSize: 1, seenAt: null
     });

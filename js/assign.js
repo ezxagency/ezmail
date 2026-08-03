@@ -849,7 +849,7 @@ function renderAssignedList(rows){
           return `
           <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
             <button type="button" class="atask-head" data-tid="${esc(r.id)}" aria-expanded="${tOpen}">
-              <span class="atask-name">${esc(r.task)}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}</span>
+              <span class="atask-name">${esc(r.task)}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
               <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(r.dueDate) : ""}</span>
               ${CARET_SVG("atask-caret")}
             </button>
