@@ -27,7 +27,9 @@
   --wk-sheet-bg:rgba(16,18,24,.88);
   --wk-badge:rgba(0,0,0,.5);
 
-  /* ---- "Shift Card" login screen kit (scoped to #loginScreen only) ---- */
+  /* ---- "Shift Card" light-card kit: the login screen, plus anywhere
+     else a genuinely white/light card is wanted against the app's usual
+     dark surfaces (e.g. Team's by-status assignment cards) ---- */
   --sc-bg:#F2ECDD;
   --sc-card:#FFFFFF;
   --sc-input:#EAE2D2;

@@ -222,6 +222,12 @@ function renderCompletionLog(){
       : "";
     return;
   }
+  // Team's copy is the "how's my team doing" overview - three dropdown
+  // cards by status, not a flat table. The Assign page's copy sits beside
+  // the active assignment flow instead, where a compact scrollable table
+  // is the better fit, so it keeps its own rendering below.
+  if (box.id === "teamRecentlyDone"){ renderTeamStatusCards(box, rows); return; }
+
   // one row per thread - a six-task group is one line with a progress count,
   // and its Delete removes the whole group, matching how it was assigned
   const threads = groupAssignments(rows);
@@ -278,6 +284,112 @@ function renderCompletionLog(){
 }
 
 let assignLogThreads = [];   // the threads currently rendered in the log
+
+/* ---------- Team page's by-status assignment cards ----------
+   Three dropdowns - Completed / Open / Overdue - each a thread list,
+   instead of one flat table with a Status column. Threads only ever move
+   between buckets on a re-render (Firestore write -> assignLogRows update
+   -> here), never mid-render, so building all three fresh each time is
+   simplest and cheap enough at this app's scale. */
+let tlogOpen = { done: false, open: true, late: true };   // which cards start expanded
+let tlogShown = { done: 8, open: 8, late: 8 };             // per-card "load more" cursor
+let tlogThreadsByKey = new Map();   // stable key -> thread, for the Edit buttons below
+const threadKey = t => t.groupId || t.rows[0].id;
+const TLOG_ORDER = ["done", "open", "late"];
+const TLOG_META = {
+  done: { label: "Completed Task", empty: "Nothing completed in this batch yet." },
+  open: { label: "Open Task",      empty: "Nothing open right now." },
+  late: { label: "Overdue Task",   empty: "Nothing overdue — nice." }
+};
+
+function renderTeamStatusCards(box, rows){
+  const threads = groupAssignments(rows);
+  tlogThreadsByKey = new Map(threads.map(t => [threadKey(t), t]));
+  const buckets = { done: [], open: [], late: [] };
+  threads.forEach(t => buckets[threadState(t)].push(t));
+
+  box.innerHTML = `<div class="tlog">${TLOG_ORDER.map(st => tlogCardHtml(st, buckets[st])).join("")}</div>`;
+
+  TLOG_ORDER.forEach(st => {
+    const card = box.querySelector(`.tlog-card[data-status="${st}"]`);
+    if (!card) return;
+    const head = card.querySelector(".tlog-head");
+    head.onclick = () => {
+      tlogOpen[st] = !tlogOpen[st];
+      card.classList.toggle("is-open", tlogOpen[st]);
+      head.setAttribute("aria-expanded", String(tlogOpen[st]));
+    };
+    const moreBtn = card.querySelector(".tlog-more");
+    if (moreBtn) moreBtn.onclick = e => {
+      e.stopPropagation();
+      tlogShown[st] += 8;
+      renderTeamStatusCards(box, assignLogRows || []);
+    };
+    card.querySelectorAll("button[data-del]").forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      deleteAssignment(b.dataset.del);
+    });
+    card.querySelectorAll("button[data-edit]").forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      const t = tlogThreadsByKey.get(b.dataset.edit);
+      if (t) openAssignEdit(t);
+    });
+  });
+}
+
+function tlogCardHtml(status, threads){
+  const meta = TLOG_META[status];
+  const shown = tlogShown[status];
+  const visible = threads.slice(0, shown);
+  const isOpen = tlogOpen[status];
+  return `
+    <div class="tlog-card${isOpen ? " is-open" : ""}" data-status="${status}">
+      <button type="button" class="tlog-head" aria-expanded="${isOpen}">
+        <span class="tlog-dot is-${status}" aria-hidden="true"></span>
+        <span class="tlog-label">${meta.label}</span>
+        <span class="tlog-count">${threads.length}</span>
+        <svg class="tlog-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="tlog-body">
+        ${!threads.length ? `<p class="tlog-empty">${meta.empty}</p>` : `
+        <ul class="tlog-list">${visible.map(t => tlogItemHtml(status, t)).join("")}</ul>
+        ${threads.length > shown ? `<button type="button" class="tlog-more">Load more (${threads.length - shown} older)</button>` : ""}`}
+      </div>
+    </div>`;
+}
+
+function tlogItemHtml(status, t){
+  const r = t.rows[0];
+  const doneN = t.rows.filter(x => x.done).length;
+  const doneAts = t.rows.map(x => x.doneAt).filter(Boolean);
+  const doneAt = status === "done" && doneAts.length ? Math.max(...doneAts) : null;
+  const secondLine = status === "done"
+    ? (doneAt ? `Done ${dayStamp(doneAt)} ${clock(doneAt)}` : "")
+    : `Due ${threadDueCell(t)}`;
+  return `
+    <li><div class="tlog-item">
+      <span class="tlog-who">${esc(r.toName || "Someone")}</span>
+      <span class="tlog-what">
+        <b>${esc(threadStores(t).join(", ") || "—")}</b> · ${esc(threadTasks(t).join(", ") || "—")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}${seenMark(t)}
+      </span>
+      <span class="tlog-dates">
+        <span>Assigned ${r.createdAt ? dayStamp(r.createdAt) : "—"}</span>
+        <span>${secondLine}</span>
+      </span>
+      <span class="tlog-acts row-acts">
+        ${status !== "done" && canAssignTasks ? `
+        <button type="button" class="assign-del assign-edit" data-edit="${esc(threadKey(t))}"
+                aria-label="Edit this assignment" title="Edit this assignment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        </button>` : ""}
+        ${!isAdmin ? "" : `
+        <button type="button" class="assign-del" data-del="${esc(t.rows.map(x => x.id).join(","))}"
+                aria-label="Delete this assignment" title="Delete this assignment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        </button>`}
+      </span>
+    </div></li>`;
+}
 
 // Edit reopens the same staged flow the thread was made with, prefilled.
 // Only the open tasks are up for editing - finished work is a record, not a

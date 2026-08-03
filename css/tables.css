@@ -83,12 +83,12 @@
   transition:opacity .15s ease,background .15s ease,color .15s ease;
 }
 .assign-del svg{width:15px;height:15px}
-.assign-table tr:hover .assign-del{opacity:1}
+.assign-table tr:hover .assign-del,.tlog-item:hover .assign-del{opacity:1}
 .assign-del:hover,.assign-del:focus-visible{background:rgba(224,72,60,.18);color:#ff8a7e;opacity:1}
 /* edit sits beside delete but is not destructive - it brightens, not reddens */
 .row-acts{display:flex;gap:2px;justify-content:flex-end}
 .assign-edit:hover,.assign-edit:focus-visible{background:rgba(255,255,255,.14);color:var(--wk-white)}
-.assign-table tr:hover .assign-edit{opacity:1}
+.assign-table tr:hover .assign-edit,.tlog-item:hover .assign-edit{opacity:1}
 
 /* the receipt: an open thread the assignee has had on screen */
 .seen-eye{
