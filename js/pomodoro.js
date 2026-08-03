@@ -320,7 +320,38 @@ function pomoTick(){
   // boundaries fire no matter which view is up - the alarm and the
   // work/short/long branching don't care what you're looking at
   if (PM.running && pomoRemainMs() <= 0){ pomoAdvance(true); return; }
+  pomoBreakCountdownTick();
   if (PM.on && PM.running) pomoRenderTime();
+}
+
+/* The last five seconds of a break count down in short tones - not the
+   two-minute alarm-clock ring focus gets (that's a heads-up), this is a
+   beat-by-beat "back to work" cue right as the break runs out. tick() is
+   already a real 1-second interval, so remainSec lands on each whole
+   second at most once; pomoLastBeepSec guards the odd case where a tick
+   fires early/late and would otherwise land on the same second twice. */
+let pomoLastBeepSec = null;
+function pomoBreakCountdownTick(){
+  if (!(PM.running && PM.phase !== "focus")){ pomoLastBeepSec = null; return; }
+  const remainSec = Math.round(pomoRemainMs() / 1000);
+  if (remainSec < 1 || remainSec > 5 || remainSec === pomoLastBeepSec) return;
+  pomoLastBeepSec = remainSec;
+  pomoCountdownTone(remainSec);
+}
+function pomoCountdownTone(n){
+  if (!PM.chime) return;
+  try {
+    const ctx = pomoCtx();
+    const o = ctx.createOscillator(); o.type = "sine";
+    o.frequency.value = n === 1 ? 1046.5 : 784;   // the final beep steps up, like "go"
+    const g = ctx.createGain();
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(Math.max(PM.vol, 0.3), now + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(now); o.stop(now + 0.18);
+  } catch (e) { console.error(e); }
 }
 
 function pomoRenderTime(){
@@ -533,6 +564,15 @@ function pomoLoadFor(uid){
   } else if (!PM.running){
     PM.endAt = null;
     PM.remainMs = Math.min(PM.remainMs, pomoTotalMs()) || pomoTotalMs();
+  } else {
+    // still mid-session across the reload: the countdown itself carries on
+    // fine (it's just Date.now() math), but the audio doesn't - a fresh
+    // page load means a fresh AudioContext and a fresh <audio> element,
+    // neither of which is playing anything until told to. pomoSoundStart()
+    // may still get blocked by the browser's autoplay policy if this page
+    // load hasn't had a user gesture yet ("keep me signed in" can restore
+    // a session with none) - pomoArmAutoplayFallback below catches that.
+    pomoSoundStart();
   }
   setAppMode(PM.on ? "focus" : "clocks");
 }
@@ -558,11 +598,31 @@ function pomoUnload(){
   setAppMode("clocks");
 }
 
+/* A reload with "keep me signed in" can restore a running session before
+   this page has had any user gesture at all, which is exactly when a
+   browser's autoplay policy blocks pomoSoundStart()'s play()/resume()
+   calls (silently - they just never make sound). Arm once at boot: the
+   first click or keypress anywhere counts as a gesture, so use it to make
+   sure a session that's supposed to be making sound actually is. */
+function pomoArmAutoplayFallback(){
+  const tryResume = () => {
+    document.removeEventListener("click", tryResume);
+    document.removeEventListener("keydown", tryResume);
+    if (!PM.running) return;
+    pomoCtx();
+    if (PM.phase === "focus"){ if (!pomoEl || pomoEl.paused) pomoAmbientStart(); }
+    else if (!pomoBreakNodes) pomoBreakStart();
+  };
+  document.addEventListener("click", tryResume);
+  document.addEventListener("keydown", tryResume);
+}
+
 /* ---------- boot ---------- */
 (function pomoInit(){
   const pomo = $("pomo");
   if (!pomo) return;
   pomo.removeAttribute("hidden");   // CSS classes own visibility from here on
+  pomoArmAutoplayFallback();
   $("modeClocks").onclick = () => setAppMode("clocks");
   $("modeFocus").onclick = () => setAppMode("focus");
   $("pomoPlay").onclick = () => PM.running ? pomoPause() : pomoStart();
