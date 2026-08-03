@@ -601,20 +601,29 @@ function pomoUnload(){
 /* A reload with "keep me signed in" can restore a running session before
    this page has had any user gesture at all, which is exactly when a
    browser's autoplay policy blocks pomoSoundStart()'s play()/resume()
-   calls (silently - they just never make sound). Arm once at boot: the
-   first click or keypress anywhere counts as a gesture, so use it to make
-   sure a session that's supposed to be making sound actually is. */
+   calls (silently - they just never make sound).
+   Two things that look reasonable both break this in practice:
+   - A ONE-SHOT listener races pomoLoadFor(): the page's first click often
+     lands before Firebase's onAuthStateChanged has even resolved (still
+     signing in), which fires and un-arms the fallback on a gesture that
+     happened before there was anything running to unlock - leaving no
+     second chance once the session actually starts. So this stays armed
+     for the whole page lifetime instead of removing itself after one hit;
+     each check is cheap and a no-op once sound is actually flowing.
+   - A bubble-phase document listener can be beaten by any handler that
+     calls stopPropagation() on the way up (this app has a few, e.g. the
+     Team page's card headers) - it would just never see the click. Capture
+     phase on document fires first, before anything downstream can stop it. */
 function pomoArmAutoplayFallback(){
   const tryResume = () => {
-    document.removeEventListener("click", tryResume);
-    document.removeEventListener("keydown", tryResume);
     if (!PM.running) return;
     pomoCtx();
     if (PM.phase === "focus"){ if (!pomoEl || pomoEl.paused) pomoAmbientStart(); }
     else if (!pomoBreakNodes) pomoBreakStart();
   };
-  document.addEventListener("click", tryResume);
-  document.addEventListener("keydown", tryResume);
+  document.addEventListener("pointerdown", tryResume, true);
+  document.addEventListener("click", tryResume, true);
+  document.addEventListener("keydown", tryResume, true);
 }
 
 /* ---------- boot ---------- */
