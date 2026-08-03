@@ -160,8 +160,9 @@ function tick(){
   updateRingProgress("taskRing", taskMs, TASK_CYCLE_MS);
 
   if (S.status === "ACTIVE"){
-    bar.innerHTML = `<span>Task</span> <b>${humanDur(taskMs)}</b>`
-      + (breakMs(sh, now) ? ` <span>· break ${humanDur(breakMs(sh, now))}</span>` : "");
+    // the task ring above already shows this exact elapsed time - this bar
+    // used to repeat it as "Task 46s" text underneath, which was redundant
+    bar.innerHTML = "";
   } else {
     bar.innerHTML = `<span>Shift</span> <b>${humanDur(shiftMs)}</b> <span>· paused</span>`;
   }
