@@ -114,9 +114,14 @@
   position:relative;text-align:center;overflow:hidden;
   padding:18px 20px 2px;order:-1;
 }
+/* Was rgba(0,174,11,.08) at rest, up to .24 by the round's end - against a
+   busy theme veil (marble, aurora, sakura...) that range barely registered,
+   so the "brightens as the round progresses" idea was effectively invisible.
+   Wider spread and a much higher ceiling so it actually reads as ambient
+   light building up, not just a faint tint. */
 .anchor::before{
-  content:"";position:absolute;inset:-20%;pointer-events:none;z-index:0;
-  background:radial-gradient(circle at 50% 50%, rgba(0,174,11,calc(.08 + var(--anchor-glow, 0) * .16)) 0%, transparent 68%);
+  content:"";position:absolute;inset:-35%;pointer-events:none;z-index:0;
+  background:radial-gradient(circle at 50% 50%, rgba(0,174,11,calc(.14 + var(--anchor-glow, 0) * .4)) 0%, transparent 62%);
   transition:background .6s ease;
 }
 .anchor-inner{position:relative;z-index:1;max-width:420px}
@@ -138,6 +143,10 @@
 }
 .anchor-rule{width:64px;height:1px;background:rgba(255,255,255,.1);margin:20px auto;border:0}
 .anchor-meta{margin:0;font-family:var(--wk);font-size:13px;color:rgba(255,255,255,.5);letter-spacing:.02em}
+/* echoes "Round X of Y" visually, not just in words - same .pomo-dot the
+   ring itself uses, so the two stay in lockstep by construction rather
+   than two separate things that could drift out of sync */
+.anchor-dots{display:flex;justify-content:center;gap:7px;margin-top:14px}
 .anchor-acts{margin-top:22px;display:flex;align-items:center;justify-content:center;gap:12px}
 .anchor-act{
   background:none;border:0;padding:4px;cursor:pointer;

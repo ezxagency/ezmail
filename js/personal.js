@@ -176,11 +176,17 @@ function renderFocusAnchor(){
     return;
   }
   const elapsed = pomoMMSS(pomoTotalMs("focus") - pomoRemainMs());
+  // same done/now math pomoRender() uses for the ring's own dots, so this
+  // row and the timer can never silently drift out of sync with each other
+  const doneRounds = PM.round - 1;
+  const dots = Array.from({ length: POMO_ROUNDS }, (_, i) =>
+    `<span class="pomo-dot${i < doneRounds ? " is-done" : (i === doneRounds && focusing ? " is-now" : "")}"></span>`).join("");
   inner.innerHTML = `
     <p class="anchor-eyebrow">${focusing ? "Focusing on" : "Up next"}</p>
     <h2 class="anchor-title">${esc(task.text)}</h2>
     <div class="anchor-rule"></div>
-    <p class="anchor-meta">Round ${PM.round} of ${POMO_ROUNDS} · ${elapsed} elapsed</p>`;
+    <p class="anchor-meta">Round ${PM.round} of ${POMO_ROUNDS} · ${elapsed} elapsed</p>
+    <div class="anchor-dots">${dots}</div>`;
 }
 
 /* ---------- the three-way mode switch itself ----------
