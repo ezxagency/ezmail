@@ -36,15 +36,17 @@ const PT_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 function ptRender(){
   const list = $("ptList");
   if (!list) return;
-  if (!PTasks.length){
-    list.innerHTML = `<li class="pt-empty">Nothing here yet — add a task above.</li>`;
-    return;
-  }
   // open tasks first, each group newest-first; a done task doesn't jump
   // around the list the moment you tick it, it just dims in place... except
   // it does need to leave the open group, so it settles at the top of "done"
   const open = PTasks.filter(t => !t.done);
   const done = PTasks.filter(t => t.done);
+  const count = $("ptCount");
+  if (count) count.textContent = open.length ? open.length + " open" : "";
+  if (!PTasks.length){
+    list.innerHTML = `<li class="pt-empty">Nothing here yet — add a task above.</li>`;
+    return;
+  }
   const row = t => `
     <li class="pt-row${t.done ? " is-done" : ""}" data-id="${t.id}">
       <button type="button" class="pt-check" aria-label="${t.done ? "Mark not done" : "Mark done"}">${PT_CHECK_SVG}</button>
@@ -81,6 +83,8 @@ function ptDelete(id){
 function setAppMode(mode){   // "clocks" | "focus" | "personal"
   const app = $("appScreen");
   app.classList.toggle("personal-on", mode === "personal");
+  const ptSection = $("personalTasksSection");
+  if (ptSection) ptSection.classList.toggle("hidden", mode !== "personal");
   [["modeClocks", "clocks"], ["modeFocus", "focus"], ["modePersonal", "personal"]].forEach(([id, key]) => {
     const el = $(id);
     if (!el) return;
@@ -93,9 +97,8 @@ function setAppMode(mode){   // "clocks" | "focus" | "personal"
 }
 
 (function ptInit(){
-  const panel = $("personalPanel");
+  const panel = $("personalTasksSection");
   if (!panel) return;
-  panel.removeAttribute("hidden");
   const modePersonal = $("modePersonal");
   if (modePersonal) modePersonal.onclick = () => setAppMode("personal");
 

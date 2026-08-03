@@ -1,16 +1,20 @@
 /* ============================================================
-   PERSONAL MODE — a private, this-device-only task list living in
-   the same grid slot the Clocks rings and the Focus timer swap
-   through. Same swap mechanics (display:none <-> flex, the same
-   entrance animation), never touches Firestore.
+   PERSONAL MODE — a private, this-device-only task list. It takes over
+   the same pane Assigned/Team occupy (mobile: a plain section in the
+   stage; desktop: the second pane, in the "side" grid slot), and while
+   it's showing, everything work-shaped steps aside: Daily Mission, the
+   Assigned/Team pane, and the Clock In dock. Local storage only, keyed
+   by uid like the Pomodoro's own state - never touches Firestore.
    ============================================================ */
-.personal-panel{
-  grid-column:1/-1;display:none;flex-direction:column;gap:14px;
-  width:100%;max-width:360px;margin:0 auto;
-}
-.app.personal-on .personal-panel{display:flex;animation:paneContentIn .45s cubic-bezier(.22,1,.36,1) both}
+.app.personal-on #assignedTasksSection,
+.app.personal-on #teamPanel,
+.app.personal-on #missionCard,
+.app.personal-on .dock{display:none!important}
 
-.pt-add-row{display:flex;gap:10px}
+/* mobile/base: #personalTasksSection is an .assign-panel, so it already
+   inherits that class's plain-section treatment for free - only the
+   pt-* content below is new */
+.pt-add-row{display:flex;gap:10px;margin-top:2px}
 .pt-add-row input{
   flex:1;min-width:0;padding:13px 16px;border-radius:14px;
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
@@ -28,7 +32,7 @@
 .pt-add-btn:hover{background:#00c40e}
 .pt-add-btn:active{transform:scale(.93)}
 
-.pt-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:min(48vh,360px);overflow-y:auto}
+.pt-list{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
 .pt-empty{padding:22px 14px;text-align:center;font-family:var(--wk);font-size:13px;color:var(--wk-white-60)}
 .pt-row{
   display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:14px;
@@ -54,6 +58,23 @@
 }
 .pt-del:hover{background:rgba(255,92,92,.16)}
 
+/* desktop: promote to the second pane, same column and the same glass
+   treatment Assigned/Team get there - gated on personal-on rather than
+   has-tasks/has-team so it works the same for a worker or an admin.
+   Explicit row placement rather than grid-area:side: Daily Mission and
+   the dock are hidden in this mode, so the auto rows "side" would
+   normally span collapse toward nothing - spanning through the grid's
+   own flexible last row keeps this pane its full height regardless. */
 @media (min-width:1024px){
-  .app.panes .personal-panel{max-width:none}
+  .app.panes.personal-on #personalTasksSection{
+    grid-column:3/4;grid-row:2/6;
+    display:flex;flex-direction:column;min-height:0;
+    margin:.45vh 0 0 3.26%;padding:4.88vh 38px 3vh;
+    height:100%;max-height:none;border-radius:43px;border:0;
+    background:rgba(255,244,229,.18);
+    backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
+    font-family:var(--body);align-self:stretch;
+    animation:paneContentIn .52s cubic-bezier(.22,1,.36,1) backwards;
+  }
+  .app.panes.personal-on #personalTasksSection .pt-list{flex:1;min-height:0;overflow-y:auto}
 }

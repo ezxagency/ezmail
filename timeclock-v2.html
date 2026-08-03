@@ -18,17 +18,17 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=50">
-<link rel="stylesheet" href="css/dashboard.css?v=50">
-<link rel="stylesheet" href="css/drawer.css?v=50">
-<link rel="stylesheet" href="css/pages.css?v=50">
-<link rel="stylesheet" href="css/sheets.css?v=50">
-<link rel="stylesheet" href="css/tables.css?v=50">
-<link rel="stylesheet" href="css/responsive.css?v=50">
-<link rel="stylesheet" href="css/pomodoro.css?v=50">
-<link rel="stylesheet" href="css/personal.css?v=50">
-<link rel="stylesheet" href="css/campaigns.css?v=50">
-<link rel="stylesheet" href="css/login.css?v=50">
+<link rel="stylesheet" href="css/base.css?v=51">
+<link rel="stylesheet" href="css/dashboard.css?v=51">
+<link rel="stylesheet" href="css/drawer.css?v=51">
+<link rel="stylesheet" href="css/pages.css?v=51">
+<link rel="stylesheet" href="css/sheets.css?v=51">
+<link rel="stylesheet" href="css/tables.css?v=51">
+<link rel="stylesheet" href="css/responsive.css?v=51">
+<link rel="stylesheet" href="css/pomodoro.css?v=51">
+<link rel="stylesheet" href="css/personal.css?v=51">
+<link rel="stylesheet" href="css/campaigns.css?v=51">
+<link rel="stylesheet" href="css/login.css?v=51">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -281,22 +281,10 @@
           </button>
         </div>
       </div>
-
-      <!-- Personal: a private, this-device-only task list - never touches
-           Firestore, not even visible to admins -->
-      <div class="personal-panel" id="personalPanel" hidden>
-        <form class="pt-add-row" id="ptAddForm">
-          <input type="text" id="ptInput" placeholder="Add a personal task…" autocomplete="off" maxlength="140">
-          <button type="submit" class="pt-add-btn" aria-label="Add task">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          </button>
-        </form>
-        <ul class="pt-list" id="ptList"></ul>
-      </div>
     </div>
     <div class="shiftbar" id="shiftbar"></div>
 
-    <section class="card">
+    <section class="card" id="missionCard">
       <!-- Shown only while the Team panel is expanded: the card shrinks to
            this tile, and tapping it swaps the two panels back. -->
       <button type="button" class="card-restore" id="cardRestore">
@@ -353,6 +341,27 @@
           Close
         </button>
       </div>
+    </aside>
+
+    <!-- Personal mode's own pane: same slot and treatment as Assigned/Team,
+         shown only while Personal is the selected tab. Local to this device
+         and this account - never touches Firestore, not even visible to an
+         admin, so it lives entirely in personal.js. -->
+    <aside class="assign-panel hidden" id="personalTasksSection">
+      <div class="assign-panel-head team-panel-head">
+        <span class="assign-panel-mark team-panel-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.2 2.2L15.5 9"/><rect x="4.5" y="4" width="15" height="17" rx="2.4"/><path d="M9 4V2.8h6V4"/></svg>
+        </span>
+        <h2 class="assign-panel-title team-panel-title">Personal</h2>
+        <span class="assign-count" id="ptCount"></span>
+      </div>
+      <form class="pt-add-row" id="ptAddForm">
+        <input type="text" id="ptInput" placeholder="Add a personal task…" autocomplete="off" maxlength="140">
+        <button type="submit" class="pt-add-btn" aria-label="Add task">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </form>
+      <ul class="pt-list" id="ptList"></ul>
     </aside>
 
     <!-- Admin-only, desktop-only third pane. Narrow screens keep the
@@ -554,17 +563,17 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" tabindex="-1"><div class="grab"></div><div id="sheetBody"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=50"></script>
-<script src="js/render.js?v=50"></script>
-<script src="js/ui.js?v=50"></script>
-<script src="js/shift.js?v=50"></script>
-<script src="js/email.js?v=50"></script>
-<script src="js/nav.js?v=50"></script>
-<script src="js/boot.js?v=50"></script>
-<script src="js/team.js?v=50"></script>
-<script src="js/assign.js?v=50"></script>
-<script src="js/notify.js?v=50"></script>
-<script src="js/campaigns.js?v=50"></script>
-<script src="js/auth.js?v=50"></script>
-<script src="js/personal.js?v=50"></script>
-<script src="js/pomodoro.js?v=50"></script>
+<script src="js/config.js?v=51"></script>
+<script src="js/render.js?v=51"></script>
+<script src="js/ui.js?v=51"></script>
+<script src="js/shift.js?v=51"></script>
+<script src="js/email.js?v=51"></script>
+<script src="js/nav.js?v=51"></script>
+<script src="js/boot.js?v=51"></script>
+<script src="js/team.js?v=51"></script>
+<script src="js/assign.js?v=51"></script>
+<script src="js/notify.js?v=51"></script>
+<script src="js/campaigns.js?v=51"></script>
+<script src="js/auth.js?v=51"></script>
+<script src="js/personal.js?v=51"></script>
+<script src="js/pomodoro.js?v=51"></script>
