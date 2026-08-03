@@ -63,7 +63,18 @@ function ptRender(){
   list.querySelectorAll(".pt-check").forEach(b =>
     b.onclick = () => ptToggle(b.closest(".pt-row").dataset.id));
   list.querySelectorAll(".pt-del").forEach(b =>
-    b.onclick = () => ptDelete(b.closest(".pt-row").dataset.id));
+    b.onclick = () => ptRemoveAnimated(b.closest(".pt-row")));
+}
+
+/* Animated exit shared by the x button (shrink+fade) and a swipe
+   (fly-off in the swipe's direction) - the row leaves like an object,
+   then the real delete re-renders the list without it. */
+function ptRemoveAnimated(row, dir){
+  if (!row || row.classList.contains("is-leaving")) return;
+  const id = row.dataset.id;
+  row.classList.add("is-leaving");
+  if (dir) row.classList.add(dir);
+  setTimeout(() => ptDelete(id), 260);
 }
 
 function ptToggle(id){
@@ -71,6 +82,7 @@ function ptToggle(id){
   if (!t) return;
   t.done = !t.done;
   t.doneAt = t.done ? Date.now() : null;
+  if (t.done && typeof buzz === "function") buzz(12);   // checking off feels like something
   ptSave();
   ptRender();
 }
@@ -123,5 +135,9 @@ function setAppMode(mode){   // "clocks" | "focus" | "personal"
     input.value = "";
     ptSave();
     ptRender();
+    // only the just-added row animates in - re-renders from toggles
+    // shouldn't make the whole list dance
+    const first = $("ptList").querySelector(".pt-row");
+    if (first) first.classList.add("is-new");
   };
 })();

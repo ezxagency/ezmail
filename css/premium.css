@@ -1,0 +1,76 @@
+/* ============================================================
+   PREMIUM POLISH LAYER — one motion system over the whole app.
+   Loaded last on purpose: it standardizes feel (press states, springs,
+   focus rings, scrollbars, gesture affordances) with low-specificity
+   rules, so any component's own deliberate styling still wins.
+   ============================================================ */
+:root{
+  --pz-ease:cubic-bezier(.22,1,.36,1);        /* settle, no bounce */
+  --pz-spring:cubic-bezier(.34,1.45,.4,1);    /* arrives with a little life */
+}
+
+/* ---------- touch: every press physically gives ---------- */
+/* the two tiers: whole rows/pills dip slightly, small icon buttons dip
+   deeper - matching how far a fingertip expects each to travel */
+#appScreen :where(button):not([disabled]):active,
+.sheet :where(button):not([disabled]):active,
+.drawer :where(button):not([disabled]):active{transform:scale(.98)}
+#appScreen :where(.pomo-side,.panel-menu,.admin-icon-btn,.menu-btn,.band-signout,
+  .pt-check,.pt-del,.pt-add-btn,.af-person-x,.drawer-signout):not([disabled]):active,
+.sheet :where(.cg-link-x,.af-person-x,.pswitch,.toast-act):not([disabled]):active{transform:scale(.9)}
+/* anything that presses must travel smoothly, not snap */
+#appScreen :where(button),.sheet :where(button),.drawer :where(button){
+  transition-property:transform,background,color,border-color,box-shadow,opacity;
+  transition-duration:.18s;transition-timing-function:var(--pz-ease);
+}
+
+/* ---------- keyboard: a consistent ring on everything ---------- */
+#appScreen :where(button):focus-visible,
+.sheet :where(button):focus-visible,
+.drawer :where(button):focus-visible{outline:2px solid var(--wk-white);outline-offset:2px}
+
+/* ---------- the mode switch thumb arrives with momentum ---------- */
+.mode-thumb{transition:transform .5s var(--pz-spring)}
+
+/* ---------- bottom sheet: springs open, and the handle really drags ---------- */
+.sheet{transition:transform .46s var(--pz-spring)}
+.sheet:not(.on){transition:transform .28s cubic-bezier(.4,0,.7,1)}
+.sheet.is-dragging{transition:none}
+/* the grab pill was decorative; now it's the drag handle - give the
+   finger a real target without shifting the layout */
+.sheet .grab{position:relative;cursor:grab;touch-action:none}
+.sheet.is-dragging .grab{cursor:grabbing}
+.sheet .grab::before{content:"";position:absolute;inset:-16px -70px -18px}
+
+/* ---------- toast pops up with a spring instead of drifting in ---------- */
+.toast{transition:opacity .28s ease,transform .5s var(--pz-spring)}
+.toast:not(.on){transition:opacity .18s ease,transform .18s ease}
+
+/* ---------- personal tasks: arrive, leave, and swipe like objects ---------- */
+.pt-row{touch-action:pan-y;transition:transform .3s var(--pz-ease),opacity .3s ease,background .15s ease}
+.pt-row.is-swiping{transition:none}
+@keyframes ptRowIn{from{opacity:0;transform:translateY(-10px) scale(.96)}}
+.pt-row.is-new{animation:ptRowIn .4s var(--pz-spring)}
+.pt-row.is-leaving{opacity:0;pointer-events:none;transform:scale(.92)}
+.pt-row.is-leaving.fly-left{transform:translateX(-130%)}
+.pt-row.is-leaving.fly-right{transform:translateX(130%)}
+
+/* the personal pane itself glides in on phones too (desktop already does) */
+#personalTasksSection:not(.hidden){animation:paneContentIn .45s var(--pz-ease) both}
+
+/* ---------- the tab zone advertises that it swipes ---------- */
+.clock{touch-action:pan-y}
+
+/* ---------- scrollbars stop looking like the browser's ---------- */
+#appScreen ::-webkit-scrollbar,.sheet::-webkit-scrollbar{width:8px;height:8px}
+#appScreen ::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb{background:rgba(255,255,255,.26);border-radius:99px}
+#appScreen ::-webkit-scrollbar-thumb:hover,.sheet::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.45)}
+#appScreen ::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- desktop hover: things lift toward the cursor ---------- */
+@media (hover:hover){
+  #appScreen :where(.pomo-side,.panel-menu,.admin-icon-btn,.band-signout,.pt-add-btn,.pt-del,.af-person-x):hover{transform:translateY(-1px)}
+  #appScreen .pt-check:hover{border-color:var(--wk-green)}
+  #appScreen .pt-row:hover{background:rgba(255,255,255,.1)}
+  .sheet .af-opt:hover,.sheet .chip:hover{background:rgba(255,255,255,.12)}
+}
