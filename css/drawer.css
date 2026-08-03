@@ -156,12 +156,12 @@
 #appScreen .btn-ghost,.sheet .btn-ghost{background:rgba(255,255,255,.1);color:var(--wk-white);border:1.5px solid rgba(255,255,255,.35)}
 #appScreen .btn-wa,.sheet .btn-wa{background:var(--wk-green);color:#08210a;border-color:transparent;box-shadow:0 12px 22px rgba(0,174,11,.3)}
 
-/* login / pending / admin - legacy palette, unchanged from before the redesign */
-#loginScreen .btn,#pendingScreen .btn,#adminScreen .btn{
+/* login / pending - legacy palette, unchanged from before the redesign */
+#loginScreen .btn,#pendingScreen .btn{
   font-family:var(--cond);font-weight:700;background:#2D006B;color:#fff;
 }
-#loginScreen .btn-go,#pendingScreen .btn-go,#adminScreen .btn-go{background:#00F5D4;color:var(--ink);box-shadow:0 12px 22px rgba(0,245,212,.35)}
-#loginScreen .btn-ghost,#pendingScreen .btn-ghost,#adminScreen .btn-ghost{
+#loginScreen .btn-go,#pendingScreen .btn-go{background:#00F5D4;color:var(--ink);box-shadow:0 12px 22px rgba(0,245,212,.35)}
+#loginScreen .btn-ghost,#pendingScreen .btn-ghost{
   background:rgba(255,255,255,.65);color:var(--ink);border:1.5px solid rgba(255,255,255,.6);
   backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);
   box-shadow:0 8px 18px rgba(15,12,27,.08);

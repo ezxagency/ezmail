@@ -137,7 +137,10 @@ let pomoPreviewTimer = null;
 function pomoPreview(){
   clearTimeout(pomoPreviewTimer);
   pomoAmbientStart(true);
-  pomoPreviewTimer = setTimeout(() => { if (!PM.running) pomoAmbientStop(); }, 6000);
+  // stop after a few seconds unless this IS the live focus track now - a
+  // running break has its own synthesized pad, so PM.running alone isn't
+  // enough to tell a genuine live session from an audition playing over it
+  pomoPreviewTimer = setTimeout(() => { if (!(PM.running && PM.phase === "focus")) pomoAmbientStop(); }, 6000);
 }
 
 function pomoChime(){

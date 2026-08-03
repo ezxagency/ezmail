@@ -200,6 +200,10 @@ function afWireDropdown(key, getItems, onPick, customLabel, opts){
     const v = input.value.trim();
     if (!OTHER_RE.test(v)) { input.focus(); return; }
     custom.hidden = true;
+    // in multi-select, onPick is a toggle - typing a name that's already
+    // chosen would otherwise remove it (and its tasks/notes/due date)
+    // instead of just being a no-op the way re-clicking the same checkbox is
+    if (multi && opts.chosen().includes(v)){ toast(`${v} is already added`); return; }
     onPick(v, v);
   };
   ok.onclick = commit;
@@ -325,12 +329,12 @@ function afRenderStores(p, pi){
   };
 }
 
-// one store's picker: same open/roving-focus/custom-entry manners as the
-// generic dropdowns, but its checkbox state lives on the person block
+// one store's task picker: wired through afWireDropdown's multi-select
+// mode, same as the "where" dropdown above - its checkbox state just
+// lives on the person block instead of a dropdown-local one
 function afWireStoreRow(p, pi, store, si){
   const key = `what${pi}_${si}`;
-  const trig = $("afTrig" + key), panel = $("afPanel" + key);
-  const custom = $("afCustom" + key), input = $("afInput" + key), ok = $("afOk" + key);
+  const trig = $("afTrig" + key);
   // CONFIG's list plus anything typed under any block this session - a
   // custom task picked once is one click everywhere else
   const options = () => {
@@ -338,77 +342,22 @@ function afWireStoreRow(p, pi, store, si){
     CONFIG.tasks.forEach(t => seen.set(t.toLowerCase(), t));
     afState.people.forEach(pp => Object.values(pp.storeTasks).flat()
       .forEach(t => seen.set(t.toLowerCase(), t)));
-    return [...seen.values()];
+    return [...seen.values()].map(t => ({ value: t, label: t }));
   };
-  const paint = () => {
-    const chosen = p.storeTasks[store] || [];
-    panel.innerHTML = options().map(t => {
-      const on = chosen.includes(t);
-      return `
-      <button type="button" class="af-opt${on ? " is-on" : ""}" data-v="${esc(t)}" aria-pressed="${on}">
-        <span class="af-check" aria-hidden="true">${on ? AF_TICK : ""}</span>
-        <span class="af-opt-main">${esc(t)}</span>
-      </button>`;
-    }).join("")
-    + `<button type="button" class="af-opt af-opt-new" data-v="__new">+ Another task</button>
-       <button type="button" class="af-opt af-opt-done" data-v="__done">Done choosing</button>`;
-    panel.querySelectorAll("button[data-v]").forEach(b => {
-      b.onclick = () => {
-        const v = b.dataset.v;
-        if (v === "__done"){
-          afCloseMenu();
-          const nxt = $(`afTrigwhat${pi}_${si + 1}`) || $("afTrigwho" + (pi + 1)) || $("afNote");
-          if (nxt && !nxt.disabled) nxt.focus();
-          return;
-        }
-        if (v === "__new"){
-          afCloseMenu();
-          custom.hidden = false;
-          input.value = "";
-          input.focus();
-          return;
-        }
-        const arr = p.storeTasks[store] = p.storeTasks[store] || [];
-        const at = arr.indexOf(v);
-        if (at >= 0) arr.splice(at, 1); else arr.push(v);
-        trig.querySelector(".af-value").textContent = arr.join(", ") || "Choose tasks";
-        paint();
-        afSync();
-      };
-    });
-  };
-  const open = () => {
-    if (afOpen && afOpen !== key) afCloseMenu();
-    paint();
-    panel.hidden = false;
-    trig.setAttribute("aria-expanded", "true");
-    afOpen = key;
-    const first = panel.querySelector("button");
-    if (first) first.focus();
-  };
-  trig.onclick = () => (afOpen === key ? afCloseMenu() : open());
-  trig.onkeydown = e => { if (e.key === "ArrowDown"){ e.preventDefault(); open(); } };
-  panel.onkeydown = e => {
-    const opts = [...panel.querySelectorAll("button")];
-    const at = opts.indexOf(document.activeElement);
-    if (e.key === "ArrowDown"){ e.preventDefault(); (opts[at + 1] || opts[0]).focus(); }
-    else if (e.key === "ArrowUp"){ e.preventDefault(); (opts[at - 1] || opts[opts.length - 1]).focus(); }
-    else if (e.key === "Escape"){ e.preventDefault(); afCloseMenu(); trig.focus(); }
-  };
-  const commit = () => {
-    const v = input.value.trim();
-    if (!OTHER_RE.test(v)){ input.focus(); return; }
-    custom.hidden = true;
+  afWireDropdown(key, options, v => {
     const arr = p.storeTasks[store] = p.storeTasks[store] || [];
-    if (!arr.includes(v)) arr.push(v);
-    trig.querySelector(".af-value").textContent = arr.join(", ");
+    const at = arr.indexOf(v);
+    if (at >= 0) arr.splice(at, 1); else arr.push(v);
+    trig.querySelector(".af-value").textContent = arr.join(", ") || "Choose tasks";
     afSync();
-  };
-  ok.onclick = commit;
-  input.onkeydown = e => {
-    if (e.key === "Enter"){ e.preventDefault(); commit(); }
-    else if (e.key === "Escape"){ e.preventDefault(); custom.hidden = true; trig.focus(); }
-  };
+  }, "+ Another task", {
+    chosen: () => p.storeTasks[store] || [],
+    onDone: () => {
+      const nxt = $(`afTrigwhat${pi}_${si + 1}`) || $("afTrigwho" + (pi + 1)) || $("afNote");
+      if (nxt && !nxt.disabled) nxt.focus();
+    }
+  });
+
   const sn = $("afSnote" + key), sd = $("afSdue" + key);
   if (sn) sn.oninput = () => { p.storeNotes[store] = sn.value; };
   if (sd) sd.onchange = () => { p.storeDues[store] = sd.value; afRenderSentence(); };
@@ -694,9 +643,8 @@ async function afSubmit(){
   }
 }
 
-// entry points: the card menu opens it cold, the roster opens it with the
-// member already chosen
-const askAssignTaskPickMember = () => openAssignFlow();
+// entry point: the roster opens it with the member already chosen. Every
+// "cold" open (card menu, dock icons) calls openAssignFlow() directly.
 const askAssignTask = (uid, name) => openAssignFlow(uid, name);
 
 /* ---------- worker: tasks assigned to me (v1) - live, not a one-time

@@ -1,10 +1,12 @@
 # EZ Clock In
 
 A static, no-build shift tracker for Ez Agency: clock in/out with per-task
-segments, a live team view with task assignment, WhatsApp shift reports,
-Excel exports, and a personal Pomodoro focus mode. Firebase (Auth +
-Firestore) is the only backend; everything else is hand-rolled vanilla
-HTML/CSS/JS served as-is (GitHub Pages).
+segments, a live team view with task assignment, a campaigns baton-pass
+pipeline, WhatsApp shift reports, Excel exports, email verification and
+summaries, and a personal Pomodoro focus mode (plus a private Personal
+task-list mode). Firebase (Auth + Firestore) is the only backend;
+everything else is hand-rolled vanilla HTML/CSS/JS served as-is (GitHub
+Pages).
 
 ## Layout
 
@@ -12,6 +14,7 @@ HTML/CSS/JS served as-is (GitHub Pages).
 index.html          app shell: login, dashboard, drawer, feature pages
 timeclock-v2.html   synced copy of index.html (keep identical)
 reset-password.html standalone password-reset landing page
+client-review.html  unauthenticated public page for a client to review a campaign link
 
 css/  loaded in order; the order IS the cascade, never shuffle it
   base.css          design tokens, reset
@@ -22,19 +25,27 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   tables.css        responsive tables, today's work, toast
   responsive.css    landscape + desktop grid + height tiers
   pomodoro.css      focus mode, the 12 theme veils, settings controls
+  personal.css      Personal mode's private task list
+  campaigns.css     campaigns baton-pass pipeline page + its sheets
   login.css         Shift Card login screen (legacy palette)
+  premium.css       motion/gesture polish layer, loaded last on purpose
 
 js/   classic scripts sharing one global scope; loaded in order
   config.js         CONFIG, Firebase init, Firestore-backed Store, state, utils
   render.js         dashboard render loop, rings, per-second tick
   ui.js             sheet + toast + chip primitives
   shift.js          clock-in/switch/pause/out flows, reports, Excel export
+  email.js          writes to the Firestore mail collection for the Trigger Email extension
   nav.js            drawer, hash router, Mission + History pages
   boot.js           per-login session boot and teardown
   team.js           team page, assignment log, team pane, team Excel export
   assign.js         staged assign flow, my-tasks watcher, notifications
-  auth.js           role resolution, sign-in/out wiring, login UI
+  notify.js         directory + in-app notifications, @mention autocomplete
+  campaigns.js      campaigns baton-pass pipeline: stages, approvals, client links
+  auth.js           role resolution, sign-in/out wiring, login UI, email verification
+  personal.js       Personal mode's private per-account task list
   pomodoro.js       focus timer engine, Web Audio soundscapes, settings
+  premium.js        tab-swipe, sheet drag-to-close, swipe-to-delete, haptics
 
 assets/             images (marble backgrounds, logo)
 design/             reference comps

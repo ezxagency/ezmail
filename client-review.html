@@ -120,7 +120,7 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[<>&]/g, c => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;" }[c]));
+const esc = s => String(s).replace(/[<>&"]/g, c => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;", '"':"&quot;" }[c]));
 const show = id => ["stLoading","stMissing","stMain"].forEach(x => $(x).classList.toggle("hiddenx", x !== id));
 
 const token = new URLSearchParams(location.search).get("t") || "";

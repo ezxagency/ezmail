@@ -52,6 +52,12 @@ const cgAgeDays = c => {
   const s = cgStage(c);
   return s && s.enteredAt ? Math.floor((Date.now() - s.enteredAt) / CG_DAY) : 0;
 };
+// display name for whoever's signed in now - a real name if they've set
+// one, else their email's local part, else "Someone"
+const cgMyName = () => {
+  const me = auth.currentUser;
+  return S.worker || (me && me.email ? me.email.split("@")[0] : "Someone");
+};
 
 /* The chip judges when it can, guesses when it can't: a stage with a time
    budget compares against its deadline; one without falls back to raw age
@@ -211,7 +217,7 @@ async function cgNotify(uids, msg, c, opts){
     const base = {
       kind: "campaign", campaignId: c.id || null, title: c.title || "",
       msg, fromUid: me.uid,
-      fromName: S.worker || (me.email ? me.email.split("@")[0] : "Someone"),
+      fromName: cgMyName(),
       createdAt: Date.now(), read: false
     };
     const batch = db.batch();
@@ -581,7 +587,14 @@ function cgOpenDetail(id){
     on("cgDtDel", async () => {
       if (!confirm(`Delete "${c.title}"? The whole track, its links and history go with it. This can't be undone.`)) return;
       try {
-        await db.collection("campaigns").doc(c.id).delete();
+        // the confirm dialog promises the campaign's links go with it too -
+        // a stale clientReviews doc left behind stays a live, unauthenticated,
+        // still-answerable link for whoever's holding it
+        const batch = db.batch();
+        const reviews = await db.collection("clientReviews").where("campaignId", "==", c.id).get();
+        reviews.forEach(doc => batch.delete(doc.ref));
+        batch.delete(db.collection("campaigns").doc(c.id));
+        await batch.commit();
         closeSheet();
         toast("Campaign deleted");
       } catch (e) { console.error(e); toast("Couldn't delete — check Firestore rules allow it"); }
@@ -639,7 +652,7 @@ async function cgLoadClientReviews(c, canCreate){
 
 async function cgNewClientLink(c){
   const me = auth.currentUser;
-  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const myName = cgMyName();
   const st = cgStage(c);
   if (!st) return;
   try {
@@ -685,7 +698,7 @@ function cgReceive(stages, i, now){
 
 async function cgMove(id, kind, note, links){
   const me = auth.currentUser;
-  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const myName = cgMyName();
   const ref = db.collection("campaigns").doc(id);
   let tell = null;
 
@@ -712,19 +725,18 @@ async function cgMove(id, kind, note, links){
       const newAp = iAmOwner ? [...ap, me.uid] : ap;
       const allIn = owners.length > 0 && owners.every(o => newAp.includes(o.uid));
 
-      // an admin who isn't an owner passing = forcing the stage through
-      if (allIn || (isAdmin && !iAmOwner)){
+      if (allIn){
         st.doneAt = now;
         st.approvals = newAp;
         if (c.cur + 1 >= stages.length){
           patch.status = "live"; patch.liveAt = now;
-          patch.history = [...(c.history || []), { t: now, type: "live", by: myName, note: note || "" }];
+          patch.history = [...(c.history || []), { t: now, type: "live", by: myName, byUid: me.uid, note: note || "" }];
           tell = { live: true, c: { ...c, id } };
         } else {
           cgReceive(stages, c.cur + 1, now);
           patch.cur = c.cur + 1;
           patch.history = [...(c.history || []),
-            { t: now, type: "forward", by: myName, from: st.name, to: stages[c.cur + 1].name, note: note || "" }];
+            { t: now, type: "forward", by: myName, byUid: me.uid, from: st.name, to: stages[c.cur + 1].name, note: note || "" }];
           tell = { uids: cgOwnersOf(stages[c.cur + 1]).map(o => o.uid), admins: true,
                    msg: `${myName} passed "${c.title}" forward — ${stages[c.cur + 1].name}`, c: { ...c, id } };
         }
@@ -764,14 +776,16 @@ async function cgMove(id, kind, note, links){
    and untouched - the receiving stage hasn't approved anything yet. */
 async function cgUndoPass(id){
   const me = auth.currentUser;
-  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const myName = cgMyName();
   const ref = db.collection("campaigns").doc(id);
   await db.runTransaction(async tx => {
     const doc = await tx.get(ref);
     if (!doc.exists) throw new Error("This campaign was deleted");
     const c = doc.data();
     const h = (c.history || [])[(c.history || []).length - 1];
-    if (!h || (h.type !== "forward" && h.type !== "live") || h.by !== myName || Date.now() - h.t > 5 * 60000)
+    // byUid, not the display name - two teammates can share a name (or both
+    // default to "Someone"), and a name string was never proof of identity
+    if (!h || (h.type !== "forward" && h.type !== "live") || h.byUid !== me.uid || Date.now() - h.t > 5 * 60000)
       throw new Error("Too late to undo — use Send back instead");
     const now = Date.now();
     const stages = c.stages.map(s => ({ ...s }));
@@ -935,7 +949,7 @@ function cgBackSheet(id){
 async function cgJumpTo(id, target){
   if (!isAdmin) return;
   const me = auth.currentUser;
-  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const myName = cgMyName();
   const ref = db.collection("campaigns").doc(id);
   let tell = null;
   try {
@@ -1232,7 +1246,7 @@ async function cgEdSubmit(edit){
   const btn = $("cgEdGo");
   btn.disabled = true;
   const me = auth.currentUser;
-  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const myName = cgMyName();
   const now = Date.now();
   const common = {
     title,

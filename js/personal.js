@@ -81,7 +81,6 @@ function ptToggle(id){
   const t = PTasks.find(x => x.id === id);
   if (!t) return;
   t.done = !t.done;
-  t.doneAt = t.done ? Date.now() : null;
   if (t.done && typeof buzz === "function") buzz(12);   // checking off feels like something
   ptSave();
   ptRender();
@@ -130,7 +129,7 @@ function setAppMode(mode){   // "clocks" | "focus" | "personal"
     if (!text) return;
     PTasks.unshift({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      text, done: false, createdAt: Date.now(), doneAt: null
+      text, done: false
     });
     input.value = "";
     ptSave();

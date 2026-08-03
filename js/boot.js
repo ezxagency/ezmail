@@ -29,7 +29,15 @@ async function startWorkerApp(){
   // repair a state corrupted by a crash mid-shift
   if (S.status !== "IDLE" && !S.shift) S.status = "IDLE";
   if (S.status === "ACTIVE"   && S.shift && !openSeg(S.shift))   S.status = "IDLE";
-  if (S.status === "ON_BREAK" && S.shift && !openBreak(S.shift)) S.status = "ACTIVE";
+  // a break with no open entry means resume() got interrupted after closing
+  // the break but before reopening a seg - finish what it started (same
+  // move resume() itself makes) instead of leaving ACTIVE with no open seg,
+  // which crashes the next Switch/Pause tap
+  if (S.status === "ON_BREAK" && S.shift && !openBreak(S.shift)){
+    const last = [...S.shift.segs].pop();
+    if (last) S.shift.segs.push({ task: last.task, startedAt: Date.now(), endedAt: null, via: "resume" });
+    S.status = last ? "ACTIVE" : "IDLE";
+  }
 
   // a shift left open across a shutdown/long gap would otherwise keep
   // silently accruing real elapsed time forever - flag it instead

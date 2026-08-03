@@ -98,6 +98,9 @@ function askSwitch(){
 
     $("cancel").onclick = closeSheet;
     ok.onclick = async () => {
+      // re-entrancy guard: a second tap before save() resolves would
+      // otherwise close this same seg again and push a duplicate open one
+      if (seg.endedAt) return;
       const now = Date.now();
       seg.endedAt = now;
       const newStore = storeV();
@@ -130,8 +133,10 @@ function askPause(){
     wireChips(v => { picked = v; wrap.style.display = v === "__other" ? "block" : "none"; if (v==="__other") oth.focus(); sync(); });
     $("cancel").onclick = closeSheet;
     ok.onclick = async () => {
+      const seg = openSeg(S.shift);
+      if (!seg) return;   // re-entrancy guard: a second tap already closed the seg
       const now = Date.now();
-      openSeg(S.shift).endedAt = now;                       // task clock stops with the shift clock
+      seg.endedAt = now;                                    // task clock stops with the shift clock
       S.shift.breaks.push({ reason: val(), startedAt: now, endedAt: null });
       S.status = "ON_BREAK";
       await save(); closeSheet(); render();
@@ -205,6 +210,7 @@ async function loadCompletedAssignmentsForShift(shiftStart){
 }
 
 async function closeShift(note, rating){
+  if (!S.shift) return;   // re-entrancy guard: a second tap already closed this shift
   const now = Date.now(), sh = S.shift;
 
   const b = openBreak(sh); if (b) b.endedAt = now;          // clocking out mid-break closes it

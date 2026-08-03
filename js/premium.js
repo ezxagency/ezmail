@@ -3,8 +3,12 @@
    The physical layer premium.css dresses: tab swiping, a bottom sheet
    you can actually pull closed by its handle, swipe-to-delete on
    personal tasks, and a whisper of haptics where a thing commits.
-   Everything is touch-gated (pointerType) so the mouse keeps its own
-   manners, and everything degrades to the existing taps and buttons.
+   The tab strip and the task list are touch-gated (pointerType) so an
+   ordinary mouse drag over those large ambient zones can't be mistaken
+   for a gesture. The sheet's grab handle is the one exception: it's a
+   small, dedicated, already cursor:grab-styled affordance, so a mouse
+   drag on it specifically is unambiguous - it stays enabled there too.
+   Everything degrades to the existing taps and buttons regardless.
    ============================================================ */
 
 // one short pulse when something COMMITS (tab change, delete, dismiss) -
@@ -26,6 +30,10 @@ function buzz(ms){ try { if (navigator.vibrate) navigator.vibrate(ms); } catch (
   zone.addEventListener("pointerdown", e => {
     if (e.pointerType !== "touch") return;
     live = true; sx = e.clientX; sy = e.clientY;
+    // without this, a flick that leaves .clock before lifting delivers
+    // pointerup to whatever's now underneath instead of back to zone,
+    // and the swipe silently does nothing
+    try { zone.setPointerCapture(e.pointerId); } catch (err) {}
   });
   zone.addEventListener("pointerup", e => {
     if (!live) return;

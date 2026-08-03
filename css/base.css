@@ -2,17 +2,8 @@
   --ink:#0F0C1B;
   --ink-soft:#7B2CBF;
   --paper:#F8F9FA;
-  --card:#ffffff;
-  --edge:#E4D6F5;
-  --active:#7B2CBF;
-  --break:#2D006B;
-  --idle:#9B4DDB;
 
-  --mint-100:#CFFCF6;
-  --mint-200:#9FF9ED;
-  --mint-300:#5FF5E1;
   --mint-400:#00F5D4;
-  --mint-500:#00C7AC;
 
   /* SF family via the system stack: renders as genuine SF Pro / SF Mono /
      SF Compact on Apple devices, best-native equivalents elsewhere. The SF
@@ -33,8 +24,6 @@
   --wk-white:#FFFFFF;
   --wk-white-70:rgba(255,255,255,.7);
   --wk-white-60:rgba(255,255,255,.6);
-  --wk-glass:rgba(255,255,255,.14);
-  --wk-glass-border:rgba(255,255,255,.28);
   --wk-sheet-bg:rgba(16,18,24,.88);
   --wk-badge:rgba(0,0,0,.5);
 
@@ -44,7 +33,6 @@
   --sc-input:#EAE2D2;
   --sc-green:#2F6844;
   --sc-green-dark:#1F4A30;
-  --sc-badge:#8FA888;
   --sc-ink:#2B2B28;
   --sc-muted:#6B6558;
   --sc-footer:#A79E8C;

@@ -66,7 +66,11 @@ function enterFullApp(user, role){
    someone bail and try a different email address entirely. */
 const VERIFY_EXPIRY_MS = 15 * 60000;
 let verifyResendAt = 0;
+let verifyResendUid = null;   // whose timestamp verifyResendAt is
 function openVerifyScreen(user, info){
+  // a different account on this device starts with a clean throttle -
+  // otherwise account B's resend could be blocked by account A's timer
+  if (verifyResendUid !== user.uid){ verifyResendAt = 0; verifyResendUid = user.uid; }
   screen("verify");
   $("verifyEmail").textContent = user.email;
   $("verifyErr").classList.add("hidden");

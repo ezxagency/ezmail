@@ -125,11 +125,13 @@ function wireMentionBox(ta, pop){
   });
 }
 
-// every directory person whose "@Name" appears in the text, case-insensitive
+// every directory person whose "@Name" appears in the text, case-insensitive.
+// The lookahead stops "@Jack" from also matching inside "@Jackson" - without
+// it a shorter name that's a prefix of a longer one gets a false mention.
 function parseMentions(text, dir){
   return dir.filter(p => {
     if (!p.name) return false;
-    const re = new RegExp("@" + p.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const re = new RegExp("@" + p.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![A-Za-z0-9])", "i");
     return re.test(text);
   });
 }

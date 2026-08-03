@@ -282,7 +282,7 @@
   color:var(--wk-white-70);text-decoration:none;
 }
 #appScreen .link:hover,.sheet .link:hover{color:var(--wk-white)}
-#loginScreen .link,#pendingScreen .link,#adminScreen .link{
+#loginScreen .link,#pendingScreen .link{
   padding-left:12px;letter-spacing:inherit;text-transform:inherit;font-weight:inherit;
   color:var(--ink);text-decoration:underline;text-underline-offset:3px;
 }
@@ -294,7 +294,7 @@
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:12px;
   font-family:var(--wk);font-size:13px;
 }
-.punch-t{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums;color:var(--wk-white)}
+.punch-t{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums;color:var(--wk-white);flex:none}
 .punch-k{
   font-family:var(--wk);text-transform:uppercase;letter-spacing:.1em;
   font-size:10px;font-weight:500;padding:4px 8px;
@@ -303,7 +303,6 @@
 .punch-k.k-task{border-color:rgba(255,255,255,.9);color:var(--wk-white)}
 .punch-k.k-break{border-color:rgba(255,255,255,.35);color:var(--wk-white-60)}
 .punch-k.k-store{border-color:var(--wk-green);color:var(--wk-green)}
-.punch-t{flex:none}
 .punch-n{color:var(--wk-white-60);flex:1;min-width:0;text-align:right;font-size:12px;overflow-wrap:anywhere}
 .stamp-in{animation:stamp .22s cubic-bezier(.2,.9,.3,1.4)}
 @keyframes stamp{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}

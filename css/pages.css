@@ -195,7 +195,6 @@
 }
 @keyframes skelSweep{to{transform:translateX(100%)}}
 .skel-row{height:52px;margin-bottom:10px}
-.skel-tile{height:84px}
 
 
 /* ---------- monthly report (admin) ----------
