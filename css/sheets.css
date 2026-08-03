@@ -295,9 +295,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
    full-width horizontal scrollbar. min-width only bites on a phone, where
    scrolling beats columns two characters wide. */
 /* The table lives in its own panel rather than floating on the marble, which
-   gives the rows something to sit on and the header something to stick to. */
+   gives the rows something to sit on and the header something to stick to.
+   Same glass recipe as the punch card / tlog status cards - a dark navy
+   tint (even blurred) just compounds into near-black against this page's
+   already-dark backdrop, so this needs the warm/light family, not more
+   opacity on the dark one. */
 .table-card{
-  background:rgba(16,19,26,.6);border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,244,229,.16);
+  backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
+  border:1px solid rgba(255,255,255,.26);
   border-radius:16px;overflow:hidden;margin-bottom:18px;
 }
 /* No min-width and no horizontal scroll anywhere: the table always fits its
