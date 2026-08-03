@@ -299,6 +299,10 @@ function pomoAdvance(natural){
     // banked before anything below mutates PM - remaining-time math needs
     // the phase/endAt exactly as they still stand from the round that just ended
     pomoLogFocusSession(pomoTotalMs("focus") - pomoRemainMs(), natural);
+    // Focus Anchor: a round ending with an active task opens the resolve
+    // prompt (Mark complete / Another round) instead of going straight to
+    // the plain break summary
+    if (typeof ptActiveId !== "undefined" && ptActiveId) ptRoundResolved = false;
     PM.phase = PM.round >= POMO_ROUNDS ? "long" : "short";
     auto = PM.autoBreak;
   } else {
@@ -391,6 +395,10 @@ function pomoTick(){
   if (PM.running && pomoRemainMs() <= 0){ pomoAdvance(true); return; }
   pomoBreakCountdownTick();
   if (PM.on && PM.running) pomoRenderTime();
+  // Focus Anchor: elapsed time, break countdown and the glow all move once
+  // a second while a round runs - renderFocusAnchor() itself no-ops unless
+  // Personal mode is the one actually on screen
+  if (typeof renderFocusAnchor === "function") renderFocusAnchor();
 }
 
 /* The last five seconds of a break count down in short tones - not the
@@ -462,6 +470,7 @@ function pomoRender(){
   // the Focus tab wears a live dot while a session runs behind the clocks
   $("modeFocus").classList.toggle("is-live", PM.running);
   pomoRenderTime();
+  if (typeof renderFocusAnchor === "function") renderFocusAnchor();
 }
 
 /* ---------- settings sheet ---------- */

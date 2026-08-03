@@ -11,6 +11,15 @@ const PT_MODE_LS = "ez-appmode-v1";   // which tab this account left selected
 let PTasks = [];      // this account's tasks, newest first
 let ptUid = null;     // whose list PTasks currently is; null = nobody signed in
 
+/* ---------- Focus Anchor: the promoted task in Personal mode's center
+   column. Client-side only, same as the mode switch itself - nothing here
+   is persisted, so it resets every reload same as a browser tab would. */
+let ptActiveId = null;        // id of the task promoted to the anchor, or null
+let ptRoundResolved = true;   // false right after a focus round ends with an
+                               // active task, until "Mark complete"/"Another
+                               // round" is chosen - drives the resolve prompt
+let ptSessionDone = 0;        // tasks completed since this page load
+
 const ptKey = () => PT_LS + ":" + ptUid;
 const ptSave = () => {
   if (!ptUid) return;
@@ -24,6 +33,7 @@ function ptLoadFor(uid){
   ptUid = uid;
   try { PTasks = JSON.parse(localStorage.getItem(ptKey()) || "[]"); }
   catch (e) { PTasks = []; }
+  ptActiveId = null; ptRoundResolved = true; ptSessionDone = 0;
   let mode = null;
   try { mode = localStorage.getItem(PT_MODE_LS + ":" + ptUid); } catch (e) {}
   if (mode === "personal") setAppMode("personal");
@@ -34,10 +44,12 @@ function ptLoadFor(uid){
 function ptUnload(){
   ptUid = null;
   PTasks = [];
+  ptActiveId = null; ptRoundResolved = true; ptSessionDone = 0;
   ptRender();
 }
 
 const PT_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg>';
+const PT_FOCUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/></svg>';
 
 function ptRender(){
   const list = $("ptList");
@@ -51,12 +63,14 @@ function ptRender(){
   if (count) count.textContent = open.length ? open.length + " open" : "";
   if (!PTasks.length){
     list.innerHTML = `<li class="pt-empty">Nothing here yet — add a task above.</li>`;
+    renderFocusAnchor();
     return;
   }
   const row = t => `
-    <li class="pt-row${t.done ? " is-done" : ""}" data-id="${t.id}">
+    <li class="pt-row${t.done ? " is-done" : ""}${t.id === ptActiveId ? " is-anchored" : ""}" data-id="${t.id}">
       <button type="button" class="pt-check" aria-label="${t.done ? "Mark not done" : "Mark done"}">${PT_CHECK_SVG}</button>
       <span class="pt-text">${esc(t.text)}</span>
+      ${t.done ? "" : `<button type="button" class="pt-focus" aria-label="Focus on this task" title="Focus on this">${PT_FOCUS_SVG}</button>`}
       <button type="button" class="pt-del" aria-label="Delete task" title="Delete">×</button>
     </li>`;
   list.innerHTML = open.map(row).join("") + done.map(row).join("");
@@ -64,6 +78,25 @@ function ptRender(){
     b.onclick = () => ptToggle(b.closest(".pt-row").dataset.id));
   list.querySelectorAll(".pt-del").forEach(b =>
     b.onclick = () => ptRemoveAnimated(b.closest(".pt-row")));
+  list.querySelectorAll(".pt-focus").forEach(b =>
+    b.onclick = () => ptSetActive(b.closest(".pt-row").dataset.id));
+  renderFocusAnchor();
+}
+
+/* Promotes a task to the Focus Anchor center column. A fresh promotion (not
+   just a re-render landing on the same id) always counts as a clean start -
+   any unresolved prompt from a previous task doesn't carry over. */
+function ptSetActive(id){
+  if (ptActiveId === id) return;
+  ptActiveId = id;
+  ptRoundResolved = true;
+  ptRender();
+  const anchor = $("focusAnchor");
+  if (anchor){
+    anchor.classList.remove("is-new");
+    void anchor.offsetWidth;   // restart the entrance animation on every promotion
+    anchor.classList.add("is-new");
+  }
 }
 
 /* Animated exit shared by the x button (shrink+fade) and a swipe
@@ -81,6 +114,7 @@ function ptToggle(id){
   const t = PTasks.find(x => x.id === id);
   if (!t) return;
   t.done = !t.done;
+  ptSessionDone += t.done ? 1 : -1;
   if (t.done && typeof buzz === "function") buzz(12);   // checking off feels like something
   ptSave();
   ptRender();
@@ -89,6 +123,63 @@ function ptDelete(id){
   PTasks = PTasks.filter(x => x.id !== id);
   ptSave();
   ptRender();
+}
+
+/* ---------- the Focus Anchor itself (Personal mode's center column) ----------
+   One render function, one state machine, same pattern as the rest of the
+   app's JS-built markup rather than a maze of pre-built hidden blocks:
+     - on a break, with an active task, not yet resolved -> resolve prompt
+     - on a break otherwise                              -> session summary
+     - no active task                                    -> empty state
+     - anything else (idle or an actual running round)    -> the task itself
+   Cheap enough to call from both discrete state changes (task promoted,
+   round advances, mode switch) and pomoTick()'s once-a-second pass (so the
+   elapsed/break countdown and the glow actually keep moving) - it no-ops
+   immediately unless Personal mode is the one on screen. */
+function renderFocusAnchor(){
+  const anchor = $("focusAnchor"), inner = $("anchorInner");
+  if (!anchor || !inner) return;
+  if (!$("appScreen").classList.contains("personal-on")) return;
+
+  const task = ptActiveId ? PTasks.find(t => t.id === ptActiveId) : null;
+  if (!task || task.done) ptActiveId = null;
+
+  const onBreak = PM.phase !== "focus";
+  const focusing = PM.phase === "focus" && PM.running;
+  const progress = PM.phase === "focus" ? 1 - (pomoRemainMs() / pomoTotalMs("focus")) : 0;
+  anchor.style.setProperty("--anchor-glow", PM.running ? Math.max(0, Math.min(1, progress)) : 0);
+
+  if (onBreak && ptActiveId && !ptRoundResolved){
+    inner.innerHTML = `
+      <p class="anchor-eyebrow">Up next</p>
+      <h2 class="anchor-title">${esc(task.text)}</h2>
+      <div class="anchor-rule"></div>
+      <div class="anchor-acts">
+        <button type="button" class="anchor-act" id="anchorComplete">Mark complete</button>
+        <span class="anchor-act-sep" aria-hidden="true">·</span>
+        <button type="button" class="anchor-act" id="anchorAnother">Another round</button>
+      </div>`;
+    $("anchorComplete").onclick = () => ptToggle(ptActiveId);
+    $("anchorAnother").onclick = () => { ptRoundResolved = true; pomoAdvance(false); };
+    return;
+  }
+  if (onBreak){
+    inner.innerHTML = `
+      <p class="anchor-eyebrow">Up next</p>
+      <p class="anchor-break-count">${ptSessionDone} task${ptSessionDone === 1 ? "" : "s"} completed this session</p>
+      <p class="anchor-break-time">Break ends in ${pomoMMSS(pomoRemainMs())}</p>`;
+    return;
+  }
+  if (!ptActiveId){
+    inner.innerHTML = `<p class="anchor-empty">Select a task</p>`;
+    return;
+  }
+  const elapsed = pomoMMSS(pomoTotalMs("focus") - pomoRemainMs());
+  inner.innerHTML = `
+    <p class="anchor-eyebrow">${focusing ? "Focusing on" : "Up next"}</p>
+    <h2 class="anchor-title">${esc(task.text)}</h2>
+    <div class="anchor-rule"></div>
+    <p class="anchor-meta">Round ${PM.round} of ${POMO_ROUNDS} · ${elapsed} elapsed</p>`;
 }
 
 /* ---------- the three-way mode switch itself ----------
