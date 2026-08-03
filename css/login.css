@@ -135,3 +135,14 @@
 }
 #verifyScreen .sc-link:hover{text-decoration:underline}
 #verifyScreen .verify-signout{display:block;margin:14px auto 0}
+
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   50%-radius circles (.sc-check-box + its dot) are left alone on purpose -
+   see the token comment in base.css for why. */
+@supports (corner-shape:superellipse(1)){
+  .login-card,#loginScreen .login-card,#verifyScreen .login-card{corner-shape:var(--squircle-xl)}
+  #loginScreen .sc-icon{corner-shape:var(--squircle-lg)}
+  #loginScreen input[type=email],#loginScreen input[type=password],
+  #verifyScreen input,
+  #loginScreen .sc-btn-go,#loginScreen .sc-btn-oauth,#verifyScreen .sc-btn-go{corner-shape:var(--squircle-sm)}
+}

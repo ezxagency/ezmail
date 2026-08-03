@@ -552,3 +552,12 @@
 .btn:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 .app :focus-visible,.sheet :focus-visible{outline:2px solid var(--wk-white);outline-offset:3px}
 
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   .team-panel/.assign-panel only pick up a border-radius at the desktop
+   pane breakpoint - corner-shape is harmless to set unconditionally, since
+   it has no visible effect until a radius exists. Scrollbar thumbs are left
+   circular/pill-shaped on purpose - see the token comment in base.css. */
+@supports (corner-shape:superellipse(1)){
+  .team-panel,.assign-panel{corner-shape:var(--squircle-lg)}
+}
+

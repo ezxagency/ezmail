@@ -500,3 +500,19 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
    The threshold is on the viewport but the table lives inside admin-page-inner,
    which is ~80px narrower - so this has to trip earlier than the width the
    table itself needs, or the last columns get squeezed off the edge. */
+
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   Pills/circles (.chip, .af-pip, .donut, .chart-bar-track/-fill) are left
+   alone on purpose - see the token comment in base.css for why. .af-check
+   and .af-pair-tog are boxy tick/toggle squares (6px/5px radius), not
+   circles, so they get the smallest squircle tier instead of an exclusion. */
+@supports (corner-shape:superellipse(1)){
+  .sheet{corner-shape:var(--squircle-xl)}
+  .table-card{corner-shape:var(--squircle-lg)}
+  .af-panel{corner-shape:var(--squircle-lg)}
+  .af-person,.preview{corner-shape:var(--squircle-md)}
+  .star,.af-trigger,input[type=text],input[type=date],input[type=month],
+  input[type=number],select,textarea,.af-custom-ok,.af-person-x,.af-add-ico,
+  .af-sub-copy{corner-shape:var(--squircle-sm)}
+  .af-check,.af-pair-tog{corner-shape:var(--squircle-xs)}
+}

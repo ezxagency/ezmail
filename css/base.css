@@ -37,6 +37,22 @@
   --sc-muted:#6B6558;
   --sc-footer:#A79E8C;
   --sc-serif:var(--sf);
+
+  /* ---- squircle corners: superellipse curvature layered on top of the
+     existing border-radius scale, tiered by element size so small controls
+     stay subtle and large containers read more distinctly "squircle".
+     Pure progressive enhancement (see the @supports guards where these are
+     applied) - unsupported browsers just keep today's circular-arc corners,
+     nothing breaks. Deliberately NOT applied to true circles (50%) or pill/
+     stadium shapes (999px, e.g. avatars, status dots, toggle knobs, capsule
+     badges) - a superellipse distorts those into an off-shape instead of a
+     squircle, since the curve family only reads as "squircle" on a corner
+     that still has straight edges leading into it. */
+  --squircle-xs:superellipse(1.8);   /* checkboxes, tick boxes, tiny icon chips */
+  --squircle-sm:superellipse(2.2);   /* buttons, inputs, boxy badges/tags, small icon buttons */
+  --squircle-md:superellipse(2.6);   /* list rows, person/step blocks, table cards */
+  --squircle-lg:superellipse(3);     /* cards, panels, dropdown menus */
+  --squircle-xl:superellipse(3.6);   /* sheets/modals, the login card, hero containers */
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}

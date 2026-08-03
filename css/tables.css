@@ -139,3 +139,12 @@
   .empty-icon{width:88px;height:88px;margin-bottom:12px}
 }
 
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   Pills (assign-status, work-chip/-task/-status, toast, toast-act) and the
+   circular .mt-avatar are left alone on purpose - see the token comment in
+   base.css for why. .assign-edit shares .assign-del's box (same element,
+   two classes), so one rule covers both. */
+@supports (corner-shape:superellipse(1)){
+  .assign-del{corner-shape:var(--squircle-sm)}
+}
+

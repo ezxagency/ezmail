@@ -258,3 +258,13 @@
   font-weight:600;color:var(--wk-white-60);text-transform:uppercase;letter-spacing:.12em;
 }
 .fpage-dates input[type=date]{width:auto;min-height:0;padding:10px 12px;font-size:14px;border-radius:12px}
+
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   Pills/dots (.tbar-track/-fill, .fpage-status + its dot, .hf-chip, the
+   unread-notif dot) are left alone on purpose - see the token comment in
+   base.css for why. */
+@supports (corner-shape:superellipse(1)){
+  .fpage-panel{corner-shape:var(--squircle-lg)}
+  .fpage-bar,.stat-tile,.hx-row,.hx-note{corner-shape:var(--squircle-md)}
+  .page-back,.icon-btn,.skel,.hf-btn{corner-shape:var(--squircle-sm)}
+}

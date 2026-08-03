@@ -437,3 +437,12 @@
 .btn-icon{display:inline-flex;vertical-align:-3px;margin-right:8px}
 .btn-icon svg{width:18px;height:18px}
 
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   Circles/pills (.admin-icon-btn, .team-dot, .tlog-dot, .empty-icon, .band-
+   signout, .notif-badge, scrollbar thumbs, store-count) are left alone on
+   purpose - see the token comment in base.css for why. */
+@supports (corner-shape:superellipse(1)){
+  .card,.team-table-wrap,.tlog-card{corner-shape:var(--squircle-lg)}
+  .punches li,.atask-note,.atask-empty-mark{corner-shape:var(--squircle-md)}
+}
+

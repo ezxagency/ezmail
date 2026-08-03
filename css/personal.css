@@ -79,3 +79,12 @@
   }
   .app.panes.personal-on #personalTasksSection .pt-list{flex:1;min-height:0;overflow-y:auto}
 }
+
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   .pt-check (50% radius) is left circular on purpose - see the token
+   comment in base.css for why. */
+@supports (corner-shape:superellipse(1)){
+  .pt-add-row input,.pt-add-btn,.pt-del{corner-shape:var(--squircle-sm)}
+  .pt-row{corner-shape:var(--squircle-md)}
+  .app.panes.personal-on #personalTasksSection{corner-shape:var(--squircle-lg)}
+}

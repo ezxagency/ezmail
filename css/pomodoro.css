@@ -369,3 +369,11 @@
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   Nearly everything else in this file is a circle or pill by design (mode
+   switch, pomo-main/-side controls, dots, the alarm-glow ring, pswitch) and
+   is left alone on purpose - see the token comment in base.css for why. */
+@supports (corner-shape:superellipse(1)){
+  .pdrop-swatch{corner-shape:var(--squircle-xs)}
+}
+

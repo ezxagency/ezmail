@@ -366,3 +366,12 @@
 .cg-role-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;font-family:var(--wk);font-size:13.5px;font-weight:600;color:var(--wk-white)}
 .cg-role-who small{font-weight:400;font-size:11px;color:var(--wk-white-60);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cg-role-row input{flex:1;min-width:0;margin:0}
+
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   Circles/pills (dots, age/live/role/rounds badges, cg-stg-pip, count chips)
+   are left alone on purpose - see the token comment in base.css for why. */
+@supports (corner-shape:superellipse(1)){
+  .cg-turn,.cg-srow,.cg-col{corner-shape:var(--squircle-lg)}
+  .cg-turn-note,.cg-row,.cg-dt-brief,.cg-jump-opt,.cg-viewtog,.cg-card{corner-shape:var(--squircle-md)}
+  .cg-live-head,.cg-link-x,.cg-srow-b,.cg-srow-addco,.cg-tpl-use,.cg-tpl-del,.cg-cr-copy{corner-shape:var(--squircle-sm)}
+}

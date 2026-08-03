@@ -169,3 +169,12 @@
 .row{display:flex;gap:10px}
 .row .btn{flex:1}
 
+/* ---------- squircle corners (superellipse, progressive enhancement) ----------
+   .drawer-avatar (50% radius) is left circular on purpose - see the token
+   comment in base.css for why. */
+@supports (corner-shape:superellipse(1)){
+  .menu-btn,.drawer-close,.drawer-item .drawer-ico,.drawer-profile,.drawer-signout,.btn{corner-shape:var(--squircle-sm)}
+  .drawer-item{corner-shape:var(--squircle-md)}
+  .drawer-kbd{corner-shape:var(--squircle-xs)}
+}
+
