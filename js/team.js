@@ -179,31 +179,43 @@ function loadTeamScreen(){
   loadCompletionLog(true, $("teamRecentlyDone"));
 }
 
+/* The `assignments` collection, fetched once and shared everywhere it's
+   needed - Team's status cards, the desktop Team pane, the Assign page's
+   log, and the "who's already loaded" counts in its Who dropdown - instead
+   of each of those independently re-pulling the whole collection. Callers
+   keep their own try/catch around fetchAssignRows() since each reacts to a
+   failed fetch differently (an inline error message here, a silently empty
+   pane there). */
+let assignRows = null;
+async function fetchAssignRows(){
+  const snap = await db.collection("assignments").get();
+  const rows = [];
+  // keep the doc id - the row's Delete button needs something to act on
+  snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
+  rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  assignRows = rows;
+  return rows;
+}
+
 // All assignments (open + done) in one table - who, what store, what
 // task, current status, and every date that matters. Fetched once per
 // Team-page visit and paginated client-side, 8 rows at a time, to avoid
 // needing a composite Firestore index for an orderBy.
-let assignLogRows = null;
 let assignLogShown = 8;
 let assignLogBox = null;   // whichever container the log was last rendered into
 async function loadCompletionLog(reset, box){
   box = box || assignLogBox || $("teamRecentlyDone");
   if (!box) return;
   assignLogBox = box;
-  if (reset || assignLogRows === null) {
+  if (reset || assignRows === null) {
     box.innerHTML = `<p class="hint" style="margin-bottom:8px">Loading assignments…</p>`
       + `<div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>`;
     try {
-      const snap = await db.collection("assignments").get();
-      const rows = [];
-      // keep the doc id - the row's Delete button needs something to act on
-      snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
-      rows.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
-      assignLogRows = rows;
+      await fetchAssignRows();
       assignLogShown = 8;
     } catch (e) {
       console.error(e);
-      assignLogRows = [];
+      assignRows = [];
       box.innerHTML = `<div class="empty">Couldn't load assignments — check your connection and Firestore rules.</div>`;
       return;
     }
@@ -213,7 +225,7 @@ async function loadCompletionLog(reset, box){
 function renderCompletionLog(){
   const box = assignLogBox || $("teamRecentlyDone");
   if (!box) return;
-  const rows = assignLogRows || [];
+  const rows = assignRows || [];
   if (!rows.length) {
     // on the Assign page an empty log is a real state that needs words; on the
     // Team page the section simply stays out of the way
@@ -288,7 +300,7 @@ let assignLogThreads = [];   // the threads currently rendered in the log
 /* ---------- Team page's by-status assignment cards ----------
    Three dropdowns - Completed / Open / Overdue - each a thread list,
    instead of one flat table with a Status column. Threads only ever move
-   between buckets on a re-render (Firestore write -> assignLogRows update
+   between buckets on a re-render (Firestore write -> assignRows update
    -> here), never mid-render, so building all three fresh each time is
    simplest and cheap enough at this app's scale. */
 let tlogOpen = { done: false, open: true, late: true };   // which cards start expanded
@@ -323,7 +335,7 @@ function renderTeamStatusCards(box, rows){
     if (moreBtn) moreBtn.onclick = e => {
       e.stopPropagation();
       tlogShown[st] += 8;
-      renderTeamStatusCards(box, assignLogRows || []);
+      renderTeamStatusCards(box, assignRows || []);
     };
     card.querySelectorAll("button[data-del]").forEach(b => b.onclick = e => {
       e.stopPropagation();
@@ -406,7 +418,7 @@ function openAssignEdit(t){
 // re-fetching the whole collection.
 async function deleteAssignment(idsCsv){
   const ids = String(idsCsv).split(",").filter(Boolean);
-  const row = (assignLogRows || []).find(r => r.id === ids[0]);
+  const row = (assignRows || []).find(r => r.id === ids[0]);
   const what = !row ? "this assignment"
     : ids.length > 1
       ? `all ${ids.length} tasks in this group for ${row.toName || "someone"}`
@@ -416,7 +428,7 @@ async function deleteAssignment(idsCsv){
     const batch = db.batch();
     ids.forEach(id => batch.delete(db.collection("assignments").doc(id)));
     await batch.commit();
-    assignLogRows = (assignLogRows || []).filter(r => !ids.includes(r.id));
+    assignRows = (assignRows || []).filter(r => !ids.includes(r.id));
     renderCompletionLog();
     loadTeamPane();
     toast(ids.length > 1 ? "Group deleted" : "Assignment deleted");
@@ -432,7 +444,6 @@ async function deleteAssignment(idsCsv){
    it swaps places with the punch card and shows every assignment.
    Narrow screens never see it; they use showTeam()'s full page instead.
    ============================================================ */
-let teamPaneRows = null;      // every assignment, newest first
 let teamPendingCount = 0;     // accounts waiting for approval
 
 const todayISO = () => {
@@ -452,6 +463,13 @@ const STATUS_GLYPH = {
   open: ""
 };
 const STATUS_LABEL = { done: "Done", late: "Overdue", open: "Open" };
+// one status pip, shared by the admin's Team pane and the employee's
+// Assigned pane - same shape (a count, a label, one of the three colors),
+// just fed different counts, so it isn't worth two separate closures
+const teamStatPip = (n, label, cls) =>
+  `<li class="team-stat is-${cls}${n ? "" : " is-zero"}">
+     <span class="team-dot is-${cls}">${STATUS_GLYPH[cls]}</span><b>${n}</b> ${label}
+   </li>`;
 
 /* ---------- assignment threads ----------
    Rows born from one multi-select submit share a groupId; fold those back
@@ -514,12 +532,8 @@ function whenLabel(ts){
 async function loadTeamPane(){
   if (!isAdmin) return;
   try {
-    const snap = await db.collection("assignments").get();
-    const rows = [];
-    snap.forEach(doc => rows.push(doc.data()));
-    rows.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
-    teamPaneRows = rows;
-  } catch (e) { console.error(e); teamPaneRows = []; }
+    await fetchAssignRows();
+  } catch (e) { console.error(e); assignRows = []; }
   try {
     const p = await db.collection("users").where("role","==","pending").get();
     teamPendingCount = p.size;
@@ -531,7 +545,7 @@ async function loadTeamPane(){
 function renderTeamPane(){
   const counts = $("teamPanelCounts"), latest = $("teamPanelLatest"), table = $("teamPanelTable");
   if (!counts || !latest || !table) return;
-  const rows = teamPaneRows || [];
+  const rows = assignRows || [];
   // campaigns share the pane: the admin's watchCampaigns holds every doc,
   // so the merge is pure render-time - one campaign reads as one thread
   const cgs = (typeof cgRows !== "undefined" && cgRows) ? cgRows : [];
@@ -561,12 +575,8 @@ function renderTeamPane(){
   // Same pips the expanded table uses, so the collapsed card reads as its
   // legend rather than as a separate vocabulary. Zeroes stay in place but
   // dimmed, so the row keeps a stable shape and the eye lands on what's live.
-  const stat = (n, label, cls) =>
-    `<li class="team-stat is-${cls}${n ? "" : " is-zero"}">
-       <span class="team-dot is-${cls}">${STATUS_GLYPH[cls]}</span><b>${n}</b> ${label}
-     </li>`;
   counts.innerHTML = (rows.length || cgs.length || teamPendingCount)
-    ? `<ul class="team-stats">${stat(doneCount, "done", "done")}${stat(late, "overdue", "late")}${stat(openNow, "open", "open")}</ul>`
+    ? `<ul class="team-stats">${teamStatPip(doneCount, "done", "done")}${teamStatPip(late, "overdue", "late")}${teamStatPip(openNow, "open", "open")}</ul>`
       + (teamPendingCount ? `<p class="team-approve">${teamPendingCount} waiting for approval</p>` : "")
     : `<p class="team-approve">No assignments yet.</p>`;
 

@@ -1119,7 +1119,7 @@ function cgResolveRole(craft){
   (cgRows || []).filter(c => c.status === "active").forEach(c => {
     cgOwnersOf(cgStage(c)).forEach(o => load.set(o.uid, (load.get(o.uid) || 0) + 1));
   });
-  (typeof teamPaneRows !== "undefined" && teamPaneRows ? teamPaneRows : [])
+  (typeof assignRows !== "undefined" && assignRows ? assignRows : [])
     .filter(r => !r.done && r.toUid)
     .forEach(r => load.set(r.toUid, (load.get(r.toUid) || 0) + 1));
   return [...pool].sort((a, b) =>

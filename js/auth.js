@@ -143,7 +143,7 @@ if (!FB_READY){
       // drop the signed-out uid too, so a stray save() can never write the
       // blank state above over the previous user's stored shift history
       Store.setUser(null, null);
-      assignLogRows = null; assignLogBox = null;
+      assignRows = null; assignLogBox = null;
       hxTeamRows = null; teamPageDocs = null;
       notifDir = null;
       $("bandSignOut").classList.add("hidden");
@@ -164,7 +164,7 @@ if (!FB_READY){
       if (location.hash && location.hash !== "#/") location.replace("#/");
       $("appScreen").classList.remove("panes", "has-team", "has-tasks", "side-open");
       $("teamPanel").classList.add("hidden");
-      teamPaneRows = null; teamPendingCount = 0;
+      teamPendingCount = 0;
       // park the departing account's focus timer and personal list, and
       // reset to neutral - the next sign-in loads its own, so nothing
       // leaks across accounts sharing this device. ptUnload FIRST: it

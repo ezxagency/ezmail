@@ -495,10 +495,7 @@ async function openAssignFlow(preUid, preName, editThread){
    assigned as well as CONFIG, so the list learns instead of going stale. */
 async function loadAssignOptions(){
   let rows = [];
-  try {
-    const snap = await db.collection("assignments").get();
-    snap.forEach(doc => rows.push(doc.data()));
-  } catch (e) { console.error(e); }
+  try { rows = await fetchAssignRows(); } catch (e) { console.error(e); rows = assignRows || []; }
 
   const openBy = new Map();
   rows.forEach(r => { if (!r.done && r.toUid) openBy.set(r.toUid, (openBy.get(r.toUid) || 0) + 1); });
@@ -857,12 +854,8 @@ function renderAssignedBrief(rows){
   const today = todayISO();
   const late = rows.filter(r => r.dueDate && r.dueDate < today).length;
   const soon = rows.filter(r => r.dueDate === today).length;
-  const stat = (n, label, cls) =>
-    `<li class="team-stat is-${cls}${n ? "" : " is-zero"}">
-       <span class="team-dot is-${cls}">${STATUS_GLYPH[cls]}</span><b>${n}</b> ${label}
-     </li>`;
   counts.innerHTML = `<ul class="team-stats">
-      ${stat(rows.length, "open", "open")}${stat(late, "overdue", "late")}${stat(soon, "due today", "done")}
+      ${teamStatPip(rows.length, "open", "open")}${teamStatPip(late, "overdue", "late")}${teamStatPip(soon, "due today", "done")}
     </ul>`;
 
   // undated tasks sort last, so the headline is always something with a date
