@@ -18,16 +18,17 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=49">
-<link rel="stylesheet" href="css/dashboard.css?v=49">
-<link rel="stylesheet" href="css/drawer.css?v=49">
-<link rel="stylesheet" href="css/pages.css?v=49">
-<link rel="stylesheet" href="css/sheets.css?v=49">
-<link rel="stylesheet" href="css/tables.css?v=49">
-<link rel="stylesheet" href="css/responsive.css?v=49">
-<link rel="stylesheet" href="css/pomodoro.css?v=49">
-<link rel="stylesheet" href="css/campaigns.css?v=49">
-<link rel="stylesheet" href="css/login.css?v=49">
+<link rel="stylesheet" href="css/base.css?v=50">
+<link rel="stylesheet" href="css/dashboard.css?v=50">
+<link rel="stylesheet" href="css/drawer.css?v=50">
+<link rel="stylesheet" href="css/pages.css?v=50">
+<link rel="stylesheet" href="css/sheets.css?v=50">
+<link rel="stylesheet" href="css/tables.css?v=50">
+<link rel="stylesheet" href="css/responsive.css?v=50">
+<link rel="stylesheet" href="css/pomodoro.css?v=50">
+<link rel="stylesheet" href="css/personal.css?v=50">
+<link rel="stylesheet" href="css/campaigns.css?v=50">
+<link rel="stylesheet" href="css/login.css?v=50">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -159,11 +160,13 @@
          so switching is a crossfade rather than a background snap -->
     <div class="theme-veil" aria-hidden="true"></div>
     <div class="clock">
-      <!-- Clocks <-> Focus: swaps the dual rings for the Pomodoro timer -->
+      <!-- Clocks / Focus / Personal: swaps the dual rings for the Pomodoro
+           timer or a private, this-device-only task list -->
       <div class="mode-switch" id="modeSwitch" role="tablist" aria-label="Timer mode">
         <span class="mode-thumb" aria-hidden="true"></span>
         <button type="button" class="mode-opt is-on" id="modeClocks" role="tab" aria-selected="true">Clocks</button>
         <button type="button" class="mode-opt" id="modeFocus" role="tab" aria-selected="false">Focus</button>
+        <button type="button" class="mode-opt" id="modePersonal" role="tab" aria-selected="false">Personal</button>
       </div>
       <div class="clock-panel">
         <div class="ring" id="shiftRing">
@@ -277,6 +280,18 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></svg>
           </button>
         </div>
+      </div>
+
+      <!-- Personal: a private, this-device-only task list - never touches
+           Firestore, not even visible to admins -->
+      <div class="personal-panel" id="personalPanel" hidden>
+        <form class="pt-add-row" id="ptAddForm">
+          <input type="text" id="ptInput" placeholder="Add a personal task…" autocomplete="off" maxlength="140">
+          <button type="submit" class="pt-add-btn" aria-label="Add task">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </form>
+        <ul class="pt-list" id="ptList"></ul>
       </div>
     </div>
     <div class="shiftbar" id="shiftbar"></div>
@@ -539,16 +554,17 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" tabindex="-1"><div class="grab"></div><div id="sheetBody"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=49"></script>
-<script src="js/render.js?v=49"></script>
-<script src="js/ui.js?v=49"></script>
-<script src="js/shift.js?v=49"></script>
-<script src="js/email.js?v=49"></script>
-<script src="js/nav.js?v=49"></script>
-<script src="js/boot.js?v=49"></script>
-<script src="js/team.js?v=49"></script>
-<script src="js/assign.js?v=49"></script>
-<script src="js/notify.js?v=49"></script>
-<script src="js/campaigns.js?v=49"></script>
-<script src="js/auth.js?v=49"></script>
-<script src="js/pomodoro.js?v=49"></script>
+<script src="js/config.js?v=50"></script>
+<script src="js/render.js?v=50"></script>
+<script src="js/ui.js?v=50"></script>
+<script src="js/shift.js?v=50"></script>
+<script src="js/email.js?v=50"></script>
+<script src="js/nav.js?v=50"></script>
+<script src="js/boot.js?v=50"></script>
+<script src="js/team.js?v=50"></script>
+<script src="js/assign.js?v=50"></script>
+<script src="js/notify.js?v=50"></script>
+<script src="js/campaigns.js?v=50"></script>
+<script src="js/auth.js?v=50"></script>
+<script src="js/personal.js?v=50"></script>
+<script src="js/pomodoro.js?v=50"></script>

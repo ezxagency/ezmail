@@ -241,13 +241,12 @@ function pomoSoundStop(){
    its ambient sound) carries on behind the clocks and the tab shows a live
    dot, so flipping back lands on the exact remaining time. Only sign-out
    ends a session. */
+// the three-way tab (Clocks/Focus/Personal) visuals live in setAppMode
+// (js/personal.js) - this owns only what Focus itself needs: which panel
+// shows, the theme veil, and whether lingering ambient/preview sound stops
 function pomoSetMode(on){
   PM.on = on;
   $("appScreen").classList.toggle("pomo-on", on);
-  $("modeClocks").classList.toggle("is-on", !on);
-  $("modeFocus").classList.toggle("is-on", on);
-  $("modeClocks").setAttribute("aria-selected", String(!on));
-  $("modeFocus").setAttribute("aria-selected", String(on));
   pomoApplyTheme(on ? PM.theme : null);
   if (!on && !PM.running) pomoSoundStop();   // leftover previews etc.
   pomoRender();
@@ -529,7 +528,7 @@ function pomoLoadFor(uid){
     PM.endAt = null;
     PM.remainMs = Math.min(PM.remainMs, pomoTotalMs()) || pomoTotalMs();
   }
-  pomoSetMode(PM.on);
+  setAppMode(PM.on ? "focus" : "clocks");
 }
 
 /* Park the current account's state and clear the deck. Called on sign-out.
@@ -550,7 +549,7 @@ function pomoUnload(){
   pomoSoundStop();
   pomoUid = null;
   PM = pomoDefaults();
-  pomoSetMode(false);
+  setAppMode("clocks");
 }
 
 /* ---------- boot ---------- */
@@ -558,8 +557,8 @@ function pomoUnload(){
   const pomo = $("pomo");
   if (!pomo) return;
   pomo.removeAttribute("hidden");   // CSS classes own visibility from here on
-  $("modeClocks").onclick = () => pomoSetMode(false);
-  $("modeFocus").onclick = () => pomoSetMode(true);
+  $("modeClocks").onclick = () => setAppMode("clocks");
+  $("modeFocus").onclick = () => setAppMode("focus");
   $("pomoPlay").onclick = () => PM.running ? pomoPause() : pomoStart();
   $("pomoReset").onclick = pomoResetPhase;
   $("pomoSkip").onclick = () => pomoAdvance(false);
@@ -571,5 +570,5 @@ function pomoUnload(){
     if (PM.muted) pomoSoundStop();
     pomoRender(); pomoSave();
   };
-  pomoSetMode(false);   // neutral until someone signs in and loads their own
+  setAppMode("clocks");   // neutral until someone signs in and loads their own
 })();

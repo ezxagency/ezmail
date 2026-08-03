@@ -54,6 +54,7 @@ function enterFullApp(user, role){
   if (isAdmin) { watchCompletionNotifications(); loadTeamPane(); }
   Store.setUser(user.uid, user.email);
   pomoLoadFor(user.uid);   // this account's own focus timer, no one else's
+  ptLoadFor(user.uid);     // ...and their own personal task list
   screen("app");
   startWorkerApp();
 }
@@ -160,9 +161,11 @@ if (!FB_READY){
       $("appScreen").classList.remove("panes", "has-team", "has-tasks", "side-open");
       $("teamPanel").classList.add("hidden");
       teamPaneRows = null; teamPendingCount = 0;
-      // park the departing account's focus timer and reset to neutral -
-      // the next sign-in loads its own, so sessions never leak across accounts
+      // park the departing account's focus timer and personal list, and
+      // reset to neutral - the next sign-in loads its own, so nothing
+      // leaks across accounts sharing this device
       pomoUnload();
+      ptUnload();
       return;
     }
     try {

@@ -1,0 +1,59 @@
+/* ============================================================
+   PERSONAL MODE — a private, this-device-only task list living in
+   the same grid slot the Clocks rings and the Focus timer swap
+   through. Same swap mechanics (display:none <-> flex, the same
+   entrance animation), never touches Firestore.
+   ============================================================ */
+.personal-panel{
+  grid-column:1/-1;display:none;flex-direction:column;gap:14px;
+  width:100%;max-width:360px;margin:0 auto;
+}
+.app.personal-on .personal-panel{display:flex;animation:paneContentIn .45s cubic-bezier(.22,1,.36,1) both}
+
+.pt-add-row{display:flex;gap:10px}
+.pt-add-row input{
+  flex:1;min-width:0;padding:13px 16px;border-radius:14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
+  color:var(--wk-white);font-family:var(--wk);font-size:14px;
+}
+.pt-add-row input::placeholder{color:var(--wk-white-60)}
+.pt-add-row input:focus{outline:2px solid var(--wk-white);outline-offset:1px}
+.pt-add-btn{
+  flex:none;width:46px;height:46px;border-radius:14px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--wk-green);border:0;color:#08210a;
+  transition:transform .14s ease,background .2s ease;
+}
+.pt-add-btn svg{width:20px;height:20px}
+.pt-add-btn:hover{background:#00c40e}
+.pt-add-btn:active{transform:scale(.93)}
+
+.pt-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:min(48vh,360px);overflow-y:auto}
+.pt-empty{padding:22px 14px;text-align:center;font-family:var(--wk);font-size:13px;color:var(--wk-white-60)}
+.pt-row{
+  display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:14px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  transition:background .15s ease,opacity .2s ease;
+}
+.pt-check{
+  flex:none;width:24px;height:24px;border-radius:50%;cursor:pointer;padding:0;
+  border:1.5px solid rgba(255,255,255,.4);background:none;
+  display:flex;align-items:center;justify-content:center;color:#08210a;
+  transition:background .15s ease,border-color .15s ease;
+}
+.pt-check svg{width:14px;height:14px;opacity:0;transition:opacity .15s ease}
+.pt-row.is-done .pt-check{background:var(--wk-green);border-color:var(--wk-green)}
+.pt-row.is-done .pt-check svg{opacity:1}
+.pt-text{flex:1;min-width:0;font-family:var(--wk);font-size:14px;color:var(--wk-white);overflow-wrap:anywhere}
+.pt-row.is-done{opacity:.55}
+.pt-row.is-done .pt-text{text-decoration:line-through;color:var(--wk-white-60)}
+.pt-del{
+  flex:none;width:28px;height:28px;border-radius:9px;cursor:pointer;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);
+  color:#FF8E8E;font-size:14px;line-height:1;
+}
+.pt-del:hover{background:rgba(255,92,92,.16)}
+
+@media (min-width:1024px){
+  .app.panes .personal-panel{max-width:none}
+}
