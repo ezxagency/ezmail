@@ -804,18 +804,29 @@ async function cgUndoPass(id){
   toast("Brought back");
 }
 
+const cgLinkRowHTML = placeholder => `
+  <div class="cg-link-row">
+    <input type="text" class="cg-link-in" placeholder="${esc(placeholder)}" autocomplete="off">
+    <button type="button" class="cg-link-x" aria-label="Remove this link" title="Remove this link">×</button>
+  </div>`;
 function cgLinkInputs(){
   return `
-    <div id="cgLinksIn"><input type="text" class="cg-link-in" placeholder="Link to the work (Doc, Figma, preview…)" autocomplete="off"></div>
+    <div id="cgLinksIn">${cgLinkRowHTML("Link to the work (Doc, Figma, preview…)")}</div>
     <button type="button" class="btn btn-ghost btn-sm" id="cgAddLink">+ Another link</button>`;
 }
+// a click into "+ Another link" with nothing to paste there shouldn't leave
+// a dead empty box behind - every row, including the first, can remove itself
+function cgWireLinkRow(row){
+  row.querySelector(".cg-link-x").onclick = () => row.remove();
+}
 function cgWireLinkInputs(){
+  document.querySelectorAll("#cgLinksIn .cg-link-row").forEach(cgWireLinkRow);
   $("cgAddLink").onclick = () => {
-    const inp = document.createElement("input");
-    inp.type = "text"; inp.className = "cg-link-in";
-    inp.placeholder = "Another link"; inp.autocomplete = "off";
-    $("cgLinksIn").append(inp);
-    inp.focus();
+    const box = $("cgLinksIn");
+    box.insertAdjacentHTML("beforeend", cgLinkRowHTML("Another link"));
+    const row = box.lastElementChild;
+    cgWireLinkRow(row);
+    row.querySelector("input").focus();
   };
 }
 function cgCleanUrl(raw){
