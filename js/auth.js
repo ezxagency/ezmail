@@ -143,7 +143,7 @@ if (!FB_READY){
       // blank state above over the previous user's stored shift history
       Store.setUser(null, null);
       assignRows = null; assignLogBox = null;
-      hxTeamRows = null; teamPageDocs = null;
+      teamHistoryRows = null; teamPageDocs = null;
       notifDir = null;
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");

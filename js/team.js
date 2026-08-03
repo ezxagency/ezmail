@@ -41,10 +41,10 @@ async function loadTeamPending(){
   }
 }
 
-/* Feeds the Team page's today table. The History page's by-member
-   breakdown reads the same appState collection independently (see
-   hxTeamRows/loadTeamHistoryRows in nav.js) - it needs a flat per-shift
-   list rather than these per-member docs, so it isn't worth sharing. */
+/* Feeds the Team page's today table. Team's own History section below
+   reads the same appState collection independently (teamHistoryRows/
+   loadTeamHistoryRows) - it needs a flat per-shift list rather than
+   these per-member docs, so it isn't worth sharing the fetch. */
 let teamPageDocs = null;
 async function loadTeamData(){
   const today = $("teamToday");
@@ -172,11 +172,12 @@ const ASSIGN_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentCol
 function showTeam(){ go("team"); }
 function loadTeamScreen(){
   $("teamPageClose").onclick = () => go("");
-  $("teamExportAll").onclick = exportAllExcel;
   loadTeamPending();
   loadTeamData();
   ackCompletedAssignments(); // clears the notification badge; log below stays regardless
   loadCompletionLog(true, $("teamRecentlyDone"));
+  teamHistoryRows = null;   // fresh fetch every visit, same as the rest of this page
+  renderTeamHistorySection();
 }
 
 /* The `assignments` collection, fetched once and shared everywhere it's
@@ -364,6 +365,346 @@ async function deleteAssignment(idsCsv){
     console.error(e);
     toast("Couldn't delete — check Firestore rules allow admin deletes");
   }
+}
+
+/* ============================================================
+   TEAM'S HISTORY SECTION — the whole team's closed-shift record. Same
+   shape as the worker-facing History page (js/nav.js) - KPI tiles with
+   sparklines, range/search filters, a day-grouped shift list - plus a
+   sortable by-member breakdown and the team Excel export, since those
+   only make sense once "everyone" is the audience. Reuses nav.js's
+   stateless helpers (sparklineSvg, hxMonthKey) but keeps its own filter
+   state, independent of whatever the worker-facing History page's own
+   filters happen to be doing.
+   ============================================================ */
+let thxRange = "today";
+let thxQuery = "";
+let thxStart = "", thxEnd = "";
+let thxOpenKeys = new Set();
+let thxMemberSort = { key: "hours", dir: -1 };
+let teamHistoryRows = null;   // every member's closed shifts, flattened
+
+async function loadTeamHistoryRows(){
+  const snap = await db.collection("appState").get();
+  const rows = [];
+  snap.forEach(doc => {
+    const data = doc.data();
+    let s; try { s = JSON.parse(data.json); } catch { s = null; }
+    if (!s) return;
+    (s.history || []).forEach(r =>
+      rows.push({ ...r, worker: r.worker || s.worker || data.email || "Unnamed", uid: doc.id }));
+  });
+  return rows;
+}
+
+const thxKey = r => (r.uid ? r.uid + ":" : "") + r.startedAt;
+
+function thxFiltered(){
+  const q = thxQuery.trim().toLowerCase();
+  let rows = teamHistoryRows || [];
+  if (thxRange === "today"){
+    const key = dayStamp(Date.now());
+    rows = rows.filter(r => dayStamp(r.startedAt) === key);
+  } else if (thxRange === "custom"){
+    rows = summaryFilterRows(rows, thxStart, thxEnd);
+  } else if (thxRange !== "all"){
+    const cut = Date.now() - Number(thxRange) * 86400000;
+    rows = rows.filter(r => r.startedAt >= cut);
+  }
+  if (!q) return rows;
+  return rows.filter(r => {
+    const hay = [r.worker, r.client, r.note, ...taskTally(r, r.endedAt).map(t => t.store + " " + t.task)].join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function thxRangeLabel(){
+  if (thxRange === "today") return "Today";
+  if (thxRange === "7") return "Last 7 days";
+  if (thxRange === "30") return "Last 30 days";
+  if (thxRange === "custom") return summaryRangeLabel(thxStart, thxEnd);
+  return "All time";
+}
+
+// same bucketing rule as nav.js's hxSeries, just reading thx* filter
+// state instead of hx*
+function thxSeries(rows){
+  if (thxRange === "today" || !rows.length) return null;
+  let keyOf, order;
+  if (thxRange === "7" || thxRange === "30"){
+    const days = Number(thxRange);
+    keyOf = r => dayStamp(r.startedAt);
+    order = Array.from({ length: days }, (_, i) => dayStamp(Date.now() - (days - 1 - i) * 86400000));
+  } else if (thxRange === "custom" && thxStart && thxEnd){
+    const spanDays = Math.round((new Date(thxEnd) - new Date(thxStart)) / 86400000) + 1;
+    if (spanDays > 0 && spanDays <= 60){
+      keyOf = r => dayStamp(r.startedAt);
+      order = Array.from({ length: spanDays }, (_, i) => dayStamp(new Date(thxStart).getTime() + i * 86400000));
+    } else {
+      keyOf = r => hxMonthKey(r.startedAt);
+      order = [...new Set(rows.map(keyOf))].sort();
+    }
+  } else {
+    keyOf = r => hxMonthKey(r.startedAt);
+    order = [...new Set(rows.map(keyOf))].sort();
+  }
+  if (order.length < 2) return null;
+  const byKey = new Map();
+  rows.forEach(r => {
+    const k = keyOf(r);
+    const cur = byKey.get(k) || { ms: 0, shifts: 0 };
+    cur.ms += r.netMs; cur.shifts += 1;
+    byKey.set(k, cur);
+  });
+  return order.map(k => byKey.get(k) || { ms: 0, shifts: 0 });
+}
+
+// per-member rollup of whatever rows are currently filtered - same range
+// chips and search as the shift list below it, so the two never show
+// different slices of the same period
+function hxMemberStats(rows){
+  const byMember = new Map();
+  rows.forEach(r => {
+    const key = r.uid || r.worker;
+    let m = byMember.get(key);
+    if (!m){ m = { name: r.worker || "Unnamed", days: new Set(), ms: 0, shifts: 0, ratingSum: 0, ratingCount: 0 }; byMember.set(key, m); }
+    m.days.add(dayStamp(r.startedAt));
+    m.ms += r.netMs;
+    m.shifts += 1;
+    if (r.rating){ m.ratingSum += r.rating; m.ratingCount += 1; }
+  });
+  return [...byMember.values()].map(m => ({
+    name: m.name, days: m.days.size, shifts: m.shifts, ms: m.ms,
+    avgMs: m.days.size ? m.ms / m.days.size : 0,
+    avgRating: m.ratingCount ? m.ratingSum / m.ratingCount : null
+  }));
+}
+const THX_MEMBER_COLS = [
+  { key: "name",   label: "Member" },
+  { key: "days",   label: "Days" },
+  { key: "shifts", label: "Shifts" },
+  { key: "hours",  label: "Total Hours" },
+  { key: "avg",    label: "Avg / Day" },
+  { key: "rating", label: "Avg Rating" }
+];
+function thxMemberSortVal(m, key){
+  switch (key){
+    case "name": return m.name.toLowerCase();
+    case "days": return m.days;
+    case "shifts": return m.shifts;
+    case "hours": return m.ms;
+    case "avg": return m.avgMs;
+    case "rating": return m.avgRating || 0;
+    default: return 0;
+  }
+}
+function renderThxMembers(rows){
+  const box = $("thxMembers");
+  if (!box) return;
+  const members = hxMemberStats(rows);
+  if (!members.length){ box.innerHTML = ""; return; }
+  const { key, dir } = thxMemberSort;
+  members.sort((a, b) => {
+    const av = thxMemberSortVal(a, key), bv = thxMemberSortVal(b, key);
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+  box.innerHTML = `
+    <p class="fpage-section-title">By member</p>
+    <div class="table-card">
+      <table class="assign-table month-table">
+        <thead><tr>
+          ${THX_MEMBER_COLS.map(c => `
+            <th data-sort="${c.key}" class="${key === c.key ? "is-sorted" : ""}"
+                aria-sort="${key === c.key ? (dir === 1 ? "ascending" : "descending") : "none"}">
+              ${esc(c.label)}${key === c.key ? `<span class="hx-sort-arrow">${dir === 1 ? "▲" : "▼"}</span>` : ""}
+            </th>`).join("")}
+        </tr></thead>
+        <tbody>
+          ${members.map(m => `<tr data-member="${esc(m.name)}">
+            <td data-label="Member" class="work-name">${esc(m.name)}</td>
+            <td data-label="Days" class="nowrap">${m.days}</td>
+            <td data-label="Shifts" class="nowrap">${m.shifts}</td>
+            <td data-label="Total Hours" class="nowrap">${humanDur(m.ms)}</td>
+            <td data-label="Avg / Day" class="nowrap">${m.avgMs ? humanDur(m.avgMs) : "—"}</td>
+            <td data-label="Avg Rating" class="nowrap">${m.avgRating ? m.avgRating.toFixed(1) + `<small>/5</small>` : "—"}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  box.querySelectorAll("th[data-sort]").forEach(th => {
+    th.onclick = () => {
+      const k = th.dataset.sort;
+      thxMemberSort = thxMemberSort.key === k
+        ? { key: k, dir: thxMemberSort.dir * -1 }
+        : { key: k, dir: (k === "name") ? 1 : -1 };
+      renderThxMembers(rows);
+    };
+  });
+  // a member row is a quick filter: jump the shift list below to just them
+  box.querySelectorAll("tr[data-member]").forEach(tr => {
+    tr.title = "Show only this member's shifts";
+    tr.onclick = () => {
+      thxQuery = tr.dataset.member;
+      const search = $("thxSearch");
+      if (search) search.value = thxQuery;
+      renderTeamHistoryList();
+    };
+  });
+}
+
+function renderTeamHistorySection(){
+  const box = $("teamHistorySection");
+  if (!box) return;
+
+  if (teamHistoryRows === null){
+    box.innerHTML = `<p class="fpage-section-title">History</p><div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>`;
+    loadTeamHistoryRows()
+      .then(rows => { teamHistoryRows = rows; renderTeamHistorySection(); })
+      .catch(e => { console.error(e); teamHistoryRows = []; renderTeamHistorySection(); });
+    return;
+  }
+
+  if (!teamHistoryRows.length){
+    box.innerHTML = `
+      <p class="fpage-section-title">History</p>
+      <div class="fpage-panel"><div class="empty">No closed shifts across the team yet.</div></div>`;
+    return;
+  }
+
+  box.innerHTML = `
+    <p class="fpage-section-title">History</p>
+    <div id="thxStats"></div>
+    <div class="fpage-filters">
+      <button type="button" class="chip" data-range="today">Today</button>
+      <button type="button" class="chip" data-range="7">Last 7 days</button>
+      <button type="button" class="chip" data-range="30">Last 30 days</button>
+      <button type="button" class="chip" data-range="all">All time</button>
+      <button type="button" class="chip" data-range="custom">Custom…</button>
+      <label class="fpage-search"><input type="text" id="thxSearch" placeholder="Search member, store, task or note…" value="${esc(thxQuery)}" autocomplete="off"></label>
+    </div>
+    <div class="fpage-dates${thxRange === "custom" ? "" : " hidden"}" id="thxDates">
+      <label>From <input type="date" id="thxStart" value="${esc(thxStart)}"></label>
+      <label>To <input type="date" id="thxEnd" value="${esc(thxEnd)}"></label>
+    </div>
+    <div id="thxMembers"></div>
+    <div id="thxList"></div>`;
+
+  box.querySelectorAll(".chip[data-range]").forEach(c => {
+    c.setAttribute("aria-pressed", String(c.dataset.range === thxRange));
+    c.onclick = () => {
+      thxRange = c.dataset.range;
+      if (thxRange === "custom" && !thxStart && !thxEnd){
+        thxStart = summaryISO(Date.now() - 6 * 86400000);
+        thxEnd = summaryISO(Date.now());
+      }
+      renderTeamHistorySection();
+    };
+  });
+  const search = $("thxSearch");
+  search.oninput = () => { thxQuery = search.value; renderTeamHistoryList(); };
+  const dateInput = id => { const el = $(id); if (el) el.onchange = () => {
+    thxStart = $("thxStart").value; thxEnd = $("thxEnd").value; renderTeamHistoryList();
+  }; };
+  dateInput("thxStart"); dateInput("thxEnd");
+  renderTeamHistoryList();
+}
+
+function renderTeamHistoryList(){
+  const rows = thxFiltered();
+  const stats = $("thxStats"), list = $("thxList");
+  if (!stats || !list) return;
+
+  const total = rows.reduce((t, r) => t + r.netMs, 0);
+  const rated = rows.filter(r => r.rating);
+  const avgRating = rated.length ? (rated.reduce((t, r) => t + r.rating, 0) / rated.length).toFixed(1) : null;
+  const series = thxSeries(rows);
+  const rangeWords = thxRangeLabel();
+  stats.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <p class="stat-tile-label">Shifts</p><p class="stat-tile-value">${rows.length}</p>
+        ${series ? `<div class="stat-tile-spark">${sparklineSvg(series.map(d => d.shifts), `Shifts across ${rangeWords}`)}</div>` : ""}
+      </div>
+      <div class="stat-tile">
+        <p class="stat-tile-label">Net worked</p><p class="stat-tile-value">${humanDur(total)}</p>
+        ${series ? `<div class="stat-tile-spark">${sparklineSvg(series.map(d => d.ms / 3600000), `Hours across ${rangeWords}`)}</div>` : ""}
+      </div>
+      <div class="stat-tile"><p class="stat-tile-label">Avg shift</p><p class="stat-tile-value">${rows.length ? humanDur(total / rows.length) : "—"}</p></div>
+      <div class="stat-tile"><p class="stat-tile-label">Avg rating</p><p class="stat-tile-value">${avgRating ? avgRating + `<small>/ 5</small>` : "—"}</p></div>
+    </div>
+    <div class="fpage-bar">
+      <p class="fpage-bar-note">${rows.length} shift${rows.length === 1 ? "" : "s"} shown${thxRange !== "all" || thxQuery ? " · filtered" : ""}</p>
+      <div class="fpage-bar-acts">
+        <button class="btn btn-go btn-sm" id="thxExport">Export team report</button>
+      </div>
+    </div>`;
+  const teamXl = $("thxExport");
+  if (teamXl) teamXl.onclick = exportAllExcel;
+
+  renderThxMembers(rows);
+
+  if (!rows.length){
+    list.innerHTML = `<div class="fpage-panel"><div class="empty">Nothing matches this filter. Widen the range or clear the search.</div></div>`;
+    return;
+  }
+
+  const sorted = [...rows].sort((a, b) => b.startedAt - a.startedAt);
+  let lastDay = null, html = `<ul class="hx-list">`;
+  sorted.forEach(r => {
+    const day = dayStamp(r.startedAt);
+    if (day !== lastDay){ html += `</ul><p class="hx-day">${day}</p><ul class="hx-list">`; lastDay = day; }
+    const tally = taskTally(r, r.endedAt);
+    const open = thxOpenKeys.has(thxKey(r));
+    const maxMs = tally.length ? tally[0].ms : 1;
+    html += `
+      <li class="hx-row${open ? " is-open" : ""}" data-k="${esc(thxKey(r))}">
+        <button type="button" class="hx-head" aria-expanded="${open}">
+          <span class="hx-when"><span class="hx-date">${day}</span>
+            <span class="hx-clock">${clock(r.startedAt)}–${clock(r.endedAt)}</span></span>
+          <span class="hx-mid"><span class="hx-store">${esc((r.worker ? r.worker + " · " : "") + r.client)}</span>
+            <span class="hx-meta">${tally.length} task${tally.length === 1 ? "" : "s"} · ${r.breakMs ? humanDur(r.breakMs) + " break · " : ""}${r.rating}/5</span></span>
+          <span class="hx-net">${humanDur(r.netMs)}</span>
+          <svg class="hx-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="hx-body">
+          ${tally.length ? `<p class="fpage-section-title">Tasks</p>` + tally.map(t => `
+            <div class="tbar-row">
+              <span class="tbar-name" title="${esc(t.store)} · ${esc(t.task)}">${esc(t.store)} · ${esc(t.task)}</span>
+              <span class="tbar-track"><span class="tbar-fill" style="width:${Math.max(3, Math.round(t.ms / maxMs * 100))}%"></span></span>
+              <span class="tbar-ms">${humanDur(t.ms)}</span>
+            </div>`).join("") : ""}
+          <p class="fpage-section-title">Timeline</p>
+          <ul class="punches">
+            ${punchEvents(r).map(e => `
+              <li><span class="punch-t">${clock(e.t)}</span>
+                  <span class="punch-k ${e.cls}">${esc(e.k)}</span>
+                  <span class="punch-n">${esc(e.n || "")}</span></li>`).join("")}
+          </ul>
+          <p class="fpage-section-title">Rating</p>
+          <p class="hx-stars">${"★".repeat(Math.max(0, Math.min(5, r.rating || 0)))}${"☆".repeat(5 - Math.max(0, Math.min(5, r.rating || 0)))}</p>
+          ${r.note ? `<p class="fpage-section-title">Note</p><p class="hx-note">${esc(r.note)}</p>` : ""}
+          <div class="hx-acts">
+            <button type="button" class="btn btn-ghost btn-sm" data-copy="${esc(thxKey(r))}">Copy report</button>
+          </div>
+        </div>
+      </li>`;
+  });
+  html += `</ul>`;
+  list.innerHTML = html;
+
+  list.querySelectorAll(".hx-head").forEach(b => b.onclick = () => {
+    const row = b.closest(".hx-row"), k = row.dataset.k;
+    const open = row.classList.toggle("is-open");
+    b.setAttribute("aria-expanded", String(open));
+    if (open) thxOpenKeys.add(k); else thxOpenKeys.delete(k);
+  });
+  list.querySelectorAll("button[data-copy]").forEach(b => b.onclick = async () => {
+    const r = (teamHistoryRows || []).find(x => thxKey(x) === b.dataset.copy);
+    if (!r) return;
+    toast(await copyText(reportText(r)) ? "Report copied" : "Copy failed");
+  });
 }
 
 /* ============================================================

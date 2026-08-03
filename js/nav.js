@@ -108,7 +108,7 @@ function applyRoute(){
   if (r === "mission") renderMissionPage();
   // walking into History refetches the team's record; while ON the page,
   // refreshOpenPage re-renders from the cache without another round trip
-  else if (r === "history"){ if (isAdmin) hxTeamRows = null; renderHistoryPage(); }
+  else if (r === "history") renderHistoryPage();
   else if (r === "campaigns") enterCampaignsPage();
   else if (r === "team") loadTeamScreen();
 }
@@ -292,32 +292,21 @@ function updateMissionTick(){
    its own overlapping monthly totals off a second fetch of the same
    appState collection; folding it in here means one filter (these range
    chips + search), one fetch, one place these numbers can disagree.
-   Defaults to TODAY's shifts. An admin sees the whole team's record here
-   (one fetch per visit); everyone else sees only their own.
+   Defaults to TODAY's shifts. Personal only - the admin's whole-team
+   view of this same appState collection lives in Team's own History
+   section instead (js/team.js). That section reuses this file's
+   stateless helpers (sparklineSvg, hxMonthKey) but keeps its own filter
+   state, since "the whole team" and "my own record" are different
+   enough views to want independent controls rather than sharing one.
    ============================================================ */
 let hxRange = "today"; // today | all | 7 | 30 | custom — survives leaving the page
 let hxQuery = "";
 let hxStart = "", hxEnd = "";   // the custom range's calendar bounds
 let hxOpenKeys = new Set();
-let hxTeamRows = null;   // admin only: every member's closed shifts, flattened
-let hxMemberSort = { key: "hours", dir: -1 };
 
 // uid disambiguates two members clocking in at the same millisecond
 const hxKey = r => (r.uid ? r.uid + ":" : "") + r.startedAt;
-const hxRows = () => (isAdmin && hxTeamRows) ? hxTeamRows : S.history;
-
-async function loadTeamHistoryRows(){
-  const snap = await db.collection("appState").get();
-  const rows = [];
-  snap.forEach(doc => {
-    const data = doc.data();
-    let s; try { s = JSON.parse(data.json); } catch { s = null; }
-    if (!s) return;
-    (s.history || []).forEach(r =>
-      rows.push({ ...r, worker: r.worker || s.worker || data.email || "Unnamed", uid: doc.id }));
-  });
-  return rows;
-}
+const hxRows = () => S.history;
 
 function hxFiltered(){
   const q = hxQuery.trim().toLowerCase();
@@ -333,7 +322,7 @@ function hxFiltered(){
   }
   if (!q) return rows;
   return rows.filter(r => {
-    const hay = [r.worker, r.client, r.note, ...taskTally(r, r.endedAt).map(t => t.store + " " + t.task)].join(" ").toLowerCase();
+    const hay = [r.client, r.note, ...taskTally(r, r.endedAt).map(t => t.store + " " + t.task)].join(" ").toLowerCase();
     return hay.includes(q);
   });
 }
@@ -350,7 +339,9 @@ function hxRangeLabel(){
 /* One point per bucket of the active filter, for the two KPI sparklines -
    granularity follows the range so "last 7 days" gets 7 daily points and
    "all time" gets one per month, never an unreadable pile of points.
-   "Today" has nothing to trend against a single day, so it gets none. */
+   "Today" has nothing to trend against a single day, so it gets none.
+   hxMonthKey and sparklineSvg below are pure - Team's History section
+   (js/team.js) reuses both directly rather than redefining them. */
 function hxMonthKey(ts){ const d = new Date(ts); return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
 function hxSeries(rows){
   if (hxRange === "today" || !rows.length) return null;
@@ -410,117 +401,9 @@ function sparklineSvg(values, title){
     </svg>`;
 }
 
-/* Admin-only by-member rollup of whatever rows are currently filtered -
-   same range chips and search as the shift list below it, so the two
-   never show different slices of the same period. */
-function hxMemberStats(rows){
-  const byMember = new Map();
-  rows.forEach(r => {
-    const key = r.uid || r.worker;
-    let m = byMember.get(key);
-    if (!m){ m = { name: r.worker || "Unnamed", days: new Set(), ms: 0, shifts: 0, ratingSum: 0, ratingCount: 0 }; byMember.set(key, m); }
-    m.days.add(dayStamp(r.startedAt));
-    m.ms += r.netMs;
-    m.shifts += 1;
-    if (r.rating){ m.ratingSum += r.rating; m.ratingCount += 1; }
-  });
-  return [...byMember.values()].map(m => ({
-    name: m.name, days: m.days.size, shifts: m.shifts, ms: m.ms,
-    avgMs: m.days.size ? m.ms / m.days.size : 0,
-    avgRating: m.ratingCount ? m.ratingSum / m.ratingCount : null
-  }));
-}
-const HX_MEMBER_COLS = [
-  { key: "name",   label: "Member" },
-  { key: "days",   label: "Days" },
-  { key: "shifts", label: "Shifts" },
-  { key: "hours",  label: "Total Hours" },
-  { key: "avg",    label: "Avg / Day" },
-  { key: "rating", label: "Avg Rating" }
-];
-function hxMemberSortVal(m, key){
-  switch (key){
-    case "name": return m.name.toLowerCase();
-    case "days": return m.days;
-    case "shifts": return m.shifts;
-    case "hours": return m.ms;
-    case "avg": return m.avgMs;
-    case "rating": return m.avgRating || 0;
-    default: return 0;
-  }
-}
-function renderHxMembers(rows){
-  const box = $("hxMembers");
-  if (!box) return;
-  if (!isAdmin){ box.innerHTML = ""; return; }
-  const members = hxMemberStats(rows);
-  if (!members.length){ box.innerHTML = ""; return; }
-  const { key, dir } = hxMemberSort;
-  members.sort((a, b) => {
-    const av = hxMemberSortVal(a, key), bv = hxMemberSortVal(b, key);
-    if (av < bv) return -1 * dir;
-    if (av > bv) return 1 * dir;
-    return 0;
-  });
-  box.innerHTML = `
-    <p class="fpage-section-title">By member</p>
-    <div class="table-card">
-      <table class="assign-table month-table">
-        <thead><tr>
-          ${HX_MEMBER_COLS.map(c => `
-            <th data-sort="${c.key}" class="${key === c.key ? "is-sorted" : ""}"
-                aria-sort="${key === c.key ? (dir === 1 ? "ascending" : "descending") : "none"}">
-              ${esc(c.label)}${key === c.key ? `<span class="hx-sort-arrow">${dir === 1 ? "▲" : "▼"}</span>` : ""}
-            </th>`).join("")}
-        </tr></thead>
-        <tbody>
-          ${members.map(m => `<tr data-member="${esc(m.name)}">
-            <td data-label="Member" class="work-name">${esc(m.name)}</td>
-            <td data-label="Days" class="nowrap">${m.days}</td>
-            <td data-label="Shifts" class="nowrap">${m.shifts}</td>
-            <td data-label="Total Hours" class="nowrap">${humanDur(m.ms)}</td>
-            <td data-label="Avg / Day" class="nowrap">${m.avgMs ? humanDur(m.avgMs) : "—"}</td>
-            <td data-label="Avg Rating" class="nowrap">${m.avgRating ? m.avgRating.toFixed(1) + `<small>/5</small>` : "—"}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>`;
-  box.querySelectorAll("th[data-sort]").forEach(th => {
-    th.onclick = () => {
-      const k = th.dataset.sort;
-      hxMemberSort = hxMemberSort.key === k
-        ? { key: k, dir: hxMemberSort.dir * -1 }
-        : { key: k, dir: (k === "name") ? 1 : -1 };
-      renderHxMembers(rows);
-    };
-  });
-  // a member row is a quick filter: jump the shift list below to just them
-  box.querySelectorAll("tr[data-member]").forEach(tr => {
-    tr.title = "Show only this member's shifts";
-    tr.onclick = () => {
-      hxQuery = tr.dataset.member;
-      const search = $("hxSearch");
-      if (search) search.value = hxQuery;
-      renderHistoryList();
-    };
-  });
-}
-
 function renderHistoryPage(){
   const box = $("historyBody");
   if (!box) return;
-  const eyebrow = document.querySelector("#historyScreen .fpage-eyebrow");
-  if (eyebrow) eyebrow.textContent = isAdmin ? "Team record" : "Your record";
-
-  // the admin's view is the whole team - fetched once per visit, then the
-  // page filters it client-side like everything else
-  if (isAdmin && hxTeamRows === null){
-    box.innerHTML = `<div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>`;
-    loadTeamHistoryRows()
-      .then(rows => { hxTeamRows = rows; renderHistoryPage(); })
-      .catch(e => { console.error(e); hxTeamRows = []; renderHistoryPage(); });
-    return;
-  }
 
   if (!hxRows().length){
     box.innerHTML = `
@@ -529,7 +412,7 @@ function renderHistoryPage(){
           <span class="empty-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9.5V13l2.5 1.8"/><path d="M9 2h6"/></svg>
           </span>
-          ${isAdmin ? "No closed shifts across the team yet." : "No closed shifts yet. Your first clock-out lands here, ready to export."}
+          No closed shifts yet. Your first clock-out lands here, ready to export.
         </div>
       </div>`;
     return;
@@ -543,13 +426,12 @@ function renderHistoryPage(){
       <button type="button" class="chip" data-range="30">Last 30 days</button>
       <button type="button" class="chip" data-range="all">All time</button>
       <button type="button" class="chip" data-range="custom">Custom…</button>
-      <label class="fpage-search"><input type="text" id="hxSearch" placeholder="Search ${isAdmin ? "member, " : ""}store, task or note…" value="${esc(hxQuery)}" autocomplete="off"></label>
+      <label class="fpage-search"><input type="text" id="hxSearch" placeholder="Search store, task or note…" value="${esc(hxQuery)}" autocomplete="off"></label>
     </div>
     <div class="fpage-dates${hxRange === "custom" ? "" : " hidden"}" id="hxDates">
       <label>From <input type="date" id="hxStart" value="${esc(hxStart)}"></label>
       <label>To <input type="date" id="hxEnd" value="${esc(hxEnd)}"></label>
     </div>
-    <div id="hxMembers"></div>
     <div id="hxList"></div>`;
 
   box.querySelectorAll(".chip[data-range]").forEach(c => {
@@ -599,15 +481,9 @@ function renderHistoryList(){
     <div class="fpage-bar">
       <p class="fpage-bar-note">${rows.length} shift${rows.length === 1 ? "" : "s"} shown${hxRange !== "all" || hxQuery ? " · filtered" : ""}</p>
       <div class="fpage-bar-acts">
-        ${isAdmin
-          ? `<button class="btn btn-go btn-sm" id="hxTeamExport">Export team report</button>`
-          : `<button class="btn btn-go btn-sm" id="hxEmail" ${rows.length ? "" : "disabled"}>Email my summary</button>`}
+        <button class="btn btn-go btn-sm" id="hxEmail" ${rows.length ? "" : "disabled"}>Email my summary</button>
       </div>
     </div>`;
-  // the admin's page shows the whole team, so its export is the team
-  // workbook; everyone else gets their own summary as a formatted email
-  const teamXl = $("hxTeamExport");
-  if (teamXl) teamXl.onclick = exportAllExcel;
   const em = $("hxEmail");
   if (em) em.onclick = async () => {
     const me = (auth && auth.currentUser && auth.currentUser.email) || "";
@@ -618,8 +494,6 @@ function renderHistoryList(){
     await queueSummaryEmail({ to: me, name: S.worker || me, rows: hxFiltered(), rangeLabel: hxRangeLabel() });
     btn.disabled = false; btn.textContent = "Email my summary";
   };
-
-  renderHxMembers(rows);
 
   if (!rows.length){
     list.innerHTML = `<div class="fpage-panel"><div class="empty">Nothing matches this filter. Widen the range or clear the search.</div></div>`;
@@ -639,7 +513,7 @@ function renderHistoryList(){
         <button type="button" class="hx-head" aria-expanded="${open}">
           <span class="hx-when"><span class="hx-date">${day}</span>
             <span class="hx-clock">${clock(r.startedAt)}–${clock(r.endedAt)}</span></span>
-          <span class="hx-mid"><span class="hx-store">${esc((isAdmin && r.worker ? r.worker + " · " : "") + r.client)}</span>
+          <span class="hx-mid"><span class="hx-store">${esc(r.client)}</span>
             <span class="hx-meta">${tally.length} task${tally.length === 1 ? "" : "s"} · ${r.breakMs ? humanDur(r.breakMs) + " break · " : ""}${r.rating}/5</span></span>
           <span class="hx-net">${humanDur(r.netMs)}</span>
           <svg class="hx-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
