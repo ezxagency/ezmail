@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    AUTH + ADMIN
    ============================================================ */
 function screen(show){
@@ -49,7 +49,7 @@ let teamPageDocs = null;
 async function loadTeamData(){
   const today = $("teamToday");
   if (!today) return;
-  today.innerHTML = `<p class="hint">Loading today's workâ€¦</p>`;
+  today.innerHTML = `<p class="hint">Loading today's work…</p>`;
   try {
     const snap = await db.collection("appState").get();
     const docs = [];
@@ -63,7 +63,7 @@ async function loadTeamData(){
     backfillDirectoryFrom(docs);   // keep every teammate @-mentionable
   } catch (e) {
     console.error(e);
-    today.innerHTML = `<div class="empty">Couldn't load team data â€” check Firestore rules allow admin reads.</div>`;
+    today.innerHTML = `<div class="empty">Couldn't load team data — check Firestore rules allow admin reads.</div>`;
   }
 }
 
@@ -131,7 +131,7 @@ function renderTodaysWork(docs){
       <p class="hint" style="margin:0">Today's work
         ${canAssignTasks ? `<button type="button" class="panel-menu head-assign" id="twAssign" aria-label="Assign task" title="Assign task" style="vertical-align:middle;margin-left:6px">${ASSIGN_ICON_SVG}</button>` : ""}
       </p>
-      <p class="work-sum">${rows.length} on the clock today Â· <b>${humanDur(totalNet)}</b> net${onNow ? ` Â· ${onNow} still on shift` : ""}</p>
+      <p class="work-sum">${rows.length} on the clock today · <b>${humanDur(totalNet)}</b> net${onNow ? ` · ${onNow} still on shift` : ""}</p>
     </div>
     <div class="table-card">
       <table class="assign-table work-table">
@@ -145,14 +145,14 @@ function renderTodaysWork(docs){
               <td data-label="Member" class="work-name">${esc(r.name)}</td>
               <td data-label="Status" class="nowrap"><span class="work-status is-${w.state}">${WORK_STATE[w.state]}</span></td>
               <td data-label="In" class="nowrap">${clock(w.firstIn)}</td>
-              <td data-label="Out" class="nowrap">${w.lastOut ? clock(w.lastOut) : "â€”"}</td>
+              <td data-label="Out" class="nowrap">${w.lastOut ? clock(w.lastOut) : "—"}</td>
               <td data-label="Stores">${w.stores.length
                 ? w.stores.map(st => `<span class="work-chip">${esc(st)}</span>`).join("")
-                : "â€”"}</td>
+                : "—"}</td>
               <td data-label="Tasks">${w.tasks.length
                 ? w.tasks.map(t => `<span class="work-task">${esc(t.task)} <b>${humanDur(t.ms)}</b></span>`).join("")
-                : "â€”"}</td>
-              <td data-label="Break" class="nowrap">${w.brk ? humanDur(w.brk) : "â€”"}</td>
+                : "—"}</td>
+              <td data-label="Break" class="nowrap">${w.brk ? humanDur(w.brk) : "—"}</td>
               <td data-label="Worked" class="work-net">${humanDur(w.net)}</td>
             </tr>`;
           }).join("")}
@@ -207,14 +207,14 @@ async function loadCompletionLog(reset, box){
   if (!box) return;
   assignLogBox = box;
   if (reset || assignRows === null) {
-    box.innerHTML = `<p class="hint" style="margin-bottom:8px">Loading assignmentsâ€¦</p>`
+    box.innerHTML = `<p class="hint" style="margin-bottom:8px">Loading assignments…</p>`
       + `<div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>`;
     try {
       await fetchAssignRows();
     } catch (e) {
       console.error(e);
       assignRows = [];
-      box.innerHTML = `<div class="empty">Couldn't load assignments â€” check your connection and Firestore rules.</div>`;
+      box.innerHTML = `<div class="empty">Couldn't load assignments — check your connection and Firestore rules.</div>`;
       return;
     }
   }
@@ -239,7 +239,7 @@ const TLOG_ORDER = ["done", "open", "late"];
 const TLOG_META = {
   done: { label: "Completed Task", empty: "Nothing completed in this batch yet." },
   open: { label: "Open Task",      empty: "Nothing open right now." },
-  late: { label: "Overdue Task",   empty: "Nothing overdue â€” nice." }
+  late: { label: "Overdue Task",   empty: "Nothing overdue — nice." }
 };
 
 function renderTeamStatusCards(box, rows){
@@ -310,10 +310,10 @@ function tlogItemHtml(status, t){
     <li><div class="tlog-item">
       <span class="tlog-who">${esc(r.toName || "Someone")}</span>
       <span class="tlog-what">
-        <b>${esc(threadStores(t).join(", ") || "â€”")}</b> Â· ${esc(threadTasks(t).join(", ") || "â€”")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}${seenMark(t)}
+        <b>${esc(threadStores(t).join(", ") || "—")}</b> · ${esc(threadTasks(t).join(", ") || "—")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}${seenMark(t)}
       </span>
       <span class="tlog-dates">
-        <span>Assigned ${r.createdAt ? dayStamp(r.createdAt) : "â€”"}</span>
+        <span>Assigned ${r.createdAt ? dayStamp(r.createdAt) : "—"}</span>
         <span>${secondLine}</span>
       </span>
       <span class="tlog-acts row-acts">
@@ -350,7 +350,7 @@ async function deleteAssignment(idsCsv){
   const what = !row ? "this assignment"
     : ids.length > 1
       ? `all ${ids.length} tasks in this group for ${row.toName || "someone"}`
-      : `${row.task || "task"} at ${row.store || "â€”"} for ${row.toName || "someone"}`;
+      : `${row.task || "task"} at ${row.store || "—"} for ${row.toName || "someone"}`;
   if (!confirm(`Delete ${what}?\n\nThis removes it for them too, and can't be undone.`)) return;
   try {
     const batch = db.batch();
@@ -362,12 +362,12 @@ async function deleteAssignment(idsCsv){
     toast(ids.length > 1 ? "Group deleted" : "Assignment deleted");
   } catch (e) {
     console.error(e);
-    toast("Couldn't delete â€” check Firestore rules allow admin deletes");
+    toast("Couldn't delete — check Firestore rules allow admin deletes");
   }
 }
 
 /* ============================================================
-   TEAM PANE â€” the admin's third column on desktop. Collapsed it is a
+   TEAM PANE — the admin's third column on desktop. Collapsed it is a
    notification: standing counts plus the most recent completion. Expanded
    it swaps places with the punch card and shows every assignment.
    Narrow screens never see it; they use showTeam()'s full page instead.
@@ -430,7 +430,7 @@ function threadDues(t){
 }
 function threadDueCell(t){
   const d = threadDues(t);
-  if (!d.min) return "â€”";
+  if (!d.min) return "—";
   const all = t.rows.map(r => r.dueDate || "no date");
   return `<span${d.varied ? ` title="${esc([...new Set(all)].join(", "))}"` : ""}>${esc(d.min)}${d.varied ? " +" : ""}</span>`;
 }
@@ -445,7 +445,7 @@ function seenMark(t){
   return `<span class="seen-eye" title="Seen ${esc(whenLabel(threadSeenAt(t)))}" aria-label="Seen">${EYE_GLYPH}</span>`;
 }
 
-// "Jul 26, 2026 Â· 21:37" is the least important line in the card and was
+// "Jul 26, 2026 · 21:37" is the least important line in the card and was
 // taking the most room. Anchor it to now instead.
 function whenLabel(ts){
   const d = new Date(ts), now = new Date();
@@ -513,10 +513,10 @@ function renderTeamPane(){
   const shipped = cgs.filter(c => c.status === "live" && c.liveAt).sort((a,b) => b.liveAt - a.liveAt)[0];
   if (shipped && (!done || shipped.liveAt > done.doneAt)){
     latest.innerHTML = `<div class="team-latest-who">${esc(shipped.title)} went LIVE</div>
-       <div class="team-latest-what">${esc(shipped.store || "campaign")}<span class="team-latest-when"> Â· ${whenLabel(shipped.liveAt)}</span></div>`;
+       <div class="team-latest-what">${esc(shipped.store || "campaign")}<span class="team-latest-when"> · ${whenLabel(shipped.liveAt)}</span></div>`;
   } else latest.innerHTML = done
     ? `<div class="team-latest-who">${esc(done.toName || "Someone")} finished ${esc(done.task || "a task")}</div>
-       <div class="team-latest-what">${esc(done.store || "â€”")}<span class="team-latest-when"> Â· ${whenLabel(done.doneAt)}</span></div>`
+       <div class="team-latest-what">${esc(done.store || "—")}<span class="team-latest-when"> · ${whenLabel(done.doneAt)}</span></div>`
     : `<div class="team-latest-none">Nothing finished yet. Completed tasks land here.</div>`;
 
   if (!rows.length && !cgs.length){
@@ -528,13 +528,13 @@ function renderTeamPane(){
     const st = c.status === "live" ? "done" : cgLate(c) ? "late" : "open";
     const seen = c.status === "active" && cgSeenAll(c)
       ? `<span class="seen-eye" title="Seen by the stage owner${cgOwnersOf(s).length > 1 ? "s" : ""}" aria-label="Seen">${EYE_GLYPH}</span>` : "";
-    const due = (s && s.dueAt) ? dayStamp(s.dueAt) : (c.dueDate || "â€”");
+    const due = (s && s.dueAt) ? dayStamp(s.dueAt) : (c.dueDate || "—");
     return `<tr>
-      <td class="team-td-user">${esc(c.status === "live" ? "â€”" : cgOwnerNames(s) || "â€”")}</td>
-      <td>${esc(c.store || "â€”")}</td>
+      <td class="team-td-user">${esc(c.status === "live" ? "—" : cgOwnerNames(s) || "—")}</td>
+      <td>${esc(c.store || "—")}</td>
       <td>${esc(c.title)}${s && c.status === "active" ? ` <span class="thread-count">${esc(s.name)}</span>` : ""}</td>
       <td class="nowrap"><span class="team-dot is-${st}" title="${STATUS_LABEL[st]}" aria-label="${STATUS_LABEL[st]}">${STATUS_GLYPH[st]}</span>${seen}</td>
-      <td class="team-td-muted">${s && s.enteredAt ? dayStamp(s.enteredAt) : (c.createdAt ? dayStamp(c.createdAt) : "â€”")}</td>
+      <td class="team-td-muted">${s && s.enteredAt ? dayStamp(s.enteredAt) : (c.createdAt ? dayStamp(c.createdAt) : "—")}</td>
       <td class="team-td-muted">${esc(due)}</td>
     </tr>`;
   }).join("");
@@ -548,10 +548,10 @@ function renderTeamPane(){
         const doneN = t.rows.filter(x => x.done).length;
         return `<tr>
           <td class="team-td-user">${esc(r.toName || "Someone")}</td>
-          <td>${esc(threadStores(t).join(", ") || "â€”")}</td>
-          <td>${esc(threadTasks(t).join(", ") || "â€”")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}</td>
+          <td>${esc(threadStores(t).join(", ") || "—")}</td>
+          <td>${esc(threadTasks(t).join(", ") || "—")}${t.rows.length > 1 ? ` <span class="thread-count">${doneN}/${t.rows.length}</span>` : ""}</td>
           <td class="nowrap"><span class="team-dot is-${st}" title="${STATUS_LABEL[st]}" aria-label="${STATUS_LABEL[st]}">${STATUS_GLYPH[st]}</span>${seenMark(t)}</td>
-          <td class="team-td-muted">${r.createdAt ? dayStamp(r.createdAt) : "â€”"}</td>
+          <td class="team-td-muted">${r.createdAt ? dayStamp(r.createdAt) : "—"}</td>
           <td class="team-td-muted">${threadDueCell(t)}</td>
         </tr>`;
       }).join("")}
@@ -584,7 +584,7 @@ function setSidePaneOpen(open){
 function barify(value, max, width = 18){
   if (!max || max <= 0) return "";
   const filled = Math.max(0, Math.min(width, Math.round((value / max) * width)));
-  return "â–ˆ".repeat(filled) + "â–‘".repeat(width - filled);
+  return "█".repeat(filled) + "░".repeat(width - filled);
 }
 
 function safeSheetName(base, used){
@@ -595,7 +595,7 @@ function safeSheetName(base, used){
   return final;
 }
 
-// Standard column widths for a fillWorkerSheet() sheet â€” shared so both
+// Standard column widths for a fillWorkerSheet() sheet — shared so both
 // export paths render identically.
 const WORKER_SHEET_COLS = [24,14,12,12,12,10,8,40];
 
@@ -657,7 +657,7 @@ function fillWorkerSheet(ws, name, email, hist){
 }
 
 // ============================================================
-// TEAM REPORT â€” Dashboard / Overview / Clients / Shift Log / one sheet
+// TEAM REPORT — Dashboard / Overview / Clients / Shift Log / one sheet
 // per member, all formula-driven off a single consolidated Shift Log.
 // "Clean Navy" theme. See notes on REPORT_THEME for the palette source.
 // ============================================================
@@ -665,7 +665,7 @@ const REPORT_THEME = {
   navy: "FF1F2937", blue: "FF2563EB", green: "FFACC652", orange: "FFF9A33F",
   red: "FFDC2626", zebra: "FFF3F4F6", border: "FFE5E7EB", muted: "FF6B7280"
 };
-const reportStars = n => "â˜…".repeat(Math.max(0, Math.min(5, n))) + "â˜†".repeat(5 - Math.max(0, Math.min(5, n)));
+const reportStars = n => "★".repeat(Math.max(0, Math.min(5, n))) + "☆".repeat(5 - Math.max(0, Math.min(5, n)));
 const fv = (formula, result) => ({ formula, result });
 
 function styleReportHeaderRow(ws, rowNum, numCols){
@@ -765,7 +765,7 @@ function fillShiftLogSheet(ws, logRows){
     row.getCell(6).value = r.brk;
     row.getCell(7).value = r.hours; row.getCell(7).numFmt = "0.00"; row.getCell(7).font = { bold: true };
     row.getCell(8).value = r.rating;
-    row.getCell(9).value = fv(`REPT("â˜…",H${rn})&REPT("â˜†",5-H${rn})`, reportStars(r.rating));
+    row.getCell(9).value = fv(`REPT("★",H${rn})&REPT("☆",5-H${rn})`, reportStars(r.rating));
     row.getCell(9).font = { color: { argb: REPORT_THEME.orange } };
     row.getCell(10).value = r.notes; row.getCell(10).font = { color: { argb: REPORT_THEME.muted } };
     if (i % 2 === 1) reportZebra(row);
@@ -822,22 +822,22 @@ function fillOverviewSheet(ws, model, logRange){
   ws.addRow(["Shift Performance Analysis"]).getCell(1).font = { bold: true, size: 12 };
   const mk = (label, note) => { const row = ws.addRow([label]); if (note){ row.getCell(3).value = note; row.getCell(3).font = { italic:true, color:{argb:REPORT_THEME.muted} }; } return row; };
 
-  const r1 = mk("Team avg hours per shift", "total hours Ã· total shifts");
+  const r1 = mk("Team avg hours per shift", "total hours ÷ total shifts");
   r1.getCell(2).value = fv(`E${totalRow}`, model.teamHrsPerShift); r1.getCell(2).numFmt = "0.00";
   const r2 = mk("Weighted avg rating per shift", "weighted by shift count, not member avg");
   r2.getCell(2).value = fv(`G${totalRow}`, model.teamAvgRating); r2.getCell(2).numFmt = "0.0";
   const r3 = mk("Most efficient (hrs/shift)");
-  r3.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("E")}),${ovCol("E")},0)),"â€”")`, model.mostEfficient ? model.mostEfficient.name : "â€”");
+  r3.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("E")}),${ovCol("E")},0)),"—")`, model.mostEfficient ? model.mostEfficient.name : "—");
   r3.getCell(3).value = fv(`IFERROR(MAX(${ovCol("E")}),0)`, model.mostEfficient ? model.mostEfficient.hrsPerShift : 0); r3.getCell(3).numFmt = "0.00";
   const r4 = mk("Highest avg rating", "first member on ties");
-  r4.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("G")}),${ovCol("G")},0)),"â€”")`, model.highestRating ? model.highestRating.name : "â€”");
+  r4.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("G")}),${ovCol("G")},0)),"—")`, model.highestRating ? model.highestRating.name : "—");
   r4.getCell(3).value = fv(`IFERROR(MAX(${ovCol("G")}),0)`, model.highestRating ? model.highestRating.avgRating : 0); r4.getCell(3).numFmt = "0.0";
   const r5 = mk("Biggest workload share");
-  r5.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("F")}),${ovCol("F")},0)),"â€”")`, model.biggestShare ? model.biggestShare.name : "â€”");
+  r5.getCell(2).value = fv(`IFERROR(INDEX(${ovCol("A")},MATCH(MAX(${ovCol("F")}),${ovCol("F")},0)),"—")`, model.biggestShare ? model.biggestShare.name : "—");
   r5.getCell(3).value = fv(`IFERROR(MAX(${ovCol("F")}),0)`, model.biggestShare ? model.biggestShare.share : 0); r5.getCell(3).numFmt = "0%";
 
   ws.addRow([]);
-  ws.addRow(["Edit punches on the Shift Log sheet only â€” every figure here recalculates from it."]).getCell(1).font = { italic: true, color: { argb: REPORT_THEME.blue } };
+  ws.addRow(["Edit punches on the Shift Log sheet only — every figure here recalculates from it."]).getCell(1).font = { italic: true, color: { argb: REPORT_THEME.blue } };
   ws.columns = [{width:20},{width:26},{width:9},{width:11},{width:11},{width:10},{width:12}];
 }
 
@@ -869,12 +869,12 @@ function fillDashboardSheet(ws, model, logRange, overviewRange){
   const logRef = c => `'Shift Log'!$${c}$${L.startRow}:$${c}$${L.lastRow}`;
   const ovRef = c => `Overview!$${c}$${O.firstRow}:$${c}$${O.lastRow}`;
 
-  ws.addRow(["EZ AGENCY Â· TEAM TIME CARDS"]).getCell(1).font = { bold: true, size: 10, color: { argb: REPORT_THEME.muted } };
+  ws.addRow(["EZ AGENCY · TEAM TIME CARDS"]).getCell(1).font = { bold: true, size: 10, color: { argb: REPORT_THEME.muted } };
   ws.addRow(["TEAM REPORT"]).getCell(1).font = { bold: true, size: 24, color: { argb: REPORT_THEME.navy } };
   ws.addRow(["Generated " + new Date().toLocaleString()]).getCell(1).font = { italic: true, color: { argb: REPORT_THEME.muted } };
   ws.addRow([]);
 
-  const badge = ws.addRow(["FILED Â· " + dayStamp(Date.now())]);
+  const badge = ws.addRow(["FILED · " + dayStamp(Date.now())]);
   badge.getCell(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   badge.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: REPORT_THEME.navy } };
   ws.addRow([]);
@@ -882,11 +882,11 @@ function fillDashboardSheet(ws, model, logRange, overviewRange){
   ws.addRow(["PERIOD","GENERATED","MEMBERS","SHIFTS FILED"]).eachCell(c => { c.font = { bold: true, size: 10, color: { argb: REPORT_THEME.muted } }; });
   const metaRow = ws.addRow([]);
   const periodStr = model.minDate && model.maxDate
-    ? dayStamp(model.minDate.getTime()).replace(/,.*/, "") + " â€“ " + dayStamp(model.maxDate.getTime())
-    : "â€”";
+    ? dayStamp(model.minDate.getTime()).replace(/,.*/, "") + " – " + dayStamp(model.maxDate.getTime())
+    : "—";
   metaRow.getCell(1).value = L.lastRow >= L.startRow
-    ? fv(`TEXT(MIN(${logRef("A")}),"mmm d")&" â€“ "&TEXT(MAX(${logRef("A")}),"mmm d, yyyy")`, periodStr)
-    : "â€”";
+    ? fv(`TEXT(MIN(${logRef("A")}),"mmm d")&" – "&TEXT(MAX(${logRef("A")}),"mmm d, yyyy")`, periodStr)
+    : "—";
   metaRow.getCell(2).value = dayStamp(Date.now());
   metaRow.getCell(3).value = fv(`COUNTA(${ovRef("A")})`, model.memberStats.length);
   metaRow.getCell(4).value = fv(`COUNT(${logRef("G")})`, model.totalShifts);
@@ -904,9 +904,9 @@ function fillDashboardSheet(ws, model, logRange, overviewRange){
   kpiRow.getCell(2).value = fv(`SUM(${logRef("F")})`, model.totalBreak);
   kpiRow.getCell(2).numFmt = '0" min"'; kpiRow.getCell(2).font = { bold: true, size: 16, color: { argb: REPORT_THEME.red } };
   kpiRow.getCell(3).value = fv(`IFERROR(AVERAGE(${logRef("H")}),0)`, model.teamAvgRating);
-  kpiRow.getCell(3).numFmt = '0.0" â˜…"'; kpiRow.getCell(3).font = { bold: true, size: 16, color: { argb: REPORT_THEME.green } };
+  kpiRow.getCell(3).numFmt = '0.0" ★"'; kpiRow.getCell(3).font = { bold: true, size: 16, color: { argb: REPORT_THEME.green } };
   const topByHours = model.memberStats.length ? model.memberStats.reduce((b,m)=>m.hours>b.hours?m:b) : null;
-  kpiRow.getCell(4).value = fv(`IFERROR(INDEX(${ovRef("A")},MATCH(MAX(${ovRef("D")}),${ovRef("D")},0)),"â€”")`, topByHours ? topByHours.name : "â€”");
+  kpiRow.getCell(4).value = fv(`IFERROR(INDEX(${ovRef("A")},MATCH(MAX(${ovRef("D")}),${ovRef("D")},0)),"—")`, topByHours ? topByHours.name : "—");
   kpiRow.getCell(4).font = { bold: true, size: 16, color: { argb: REPORT_THEME.navy } };
 
   ws.addRow([]);
@@ -981,7 +981,7 @@ function fillReportMemberSheet(ws, member, mstat, logRange){
     row.getCell(5).value = Math.round(shift.breakMs / 60000);
     row.getCell(6).value = +(shift.netMs / 3600000).toFixed(2); row.getCell(6).numFmt = "0.00"; row.getCell(6).font = { bold: true };
     row.getCell(7).value = shift.rating;
-    row.getCell(8).value = fv(`REPT("â˜…",G${r})&REPT("â˜†",5-G${r})`, reportStars(shift.rating));
+    row.getCell(8).value = fv(`REPT("★",G${r})&REPT("☆",5-G${r})`, reportStars(shift.rating));
     row.getCell(8).font = { color: { argb: REPORT_THEME.orange } };
     row.getCell(9).value = shift.note || ""; row.getCell(9).font = { color: { argb: REPORT_THEME.muted } };
     if (i % 2 === 1) reportZebra(row);
@@ -997,7 +997,7 @@ function fillReportMemberSheet(ws, member, mstat, logRange){
 
 async function exportAllExcel(){
   if (!window.ExcelJS) { toast("Excel export isn't available right now"); return; }
-  toast("Building workbookâ€¦");
+  toast("Building workbook…");
   let snap;
   try { snap = await db.collection("appState").get(); }
   catch (e) { console.error(e); toast("Couldn't load team data"); return; }
@@ -1042,7 +1042,7 @@ function viewWorker(data, s, uid){
     <li>
       <div>
         <div class="h-c">${esc(r.client)}</div>
-        <div class="h-d">${dayStamp(r.startedAt)} Â· ${clock(r.startedAt)}â€“${clock(r.endedAt)} Â· ${taskTally(r, r.endedAt).length} task${taskTally(r,r.endedAt).length===1?"":"s"} Â· ${r.rating}/5</div>
+        <div class="h-d">${dayStamp(r.startedAt)} · ${clock(r.startedAt)}–${clock(r.endedAt)} · ${taskTally(r, r.endedAt).length} task${taskTally(r,r.endedAt).length===1?"":"s"} · ${r.rating}/5</div>
       </div>
       <div class="h-h">${humanDur(r.netMs)}</div>
     </li>`).join("") : `<div class="empty">No closed shifts yet.</div>`;
@@ -1050,10 +1050,10 @@ function viewWorker(data, s, uid){
 
   openSheet(`
     <h2>${esc(name)}</h2>
-    <p class="hint">${hist.length} shift${hist.length===1?"":"s"} Â· ${humanDur(total)} net worked</p>
+    <p class="hint">${hist.length} shift${hist.length===1?"":"s"} · ${humanDur(total)} net worked</p>
     <ul class="hist">${rows}</ul>
     <button class="btn btn-go" id="assign">Assign task</button>
-    <button class="btn" id="mailSum" ${hist.length ? "" : "disabled"}>Email summaryâ€¦</button>
+    <button class="btn" id="mailSum" ${hist.length ? "" : "disabled"}>Email summary…</button>
     <button class="btn btn-ghost btn-sm" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
     <button class="btn btn-break btn-sm" id="delWorker">Remove Member</button>
@@ -1105,7 +1105,7 @@ function askWorkerSummaryEmail(name, workerEmail, hist){
       const rows = summaryFilterRows(hist, a, b);
       if (!rows.length) return;
       const btn = $("wsSend");
-      btn.disabled = true; btn.textContent = "Sendingâ€¦";
+      btn.disabled = true; btn.textContent = "Sending…";
       closeSheet();
       await queueSummaryEmail({ to, name, rows, rangeLabel: summaryRangeLabel(a, b) });
     };
