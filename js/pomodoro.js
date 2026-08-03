@@ -613,7 +613,16 @@ function pomoUnload(){
    - A bubble-phase document listener can be beaten by any handler that
      calls stopPropagation() on the way up (this app has a few, e.g. the
      Team page's card headers) - it would just never see the click. Capture
-     phase on document fires first, before anything downstream can stop it. */
+     phase on document fires first, before anything downstream can stop it.
+   - Capture phase created a NEW bug, though: it runs before the click's own
+     handler does, so clicking Pause raced against this - it would resume
+     the (blocked, silent) audio a beat before pomoPause() stopped it again,
+     producing an audible blip right as the timer paused. Deferring the
+     actual check to the next tick (setTimeout 0) lets the click's own
+     handler run to completion first - by the time this checks PM.running,
+     Pause has already set it false and the check correctly no-ops. This
+     stays well inside the same user-activation window browsers grant a
+     click, so play()/resume() calls made from it still count. */
 function pomoArmAutoplayFallback(){
   const tryResume = () => {
     if (!PM.running) return;
@@ -621,9 +630,10 @@ function pomoArmAutoplayFallback(){
     if (PM.phase === "focus"){ if (!pomoEl || pomoEl.paused) pomoAmbientStart(); }
     else if (!pomoBreakNodes) pomoBreakStart();
   };
-  document.addEventListener("pointerdown", tryResume, true);
-  document.addEventListener("click", tryResume, true);
-  document.addEventListener("keydown", tryResume, true);
+  const armed = () => setTimeout(tryResume, 0);
+  document.addEventListener("pointerdown", armed, true);
+  document.addEventListener("click", armed, true);
+  document.addEventListener("keydown", armed, true);
 }
 
 /* ---------- boot ---------- */
