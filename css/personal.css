@@ -136,15 +136,29 @@
    different number: how far through the whole round set, not this round's
    remaining seconds. Single series, no legend needed; the hero number
    lives inside the ring itself rather than beside it, and there's no
-   hover/tooltip - this is an ambient stat, not something to interrogate. */
-.anchor-ring-wrap{position:relative;width:76px;height:76px;margin:0 auto 18px}
-.anchor-ring{width:100%;height:100%;transform:rotate(0deg);display:block}
+   hover/tooltip - this is an ambient stat, not something to interrogate.
+   -90deg rotation moves the dasharray/dashoffset circle's start (3 o'clock
+   by SVG default) to 12, matching the rail ring's own convention; the
+   gradient + soft glow give it the same "lit from within" quality as the
+   backdrop glow behind the whole column, instead of a flat, printed line. */
+.anchor-ring-wrap{position:relative;width:84px;height:84px;margin:0 auto 18px}
+.anchor-ring{width:100%;height:100%;display:block;transform:rotate(-90deg)}
 .anchor-ring-track{fill:none;stroke:rgba(255,255,255,.12);stroke-width:5}
-.anchor-ring-fill{fill:none;stroke:var(--wk-green);stroke-width:5;stroke-linecap:round}
+.anchor-ring-fill{
+  fill:none;stroke:url(#anchorRingGrad);stroke-width:5;stroke-linecap:round;
+  filter:drop-shadow(0 0 6px rgba(0,174,11,.55));
+  transition:stroke-dashoffset .6s cubic-bezier(.22,1,.36,1);
+}
 .anchor-ring-pct{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:15px;font-weight:600;color:var(--wk-white);
-  font-variant-numeric:tabular-nums;
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+}
+.anchor-ring-pct b{
+  font-family:var(--mono);font-size:17px;font-weight:700;color:var(--wk-white);
+  font-variant-numeric:tabular-nums;line-height:1;
+}
+.anchor-ring-pct small{
+  font-family:var(--wk);font-size:7.5px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:rgba(255,255,255,.4);
 }
 .anchor-eyebrow{
   margin:0 0 10px;font-family:var(--wk);font-size:11px;font-weight:600;

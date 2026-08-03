@@ -51,17 +51,6 @@ function ptUnload(){
 const PT_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg>';
 const PT_FOCUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/></svg>';
 
-/* Same convention as pomoArcPath (12 o'clock start, clockwise), just its
-   own smaller coordinate space so the anchor ring's stroke-width is a
-   normal small number instead of needing to be scaled for a 200-unit
-   viewBox rendered at a fraction of the size. */
-function anchorArcPath(p){
-  if (p <= 0.002) return "";
-  const theta = Math.min(p, 0.9999) * 360, rad = (theta * Math.PI) / 180;
-  const x = (50 + 44 * Math.sin(rad)).toFixed(2);
-  const y = (50 - 44 * Math.cos(rad)).toFixed(2);
-  return `M50,6 A44,44 0 ${theta > 180 ? 1 : 0} 1 ${x},${y}`;
-}
 
 function ptRender(){
   const list = $("ptList");
@@ -198,13 +187,27 @@ function renderFocusAnchor(){
   // rounds plus this round's own fraction, folded into one value.
   const sessionFrac = Math.max(0, Math.min(1, (doneRounds + (pomoTotalMs("focus") - pomoRemainMs()) / pomoTotalMs("focus")) / POMO_ROUNDS));
   const pct = Math.round(sessionFrac * 100);
+  // stroke-dasharray/-dashoffset instead of a computed arc path: a path's
+  // "d" isn't reliably transitionable across browsers, so every render used
+  // to make the ring jump straight to its new position. Circumference of
+  // r=44 is fixed, so only the offset needs recalculating each tick, and
+  // the CSS transition on it does the smooth fill for free.
+  const ringCirc = 2 * Math.PI * 44;
+  const ringOffset = ringCirc * (1 - sessionFrac);
   inner.innerHTML = `
     <div class="anchor-ring-wrap">
       <svg class="anchor-ring" viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <linearGradient id="anchorRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6bf07d"/>
+            <stop offset="100%" stop-color="#00AE0B"/>
+          </linearGradient>
+        </defs>
         <circle class="anchor-ring-track" cx="50" cy="50" r="44"></circle>
-        <path class="anchor-ring-fill" d="${anchorArcPath(sessionFrac)}"></path>
+        <circle class="anchor-ring-fill" cx="50" cy="50" r="44"
+                stroke-dasharray="${ringCirc.toFixed(2)}" style="stroke-dashoffset:${ringOffset.toFixed(2)}"></circle>
       </svg>
-      <span class="anchor-ring-pct">${pct}%</span>
+      <span class="anchor-ring-pct"><b>${pct}%</b><small>Session</small></span>
     </div>
     <p class="anchor-eyebrow">${focusing ? "Focusing on" : "Up next"}</p>
     <h2 class="anchor-title">${esc(task.text)}</h2>
