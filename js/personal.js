@@ -148,15 +148,6 @@ function renderFocusAnchor(){
 
   const onBreak = PM.phase !== "focus";
   const focusing = PM.phase === "focus" && PM.running;
-  const progress = PM.phase === "focus" ? 1 - (pomoRemainMs() / pomoTotalMs("focus")) : 0;
-  // The full opacity value, computed here rather than split between a CSS
-  // baseline + a JS multiplier - that split is what let "Select a task"
-  // (glow = 0) still show a flat .14 tint, since .14 was baked into the
-  // CSS formula itself regardless of state. Fully transparent with nothing
-  // anchored; a resting glow once a task is selected; brighter while an
-  // actual round is running.
-  const glowOpacity = !ptActiveId ? 0 : PM.running ? 0.14 + Math.max(0, Math.min(1, progress)) * 0.4 : 0.14;
-  anchor.style.setProperty("--anchor-glow", glowOpacity.toFixed(3));
 
   if (onBreak && ptActiveId && !ptRoundResolved){
     inner.innerHTML = `
