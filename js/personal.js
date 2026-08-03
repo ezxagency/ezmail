@@ -103,6 +103,13 @@ function setAppMode(mode){   // "clocks" | "focus" | "personal"
   app.classList.toggle("personal-on", mode === "personal");
   const ptSection = $("personalTasksSection");
   if (ptSection) ptSection.classList.toggle("hidden", mode !== "personal");
+  // Focus mode gets its own card (today's pomos/time/streak) in place of
+  // Daily Mission, which is shift/punch data - irrelevant mid focus session.
+  // personal-on hides missionCard on its own (see personal.css); this only
+  // needs to arbitrate clocks vs focus.
+  const missionCard = $("missionCard"), focusCard = $("focusCard");
+  if (missionCard) missionCard.classList.toggle("hidden", mode === "focus");
+  if (focusCard) focusCard.classList.toggle("hidden", mode !== "focus");
   [["modeClocks", "clocks"], ["modeFocus", "focus"], ["modePersonal", "personal"]].forEach(([id, key]) => {
     const el = $(id);
     if (!el) return;
@@ -112,6 +119,7 @@ function setAppMode(mode){   // "clocks" | "focus" | "personal"
   });
   pomoSetMode(mode !== "clocks");
   if (mode === "personal") ptRender();
+  if (mode === "focus" && typeof pomoRenderFocusCard === "function") pomoRenderFocusCard();
   // remember the tab per account, so a reload lands back where they were
   if (ptUid) try { localStorage.setItem(PT_MODE_LS + ":" + ptUid, mode); } catch (e) {}
 }

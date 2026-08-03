@@ -296,6 +296,9 @@ function pomoAdvance(natural){
   const wasRunning = PM.running;
   let auto = false;
   if (PM.phase === "focus"){
+    // banked before anything below mutates PM - remaining-time math needs
+    // the phase/endAt exactly as they still stand from the round that just ended
+    pomoLogFocusSession(pomoTotalMs("focus") - pomoRemainMs(), natural);
     PM.phase = PM.round >= POMO_ROUNDS ? "long" : "short";
     auto = PM.autoBreak;
   } else {
@@ -314,6 +317,72 @@ function pomoAdvance(natural){
   }
   if (PM.running) pomoSoundStart(); else pomoSoundStop();
   pomoRender(); pomoSave();
+}
+
+/* ---------- Focus mode's own card: today's tally + streak ----------
+   A separate localStorage log from PM (which is just live timer state) -
+   this is the running history the card reads from. Keyed by uid like
+   everything else Pomodoro touches, never Firestore. */
+const POMO_LOG_LS = "ez-pomo-log-v1";
+const pomoLogKey = () => POMO_LOG_LS + ":" + pomoUid;
+const pomoDayKey = (d = new Date()) => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+function pomoLoadLog(){
+  try { return JSON.parse(localStorage.getItem(pomoLogKey()) || "{}"); } catch (e) { return {}; }
+}
+function pomoSaveLog(log){
+  if (!pomoUid) return;
+  try { localStorage.setItem(pomoLogKey(), JSON.stringify(log)); } catch (e) {}
+}
+/* Called whenever a focus round ends, natural or skipped. Skipping early
+   still banks the minutes actually spent - only the "pomos" count requires
+   the round to have run all the way out to earn its tick. */
+function pomoLogFocusSession(ms, completed){
+  if (!pomoUid || ms < 1000) return;
+  const log = pomoLoadLog();
+  const k = pomoDayKey();
+  const day = log[k] || { pomos: 0, focusMs: 0 };
+  day.focusMs += ms;
+  if (completed) day.pomos += 1;
+  log[k] = day;
+  pomoSaveLog(log);
+  pomoRenderFocusCard();
+}
+/* Consecutive days with any focus time, walking back from today. A day
+   with nothing logged YET (today, before the first round of the day
+   finishes) doesn't break a streak earned on prior days - it just hasn't
+   extended it yet. */
+function pomoStreak(log){
+  const d = new Date();
+  let streak = (log[pomoDayKey(d)] || {}).focusMs > 0 ? 1 : 0;
+  d.setDate(d.getDate() - 1);
+  while ((log[pomoDayKey(d)] || {}).focusMs > 0){
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+function pomoHumanMin(ms){
+  const mins = Math.round(ms / 60000);
+  return mins < 60 ? mins + "m" : Math.floor(mins / 60) + "h " + (mins % 60) + "m";
+}
+function pomoRenderFocusCard(){
+  const body = $("fcBody"), empty = $("fcEmpty");
+  if (!body || !pomoUid) return;
+  const log = pomoLoadLog();
+  const hasAny = Object.keys(log).length > 0;
+  body.classList.toggle("hidden", !hasAny);
+  empty.classList.toggle("hidden", hasAny);
+  if (!hasAny) return;
+  const today = log[pomoDayKey()] || { pomos: 0, focusMs: 0 };
+  const streak = pomoStreak(log);
+  $("fcPomos").textContent = today.pomos;
+  $("fcTime").textContent = pomoHumanMin(today.focusMs);
+  $("fcStreakNum").textContent = streak + (streak === 1 ? " day" : " days");
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    return (log[pomoDayKey(d)] || {}).focusMs / 60000 || 0;
+  });
+  $("fcSpark").innerHTML = sparklineSvg(days, "Focus minutes over the last 7 days");
 }
 
 function pomoTick(){

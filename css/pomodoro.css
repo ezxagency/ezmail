@@ -369,6 +369,10 @@
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
+/* ---------- Focus mode's card: today's tally + streak ---------- */
+.fc-streak-value{display:inline-flex;align-items:center;gap:6px}
+.fc-flame{width:20px;height:20px;flex:none;color:#ffb35a}
+
 /* ---------- squircle corners (superellipse, progressive enhancement) ----------
    Nearly everything else in this file is a circle or pill by design (mode
    switch, pomo-main/-side controls, dots, the alarm-glow ring, pswitch) and
