@@ -9,7 +9,6 @@
 let afState = null;      // { people: [...], note, due } - the answers so far
 let afOpen = null;       // key of the dropdown currently open, if any
 let afEdit = null;       // the thread being edited, or null when assigning fresh
-let afInPage = false;    // mounted inline on the Assign page vs. in a sheet
 let afMembers = [], afStores = [];   // dropdown feeds, loaded async per open
 
 // one key per store x task combination; a newline can't appear in either
@@ -394,10 +393,6 @@ async function openAssignFlow(preUid, preName, editThread){
     due: sharedDue
   };
   afOpen = null;
-  // On the Assign page the flow mounts inline; everywhere else (roster
-  // quick-assign, small screens' menus) it stays a sheet. Only ever one
-  // instance at a time, so the af* element ids stay unique.
-  afInPage = currentRoute() === "assign" && !!$("assignFlowMount");
   afMembers = []; afStores = [];
 
   const body = `
@@ -421,7 +416,7 @@ async function openAssignFlow(preUid, preName, editThread){
       <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
     </div>
     <button class="btn btn-go" id="afSave" disabled>${afEdit ? "Save changes" : "Assign"}</button>
-    <button class="btn btn-ghost btn-sm" id="afCancel">${afInPage ? (afEdit ? "Discard edit" : "Start over") : "Cancel"}</button>
+    <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
   `;
   const setup = () => {
     afRenderPeople();
@@ -468,8 +463,7 @@ async function openAssignFlow(preUid, preName, editThread){
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
     $("afCancel").onclick = () => {
       afCloseMenu(); afEdit = null;
-      if (afInPage) openAssignFlow();   // inline: reset back to a fresh flow
-      else closeSheet();
+      closeSheet();
     };
     $("afSave").onclick = afSubmit;
     $("afNote").value = afState.note;
@@ -477,17 +471,7 @@ async function openAssignFlow(preUid, preName, editThread){
     loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; });
   };
 
-  if (afInPage){
-    const mount = $("assignFlowMount");
-    const title = document.querySelector("#assignScreen .fpage-section-title");
-    if (title) title.textContent = afEdit ? "Edit assignment" : "New assignment";
-    mount.innerHTML = body;
-    setup();
-    // editing starts from a log row further down the page - bring the flow up
-    if (afEdit || preUid) mount.closest(".assign-flow-panel").scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    openSheet(`<h2>${afEdit ? "Edit assignment" : "Assign task"}</h2>` + body, setup);
-  }
+  openSheet(`<h2>${afEdit ? "Edit assignment" : "Assign task"}</h2>` + body, setup);
 }
 
 /* Members carry their current open-task count, so you can see who is already
@@ -623,15 +607,9 @@ async function afSubmit(){
     afEdit = null;
     afCloseMenu();
     if (isAdmin) loadTeamPane();
-    if (afInPage){
-      // inline: clear back to a fresh flow and let the log show what landed
-      openAssignFlow();
-      loadCompletionLog(true, $("assignLogBox"));
-    } else {
-      closeSheet();
-      // the log may be on screen behind the sheet (Team page) - keep it honest
-      if (!$("teamScreen").classList.contains("hidden")) loadCompletionLog(true, $("teamRecentlyDone"));
-    }
+    closeSheet();
+    // the log may be on screen behind the sheet (Team page) - keep it honest
+    if (!$("teamScreen").classList.contains("hidden")) loadCompletionLog(true, $("teamRecentlyDone"));
   } catch (e) {
     console.error(e);
     btn.disabled = false;

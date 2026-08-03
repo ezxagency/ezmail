@@ -39,10 +39,9 @@ async function resolveRole(user){
 function enterFullApp(user, role){
   isAdmin = role === "admin";
   canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
-  $("drawerAssign").classList.toggle("hidden", !canAssignTasks);
   $("drawerTeam").classList.toggle("hidden", !isAdmin);
   $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
-  // quick-assign icons follow the same permission as the Assign page
+  // quick-assign icons follow the same permission as assigning itself
   $("bandAssignBtn").classList.toggle("hidden", !canAssignTasks);
   $("cardAssignBtn").classList.toggle("hidden", !canAssignTasks);
   $("teamPanelAssignBtn").classList.toggle("hidden", !canAssignTasks);
@@ -151,7 +150,6 @@ if (!FB_READY){
       $("bandAssignBtn").classList.add("hidden");
       $("cardAssignBtn").classList.add("hidden");
       $("teamPanelAssignBtn").classList.add("hidden");
-      $("drawerAssign").classList.add("hidden");
       $("drawerTeam").classList.add("hidden");
       closeDrawer();
       // a sheet open at forced sign-out (token revoked, account disabled)

@@ -178,18 +178,6 @@
 }
 .hx-day:first-child{margin-top:0}
 
-/* assign page: flow beside the log on wide screens, stacked otherwise */
-.assign-page-grid{display:flex;flex-direction:column;gap:22px}
-@media (min-width:1100px){
-  .assign-page-grid{display:grid;grid-template-columns:400px minmax(0,1fr);gap:26px;align-items:start}
-  .assign-flow-panel{position:sticky;top:10px}
-}
-.assign-flow-panel{
-  padding:22px 20px;border-radius:18px;
-  background:rgba(12,14,20,.5);border:1px solid rgba(255,255,255,.16);
-  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
-}
-
 /* skeleton shimmer for async loads */
 .skel{
   position:relative;overflow:hidden;border-radius:12px;

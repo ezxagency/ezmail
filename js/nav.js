@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", assign: "assignScreen", team: "teamScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", team: "teamScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -90,10 +90,9 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if ($("sheet").classList.contains("on")) return;
-  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "assign", "6": "team" };
+  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "team" };
   if (!(e.key in map)) return;
   const r = map[e.key];
-  if (r === "assign" && !canAssignTasks) return;
   if (r === "team" && !isAdmin) return;
   go(r);
 });
@@ -101,24 +100,16 @@ document.addEventListener("keydown", e => {
 function applyRoute(){
   let r = currentRoute();
   // role guards: a deep link to a page you can't use lands on the dashboard
-  if ((r === "assign" && !canAssignTasks) || (r === "team" && !isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
+  if (r === "team" && !isAdmin) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
     a.classList.toggle("active", (a.dataset.route || "") === r));
   closeDrawer();
-  // The inline assign flow shares its af* element ids with the sheet version
-  // (roster quick-assign). Unmount it off-route so $() can never find a stale
-  // copy first and wire the wrong nodes.
-  if (r !== "assign" && $("assignFlowMount").innerHTML){
-    $("assignFlowMount").innerHTML = "";
-    afOpen = null; afInPage = false;
-  }
   if (r === "mission") renderMissionPage();
   // walking into History refetches the team's record; while ON the page,
   // refreshOpenPage re-renders from the cache without another round trip
   else if (r === "history"){ if (isAdmin) hxTeamRows = null; renderHistoryPage(); }
   else if (r === "campaigns") enterCampaignsPage();
-  else if (r === "assign") enterAssignPage();
   else if (r === "team") loadTeamScreen();
 }
 window.addEventListener("hashchange", applyRoute);
@@ -690,14 +681,5 @@ function renderHistoryList(){
     if (!r) return;
     toast(await copyText(reportText(r)) ? "Report copied" : "Copy failed");
   });
-}
-
-/* ============================================================
-   ASSIGN PAGE — the staged flow mounted inline, with the live
-   assignment log beside it (log gated to what your role can read).
-   ============================================================ */
-function enterAssignPage(){
-  openAssignFlow();                       // route === "assign" mounts it inline
-  loadCompletionLog(true, $("assignLogBox"));
 }
 
