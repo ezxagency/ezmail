@@ -471,7 +471,7 @@ async function openAssignFlow(preUid, preName, editThread){
     loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; });
   };
 
-  openSheet(`<h2>${afEdit ? "Edit assignment" : "Assign task"}</h2>` + body, setup);
+  openSheet(`<h2>${afEdit ? "Edit assignment" : "Assign task"}</h2>` + body, setup, { cls: "af-sheet-light" });
 }
 
 /* Members carry their current open-task count, so you can see who is already

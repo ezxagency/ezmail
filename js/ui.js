@@ -5,8 +5,12 @@
    back on the parent view. A sheet that genuinely must be answered (the
    one-time name prompt) opts out with { dismissible: false }. */
 let sheetDismissible = true;
+let sheetThemeCls = null;
 function openSheet(html, setup, opts){
   sheetDismissible = !opts || opts.dismissible !== false;
+  if (sheetThemeCls) $("sheet").classList.remove(sheetThemeCls);
+  sheetThemeCls = (opts && opts.cls) || null;
+  if (sheetThemeCls) $("sheet").classList.add(sheetThemeCls);
   $("sheetBody").innerHTML = html;
   $("scrim").classList.add("on");
   $("sheet").classList.add("on");

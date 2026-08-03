@@ -247,6 +247,101 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
 
+/* ---------- Assign Task: light theme, scoped to this one sheet ----------
+   A one-off flip to a white/ink/blue palette, requested for this flow only -
+   it will read as inconsistent next to the rest of the dark-glass app, and
+   that's the deliberate scope (see openAssignFlow's openSheet cls option).
+   Every rule here targets .af-sheet-light explicitly so nothing leaks into
+   any other sheet (Profile, ratings, campaign forms, etc.) that reuses the
+   same #sheet/#sheetBody markup. */
+.sheet.af-sheet-light{
+  --afl-ink:#15171c;--afl-body:#33363e;--afl-muted:#82868f;--afl-border:#e2e4ea;
+  --afl-fill:#f7f8fa;--afl-placeholder:#a7abb4;--afl-accent:#2f6fed;
+  --afl-accent-soft:rgba(47,111,237,.08);--afl-accent-border:rgba(47,111,237,.4);
+  background:#ffffff;color:var(--afl-ink);
+  border-color:var(--afl-border);
+  box-shadow:0 -20px 48px rgba(15,23,42,.16);
+}
+.af-sheet-light .grab{background:rgba(21,23,28,.16)}
+.sheet.af-sheet-light h2{
+  text-transform:none;letter-spacing:0;font-size:22px;font-weight:800;color:var(--afl-ink);
+}
+.sheet.af-sheet-light .hint{color:var(--afl-muted)}
+
+.af-sheet-light .af-sentence{color:var(--afl-muted)}
+.af-sheet-light .af-tok{color:var(--afl-ink)}
+.af-sheet-light .af-slot{color:var(--afl-muted);border-bottom-color:var(--afl-border)}
+
+.af-sheet-light .af-pip{background:#dfe2e8}
+.af-sheet-light .af-step.is-done .af-pip{background:var(--afl-accent);box-shadow:0 0 0 3.5px rgba(47,111,237,.18)}
+.af-sheet-light .af-step-label{color:var(--afl-muted)}
+
+.af-sheet-light .af-trigger{
+  background:var(--afl-fill);border:1px solid var(--afl-border);color:var(--afl-ink);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.af-sheet-light .af-trigger:hover{background:#eef0f3}
+.af-sheet-light .af-step.is-done .af-trigger{border-color:var(--afl-accent-border)}
+.af-sheet-light .af-caret{color:var(--afl-muted)}
+
+.af-sheet-light input[type=text],
+.af-sheet-light input[type=date],
+.af-sheet-light textarea{
+  background:var(--afl-fill);border:1px solid var(--afl-border);color:var(--afl-ink);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.af-sheet-light input[type=date]{color-scheme:light}
+.af-sheet-light input[type=date]::-webkit-calendar-picker-indicator{filter:none;opacity:.55}
+.af-sheet-light input::placeholder,.af-sheet-light textarea::placeholder{color:var(--afl-placeholder)}
+.af-sheet-light input:focus,.af-sheet-light textarea:focus{outline-color:var(--afl-accent)}
+
+.af-sheet-light .af-panel{
+  background:#ffffff;border:1px solid var(--afl-border);box-shadow:0 18px 38px rgba(15,23,42,.14);
+}
+.af-sheet-light .af-opt{color:var(--afl-ink)}
+.af-sheet-light .af-opt:hover,.af-sheet-light .af-opt:focus-visible{background:var(--afl-accent-soft)}
+.af-sheet-light .af-opt-meta{color:var(--afl-muted)}
+.af-sheet-light .af-opt-new{color:var(--afl-accent)}
+.af-sheet-light .af-opt-none{color:var(--afl-muted)}
+.af-sheet-light .af-check{border-color:var(--afl-border);color:#fff}
+.af-sheet-light .af-opt.is-on .af-check{background:var(--afl-accent);border-color:var(--afl-accent)}
+.af-sheet-light .af-opt.is-on{color:var(--afl-ink)}
+.af-sheet-light .af-opt-done{border-top-color:var(--afl-border);color:var(--afl-ink)}
+.af-sheet-light .af-count{color:var(--afl-accent)}
+
+.af-sheet-light .af-custom-ok{background:var(--afl-accent);color:#fff}
+.af-sheet-light .af-due > span{color:var(--afl-muted)}
+
+.af-sheet-light .af-person{background:var(--afl-fill);border:1px solid var(--afl-border)}
+.af-sheet-light .af-person-n{color:var(--afl-accent)}
+.af-sheet-light .af-person-x{background:#fff;border:1px solid var(--afl-border);color:#d64545}
+.af-sheet-light .af-person-x:hover{background:#fdecec;border-color:#f3b9b9}
+
+.af-sheet-light .af-add-ico{
+  background:#fff;border:1.5px solid var(--afl-accent-border);color:var(--afl-accent);
+}
+.af-sheet-light .af-add-ico:hover{background:var(--afl-accent-soft)}
+.af-sheet-light .af-add-ico.is-idle{opacity:.5}
+
+.af-sheet-light .af-sub-store{color:var(--afl-ink)}
+.af-sheet-light .af-sub-copy{background:var(--afl-fill);border:1px solid var(--afl-border);color:var(--afl-muted)}
+.af-sheet-light .af-sub-copy:hover{background:#eef0f3;color:var(--afl-ink)}
+
+.af-sheet-light .af-pair{border-bottom-color:var(--afl-border)}
+.af-sheet-light .af-pair-tog{
+  background:var(--afl-accent);border-color:var(--afl-accent);color:#fff;
+}
+.af-sheet-light .af-pair.is-off .af-pair-tog{background:none;border-color:var(--afl-border);color:transparent}
+.af-sheet-light .af-pair-name{color:var(--afl-ink)}
+
+.sheet.af-sheet-light .btn{
+  background:#fff;color:var(--afl-ink);border:1.5px solid var(--afl-border);
+}
+.sheet.af-sheet-light .btn-go{
+  background:var(--afl-accent);color:#fff;border-color:transparent;box-shadow:0 12px 24px rgba(47,111,237,.24);
+}
+.sheet.af-sheet-light .btn-ghost{background:#fff;color:var(--afl-muted);border:1.5px solid var(--afl-border)}
+
 .preview{
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.25);border-radius:16px;padding:16px;
   margin-bottom:16px;font-family:var(--wk);font-size:12.5px;line-height:1.65;color:var(--wk-white-70);
