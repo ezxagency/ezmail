@@ -94,16 +94,24 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   text-transform:uppercase;color:var(--wk-white-60);
 }
 
+/* Same glass recipe as the tlog status cards / Daily Mission card - a
+   warm, frosted material instead of the plain translucent-white the
+   trigger boxes and this step's own fields used before. Scoped to
+   .af-step so it's just this flow, not every text/date field app-wide. */
 .af-trigger{
   width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:15px 14px;border-radius:14px;cursor:pointer;text-align:left;
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.3);
+  background:rgba(255,244,229,.16);border:1px solid rgba(255,255,255,.26);
   color:var(--wk-white);font-family:var(--wk);font-size:15px;
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
   transition:background .18s ease,border-color .18s ease;
 }
-.af-trigger:hover{background:rgba(255,255,255,.15)}
+.af-trigger:hover{background:rgba(255,244,229,.24)}
 .af-step.is-done .af-trigger{border-color:rgba(0,174,11,.5)}
+.af-step input[type=text],.af-step input[type=date],.af-step textarea{
+  background:rgba(255,244,229,.16);border:1px solid rgba(255,255,255,.26);
+  backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
+}
 .af-value{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .af-caret{width:18px;height:18px;flex:none;opacity:.7;transition:transform .2s ease}
 .af-trigger[aria-expanded="true"] .af-caret{transform:rotate(180deg)}
