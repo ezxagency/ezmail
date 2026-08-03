@@ -279,6 +279,22 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-sheet-light .af-step.is-done .af-pip{background:var(--afl-accent);box-shadow:0 0 0 3.5px rgba(0,174,11,.18)}
 .af-sheet-light .af-step-label{color:var(--afl-muted)}
 
+/* Locked steps fade to 30% opacity in the base flow - on a dark sheet that
+   settles into a soft dim white, but the same fade over dark navy ink on
+   this white sheet just pales the black rather than reading as "disabled",
+   so give the light theme its own solid, muted treatment at full opacity. */
+.af-sheet-light .af-step.is-locked{opacity:1}
+.af-sheet-light .af-step.is-locked .af-step-label,
+.af-sheet-light .af-step.is-locked .af-value,
+.af-sheet-light .af-step.is-locked .af-caret{color:var(--afl-placeholder)}
+.af-sheet-light .af-step.is-locked .af-pip{background:#edeef1}
+.af-sheet-light .af-step.is-locked .af-trigger{background:#fbfbfc;border-color:#edeef1}
+.af-sheet-light .af-step.is-locked textarea,
+.af-sheet-light .af-step.is-locked input[type=date]{
+  background:#fbfbfc;border-color:#edeef1;color:var(--afl-placeholder);
+}
+.af-sheet-light .af-step.is-locked textarea::placeholder{color:var(--afl-placeholder)}
+
 .af-sheet-light .af-trigger{
   background:var(--afl-fill);border:1px solid var(--afl-border);color:var(--afl-ink);
   backdrop-filter:none;-webkit-backdrop-filter:none;
