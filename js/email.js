@@ -86,6 +86,60 @@ function summaryEmailHTML(name, rangeLabel, rows){
   </body></html>`;
 }
 
+/* The signup verification code: same brand shell as the summary email,
+   just a big centered number instead of a table. */
+function verifyCodeEmailHTML(code){
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#eeeae0">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eeeae0;padding:24px 12px"><tr><td align="center">
+    <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden">
+      <tr><td style="background:#161922;padding:26px 28px">
+        <div style="font:800 22px/1 -apple-system,'Segoe UI',Arial,sans-serif;color:#ffffff;letter-spacing:1px">EZ <span style="font-weight:300">CLOCK IN</span></div>
+      </td></tr>
+      <tr><td style="padding:36px 28px;text-align:center">
+        <div style="font:13px/1.6 -apple-system,'Segoe UI',Arial,sans-serif;color:#8a8578">Your verification code</div>
+        <div style="font:700 40px/1.3 -apple-system,'Segoe UI',Arial,sans-serif;color:#161922;letter-spacing:10px;margin:14px 0">${esc(code)}</div>
+        <div style="font:13px/1.6 -apple-system,'Segoe UI',Arial,sans-serif;color:#8a8578">Enter this in the app to finish creating your account. It expires in 15 minutes — if you didn't request it, ignore this email.</div>
+      </td></tr>
+      <tr><td style="padding:16px 28px;background:#f6f4ef">
+        <div style="font:11px/1.6 -apple-system,'Segoe UI',Arial,sans-serif;color:#8a8578">Sent by EZ Clock In · Ez Agency.</div>
+      </td></tr>
+    </table>
+  </td></tr></table>
+  </body></html>`;
+}
+
+/* Same two transports as queueSummaryEmail, minus the delivery-state wait -
+   this fires during sign-up before the app has any UI to watch a promise
+   from, so it resolves the moment the send/queue call itself succeeds or
+   fails. A failed send isn't fatal: the verify screen's Resend covers it. */
+async function queueVerifyCodeEmail(to, code){
+  const subject = "Your Ez Clock In verification code";
+  const html = verifyCodeEmailHTML(code);
+
+  const ej = (typeof CONFIG !== "undefined" && CONFIG.emailjs) || {};
+  if (ej.publicKey && ej.serviceId && ej.templateId){
+    try {
+      const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: ej.serviceId,
+          template_id: ej.templateId,
+          user_id: ej.publicKey,
+          template_params: { to_email: to, subject, content: html }
+        })
+      });
+      return res.ok;
+    } catch (e) { console.error(e); return false; }
+  }
+
+  if (!FB_READY || !db) return false;
+  try {
+    await db.collection("mail").add({ to: [to], message: { subject, html } });
+    return true;
+  } catch (e) { console.error(e); return false; }
+}
+
 /* Send the summary. Two transports, tried in order:
 
    1. EmailJS (CONFIG.emailjs) — a plain REST call from the browser, free

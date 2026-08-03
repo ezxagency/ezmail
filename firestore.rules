@@ -26,7 +26,15 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         isAdmin() ||
         (request.auth.uid == uid && request.resource.data.role == 'admin' && isDesignatedAdminEmail()) ||
-        (request.auth.uid == uid && request.resource.data.role == 'worker' && resource.data.role == 'admin' && !isDesignatedAdminEmail())
+        (request.auth.uid == uid && request.resource.data.role == 'worker' && resource.data.role == 'admin' && !isDesignatedAdminEmail()) ||
+        // finishing (or resending) email verification after signup: only
+        // reachable while still unverified, role can't move in the same
+        // write, and nothing outside the three verification fields may -
+        // never a path to granting yourself a different role
+        (request.auth.uid == uid
+         && 'emailVerified' in resource.data && resource.data.emailVerified == false
+         && request.resource.data.role == resource.data.role
+         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailVerified', 'verifyCode', 'verifyCodeAt']))
       );
       allow delete: if request.auth != null && isAdmin();
     }

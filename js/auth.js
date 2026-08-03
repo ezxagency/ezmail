@@ -1,3 +1,5 @@
+const genVerifyCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
 async function resolveRole(user){
   const ref = db.collection("users").doc(user.uid);
   let doc = await ref.get();
@@ -5,7 +7,17 @@ async function resolveRole(user){
   if (!doc.exists) {
     // new signups wait for admin approval; designated admin emails skip it
     const role = shouldBeAdmin ? "admin" : "pending";
-    await ref.set({ email: user.email, role, createdAt: Date.now() });
+    // Google already proved they own the address; a password signup could
+    // have typed anyone's email into that form, so that one earns its own
+    // proof before admin approval even gets a look at it
+    const isPasswordAcct = user.providerData.some(p => p.providerId === "password");
+    const base = { email: user.email, role, createdAt: Date.now(), emailVerified: !isPasswordAcct };
+    if (isPasswordAcct){
+      base.verifyCode = genVerifyCode();
+      base.verifyCodeAt = Date.now();
+    }
+    await ref.set(base);
+    if (isPasswordAcct) queueVerifyCodeEmail(user.email, base.verifyCode).catch(e => console.error(e));
     doc = await ref.get();
   } else if (shouldBeAdmin && doc.data().role !== "admin") {
     // an existing account whose email was just added to ADMIN_EMAILS -
@@ -18,7 +30,95 @@ async function resolveRole(user){
     await ref.update({ role: "worker" });
     doc = await ref.get();
   }
-  return doc.data().role;
+  return doc.data();
+}
+
+/* Past the pending/verify gates: the real app shell, same for a returning
+   worker/admin and a just-verified fresh one. Split out so both paths land
+   here instead of duplicating the setup. */
+function enterFullApp(user, role){
+  isAdmin = role === "admin";
+  canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
+  $("drawerAssign").classList.toggle("hidden", !canAssignTasks);
+  $("drawerTeam").classList.toggle("hidden", !isAdmin);
+  $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
+  // quick-assign icons follow the same permission as the Assign page
+  $("bandAssignBtn").classList.toggle("hidden", !canAssignTasks);
+  $("cardAssignBtn").classList.toggle("hidden", !canAssignTasks);
+  $("teamPanelAssignBtn").classList.toggle("hidden", !canAssignTasks);
+  // everyone on desktop gets the two-pane shell; the role only decides
+  // what the third column holds
+  $("appScreen").classList.add("panes");
+  $("appScreen").classList.toggle("has-team", isAdmin);
+  $("teamPanel").classList.toggle("hidden", !isAdmin);
+  if (isAdmin) { watchCompletionNotifications(); loadTeamPane(); }
+  Store.setUser(user.uid, user.email);
+  pomoLoadFor(user.uid);   // this account's own focus timer, no one else's
+  screen("app");
+  startWorkerApp();
+}
+
+/* The gate between "account created" and "waiting on admin approval": a
+   6-digit code was emailed at signup, and it has to come back correct
+   before the pending screen (or, for a designated admin email, the app
+   itself) ever shows. Resend regenerates and re-sends; signing out lets
+   someone bail and try a different email address entirely. */
+const VERIFY_EXPIRY_MS = 15 * 60000;
+let verifyResendAt = 0;
+function openVerifyScreen(user, info){
+  screen("verify");
+  $("verifyEmail").textContent = user.email;
+  $("verifyErr").classList.add("hidden");
+  $("verifyCodeInput").value = "";
+  $("verifyCodeInput").focus();
+
+  const showErr = msg => { $("verifyErr").textContent = msg; $("verifyErr").classList.remove("hidden"); };
+
+  $("verifyForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const val = $("verifyCodeInput").value.trim();
+    $("verifyErr").classList.add("hidden");
+    if (!/^\d{6}$/.test(val)) { showErr("Enter the 6-digit code from your email."); return; }
+    const btn = $("verifySubmit");
+    btn.disabled = true;
+    try {
+      const ref = db.collection("users").doc(user.uid);
+      const d = (await ref.get()).data();
+      if (!d.verifyCode || !d.verifyCodeAt || Date.now() - d.verifyCodeAt > VERIFY_EXPIRY_MS) {
+        showErr("That code expired — send a new one.");
+      } else if (val !== d.verifyCode) {
+        showErr("That code doesn't match — check your email and try again.");
+      } else {
+        await ref.update({ emailVerified: true });
+        toast("Email verified");
+        if (d.role === "pending") screen("pending");
+        else enterFullApp(user, d.role);
+        return;
+      }
+    } catch (e2) {
+      console.error(e2);
+      showErr("Couldn't check that code — try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  $("verifyResend").onclick = async () => {
+    const now = Date.now();
+    if (now - verifyResendAt < 30000) { toast("Wait a few seconds before resending"); return; }
+    verifyResendAt = now;
+    const code = genVerifyCode();
+    try {
+      await db.collection("users").doc(user.uid).update({ verifyCode: code, verifyCodeAt: Date.now() });
+      const ok = await queueVerifyCodeEmail(user.email, code);
+      toast(ok ? "Code resent to " + user.email : "Couldn't send the email — check the mail extension setup");
+    } catch (e2) {
+      console.error(e2);
+      toast("Couldn't resend — try again");
+    }
+  };
+
+  $("verifySignOut").onclick = () => auth.signOut();
 }
 
 if (!FB_READY){
@@ -66,29 +166,13 @@ if (!FB_READY){
       return;
     }
     try {
-      const role = await resolveRole(user);
-      if (role === "pending") { screen("pending"); }
-      else {
-        isAdmin = role === "admin";
-        canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
-        $("drawerAssign").classList.toggle("hidden", !canAssignTasks);
-        $("drawerTeam").classList.toggle("hidden", !isAdmin);
-        $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
-        // quick-assign icons follow the same permission as the Assign page
-        $("bandAssignBtn").classList.toggle("hidden", !canAssignTasks);
-        $("cardAssignBtn").classList.toggle("hidden", !canAssignTasks);
-        $("teamPanelAssignBtn").classList.toggle("hidden", !canAssignTasks);
-        // everyone on desktop gets the two-pane shell; the role only decides
-        // what the third column holds
-        $("appScreen").classList.add("panes");
-        $("appScreen").classList.toggle("has-team", isAdmin);
-        $("teamPanel").classList.toggle("hidden", !isAdmin);
-        if (isAdmin) { watchCompletionNotifications(); loadTeamPane(); }
-        Store.setUser(user.uid, user.email);
-        pomoLoadFor(user.uid);   // this account's own focus timer, no one else's
-        screen("app");
-        startWorkerApp();
-      }
+      const info = await resolveRole(user);
+      // a fresh password signup that hasn't entered its emailed code yet -
+      // strictly false, so grandfathered accounts (the field never existed)
+      // sail straight past this and Google accounts (already true) do too
+      if (info.emailVerified === false) { openVerifyScreen(user, info); }
+      else if (info.role === "pending") { screen("pending"); }
+      else { enterFullApp(user, info.role); }
     } catch (e) {
       console.error(e);
       $("loginErr").textContent = "Signed in, but couldn't load your account. Check Firestore rules.";

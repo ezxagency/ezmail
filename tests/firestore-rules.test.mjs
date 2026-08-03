@@ -1,6 +1,7 @@
-/* Emulator test matrix for ../firestore.rules - 71 allow/deny assertions
-   across four actors: admin, assigner (worker role + special email),
-   worker, pending stranger, and the unauthenticated client-link holder.
+/* Emulator test matrix for ../firestore.rules - 78 allow/deny assertions
+   across five actors: admin, assigner (worker role + special email),
+   worker, pending stranger, an unverified fresh signup, and the
+   unauthenticated client-link holder.
 
    Run (needs Java on PATH and firebase-tools):
      cd tests && npm i @firebase/rules-unit-testing firebase
@@ -30,6 +31,7 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "users/worker1"), { email: "w1@x.com", role: "worker" });
   await setDoc(doc(db, "users/stranger1"), { email: "stranger@evil.com", role: "pending" });
   await setDoc(doc(db, "users/worker2"), { email: "w2@x.com", role: "worker" });
+  await setDoc(doc(db, "users/unverified1"), { email: "new@x.com", role: "pending", emailVerified: false, verifyCode: "111111", verifyCodeAt: 1 });
   await setDoc(doc(db, "appState/worker1"), { json: "{}", email: "w1@x.com" });
   await setDoc(doc(db, "assignments/a1"), { toUid: "worker1", toName: "W1", store: "abc", task: "Copy", done: false, ack: false });
   await setDoc(doc(db, "assignments/a2"), { toUid: "worker2", toName: "W2", store: "mno", task: "Design", done: true, ack: false });
@@ -49,6 +51,7 @@ const assigner = env.authenticatedContext("assigner1", { email: "prashuchiha34@g
 const worker = env.authenticatedContext("worker1", { email: "w1@x.com" }).firestore();
 const anon = env.unauthenticatedContext().firestore();
 const stranger = env.authenticatedContext("stranger1", { email: "stranger@evil.com" }).firestore();
+const unverified = env.authenticatedContext("unverified1", { email: "new@x.com" }).firestore();
 
 // ================= WORKER =================
 await T("worker: query own open assignments", assertSucceeds(getDocs(query(collection(worker, "assignments"), where("toUid", "==", "worker1"), where("done", "==", false)))));
@@ -130,6 +133,15 @@ await T("anon: non-string comment DENIED", assertFails(updateDoc(doc(anon, "clie
 await T("anon: string decidedAt DENIED", assertFails(updateDoc(doc(anon, "clientReviews/tok3"), { status: "approved", comment: "", decidedAt: "later" })));
 await T("anon: normal decision still works", assertSucceeds(updateDoc(doc(anon, "clientReviews/tok3"), { status: "approved", comment: "looks great", decidedAt: 9 })));
 await T("admin: mark roleDoc notification read (allowlist)", assertSucceeds(updateDoc(doc(admin, "notifications/n2"), { read: true })));
+
+// ================= EMAIL VERIFICATION (post-signup code) =================
+await T("unverified: resend a fresh code (allowlist)", assertSucceeds(updateDoc(doc(unverified, "users/unverified1"), { verifyCode: "222222", verifyCodeAt: 2 })));
+await T("unverified: sneak a role change while resending DENIED", assertFails(updateDoc(doc(unverified, "users/unverified1"), { verifyCode: "333333", role: "admin" })));
+await T("unverified: touch a disallowed field alongside verifying DENIED", assertFails(updateDoc(doc(unverified, "users/unverified1"), { emailVerified: true, email: "hacked@x.com" })));
+await T("unverified: mark self verified after entering the right code", assertSucceeds(updateDoc(doc(unverified, "users/unverified1"), { emailVerified: true })));
+await T("unverified: reuse the verify path once already verified DENIED", assertFails(updateDoc(doc(unverified, "users/unverified1"), { verifyCode: "999999" })));
+await T("worker: touch verify fields on a legacy doc with no such field DENIED", assertFails(updateDoc(doc(worker, "users/worker1"), { verifyCode: "000000" })));
+await T("worker: touch ANOTHER user's verify fields DENIED", assertFails(updateDoc(doc(worker, "users/unverified1"), { emailVerified: true })));
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 await env.cleanup();

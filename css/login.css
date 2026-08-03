@@ -101,3 +101,37 @@
 #loginScreen .sc-footer-link{font-family:var(--body);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--sc-footer);text-decoration:none;margin:0 10px}
 #loginScreen a.sc-footer-link:hover{color:var(--sc-green)}
 #loginScreen .sc-copyright{margin:14px 0 0;font-size:12px;color:#C4BCA9;font-family:var(--body)}
+
+/* ---------- email verification step: the same signup form's last screen,
+   so it keeps the redesign's palette rather than dropping to the plain
+   pendingScreen look it hands off to next ---------- */
+#verifyScreen.login-wrap{background:var(--sc-bg);overflow-y:auto;padding:48px 24px}
+#verifyScreen .login-card{
+  width:min(100%,400px);background:var(--sc-card);border:none;backdrop-filter:none;-webkit-backdrop-filter:none;
+  border-radius:26px;padding:32px 28px;box-shadow:0 20px 50px rgba(60,50,30,.1);
+}
+#verifyScreen h1{font-family:var(--sc-serif);font-weight:700;font-size:26px;color:var(--sc-green-dark);margin:0 0 10px;letter-spacing:.01em}
+#verifyScreen .hint{font-family:var(--body);color:var(--sc-muted);font-size:15px;margin:0 0 22px;line-height:1.5}
+#verifyScreen .login-err{text-align:left;margin:-8px 0 16px;font-family:var(--body)}
+#verifyScreen .fld{display:block;margin-bottom:20px}
+#verifyScreen .fld > span{display:block;font-family:var(--body);font-size:14px;color:var(--sc-ink);font-weight:500;margin-bottom:8px}
+#verifyScreen input{
+  width:100%;font-family:var(--mono);font-size:22px;letter-spacing:.35em;text-align:center;
+  padding:15px 12px;border:1px solid transparent;border-radius:14px;background:var(--sc-input);color:var(--sc-ink);
+}
+#verifyScreen input::placeholder{color:#A79E8C;letter-spacing:.35em}
+#verifyScreen input:focus{outline:2px solid var(--sc-green);outline-offset:1px;background:#fff}
+#verifyScreen .sc-btn-go{
+  width:100%;background:var(--sc-green);color:#fff;border:0;border-radius:16px;padding:17px 16px;
+  font-family:var(--body);font-weight:600;font-size:16px;cursor:pointer;
+  transition:transform .12s ease,background .2s ease;
+}
+#verifyScreen .sc-btn-go:hover{background:var(--sc-green-dark)}
+#verifyScreen .sc-btn-go:active{transform:scale(.985)}
+#verifyScreen .sc-btn-go[disabled]{opacity:.5;cursor:not-allowed}
+#verifyScreen .sc-link{
+  display:block;width:100%;text-align:center;background:none;border:0;padding:0;margin-top:18px;
+  font-family:var(--body);font-size:13px;font-weight:600;color:var(--sc-green);cursor:pointer;
+}
+#verifyScreen .sc-link:hover{text-decoration:underline}
+#verifyScreen .verify-signout{display:block;margin:14px auto 0}

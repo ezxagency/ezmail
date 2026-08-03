@@ -2,6 +2,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Shift Card</title>
 <meta name="theme-color" content="#161922">
+<link rel="icon" type="image/png" href="assets/favicon.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,22 +18,23 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=20">
-<link rel="stylesheet" href="css/dashboard.css?v=20">
-<link rel="stylesheet" href="css/drawer.css?v=20">
-<link rel="stylesheet" href="css/pages.css?v=20">
-<link rel="stylesheet" href="css/sheets.css?v=20">
-<link rel="stylesheet" href="css/tables.css?v=20">
-<link rel="stylesheet" href="css/responsive.css?v=20">
-<link rel="stylesheet" href="css/pomodoro.css?v=20">
-<link rel="stylesheet" href="css/login.css?v=20">
+<link rel="stylesheet" href="css/base.css?v=48">
+<link rel="stylesheet" href="css/dashboard.css?v=48">
+<link rel="stylesheet" href="css/drawer.css?v=48">
+<link rel="stylesheet" href="css/pages.css?v=48">
+<link rel="stylesheet" href="css/sheets.css?v=48">
+<link rel="stylesheet" href="css/tables.css?v=48">
+<link rel="stylesheet" href="css/responsive.css?v=48">
+<link rel="stylesheet" href="css/pomodoro.css?v=48">
+<link rel="stylesheet" href="css/campaigns.css?v=48">
+<link rel="stylesheet" href="css/login.css?v=48">
 
 
 <div id="loginScreen" class="login-wrap">
   <div class="sc-col">
     <div class="sc-header">
       <div class="sc-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10M7 21h10M7 3c0 5.5 4 6.5 5 8-1 1.5-5 2.5-5 8M17 3c0 5.5-4 6.5-5 8 1 1.5 5 2.5 5 8"/></svg>
+        <img src="assets/logo-ez.png" alt="Ez Agency">
       </div>
       <h1 class="sc-title">Shift Card</h1>
       <p class="sc-subtitle" id="loginHint">Sign in to clock in and out.</p>
@@ -85,6 +87,22 @@
   </div>
 </div>
 
+<div id="verifyScreen" class="login-wrap hidden">
+  <div class="login-card">
+    <h1>Check your email</h1>
+    <p class="hint">We sent a 6-digit code to <b id="verifyEmail"></b>. Enter it below to finish creating your account.</p>
+    <p id="verifyErr" class="login-err hidden"></p>
+    <form id="verifyForm">
+      <label class="fld"><span>Verification code</span>
+        <input type="text" id="verifyCodeInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+      </label>
+      <button type="submit" class="sc-btn-go" id="verifySubmit">Verify</button>
+    </form>
+    <button type="button" class="sc-link" id="verifyResend">Resend code</button>
+    <button type="button" class="btn btn-ghost btn-sm verify-signout" id="verifySignOut">Use a different email</button>
+  </div>
+</div>
+
 <div id="pendingScreen" class="login-wrap hidden">
   <div class="login-card">
     <img class="brand-logo" src="assets/logo.png" alt="Ez Agency">
@@ -97,31 +115,42 @@
 <div class="app hidden" id="appScreen">
   <header class="band" id="band" data-s="IDLE">
     <div class="brand">
-      <div class="brand-row">
-        <!-- the way into everything that used to sit in the bottom nav -->
-        <button type="button" class="menu-btn" id="menuBtn" aria-label="Open menu"
-                aria-haspopup="dialog" aria-expanded="false" aria-controls="drawer">
-          <span class="menu-lines" aria-hidden="true"><span></span><span></span><span></span></span>
-        </button>
+      <!-- the way into everything that used to sit in the bottom nav -->
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Open menu"
+              aria-haspopup="dialog" aria-expanded="false" aria-controls="drawer">
+        <span class="menu-lines" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
+      <!-- one column, one left edge: the wordmark sits on top and the
+           signed-in user's name directly below it, strictly collinear -->
+      <div class="brand-col">
         <div class="brand-title">
           <div class="brand-word"><span class="ez">EZ</span><span class="rest">CLOCK IN</span></div>
           <div class="brand-rule"></div>
         </div>
+        <!-- the person glyph is the profile control; the name beside it is the
+             signed-in user -->
+        <button type="button" class="band-meta" id="bandMeta" aria-label="Profile">
+          <svg class="band-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c0-3.3 2.9-5.6 6.5-5.6s6.5 2.3 6.5 5.6"/></svg>
+          <span id="bandMetaName">Not on shift</span>
+        </button>
+        <div class="band-state" id="bandState">Clocked out</div>
       </div>
-      <!-- the person glyph is the profile control; the name beside it is the
-           signed-in user -->
-      <button type="button" class="band-meta" id="bandMeta" aria-label="Profile">
-        <svg class="band-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c0-3.3 2.9-5.6 6.5-5.6s6.5 2.3 6.5 5.6"/></svg>
-        <span id="bandMetaName">Not on shift</span>
-      </button>
-      <div class="band-state" id="bandState">Clocked out</div>
     </div>
     <div class="band-actions">
+      <button type="button" class="band-signout admin-icon-btn hidden" id="bandAssignBtn" aria-label="Assign task" title="Assign task">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>
+      </button>
+      <button type="button" class="band-signout admin-icon-btn hidden" id="notifBell" aria-label="Notifications" title="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.4a6 6 0 0 0-12 0c0 6.6-2.6 8.4-2.6 8.4h17.2S18 15 18 8.4z"/><path d="M13.8 20.4a2.1 2.1 0 0 1-3.6 0"/></svg>
+        <span class="notif-badge hidden" id="notifBadge">0</span>
+      </button>
       <button type="button" class="band-signout admin-icon-btn hidden" id="adminAccessBtn" aria-label="Admin access">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
         <span class="notif-badge hidden" id="adminNotifBadge">0</span>
       </button>
-      <button type="button" class="band-signout hidden" id="bandSignOut">Sign out</button>
+      <button type="button" class="band-signout admin-icon-btn hidden" id="bandSignOut" aria-label="Sign out" title="Sign out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+      </button>
     </div>
   </header>
 
@@ -178,6 +207,42 @@
       <!-- Pomodoro / Focus timer: replaces the two rings while Focus mode is on -->
       <div class="pomo" id="pomo" hidden>
         <div class="ring pomo-ring" id="pomoRing">
+          <div class="pomo-alarm" id="pomoAlarm" aria-hidden="true">
+            <svg class="pomo-bell pomo-bell-l" viewBox="0 0 36 32">
+              <defs>
+                <linearGradient id="pomoBellGradL" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#ffe1a8"/>
+                  <stop offset=".55" stop-color="#ffb35a"/>
+                  <stop offset="1" stop-color="#e8791f"/>
+                </linearGradient>
+              </defs>
+              <g class="pomo-bell-waves" stroke="#ffd28a" stroke-width="2" stroke-linecap="round" fill="none">
+                <path d="M11 12c-2.3 1.3-3.5 4-2.8 7.2"/>
+                <path d="M6.5 8c-4.3 2.5-6.6 7.7-5 13.4"/>
+              </g>
+              <circle class="pomo-bell-knob" cx="22" cy="3.4" r="1.7" fill="#e8791f"/>
+              <path class="pomo-bell-body" d="M22 5.4c-5.4 0-9.6 4.4-9.6 9.6v5.6c0 1-2.6 3.6-2.6 4.6h24.4c0-1-2.6-3.6-2.6-4.6V15c0-5.2-4.2-9.6-9.6-9.6z"
+                    fill="url(#pomoBellGradL)" stroke="#a85a1c" stroke-width="1"/>
+              <circle class="pomo-bell-clap" cx="22" cy="27.6" r="2.4" fill="#a85a1c"/>
+            </svg>
+            <svg class="pomo-bell pomo-bell-r" viewBox="0 0 36 32">
+              <defs>
+                <linearGradient id="pomoBellGradR" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#ffe1a8"/>
+                  <stop offset=".55" stop-color="#ffb35a"/>
+                  <stop offset="1" stop-color="#e8791f"/>
+                </linearGradient>
+              </defs>
+              <g class="pomo-bell-waves" stroke="#ffd28a" stroke-width="2" stroke-linecap="round" fill="none">
+                <path d="M11 12c-2.3 1.3-3.5 4-2.8 7.2"/>
+                <path d="M6.5 8c-4.3 2.5-6.6 7.7-5 13.4"/>
+              </g>
+              <circle class="pomo-bell-knob" cx="22" cy="3.4" r="1.7" fill="#e8791f"/>
+              <path class="pomo-bell-body" d="M22 5.4c-5.4 0-9.6 4.4-9.6 9.6v5.6c0 1-2.6 3.6-2.6 4.6h24.4c0-1-2.6-3.6-2.6-4.6V15c0-5.2-4.2-9.6-9.6-9.6z"
+                    fill="url(#pomoBellGradR)" stroke="#a85a1c" stroke-width="1"/>
+              <circle class="pomo-bell-clap" cx="22" cy="27.6" r="2.4" fill="#a85a1c"/>
+            </svg>
+          </div>
           <svg class="ring-svg" viewBox="0 0 200 200" aria-hidden="true">
             <defs>
               <marker id="ringArrowPomo" viewBox="0 0 11 9" refX="10.2" refY="4.5" markerWidth="11" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
@@ -198,7 +263,9 @@
           <button type="button" class="pomo-side" id="pomoReset" aria-label="Reset this session" title="Reset">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8a9 9 0 1 1-1 5.5"/><path d="M3 3v5h5"/></svg>
           </button>
-          <button type="button" class="pomo-main" id="pomoPlay">Start</button>
+          <button type="button" class="pomo-main" id="pomoPlay" aria-label="Start">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6l11-6.8z"/></svg>
+          </button>
           <button type="button" class="pomo-side" id="pomoSkip" aria-label="Skip to next session" title="Skip">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l9 7-9 7V5z"/><path d="M17 5v14"/></svg>
           </button>
@@ -223,6 +290,9 @@
       </button>
       <div class="card-head">
         <span>Daily<br>Mission</span>
+        <button type="button" class="panel-menu head-assign hidden" id="cardAssignBtn" aria-label="Assign task" title="Assign task">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>
+        </button>
         <button type="button" class="panel-menu" id="cardMenu" aria-label="Card menu" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="4.6" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19.4" r="1.9"/></svg>
         </button>
@@ -237,8 +307,9 @@
     </section>
 
     <!-- The second pane for everyone who is not an admin: their own assigned
-         tasks, in the same slot the admin's Team pane occupies. Only present
-         when they actually have some. -->
+         tasks, in the same slot the admin's Team pane occupies. Always up for
+         workers - an empty queue shows a "no tasks" state instead of the pane
+         vanishing and the layout reshaping around one wide card. -->
     <aside class="assign-panel hidden" id="assignedTasksSection">
       <div class="assign-panel-head team-panel-head">
         <span class="assign-panel-mark team-panel-mark">
@@ -274,9 +345,15 @@
     <aside class="team-panel hidden" id="teamPanel">
       <div class="team-panel-head">
         <span class="team-panel-mark">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.4c.9 3.6 2.1 5.9 3.6 7.1 1.2 1 3 1.8 5.4 2.3v2.4c-2.4.5-4.2 1.3-5.4 2.3-1.5 1.2-2.7 3.5-3.6 7.1-.9-3.6-2.1-5.9-3.6-7.1-1.2-1-3-1.8-5.4-2.3v-2.4c2.4-.5 4.2-1.3 5.4-2.3C9.9 7.3 11.1 5 12 1.4z"/></svg>
+          <!-- a true four-point sparkle: every tip runs to a single sharp
+               point, deep concave sweeps between them. The viewBox carries
+               its own margin so no tip is ever shaved off at raster. -->
+          <svg viewBox="-1 -1 26 26" fill="currentColor"><path d="M12 0c.9 7.4 4.6 11.1 12 12-7.4.9-11.1 4.6-12 12-.9-7.4-4.6-11.1-12-12C7.4 11.1 11.1 7.4 12 0z"/></svg>
         </span>
         <h2 class="team-panel-title">Team</h2>
+        <button type="button" class="panel-menu head-assign hidden" id="teamPanelAssignBtn" aria-label="Assign task" title="Assign task">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>
+        </button>
         <button type="button" class="panel-menu" id="teamMenu" aria-label="Team menu" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="4.6" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19.4" r="1.9"/></svg>
         </button>
@@ -331,15 +408,21 @@
         <span class="drawer-txt">History<small>Closed shifts &amp; exports</small></span>
         <kbd class="drawer-kbd">3</kbd>
       </a>
+      <a class="drawer-item" href="#/campaigns" data-route="campaigns">
+        <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><path d="M7.2 12h2.6M14.2 12h2.6"/></svg></span>
+        <span class="drawer-txt">Campaigns<small>The baton-pass pipeline</small></span>
+        <span class="drawer-badge hidden" id="cgNavBadge">0</span>
+        <kbd class="drawer-kbd">4</kbd>
+      </a>
       <a class="drawer-item hidden" id="drawerAssign" href="#/assign" data-route="assign">
         <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg></span>
         <span class="drawer-txt">Assign<small>Hand out tasks</small></span>
-        <kbd class="drawer-kbd">4</kbd>
+        <kbd class="drawer-kbd">5</kbd>
       </a>
       <a class="drawer-item hidden" id="drawerTeam" href="#/team" data-route="team">
         <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg></span>
         <span class="drawer-txt">Team<small>Roster &amp; approvals</small></span>
-        <kbd class="drawer-kbd">5</kbd>
+        <kbd class="drawer-kbd">6</kbd>
       </a>
     </nav>
 
@@ -390,6 +473,22 @@
     </div>
   </div>
 
+  <div class="admin-page fpage hidden" id="campaignsScreen">
+    <div class="admin-page-inner">
+      <div class="admin-page-head">
+        <div>
+          <p class="fpage-eyebrow">Pipeline</p>
+          <h1 class="admin-page-title">Campaigns</h1>
+        </div>
+        <button type="button" class="page-back" data-back>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          Back
+        </button>
+      </div>
+      <div id="campaignsBody"></div>
+    </div>
+  </div>
+
   <div class="admin-page fpage hidden" id="assignScreen">
     <div class="admin-page-inner">
       <div class="admin-page-head">
@@ -428,24 +527,28 @@
       <div id="teamToday"></div>
       <button class="btn btn-go btn-sm" id="teamExportAll" style="width:auto;margin-bottom:18px">Export Team Report</button>
       <ul class="hist" id="teamPending"></ul>
-      <ul class="hist" id="teamList"></ul>
+      <!-- member summary: one table with each member's status, the picked
+           month's days / hours / avg-per-day, and today's worked + break -->
+      <div id="teamMonthly"></div>
     </div>
   </div>
 
 </div>
 
 <div class="scrim" id="scrim"></div>
-<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetBody"></div></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" tabindex="-1"><div class="grab"></div><div id="sheetBody"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=20"></script>
-<script src="js/render.js?v=20"></script>
-<script src="js/ui.js?v=20"></script>
-<script src="js/shift.js?v=20"></script>
-<script src="js/email.js?v=20"></script>
-<script src="js/nav.js?v=20"></script>
-<script src="js/boot.js?v=20"></script>
-<script src="js/team.js?v=20"></script>
-<script src="js/assign.js?v=20"></script>
-<script src="js/auth.js?v=20"></script>
-<script src="js/pomodoro.js?v=20"></script>
+<script src="js/config.js?v=48"></script>
+<script src="js/render.js?v=48"></script>
+<script src="js/ui.js?v=48"></script>
+<script src="js/shift.js?v=48"></script>
+<script src="js/email.js?v=48"></script>
+<script src="js/nav.js?v=48"></script>
+<script src="js/boot.js?v=48"></script>
+<script src="js/team.js?v=48"></script>
+<script src="js/assign.js?v=48"></script>
+<script src="js/notify.js?v=48"></script>
+<script src="js/campaigns.js?v=48"></script>
+<script src="js/auth.js?v=48"></script>
+<script src="js/pomodoro.js?v=48"></script>

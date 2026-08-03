@@ -3,6 +3,7 @@
    ============================================================ */
 function screen(show){
   $("loginScreen").classList.toggle("hidden", show !== "login");
+  $("verifyScreen").classList.toggle("hidden", show !== "verify");
   $("pendingScreen").classList.toggle("hidden", show !== "pending");
   $("appScreen").classList.toggle("hidden", show !== "app");
 }
