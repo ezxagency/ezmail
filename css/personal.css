@@ -79,6 +79,25 @@
   background:rgba(0,174,11,.07);
 }
 .pt-row.is-anchored .pt-focus{opacity:1;color:var(--wk-green)}
+/* names the anchored row outright rather than leaving the green edge to
+   speak for itself - easy to miss at a glance, especially once the row
+   scrolls away from the add-form and has nothing nearby for contrast */
+.pt-anchor-tag{
+  flex:none;padding:2px 8px;border-radius:999px;
+  background:rgba(0,174,11,.18);color:var(--wk-green);
+  font-family:var(--wk);font-size:9.5px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;
+}
+
+/* The panel's own icon badge - was a bare white glyph shared verbatim with
+   Team/Assigned, which read as generic. Green-tinted here to match the
+   rest of this card's own palette (the add button, checkmarks, the
+   anchored-row accent), scoped to this panel only. */
+#personalTasksSection .team-panel-mark{
+  width:38px;height:38px;border-radius:12px;flex:none;
+  background:rgba(0,174,11,.14);border:1px solid rgba(0,174,11,.3);color:var(--wk-green);
+}
+#personalTasksSection .team-panel-mark svg{width:20px;height:20px}
 
 /* ---------- Focus Anchor: Personal mode's center column ----------
    No card, no border, no background by design - bare content on the

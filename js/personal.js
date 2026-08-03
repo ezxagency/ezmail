@@ -70,6 +70,7 @@ function ptRender(){
     <li class="pt-row${t.done ? " is-done" : ""}${t.id === ptActiveId ? " is-anchored" : ""}" data-id="${t.id}">
       <button type="button" class="pt-check" aria-label="${t.done ? "Mark not done" : "Mark done"}">${PT_CHECK_SVG}</button>
       <span class="pt-text">${esc(t.text)}</span>
+      ${t.id === ptActiveId ? `<span class="pt-anchor-tag">Focused</span>` : ""}
       ${t.done ? "" : `<button type="button" class="pt-focus" aria-label="Focus on this task" title="Focus on this">${PT_FOCUS_SVG}</button>`}
       <button type="button" class="pt-del" aria-label="Delete task" title="Delete">×</button>
     </li>`;
