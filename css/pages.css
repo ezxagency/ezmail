@@ -56,10 +56,15 @@
   margin:0 0 14px;font-family:var(--wk);font-weight:700;font-size:15px;
   letter-spacing:.06em;text-transform:uppercase;color:var(--wk-white);
 }
-/* contextual action bar: status on the left, the page's verbs on the right */
+/* contextual action bar: status on the left, the page's verbs on the right.
+   Same glass as .fpage-panel - bare, it was just a note and a button
+   floating directly on the marble with nothing grounding them, which reads
+   as unfinished wherever the marble underneath happens to run bright. */
 .fpage-bar{
   display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
-  margin:0 0 20px;
+  margin:0 0 20px;padding:14px 18px;border-radius:14px;
+  background:rgba(12,14,20,.42);border:1px solid rgba(255,255,255,.16);
+  backdrop-filter:blur(7px) saturate(105%);-webkit-backdrop-filter:blur(7px) saturate(105%);
 }
 .fpage-bar-note{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);margin:0}
 .fpage-bar-acts{display:flex;gap:10px;flex-wrap:wrap}
