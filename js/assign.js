@@ -503,8 +503,17 @@ async function openAssignFlow(preUid, preName, editThread){
       const t = $("afTrigwhere" + pi);
       if (!t) return;
       t.scrollIntoView({ behavior: "smooth", block: "center" });
-      if (t.getAttribute("aria-expanded") !== "true") t.click();
-      t.focus();
+      // deferred: a synthetic click fired synchronously here is still
+      // nested inside afAddMore's own click event. That event keeps
+      // bubbling to the document afterward, where the "click outside
+      // closes menus" listener sees afAddMore (not the trigger) as the
+      // target and immediately shuts the panel this just opened. Waiting
+      // a tick lets that bubble finish first, so the fresh click on t is
+      // its own event and the listener sees it land inside .af-trigger.
+      setTimeout(() => {
+        if (t.getAttribute("aria-expanded") !== "true") t.click();
+        t.focus();
+      }, 0);
     };
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
