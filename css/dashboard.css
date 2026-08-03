@@ -226,66 +226,56 @@
 .team-table-empty{padding:26px 12px;text-align:center;color:var(--wk-white-60);font-family:var(--wk);font-size:13px}
 
 /* Team page's by-status assignment cards: Completed / Open / Overdue, each
-   a dropdown. Genuinely white/frosted glass, like the login screen's Shift
-   Card kit (--sc-*) - not the admin pages' usual dark fpage-panel, and not
-   the dashboard punch card's own recipe either: that one is tuned at 16%
-   opacity for a BRIGHT marble crop behind it, and reads as just another
-   dark panel against Team's much darker backdrop. Pushing the opacity up
-   is what actually delivers "translucent white" here; the dark Shift Card
-   ink/muted tokens come along with it for contrast. */
+   a dropdown. Exactly the Daily Mission card's own glass recipe (.card,
+   dashboard.css above) - dark, frosted, translucent, not an opaque white
+   card - so "how's my team doing" is built from the same material as
+   "how am I doing" on the worker's own dashboard. */
 .tlog{display:flex;flex-direction:column;gap:14px;margin-bottom:18px}
 .tlog-card{
-  background:rgba(255,255,255,.86);
-  backdrop-filter:blur(14px) saturate(130%);-webkit-backdrop-filter:blur(14px) saturate(130%);
-  border:1px solid rgba(255,255,255,.6);border-radius:20px;overflow:hidden;
-  box-shadow:0 12px 30px rgba(0,0,0,.28);
-  transition:box-shadow .16s ease;
+  background:rgba(255,244,229,.16);
+  backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
+  border:1px solid rgba(255,255,255,.26);border-radius:20px;overflow:hidden;
+  transition:border-color .16s ease;
 }
-.tlog-card:hover{box-shadow:0 14px 34px rgba(0,0,0,.34)}
+.tlog-card:hover{border-color:rgba(255,255,255,.4)}
 .tlog-head{
   display:flex;align-items:center;gap:12px;width:100%;padding:16px 20px;
-  background:none;border:0;cursor:pointer;text-align:left;color:var(--sc-ink);
+  background:none;border:0;cursor:pointer;text-align:left;color:var(--wk-white);
 }
 .tlog-dot{flex:none;width:10px;height:10px;border-radius:50%}
-.tlog-dot.is-done{background:#1F9E3C}
-.tlog-dot.is-late{background:#D6392D}
-.tlog-dot.is-open{background:rgba(43,43,40,.35)}
-.tlog-label{flex:1;min-width:0;font-family:var(--wk);font-weight:700;font-size:15px;letter-spacing:.01em;color:var(--sc-ink)}
+.tlog-dot.is-done{background:#22B23A}
+.tlog-dot.is-late{background:#E0483C}
+.tlog-dot.is-open{background:rgba(255,255,255,.6)}
+.tlog-label{flex:1;min-width:0;font-family:var(--wk);font-weight:700;font-size:15px;letter-spacing:.01em}
 .tlog-count{
   flex:none;font-family:var(--mono);font-size:13px;font-weight:600;
-  color:var(--sc-muted);font-variant-numeric:tabular-nums;
+  color:var(--wk-white-70);font-variant-numeric:tabular-nums;
 }
-.tlog-caret{flex:none;width:16px;height:16px;color:var(--sc-muted);transition:transform .22s cubic-bezier(.22,1,.36,1)}
+.tlog-caret{flex:none;width:16px;height:16px;color:var(--wk-white-70);transition:transform .22s cubic-bezier(.22,1,.36,1)}
 .tlog-card.is-open .tlog-caret{transform:rotate(180deg)}
 .tlog-body{display:none;padding:0 20px 18px}
 .tlog-card.is-open .tlog-body{display:block;animation:paneContentIn .3s cubic-bezier(.22,1,.36,1) both}
-.tlog-empty{font-family:var(--wk);font-size:13px;color:var(--sc-muted);padding:2px 0 4px}
+.tlog-empty{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);padding:2px 0 4px}
 .tlog-list{list-style:none;margin:0;padding:0}
 .tlog-item{
   display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;
-  padding:12px 0;border-top:1px solid rgba(43,43,40,.12);
+  padding:12px 0;border-top:1px solid rgba(255,255,255,.18);
 }
 .tlog-list li:first-child .tlog-item{border-top:0;padding-top:2px}
-.tlog-who{flex:none;min-width:100px;font-family:var(--wk);font-weight:700;font-size:13.5px;color:var(--sc-ink)}
-.tlog-what{flex:1;min-width:180px;font-family:var(--wk);font-size:13px;color:var(--sc-muted)}
-.tlog-what b{color:var(--sc-ink);font-weight:600}
+.tlog-who{flex:none;min-width:100px;font-family:var(--wk);font-weight:700;font-size:13.5px;color:var(--wk-white)}
+.tlog-what{flex:1;min-width:180px;font-family:var(--wk);font-size:13px;color:var(--wk-white-70)}
+.tlog-what b{color:var(--wk-white);font-weight:600}
 .tlog-dates{
   flex:none;display:flex;flex-direction:column;gap:2px;text-align:right;
-  font-family:var(--wk);font-size:11.5px;color:var(--sc-muted);
+  font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);
 }
 .tlog-acts{flex:none;display:flex;gap:6px}
-/* the shared assign-del/edit + seen/count chips are tuned for the app's
-   usual dark surfaces - re-tint them for this one genuinely light card */
-.tlog-card .assign-del{color:rgba(43,43,40,.55)}
-.tlog-card .assign-del:hover,.tlog-card .assign-del:focus-visible{background:rgba(214,57,45,.14);color:#D6392D}
-.tlog-card .assign-edit:hover,.tlog-card .assign-edit:focus-visible{background:rgba(43,43,40,.08);color:var(--sc-ink)}
-.tlog-card .seen-eye,.tlog-card .thread-count{color:var(--sc-muted)}
 .tlog-more{
   display:block;margin:10px auto 0;background:none;border:0;cursor:pointer;
-  font-family:var(--wk);font-size:12px;font-weight:600;color:var(--sc-muted);
+  font-family:var(--wk);font-size:12px;font-weight:600;color:var(--wk-white-70);
   letter-spacing:.02em;padding:6px 10px;
 }
-.tlog-more:hover{color:var(--sc-ink)}
+.tlog-more:hover{color:var(--wk-white)}
 
 /* the shrunken punch card, shown only while the Team pane is expanded */
 .card-restore{
