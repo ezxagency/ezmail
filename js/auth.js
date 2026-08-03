@@ -163,9 +163,11 @@ if (!FB_READY){
       teamPaneRows = null; teamPendingCount = 0;
       // park the departing account's focus timer and personal list, and
       // reset to neutral - the next sign-in loads its own, so nothing
-      // leaks across accounts sharing this device
-      pomoUnload();
+      // leaks across accounts sharing this device. ptUnload FIRST: it
+      // clears ptUid, so pomoUnload's reset to the clocks tab can't
+      // overwrite this account's remembered tab choice
       ptUnload();
+      pomoUnload();
       return;
     }
     try {

@@ -9,6 +9,7 @@
 .app.personal-on #assignedTasksSection,
 .app.personal-on #teamPanel,
 .app.personal-on #missionCard,
+.app.personal-on .shiftbar,
 .app.personal-on .dock{display:none!important}
 
 /* mobile/base: #personalTasksSection is an .assign-panel, so it already

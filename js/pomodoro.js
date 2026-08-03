@@ -242,8 +242,11 @@ function pomoSoundStop(){
    dot, so flipping back lands on the exact remaining time. Only sign-out
    ends a session. */
 // the three-way tab (Clocks/Focus/Personal) visuals live in setAppMode
-// (js/personal.js) - this owns only what Focus itself needs: which panel
-// shows, the theme veil, and whether lingering ambient/preview sound stops
+// (js/personal.js) - this owns only what the timer itself needs: whether
+// it's on screen, the theme veil, and whether lingering sound stops.
+// `on` is true for BOTH Focus and Personal: the full timer (music,
+// themes, settings, alarm - the same DOM) rides along into Personal
+// mode, so working a personal task gets every pomo feature for free.
 function pomoSetMode(on){
   PM.on = on;
   $("appScreen").classList.toggle("pomo-on", on);

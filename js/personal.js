@@ -7,6 +7,7 @@
    localStorage, never written to Firestore, never visible to an admin.
    ============================================================ */
 const PT_LS = "ez-personal-v1";
+const PT_MODE_LS = "ez-appmode-v1";   // which tab this account left selected
 let PTasks = [];      // this account's tasks, newest first
 let ptUid = null;     // whose list PTasks currently is; null = nobody signed in
 
@@ -16,11 +17,16 @@ const ptSave = () => {
   try { localStorage.setItem(ptKey(), JSON.stringify(PTasks)); } catch (e) {}
 };
 
-/* Bring one account's saved list in. Called on sign-in, alongside pomoLoadFor. */
+/* Bring one account's saved list in. Called on sign-in, AFTER pomoLoadFor:
+   pomo restores clocks/focus from its own state first, and the saved tab
+   ("personal") overrides it here when that's where they left off. */
 function ptLoadFor(uid){
   ptUid = uid;
   try { PTasks = JSON.parse(localStorage.getItem(ptKey()) || "[]"); }
   catch (e) { PTasks = []; }
+  let mode = null;
+  try { mode = localStorage.getItem(PT_MODE_LS + ":" + ptUid); } catch (e) {}
+  if (mode === "personal") setAppMode("personal");
   ptRender();
 }
 /* Called on sign-out, alongside pomoUnload - the next person who signs in
@@ -75,11 +81,12 @@ function ptDelete(id){
 }
 
 /* ---------- the three-way mode switch itself ----------
-   Focus keeps owning its own on/off (the theme veil, whether ambient
-   sound is idle) via pomoSetMode; this owns which of the three tabs is
-   showing and which panel is visible. A running Focus session carries on
-   behind Personal exactly like it already does behind Clocks - the Focus
-   tab's live dot is the tell either way. */
+   This owns which tab and panel is showing; pomoSetMode owns what the
+   timer needs (theme veil, idle-sound cleanup). The timer is ON for both
+   Focus and Personal - Personal is the task list PLUS the full pomo
+   (music, themes, settings, the alarm), so working a personal task has
+   every focus tool right there. A running session carries across any
+   tab switch; the Focus tab's live dot is the tell. */
 function setAppMode(mode){   // "clocks" | "focus" | "personal"
   const app = $("appScreen");
   app.classList.toggle("personal-on", mode === "personal");
@@ -92,8 +99,10 @@ function setAppMode(mode){   // "clocks" | "focus" | "personal"
     el.classList.toggle("is-on", on);
     el.setAttribute("aria-selected", String(on));
   });
-  pomoSetMode(mode === "focus");
+  pomoSetMode(mode !== "clocks");
   if (mode === "personal") ptRender();
+  // remember the tab per account, so a reload lands back where they were
+  if (ptUid) try { localStorage.setItem(PT_MODE_LS + ":" + ptUid, mode); } catch (e) {}
 }
 
 (function ptInit(){
