@@ -373,6 +373,14 @@
 .fc-streak-value{display:inline-flex;align-items:center;gap:6px}
 .fc-flame{width:20px;height:20px;flex:none;color:#ffb35a}
 
+/* ---------- Focus Anchor, step 2: the countdown recedes for the ring ----------
+   Personal mode + an active focus round only (.pomo-focus-run, set in
+   pomoRender()) - Focus mode's own timer is untouched. transform rather
+   than a smaller font-size: no reflow of the ring-center stack it sits in,
+   and it shares the exact same transition timing as the task list's fade. */
+#pomoTime{transition:transform .28s ease}
+.app.personal-on.pomo-focus-run #pomoTime{transform:scale(.8)}
+
 /* ---------- squircle corners (superellipse, progressive enhancement) ----------
    Nearly everything else in this file is a circle or pill by design (mode
    switch, pomo-main/-side controls, dots, the alarm-glow ring, pswitch) and
