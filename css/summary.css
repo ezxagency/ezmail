@@ -1,0 +1,21 @@
+/* ============================================================
+   SUMMARY PAGE — KPI tiles with an inline trend line, plus the
+   sortable member table. Same glass kit as the other admin pages
+   (stat-tile/stat-grid, fpage-panel, assign-table live in pages.css/
+   sheets.css/tables.css already); this file only adds what's new here:
+   the sparkline marks and the click-to-sort table headers.
+   ============================================================ */
+
+.stat-tile-spark{margin-top:10px;line-height:0}
+.spark{display:block;width:100%;height:32px;overflow:visible}
+.spark-line{fill:none;stroke:var(--mint-400);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.spark-area{fill:var(--mint-400);opacity:.14;stroke:none}
+.spark-dot{fill:var(--mint-400)}
+
+.summary-table th[data-sort]{
+  cursor:pointer;user-select:none;
+  transition:color .14s ease;
+}
+.summary-table th[data-sort]:hover{color:var(--wk-white)}
+.summary-table th.is-sorted{color:var(--wk-white)}
+.summary-sort-arrow{display:inline-block;margin-left:5px;font-size:9px;opacity:.85}

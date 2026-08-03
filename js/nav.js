@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", assign: "assignScreen", team: "teamScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", assign: "assignScreen", team: "teamScreen", summary: "summaryScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -90,18 +90,18 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if ($("sheet").classList.contains("on")) return;
-  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "assign", "6": "team" };
+  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "assign", "6": "team", "7": "summary" };
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (r === "assign" && !canAssignTasks) return;
-  if (r === "team" && !isAdmin) return;
+  if ((r === "team" || r === "summary") && !isAdmin) return;
   go(r);
 });
 
 function applyRoute(){
   let r = currentRoute();
   // role guards: a deep link to a page you can't use lands on the dashboard
-  if ((r === "assign" && !canAssignTasks) || (r === "team" && !isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
+  if ((r === "assign" && !canAssignTasks) || ((r === "team" || r === "summary") && !isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
     a.classList.toggle("active", (a.dataset.route || "") === r));
@@ -120,6 +120,7 @@ function applyRoute(){
   else if (r === "campaigns") enterCampaignsPage();
   else if (r === "assign") enterAssignPage();
   else if (r === "team") loadTeamScreen();
+  else if (r === "summary"){ teamPageDocs = null; renderSummaryPage(); }
 }
 window.addEventListener("hashchange", applyRoute);
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(""));

@@ -41,15 +41,14 @@ async function loadTeamPending(){
   }
 }
 
-/* One appState read feeds the today table and the member summary below it -
-   they were separate .get() calls over the same collection. The docs are
-   kept so the month picker can re-render without another round trip. */
+/* Feeds the Team page's today table; the Summary page keeps its own copy
+   of this same appState read for the monthly report (see summary.js) -
+   fetched separately since either page can be the first one visited. */
 let teamPageDocs = null;
 async function loadTeamData(){
-  const list = $("teamMonthly"), today = $("teamToday");
-  if (!list) return;
-  if (today) today.innerHTML = `<p class="hint">Loading today's work…</p>`;
-  list.innerHTML = `<div class="empty">Loading…</div>`;
+  const today = $("teamToday");
+  if (!today) return;
+  today.innerHTML = `<p class="hint">Loading today's work…</p>`;
   try {
     const snap = await db.collection("appState").get();
     const docs = [];
@@ -60,12 +59,10 @@ async function loadTeamData(){
     });
     teamPageDocs = docs;
     renderTodaysWork(docs);
-    renderTeamMonthly();
     backfillDirectoryFrom(docs);   // keep every teammate @-mentionable
   } catch (e) {
     console.error(e);
-    if (today) today.innerHTML = "";
-    list.innerHTML = `<div class="empty">Couldn't load team data — check Firestore rules allow admin reads.</div>`;
+    today.innerHTML = `<div class="empty">Couldn't load team data — check Firestore rules allow admin reads.</div>`;
   }
 }
 
@@ -167,111 +164,6 @@ function renderTodaysWork(docs){
 
 // the quick-assign glyph that rides on section headers
 const ASSIGN_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>';
-
-/* ---------- monthly report ----------
-   Per-member columns for one calendar month: days worked, hours worked,
-   average hours per day, plus the standing summary metrics (shifts, avg
-   rating). Everything is bucketed by the shift's START date - a shift that
-   clocks in Aug 1 at 23:00 and out Aug 2 at 02:00 counts wholly under
-   Aug 1 - and the month picker walks back through the archive. Defaulting
-   to the running month is the "reset on the 1st": a new month simply
-   starts its own bucket. */
-let teamMonthSel = null;   // "YYYY-MM"; null = the current month
-const monthISO = ts => { const d = new Date(ts); return d.getFullYear() + "-" + pad(d.getMonth() + 1); };
-const teamMonth = () => teamMonthSel || monthISO(Date.now());
-
-// one member's numbers for one month, zeros included
-function monthlyStatsFor(s, month, now = Date.now()){
-  const hist = (s.history || []).filter(r => monthISO(r.startedAt) === month);
-  const live = (s.shift && s.status !== "IDLE" && monthISO(s.shift.startedAt) === month) ? s.shift : null;
-  const days = new Set(hist.map(r => dayStamp(r.startedAt)));
-  let ms = hist.reduce((t, r) => t + r.netMs, 0);
-  if (live){ ms += netMs(live, now); days.add(dayStamp(live.startedAt)); }
-  const rated = hist.filter(r => r.rating);
-  return {
-    days: days.size, ms, avgMs: days.size ? ms / days.size : 0,
-    shifts: hist.length + (live ? 1 : 0),
-    rating: rated.length ? (rated.reduce((t, r) => t + r.rating, 0) / rated.length).toFixed(1) : null
-  };
-}
-
-function monthLabel(month){
-  const p = month.split("-").map(Number);
-  return new Date(p[0], p[1] - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
-}
-
-// the Team page's month picker re-renders the summary from the cached docs
-function wireMonthPick(input){
-  if (!input) return;
-  input.onchange = () => {
-    teamMonthSel = input.value || null;
-    renderTeamMonthly();
-  };
-}
-
-/* Team page: the member summary is one organized table - every member is a
-   row carrying their live status, the picked month's days / hours / avg-
-   per-day, and today's worked + break time. Clicking a row opens the same
-   member detail the old roster list did. */
-const MEMBER_STATUS = {
-  ACTIVE:   { cls: "is-active", label: "Active" },
-  ON_BREAK: { cls: "is-break",  label: "On break" },
-  IDLE:     { cls: "is-idle",   label: "Idle" }
-};
-function renderTeamMonthly(){
-  const box = $("teamMonthly");
-  if (!box || !teamPageDocs) return;
-  const month = teamMonth();
-  const now = Date.now();
-  const shortDate = (new Date().getMonth() + 1) + "/" + new Date().getDate();
-
-  const rows = teamPageDocs.map(d => ({
-    d,
-    name: d.state.worker || d.raw.email || "Unnamed",
-    status: MEMBER_STATUS[d.state.status] || MEMBER_STATUS.IDLE,
-    m: monthlyStatsFor(d.state, month, now),
-    w: todaysWorkFor(d.state, now)
-  }));
-  // on the clock first, then whoever has put in the biggest month
-  rows.sort((a, b) =>
-    ((a.status === MEMBER_STATUS.IDLE) - (b.status === MEMBER_STATUS.IDLE))
-    || (b.m.ms - a.m.ms));
-
-  const initials = n => n.trim().split(/\s+/).map(p => p[0]).slice(0, 2).join("").toUpperCase();
-
-  box.innerHTML = `
-    <div class="monthly-head">
-      <p class="hint">Member summary · ${esc(monthLabel(month))}</p>
-      <input type="month" id="teamMonthPick" value="${esc(month)}" max="${monthISO(Date.now())}" aria-label="Pick a month">
-    </div>
-    ${!rows.length ? `<div class="empty">No team members have signed in yet.</div>` : `
-    <div class="table-card">
-      <table class="assign-table month-table">
-        <thead><tr>
-          <th>Member</th><th>Status</th><th>Days</th><th>Total Hours</th><th>Avg / Day</th><th>Today (${shortDate})</th><th>Break Today</th>
-        </tr></thead>
-        <tbody>
-          ${rows.map((r, i) => `<tr data-row="${i}">
-            <td data-label="Member" class="work-name"><span class="mt-member"><span class="mt-avatar">${esc(initials(r.name))}</span>${esc(r.name)}</span></td>
-            <td data-label="Status" class="nowrap"><span class="work-status ${r.status.cls}">${r.status.label}</span></td>
-            <td data-label="Days" class="nowrap">${r.m.days}</td>
-            <td data-label="Total Hours" class="nowrap">${r.m.ms ? humanDur(r.m.ms) : "0h"}</td>
-            <td data-label="Avg / Day" class="nowrap">${r.m.avgMs ? humanDur(r.m.avgMs) : "—"}</td>
-            <td data-label="Today (${shortDate})" class="nowrap">${humanDur(r.w ? r.w.net : 0)}</td>
-            <td data-label="Break Today" class="nowrap">${humanDur(r.w ? r.w.brk : 0)}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>`}`;
-  wireMonthPick($("teamMonthPick"));
-  box.querySelectorAll("tr[data-row]").forEach(tr => {
-    tr.style.cursor = "pointer";
-    tr.onclick = () => {
-      const r = rows[Number(tr.dataset.row)];
-      viewWorker(r.d.raw, r.d.state, r.d.id);
-    };
-  });
-}
 
 // Team is a full page (not a sheet) - admin gets the whole viewport to
 // work with instead of a small bottom sheet. It routes like the other
