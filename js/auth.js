@@ -40,6 +40,9 @@ function enterFullApp(user, role){
   isAdmin = role === "admin";
   canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
   $("drawerTeam").classList.toggle("hidden", !isAdmin);
+  // admin's own record lives inside Team's History section now - a
+  // separate personal-history page is only useful to everyone else
+  $("drawerHistory").classList.toggle("hidden", isAdmin);
   $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
   // quick-assign icons follow the same permission as assigning itself
   $("bandAssignBtn").classList.toggle("hidden", !canAssignTasks);
@@ -151,6 +154,7 @@ if (!FB_READY){
       $("cardAssignBtn").classList.add("hidden");
       $("teamPanelAssignBtn").classList.add("hidden");
       $("drawerTeam").classList.add("hidden");
+      $("drawerHistory").classList.remove("hidden");   // visible-by-default; only admin hides it
       closeDrawer();
       // a sheet open at forced sign-out (token revoked, account disabled)
       // would otherwise float the old account's data over the login screen

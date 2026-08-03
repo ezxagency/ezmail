@@ -559,7 +559,7 @@ function renderTeamHistorySection(){
   if (!box) return;
 
   if (teamHistoryRows === null){
-    box.innerHTML = `<p class="fpage-section-title">History</p><div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>`;
+    box.innerHTML = `<h2 class="admin-page-title">History</h2><div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div>`;
     loadTeamHistoryRows()
       .then(rows => { teamHistoryRows = rows; renderTeamHistorySection(); })
       .catch(e => { console.error(e); teamHistoryRows = []; renderTeamHistorySection(); });
@@ -568,13 +568,13 @@ function renderTeamHistorySection(){
 
   if (!teamHistoryRows.length){
     box.innerHTML = `
-      <p class="fpage-section-title">History</p>
+      <h2 class="admin-page-title">History</h2>
       <div class="fpage-panel"><div class="empty">No closed shifts across the team yet.</div></div>`;
     return;
   }
 
   box.innerHTML = `
-    <p class="fpage-section-title">History</p>
+    <h2 class="admin-page-title">History</h2>
     <div id="thxStats"></div>
     <div class="fpage-filters">
       <button type="button" class="chip" data-range="today">Today</button>

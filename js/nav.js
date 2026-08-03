@@ -94,20 +94,21 @@ document.addEventListener("keydown", e => {
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (r === "team" && !isAdmin) return;
+  if (r === "history" && isAdmin) return;
   go(r);
 });
 
 function applyRoute(){
   let r = currentRoute();
-  // role guards: a deep link to a page you can't use lands on the dashboard
-  if (r === "team" && !isAdmin) { r = ""; if (location.hash) location.replace("#/"); }
+  // role guards: a deep link to a page you can't use lands on the dashboard.
+  // History is personal, so it's everyone's page EXCEPT admin's - their own
+  // record lives inside Team's History section instead.
+  if ((r === "team" && !isAdmin) || (r === "history" && isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
     a.classList.toggle("active", (a.dataset.route || "") === r));
   closeDrawer();
   if (r === "mission") renderMissionPage();
-  // walking into History refetches the team's record; while ON the page,
-  // refreshOpenPage re-renders from the cache without another round trip
   else if (r === "history") renderHistoryPage();
   else if (r === "campaigns") enterCampaignsPage();
   else if (r === "team") loadTeamScreen();
