@@ -248,16 +248,19 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
 
 /* ---------- Assign Task: light theme, scoped to this one sheet ----------
-   A one-off flip to a white/ink/blue palette, requested for this flow only -
-   it will read as inconsistent next to the rest of the dark-glass app, and
-   that's the deliberate scope (see openAssignFlow's openSheet cls option).
+   A one-off flip to a white surface, requested for this flow only - it will
+   read as inconsistent next to the rest of the dark-glass app, and that's
+   the deliberate scope (see openAssignFlow's openSheet cls option). Ink and
+   accent reuse the site's own tokens (--wk-navy, --wk-green) rather than a
+   new invented palette, so it still reads as this app in a light key.
    Every rule here targets .af-sheet-light explicitly so nothing leaks into
    any other sheet (Profile, ratings, campaign forms, etc.) that reuses the
    same #sheet/#sheetBody markup. */
 .sheet.af-sheet-light{
-  --afl-ink:#15171c;--afl-body:#33363e;--afl-muted:#82868f;--afl-border:#e2e4ea;
-  --afl-fill:#f7f8fa;--afl-placeholder:#a7abb4;--afl-accent:#2f6fed;
-  --afl-accent-soft:rgba(47,111,237,.08);--afl-accent-border:rgba(47,111,237,.4);
+  --afl-ink:var(--wk-navy);--afl-body:#33363e;--afl-muted:#82868f;--afl-border:#e2e4ea;
+  --afl-fill:#f7f8fa;--afl-placeholder:#a7abb4;--afl-accent:var(--wk-green);
+  --afl-accent-soft:rgba(0,174,11,.08);--afl-accent-border:rgba(0,174,11,.4);
+  --afl-danger:#E0483C;
   background:#ffffff;color:var(--afl-ink);
   border-color:var(--afl-border);
   box-shadow:0 -20px 48px rgba(15,23,42,.16);
@@ -273,7 +276,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-sheet-light .af-slot{color:var(--afl-muted);border-bottom-color:var(--afl-border)}
 
 .af-sheet-light .af-pip{background:#dfe2e8}
-.af-sheet-light .af-step.is-done .af-pip{background:var(--afl-accent);box-shadow:0 0 0 3.5px rgba(47,111,237,.18)}
+.af-sheet-light .af-step.is-done .af-pip{background:var(--afl-accent);box-shadow:0 0 0 3.5px rgba(0,174,11,.18)}
 .af-sheet-light .af-step-label{color:var(--afl-muted)}
 
 .af-sheet-light .af-trigger{
@@ -314,8 +317,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 
 .af-sheet-light .af-person{background:var(--afl-fill);border:1px solid var(--afl-border)}
 .af-sheet-light .af-person-n{color:var(--afl-accent)}
-.af-sheet-light .af-person-x{background:#fff;border:1px solid var(--afl-border);color:#d64545}
-.af-sheet-light .af-person-x:hover{background:#fdecec;border-color:#f3b9b9}
+.af-sheet-light .af-person-x{background:#fff;border:1px solid var(--afl-border);color:var(--afl-danger)}
+.af-sheet-light .af-person-x:hover{background:rgba(224,72,60,.1);border-color:rgba(224,72,60,.4)}
 
 .af-sheet-light .af-add-ico{
   background:#fff;border:1.5px solid var(--afl-accent-border);color:var(--afl-accent);
@@ -338,7 +341,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   background:#fff;color:var(--afl-ink);border:1.5px solid var(--afl-border);
 }
 .sheet.af-sheet-light .btn-go{
-  background:var(--afl-accent);color:#fff;border-color:transparent;box-shadow:0 12px 24px rgba(47,111,237,.24);
+  background:var(--afl-accent);color:#fff;border-color:transparent;box-shadow:0 12px 24px rgba(0,174,11,.24);
 }
 .sheet.af-sheet-light .btn-ghost{background:#fff;color:var(--afl-muted);border:1.5px solid var(--afl-border)}
 
