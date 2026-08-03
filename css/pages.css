@@ -68,6 +68,20 @@
 }
 .fpage-bar-note{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);margin:0}
 .fpage-bar-acts{display:flex;gap:10px;flex-wrap:wrap}
+
+/* a minimal icon-only action, same palette as .btn-ghost (translucent
+   fill, hairline border) just circular instead of a labelled pill - for
+   actions the icon alone already says plainly enough (export, download) */
+.icon-btn{
+  display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:38px;height:38px;border-radius:12px;padding:0;cursor:pointer;
+  background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.35);
+  color:var(--wk-white);transition:background .15s ease,transform .1s ease;
+}
+.icon-btn svg{width:18px;height:18px;display:block}
+.icon-btn:hover{background:rgba(255,255,255,.2)}
+.icon-btn:active{transform:scale(.92)}
+.icon-btn[disabled]{opacity:.4;cursor:default;pointer-events:none}
 .fpage-bar-acts .btn{width:auto}
 
 /* headline stats: the "is everything okay?" row before any drill-down */

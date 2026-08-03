@@ -637,7 +637,9 @@ function renderTeamHistoryList(){
     <div class="fpage-bar">
       <p class="fpage-bar-note">${rows.length} shift${rows.length === 1 ? "" : "s"} shown${thxRange !== "all" || thxQuery ? " · filtered" : ""}</p>
       <div class="fpage-bar-acts">
-        <button class="btn btn-go btn-sm" id="thxExport">Export team report</button>
+        <button type="button" class="icon-btn" id="thxExport" aria-label="Export team report" title="Export team report">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+        </button>
       </div>
     </div>`;
   const teamXl = $("thxExport");
