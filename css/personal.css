@@ -100,8 +100,10 @@
 #personalTasksSection .team-panel-mark svg{width:20px;height:20px}
 
 /* ---------- Focus Anchor: Personal mode's center column ----------
-   No card, no border, no background by design - bare content on the
-   canvas. Visible at every width; only its POSITION changes:
+   Bare on mobile/tablet, same as the task list is there (.assign-panel's
+   plain-section treatment) - the blurry-glass card only shows up from
+   1024px, matching #personalTasksSection exactly (see that @media block
+   below). Visible at every width; only its POSITION changes:
      < 1024px  - a plain block above the timer (.stage is a flex column;
                  order:-1 puts it first)
      1024-1099 - its own row above the timer, inside the rail's column
@@ -181,12 +183,19 @@
    has-team so it works the same for a worker or an admin. The rail
    (.clock - mode switch + Pomodoro ring/controls) stays bare, same as
    Clocks/Focus - matching the task card's surface here didn't read right
-   next to the timer, so only the task card keeps it. */
+   next to the timer, so only the task card keeps it. The Anchor DOES get
+   it - "no card" was the original call, but the feedback was the opposite:
+   it read as too plain/flat next to the task card's own glass, not that
+   bare-canvas was the goal. Exact same recipe, copied rather than
+   re-derived, so all three surfaces genuinely match. */
 @media (min-width:1024px){
-  .app.panes.personal-on #personalTasksSection{
+  .app.panes.personal-on #personalTasksSection,
+  .app.panes.personal-on .anchor{
     border-radius:43px;border:0;
     background:rgba(255,244,229,.18);
     backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
+  }
+  .app.panes.personal-on #personalTasksSection{
     display:flex;flex-direction:column;min-height:0;
     margin:.45vh 0 0;padding:4.88vh 38px 3vh;
     height:100%;max-height:none;
@@ -208,7 +217,7 @@
       ".        .";
   }
   .app.panes.personal-on #personalTasksSection{grid-area:card}
-  .app.panes.personal-on .anchor{display:flex;grid-area:anchor;order:0;padding:14px 10px 0}
+  .app.panes.personal-on .anchor{display:flex;grid-area:anchor;order:0;padding:24px 20px}
 }
 
 /* Focus Anchor, step 3: wide enough for a genuine third column. 380px rail /
@@ -224,7 +233,7 @@
       "clock  anchor side";
     column-gap:28px;
   }
-  .app.panes.personal-on .anchor{padding:0 28px}
+  .app.panes.personal-on .anchor{padding:28px;height:100%;align-self:stretch}
   .app.panes.personal-on #personalTasksSection{grid-area:side;align-self:stretch}
 }
 
@@ -244,5 +253,6 @@
 @supports (corner-shape:superellipse(1)){
   .pt-add-row input,.pt-add-btn,.pt-del{corner-shape:var(--squircle-sm)}
   .pt-row{corner-shape:var(--squircle-md)}
-  .app.panes.personal-on #personalTasksSection{corner-shape:var(--squircle-lg)}
+  .app.panes.personal-on #personalTasksSection,
+  .app.panes.personal-on .anchor{corner-shape:var(--squircle-lg)}
 }
