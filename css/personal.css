@@ -132,16 +132,15 @@
 
 /* desktop: promote the task list to the second pane, same glass treatment
    Assigned/Team get there - gated on personal-on rather than has-tasks/
-   has-team so it works the same for a worker or an admin. */
+   has-team so it works the same for a worker or an admin. The rail
+   (.clock - mode switch + Pomodoro ring/controls) stays bare, same as
+   Clocks/Focus - matching the task card's surface here didn't read right
+   next to the timer, so only the task card keeps it. */
 @media (min-width:1024px){
-  .app.panes.personal-on .clock,
   .app.panes.personal-on #personalTasksSection{
     border-radius:43px;border:0;
     background:rgba(255,244,229,.18);
     backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
-  }
-  .app.panes.personal-on .clock{padding:4.88vh 38px 3vh}
-  .app.panes.personal-on #personalTasksSection{
     display:flex;flex-direction:column;min-height:0;
     margin:.45vh 0 0;padding:4.88vh 38px 3vh;
     height:100%;max-height:none;
