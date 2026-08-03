@@ -85,6 +85,13 @@
 .stat-tile-value small{font-size:13px;font-weight:500;color:var(--wk-white-70);margin-left:4px}
 .stat-tile-sub{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin:6px 0 0}
 
+/* a tile's optional trend line - a shape, not a full interactive chart */
+.stat-tile-spark{margin-top:10px;line-height:0}
+.spark{display:block;width:100%;height:32px;overflow:visible}
+.spark-line{fill:none;stroke:var(--mint-400);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.spark-area{fill:var(--mint-400);opacity:.14;stroke:none}
+.spark-dot{fill:var(--mint-400)}
+
 /* glass section panels shared by the three pages */
 .fpage-panel{
   padding:20px 20px 22px;border-radius:18px;margin:0 0 18px;

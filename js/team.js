@@ -41,9 +41,10 @@ async function loadTeamPending(){
   }
 }
 
-/* Feeds the Team page's today table; the Summary page keeps its own copy
-   of this same appState read for the monthly report (see summary.js) -
-   fetched separately since either page can be the first one visited. */
+/* Feeds the Team page's today table. The History page's by-member
+   breakdown reads the same appState collection independently (see
+   hxTeamRows/loadTeamHistoryRows in nav.js) - it needs a flat per-shift
+   list rather than these per-member docs, so it isn't worth sharing. */
 let teamPageDocs = null;
 async function loadTeamData(){
   const today = $("teamToday");

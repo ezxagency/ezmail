@@ -325,6 +325,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 /* short, predictable values keep their own line */
 .assign-table .nowrap{white-space:nowrap}
 
+/* click-to-sort column headers (History page's by-member breakdown) */
+.assign-table th[data-sort]{cursor:pointer;user-select:none;transition:color .14s ease}
+.assign-table th[data-sort]:hover{color:var(--wk-white)}
+.assign-table th[data-sort].is-sorted{color:var(--wk-white)}
+.hx-sort-arrow{display:inline-block;margin-left:5px;font-size:9px;opacity:.85}
+
 /* assignments log: To / Store / Task / Status / Assigned / Due / Completed / delete */
 .assign-table:not(.work-table):not(.month-table) th:nth-child(1),.assign-table:not(.work-table):not(.month-table) td:nth-child(1){width:12%}
 .assign-table:not(.work-table):not(.month-table) th:nth-child(2),.assign-table:not(.work-table):not(.month-table) td:nth-child(2){width:15%}
@@ -335,14 +341,13 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .assign-table:not(.work-table):not(.month-table) th:nth-child(7),.assign-table:not(.work-table):not(.month-table) td:nth-child(7){width:19%}
 .assign-table:not(.work-table):not(.month-table) th:nth-child(8),.assign-table:not(.work-table):not(.month-table) td:nth-child(8){width:5%}
 
-/* member summary: Member / Status / Days / Total Hours / Avg per Day / Today / Break Today */
-.month-table th:nth-child(1),.month-table td:nth-child(1){width:26%}
-.month-table th:nth-child(2),.month-table td:nth-child(2){width:12%}
-.month-table th:nth-child(3),.month-table td:nth-child(3){width:8%}
-.month-table th:nth-child(4),.month-table td:nth-child(4){width:14%}
-.month-table th:nth-child(5),.month-table td:nth-child(5){width:12%}
-.month-table th:nth-child(6),.month-table td:nth-child(6){width:14%}
-.month-table th:nth-child(7),.month-table td:nth-child(7){width:14%}
+/* History page's by-member breakdown: Member / Days / Shifts / Total Hours / Avg per Day / Avg Rating */
+.month-table th:nth-child(1),.month-table td:nth-child(1){width:30%}
+.month-table th:nth-child(2),.month-table td:nth-child(2){width:10%}
+.month-table th:nth-child(3),.month-table td:nth-child(3){width:10%}
+.month-table th:nth-child(4),.month-table td:nth-child(4){width:18%}
+.month-table th:nth-child(5),.month-table td:nth-child(5){width:16%}
+.month-table th:nth-child(6),.month-table td:nth-child(6){width:16%}
 
 /* today's work: Member / Status / In / Out / Stores / Tasks / Break / Worked */
 .work-table th:nth-child(1),.work-table td:nth-child(1){width:14%}

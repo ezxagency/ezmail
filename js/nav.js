@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", assign: "assignScreen", team: "teamScreen", summary: "summaryScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", assign: "assignScreen", team: "teamScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -90,18 +90,18 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if ($("sheet").classList.contains("on")) return;
-  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "assign", "6": "team", "7": "summary" };
+  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "assign", "6": "team" };
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (r === "assign" && !canAssignTasks) return;
-  if ((r === "team" || r === "summary") && !isAdmin) return;
+  if (r === "team" && !isAdmin) return;
   go(r);
 });
 
 function applyRoute(){
   let r = currentRoute();
   // role guards: a deep link to a page you can't use lands on the dashboard
-  if ((r === "assign" && !canAssignTasks) || ((r === "team" || r === "summary") && !isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
+  if ((r === "assign" && !canAssignTasks) || (r === "team" && !isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
     a.classList.toggle("active", (a.dataset.route || "") === r));
@@ -120,7 +120,6 @@ function applyRoute(){
   else if (r === "campaigns") enterCampaignsPage();
   else if (r === "assign") enterAssignPage();
   else if (r === "team") loadTeamScreen();
-  else if (r === "summary"){ teamPageDocs = null; renderSummaryPage(); }
 }
 window.addEventListener("hashchange", applyRoute);
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(""));
@@ -294,7 +293,14 @@ function updateMissionTick(){
 
 /* ============================================================
    HISTORY PAGE — every closed shift, filterable, each one expandable
-   into the full story, with the Excel export alongside.
+   into the full story, with the Excel export alongside. Also the one
+   place for "how's the team doing": headline KPI tiles (two carrying a
+   trend sparkline), and - for an admin - a sortable by-member
+   breakdown, all driven by the exact same filtered rows as the shift
+   list below them. There used to be a separate Summary page computing
+   its own overlapping monthly totals off a second fetch of the same
+   appState collection; folding it in here means one filter (these range
+   chips + search), one fetch, one place these numbers can disagree.
    Defaults to TODAY's shifts. An admin sees the whole team's record here
    (one fetch per visit); everyone else sees only their own.
    ============================================================ */
@@ -303,6 +309,7 @@ let hxQuery = "";
 let hxStart = "", hxEnd = "";   // the custom range's calendar bounds
 let hxOpenKeys = new Set();
 let hxTeamRows = null;   // admin only: every member's closed shifts, flattened
+let hxMemberSort = { key: "hours", dir: -1 };
 
 // uid disambiguates two members clocking in at the same millisecond
 const hxKey = r => (r.uid ? r.uid + ":" : "") + r.startedAt;
@@ -349,6 +356,165 @@ function hxRangeLabel(){
   return "All time";
 }
 
+/* One point per bucket of the active filter, for the two KPI sparklines -
+   granularity follows the range so "last 7 days" gets 7 daily points and
+   "all time" gets one per month, never an unreadable pile of points.
+   "Today" has nothing to trend against a single day, so it gets none. */
+function hxMonthKey(ts){ const d = new Date(ts); return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
+function hxSeries(rows){
+  if (hxRange === "today" || !rows.length) return null;
+  let keyOf, order;
+  if (hxRange === "7" || hxRange === "30"){
+    const days = Number(hxRange);
+    keyOf = r => dayStamp(r.startedAt);
+    order = Array.from({ length: days }, (_, i) => dayStamp(Date.now() - (days - 1 - i) * 86400000));
+  } else if (hxRange === "custom" && hxStart && hxEnd){
+    const spanDays = Math.round((new Date(hxEnd) - new Date(hxStart)) / 86400000) + 1;
+    if (spanDays > 0 && spanDays <= 60){
+      keyOf = r => dayStamp(r.startedAt);
+      order = Array.from({ length: spanDays }, (_, i) => dayStamp(new Date(hxStart).getTime() + i * 86400000));
+    } else {
+      keyOf = r => hxMonthKey(r.startedAt);
+      order = [...new Set(rows.map(keyOf))].sort();
+    }
+  } else {
+    keyOf = r => hxMonthKey(r.startedAt);
+    order = [...new Set(rows.map(keyOf))].sort();
+  }
+  if (order.length < 2) return null;
+  const byKey = new Map();
+  rows.forEach(r => {
+    const k = keyOf(r);
+    const cur = byKey.get(k) || { ms: 0, shifts: 0 };
+    cur.ms += r.netMs; cur.shifts += 1;
+    byKey.set(k, cur);
+  });
+  return order.map(k => byKey.get(k) || { ms: 0, shifts: 0 });
+}
+
+/* A tiny inline trend line for a stat tile - not the full interactive
+   chart the same series would get as a standalone plot, just a shape
+   that answers "is this a normal period". One hue (the app's own mint
+   accent), a soft fill under the line, and the value spelled out as a
+   native-tooltip title since there's no room here for a real hover
+   layer. */
+function sparklineSvg(values, title){
+  const width = 120, height = 32;
+  const max = Math.max(1, ...values);
+  const n = values.length;
+  const stepX = n > 1 ? width / (n - 1) : 0;
+  const pts = values.map((v, i) => [
+    n > 1 ? i * stepX : width / 2,
+    height - 2 - (v / max) * (height - 4)
+  ]);
+  const line = pts.map(([x, y], i) => (i ? "L" : "M") + x.toFixed(1) + "," + y.toFixed(1)).join(" ");
+  const area = `${line} L${width},${height} L0,${height} Z`;
+  const last = pts[pts.length - 1] || [width, height];
+  return `
+    <svg class="spark" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${esc(title)}">
+      <title>${esc(title)}</title>
+      <path class="spark-area" d="${area}"></path>
+      <path class="spark-line" d="${line}"></path>
+      <circle class="spark-dot" cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2.6"></circle>
+    </svg>`;
+}
+
+/* Admin-only by-member rollup of whatever rows are currently filtered -
+   same range chips and search as the shift list below it, so the two
+   never show different slices of the same period. */
+function hxMemberStats(rows){
+  const byMember = new Map();
+  rows.forEach(r => {
+    const key = r.uid || r.worker;
+    let m = byMember.get(key);
+    if (!m){ m = { name: r.worker || "Unnamed", days: new Set(), ms: 0, shifts: 0, ratingSum: 0, ratingCount: 0 }; byMember.set(key, m); }
+    m.days.add(dayStamp(r.startedAt));
+    m.ms += r.netMs;
+    m.shifts += 1;
+    if (r.rating){ m.ratingSum += r.rating; m.ratingCount += 1; }
+  });
+  return [...byMember.values()].map(m => ({
+    name: m.name, days: m.days.size, shifts: m.shifts, ms: m.ms,
+    avgMs: m.days.size ? m.ms / m.days.size : 0,
+    avgRating: m.ratingCount ? m.ratingSum / m.ratingCount : null
+  }));
+}
+const HX_MEMBER_COLS = [
+  { key: "name",   label: "Member" },
+  { key: "days",   label: "Days" },
+  { key: "shifts", label: "Shifts" },
+  { key: "hours",  label: "Total Hours" },
+  { key: "avg",    label: "Avg / Day" },
+  { key: "rating", label: "Avg Rating" }
+];
+function hxMemberSortVal(m, key){
+  switch (key){
+    case "name": return m.name.toLowerCase();
+    case "days": return m.days;
+    case "shifts": return m.shifts;
+    case "hours": return m.ms;
+    case "avg": return m.avgMs;
+    case "rating": return m.avgRating || 0;
+    default: return 0;
+  }
+}
+function renderHxMembers(rows){
+  const box = $("hxMembers");
+  if (!box) return;
+  if (!isAdmin){ box.innerHTML = ""; return; }
+  const members = hxMemberStats(rows);
+  if (!members.length){ box.innerHTML = ""; return; }
+  const { key, dir } = hxMemberSort;
+  members.sort((a, b) => {
+    const av = hxMemberSortVal(a, key), bv = hxMemberSortVal(b, key);
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+  box.innerHTML = `
+    <p class="fpage-section-title">By member</p>
+    <div class="table-card">
+      <table class="assign-table month-table">
+        <thead><tr>
+          ${HX_MEMBER_COLS.map(c => `
+            <th data-sort="${c.key}" class="${key === c.key ? "is-sorted" : ""}"
+                aria-sort="${key === c.key ? (dir === 1 ? "ascending" : "descending") : "none"}">
+              ${esc(c.label)}${key === c.key ? `<span class="hx-sort-arrow">${dir === 1 ? "▲" : "▼"}</span>` : ""}
+            </th>`).join("")}
+        </tr></thead>
+        <tbody>
+          ${members.map(m => `<tr data-member="${esc(m.name)}">
+            <td data-label="Member" class="work-name">${esc(m.name)}</td>
+            <td data-label="Days" class="nowrap">${m.days}</td>
+            <td data-label="Shifts" class="nowrap">${m.shifts}</td>
+            <td data-label="Total Hours" class="nowrap">${humanDur(m.ms)}</td>
+            <td data-label="Avg / Day" class="nowrap">${m.avgMs ? humanDur(m.avgMs) : "—"}</td>
+            <td data-label="Avg Rating" class="nowrap">${m.avgRating ? m.avgRating.toFixed(1) + `<small>/5</small>` : "—"}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  box.querySelectorAll("th[data-sort]").forEach(th => {
+    th.onclick = () => {
+      const k = th.dataset.sort;
+      hxMemberSort = hxMemberSort.key === k
+        ? { key: k, dir: hxMemberSort.dir * -1 }
+        : { key: k, dir: (k === "name") ? 1 : -1 };
+      renderHxMembers(rows);
+    };
+  });
+  // a member row is a quick filter: jump the shift list below to just them
+  box.querySelectorAll("tr[data-member]").forEach(tr => {
+    tr.title = "Show only this member's shifts";
+    tr.onclick = () => {
+      hxQuery = tr.dataset.member;
+      const search = $("hxSearch");
+      if (search) search.value = hxQuery;
+      renderHistoryList();
+    };
+  });
+}
+
 function renderHistoryPage(){
   const box = $("historyBody");
   if (!box) return;
@@ -392,6 +558,7 @@ function renderHistoryPage(){
       <label>From <input type="date" id="hxStart" value="${esc(hxStart)}"></label>
       <label>To <input type="date" id="hxEnd" value="${esc(hxEnd)}"></label>
     </div>
+    <div id="hxMembers"></div>
     <div id="hxList"></div>`;
 
   box.querySelectorAll(".chip[data-range]").forEach(c => {
@@ -423,10 +590,18 @@ function renderHistoryList(){
   const total = rows.reduce((t, r) => t + r.netMs, 0);
   const rated = rows.filter(r => r.rating);
   const avgRating = rated.length ? (rated.reduce((t, r) => t + r.rating, 0) / rated.length).toFixed(1) : null;
+  const series = hxSeries(rows);
+  const rangeWords = hxRangeLabel();
   stats.innerHTML = `
     <div class="stat-grid">
-      <div class="stat-tile"><p class="stat-tile-label">Shifts</p><p class="stat-tile-value">${rows.length}</p></div>
-      <div class="stat-tile"><p class="stat-tile-label">Net worked</p><p class="stat-tile-value">${humanDur(total)}</p></div>
+      <div class="stat-tile">
+        <p class="stat-tile-label">Shifts</p><p class="stat-tile-value">${rows.length}</p>
+        ${series ? `<div class="stat-tile-spark">${sparklineSvg(series.map(d => d.shifts), `Shifts across ${rangeWords}`)}</div>` : ""}
+      </div>
+      <div class="stat-tile">
+        <p class="stat-tile-label">Net worked</p><p class="stat-tile-value">${humanDur(total)}</p>
+        ${series ? `<div class="stat-tile-spark">${sparklineSvg(series.map(d => d.ms / 3600000), `Hours across ${rangeWords}`)}</div>` : ""}
+      </div>
       <div class="stat-tile"><p class="stat-tile-label">Avg shift</p><p class="stat-tile-value">${rows.length ? humanDur(total / rows.length) : "—"}</p></div>
       <div class="stat-tile"><p class="stat-tile-label">Avg rating</p><p class="stat-tile-value">${avgRating ? avgRating + `<small>/ 5</small>` : "—"}</p></div>
     </div>
@@ -452,6 +627,8 @@ function renderHistoryList(){
     await queueSummaryEmail({ to: me, name: S.worker || me, rows: hxFiltered(), rangeLabel: hxRangeLabel() });
     btn.disabled = false; btn.textContent = "Email my summary";
   };
+
+  renderHxMembers(rows);
 
   if (!rows.length){
     list.innerHTML = `<div class="fpage-panel"><div class="empty">Nothing matches this filter. Widen the range or clear the search.</div></div>`;

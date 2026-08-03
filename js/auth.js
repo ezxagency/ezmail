@@ -41,7 +41,6 @@ function enterFullApp(user, role){
   canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
   $("drawerAssign").classList.toggle("hidden", !canAssignTasks);
   $("drawerTeam").classList.toggle("hidden", !isAdmin);
-  $("drawerSummary").classList.toggle("hidden", !isAdmin);
   $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
   // quick-assign icons follow the same permission as the Assign page
   $("bandAssignBtn").classList.toggle("hidden", !canAssignTasks);
@@ -146,7 +145,7 @@ if (!FB_READY){
       Store.setUser(null, null);
       assignLogRows = null; assignLogBox = null;
       hxTeamRows = null; teamPageDocs = null;
-      teamMonthSel = null; notifDir = null;
+      notifDir = null;
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
       $("bandAssignBtn").classList.add("hidden");
@@ -154,7 +153,6 @@ if (!FB_READY){
       $("teamPanelAssignBtn").classList.add("hidden");
       $("drawerAssign").classList.add("hidden");
       $("drawerTeam").classList.add("hidden");
-      $("drawerSummary").classList.add("hidden");
       closeDrawer();
       // a sheet open at forced sign-out (token revoked, account disabled)
       // would otherwise float the old account's data over the login screen
