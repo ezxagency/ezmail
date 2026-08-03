@@ -439,6 +439,11 @@ function pomoRender(){
   if (!pomo) return;
   pomo.classList.toggle("is-focus", PM.phase === "focus");
   pomo.classList.toggle("is-break", PM.phase !== "focus");
+  // Focus Anchor step 2: an active (running, not paused/break) focus round
+  // dims the Personal task list and shrinks the countdown - the ring becomes
+  // the primary read. Lives on #appScreen since #personalTasksSection's own
+  // visibility is what actually gates when this is ever seen.
+  $("appScreen").classList.toggle("pomo-focus-run", PM.running && PM.phase === "focus");
   $("pomoPhase").textContent = POMO_PHASE_LABEL[PM.phase];
   $("pomoRound").textContent = PM.phase === "long"
     ? "Long break · set complete"

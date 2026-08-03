@@ -94,6 +94,16 @@
   }
 }
 
+/* Focus Anchor, step 2: an active focus round (running, not paused, not a
+   break - .pomo-focus-run on #appScreen, set in pomoRender()) recedes the
+   task list so the ring reads as the primary thing on screen. Never
+   actually inert - pointer-events stay on, and resting the pointer (or
+   keyboard focus) over it brings it right back to full strength. */
+#personalTasksSection{transition:opacity .28s ease,filter .28s ease}
+.app.personal-on.pomo-focus-run #personalTasksSection{opacity:.4;filter:saturate(.45)}
+.app.personal-on.pomo-focus-run #personalTasksSection:hover,
+.app.personal-on.pomo-focus-run #personalTasksSection:focus-within{opacity:1;filter:none}
+
 /* ---------- squircle corners (superellipse, progressive enhancement) ----------
    .pt-check (50% radius) is left circular on purpose - see the token
    comment in base.css for why. */
