@@ -277,6 +277,11 @@
 }
 .tlog-more:hover{color:var(--wk-white)}
 
+/* History sits between Today's Work and Pending as its own section, not
+   just another item in the same stack - a hairline + real breathing room
+   above it says "new section starts here" the way a heading alone didn't. */
+#teamHistorySection{margin-top:14px;padding-top:30px;border-top:1px solid rgba(255,255,255,.14)}
+
 /* the shrunken punch card, shown only while the Team pane is expanded */
 .card-restore{
   display:none;width:100%;background:none;border:0;padding:0;cursor:pointer;color:var(--wk-white);
