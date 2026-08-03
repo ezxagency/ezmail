@@ -114,14 +114,15 @@
   position:relative;text-align:center;overflow:hidden;
   padding:18px 20px 2px;order:-1;
 }
-/* Was rgba(0,174,11,.08) at rest, up to .24 by the round's end - against a
-   busy theme veil (marble, aurora, sakura...) that range barely registered,
-   so the "brightens as the round progresses" idea was effectively invisible.
-   Wider spread and a much higher ceiling so it actually reads as ambient
-   light building up, not just a faint tint. */
+/* --anchor-glow is the FULL opacity value now, computed entirely in JS
+   (renderFocusAnchor) - 0 with no task selected, .14 resting once one's
+   anchored, up to .54 as an actual round runs. It used to be a 0-1
+   multiplier added to a .14 baseline baked into this rule, which meant
+   "Select a task" (glow = 0) still rendered at .14 - a permanent faint
+   green tint over a totally empty state, translucent in name only. */
 .anchor::before{
   content:"";position:absolute;inset:-35%;pointer-events:none;z-index:0;
-  background:radial-gradient(circle at 50% 50%, rgba(0,174,11,calc(.14 + var(--anchor-glow, 0) * .4)) 0%, transparent 62%);
+  background:radial-gradient(circle at 50% 50%, rgba(0,174,11,var(--anchor-glow, 0)) 0%, transparent 62%);
   transition:background .6s ease;
 }
 .anchor-inner{position:relative;z-index:1;max-width:420px}
