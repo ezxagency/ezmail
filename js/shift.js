@@ -465,14 +465,59 @@ $("teamMenu").onclick = openTeamMenu;
 // the person glyph + name in the header is the profile control
 $("bandMeta").onclick = showProfile;
 
+/* Resizes/crops/compresses in the browser rather than uploading to Firebase
+   Storage - this app never wired that SDK in, and everything else here is
+   already just client + Firestore with no separate backend. A 220x220 JPEG
+   at .85 quality lands around 15-30KB, comfortably clear of Firestore's 1MB
+   document cap even riding alongside the rest of appState/{uid}. Center-
+   cropped to a square first so it doesn't warp inside the round avatar. */
+function profileProcessImage(file){
+  return new Promise((resolve, reject) => {
+    if (!file.type || !file.type.startsWith("image/")) { reject(new Error("That's not an image file.")); return; }
+    if (file.size > 15 * 1024 * 1024) { reject(new Error("That image is too large — try one under 15MB.")); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
+        const out = 220;
+        const canvas = document.createElement("canvas");
+        canvas.width = out; canvas.height = out;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, out, out);   // clean backdrop for a transparent PNG
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, out, out);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => reject(new Error("Couldn't read that image."));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error("Couldn't read that file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 function showProfile(){
   const email = (auth && auth.currentUser && auth.currentUser.email) || "";
+  const initial = (S.worker || email || "·").trim().charAt(0).toUpperCase() || "·";
   openSheet(`
     <h2>Profile</h2>
+    <div class="prof-avatar-row">
+      <div class="prof-avatar${userPhoto ? " has-photo" : ""}" id="profAvatar"${userPhoto ? ` style="background-image:url('${userPhoto}')"` : ""}>${userPhoto ? "" : esc(initial)}</div>
+      <div class="prof-avatar-acts">
+        <button type="button" class="prof-avatar-btn" id="profPhotoPick">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h1.2l.9-1.5A2 2 0 0 1 9.8 3.5h4.4a2 2 0 0 1 1.7 1L17 6h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8z"/><circle cx="12" cy="12.5" r="3.3"/></svg>
+          ${userPhoto ? "Change photo" : "Add photo"}
+        </button>
+        ${userPhoto ? `<button type="button" class="prof-avatar-btn is-danger" id="profPhotoRemove">Remove</button>` : ""}
+      </div>
+      <input type="file" accept="image/*" id="profPhotoInput" class="visually-hidden">
+    </div>
     <label class="fld"><span>Name</span>
       <input type="text" id="profName" value="${esc(S.worker||"")}" placeholder="Your name"></label>
     <p class="hint">${esc(email)}</p>
     <button class="btn btn-go" id="profSave">Save name</button>
+    <button class="btn btn-ghost btn-sm" id="profResetPw">Change password</button>
     <button class="btn btn-ghost btn-sm" id="profSignOut">Sign out</button>
     <button class="btn btn-ghost btn-sm" id="profClose">Close</button>
   `, () => {
@@ -481,6 +526,50 @@ function showProfile(){
       if (v.length < 2) return;
       S.worker = v; await save(); syncDirectory(); render();
       closeSheet(); toast("Name updated");
+    };
+    $("profPhotoPick").onclick = () => $("profPhotoInput").click();
+    $("profPhotoInput").onchange = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";   // picking the same file twice in a row still fires change
+      if (!file) return;
+      const btn = $("profPhotoPick");
+      const restingLabel = btn.innerHTML;
+      btn.disabled = true; btn.textContent = "Uploading…";
+      try {
+        const dataUrl = await profileProcessImage(file);
+        await Store.writePhoto(dataUrl);
+        userPhoto = dataUrl;
+        updateDrawerIdentity();
+        toast("Photo updated");
+        showProfile();   // rebuilds the sheet so the preview + Remove button reflect it
+      } catch (err) {
+        console.error(err);
+        toast(err.message || "Couldn't update your photo — try again.");
+        btn.disabled = false; btn.innerHTML = restingLabel;
+      }
+    };
+    if ($("profPhotoRemove")){
+      $("profPhotoRemove").onclick = async () => {
+        try {
+          await Store.writePhoto(null);
+          userPhoto = null;
+          updateDrawerIdentity();
+          toast("Photo removed");
+          showProfile();
+        } catch (err) {
+          console.error(err);
+          toast("Couldn't remove your photo — try again.");
+        }
+      };
+    }
+    $("profResetPw").onclick = async () => {
+      if (!email) return;
+      try {
+        await auth.sendPasswordResetEmail(email);
+        toast("Password reset email sent");
+      } catch (err) {
+        toast(err.message || "Couldn't send reset email — try again.");
+      }
     };
     $("profSignOut").onclick = () => auth.signOut();
     $("profClose").onclick = closeSheet;

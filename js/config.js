@@ -67,24 +67,43 @@ if (FB_READY) {
    STORAGE — per-user document in Firestore
    ============================================================ */
 const Store = (() => {
-  let uid = null, email = null;
-  function setUser(u, e) { uid = u; email = e; }
+  let uid = null, email = null, photo = null;
+  function setUser(u, e) { uid = u; email = e; photo = null; }
   async function read() {
     if (!uid) return null;
     try {
       const doc = await db.collection("appState").doc(uid).get();
-      return doc.exists && doc.data().json ? JSON.parse(doc.data().json) : null;
+      if (!doc.exists) return null;
+      const data = doc.data();
+      // kept off the returned object on purpose - it round-trips through S
+      // and back out through write() otherwise, and a 200x200 JPEG riding
+      // along on every single save() (shift punches, task edits, all of it)
+      // is a lot of write volume for a field that only ever changes when
+      // the user actually picks a new photo. getPhoto() reads it instead.
+      photo = data.photo || null;
+      return data.json ? JSON.parse(data.json) : null;
     } catch (e) { console.error(e); return null; }
   }
   async function write(v) {
     if (!uid) return;
     try {
+      // merge:true - this used to be a plain set(), which replaces the
+      // whole document. That silently erased the photo field (written
+      // separately by writePhoto) on the very next ordinary save().
       await db.collection("appState").doc(uid).set({
         json: JSON.stringify(v), email, name: v.worker || null, updatedAt: Date.now()
-      });
+      }, { merge: true });
     } catch (e) { console.error(e); }
   }
-  return { read, write, setUser };
+  async function writePhoto(dataUrl) {
+    if (!uid) return;
+    photo = dataUrl || null;
+    try {
+      await db.collection("appState").doc(uid).set({ photo: dataUrl || null }, { merge: true });
+    } catch (e) { console.error(e); throw e; }
+  }
+  function getPhoto() { return photo; }
+  return { read, write, writePhoto, getPhoto, setUser };
 })();
 
 /* ============================================================
@@ -96,6 +115,9 @@ const Store = (() => {
    Therefore  sum(segs) === net working time, always.
    ============================================================ */
 let S = { worker:"", status:"IDLE", shift:null, history:[], lastReport:null };
+// the signed-in user's own avatar (a small base64 JPEG, or null) - lives
+// outside S deliberately; see the comment in Store.read() for why
+let userPhoto = null;
 
 const $ = id => document.getElementById(id);
 const save = () => Store.write(S);

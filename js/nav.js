@@ -67,7 +67,10 @@ function updateDrawerIdentity(){
   const name = S.worker || (email ? email.split("@")[0] : "") || "Not signed in";
   $("drawerName").textContent = name;
   $("drawerMail").textContent = email;
-  $("drawerAvatar").textContent = (S.worker || email || "·").trim().charAt(0).toUpperCase() || "·";
+  const avatar = $("drawerAvatar");
+  avatar.classList.toggle("has-photo", !!userPhoto);
+  avatar.style.backgroundImage = userPhoto ? `url("${userPhoto}")` : "";
+  avatar.textContent = userPhoto ? "" : ((S.worker || email || "·").trim().charAt(0).toUpperCase() || "·");
 }
 
 /* Keyboard: 1-5 jump straight to a page (guarded away from inputs and open

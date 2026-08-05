@@ -25,6 +25,7 @@ async function startWorkerApp(){
 
   const saved = await Store.read();
   if (saved) S = Object.assign(S, saved);
+  userPhoto = Store.getPhoto();
 
   // repair a state corrupted by a crash mid-shift
   if (S.status !== "IDLE" && !S.shift) S.status = "IDLE";

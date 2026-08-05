@@ -51,6 +51,29 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .chip[aria-pressed=true]{background:var(--wk-white);color:#12131a;border-color:transparent}
 .chip[disabled]{opacity:.35;cursor:not-allowed}
 
+/* ---------- profile avatar ---------- */
+.prof-avatar-row{display:flex;align-items:center;gap:16px;margin:0 0 22px}
+.prof-avatar{
+  flex:none;width:72px;height:72px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--wk-white);color:var(--wk-navy);background-size:cover;background-position:center;
+  font-family:var(--wk);font-weight:700;font-size:26px;text-transform:uppercase;
+  border:1px solid rgba(255,255,255,.3);
+}
+.prof-avatar-acts{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.prof-avatar-btn{
+  display:inline-flex;align-items:center;gap:8px;align-self:flex-start;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);border-radius:999px;
+  padding:8px 14px;cursor:pointer;color:var(--wk-white);
+  font-family:var(--wk);font-size:12.5px;font-weight:600;letter-spacing:.02em;
+  transition:background .15s ease;
+}
+.prof-avatar-btn svg{width:15px;height:15px;flex:none}
+.prof-avatar-btn:hover{background:rgba(255,255,255,.18)}
+.prof-avatar-btn[disabled]{opacity:.5;cursor:default}
+.prof-avatar-btn.is-danger{color:#ff8a7e;border-color:rgba(255,92,92,.4)}
+.prof-avatar-btn.is-danger:hover{background:rgba(255,92,92,.14)}
+
 .stars{display:flex;gap:8px;margin-bottom:8px}
 .star{
   flex:1;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);border-radius:14px;padding:14px 0;

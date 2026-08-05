@@ -119,6 +119,7 @@
   display:flex;align-items:center;justify-content:center;
   background:var(--wk-white);color:var(--wk-navy);
   font-family:var(--wk);font-weight:700;font-size:15px;text-transform:uppercase;
+  background-size:cover;background-position:center;
 }
 .drawer-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .drawer-name{
