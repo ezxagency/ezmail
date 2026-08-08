@@ -404,6 +404,28 @@ function enterCampaignsPage(){ renderCampaignsPage(); }
 function cgBoardHTML(act, live){
   const cols = [];
   act.forEach(c => c.stages.forEach(s => { if (!cols.includes(s.name)) cols.push(s.name); }));
+
+  // Board columns come from active campaigns' own stages - nothing in
+  // flight means no stages, means no columns, which left the LIVE column
+  // as the board's only child: one 250px box stranded at the left with the
+  // rest of the row empty. A board's whole point is showing stages in
+  // motion; with none, fall back to the exact empty state List already
+  // shows, then LIVE as the same plain list List uses instead of a lone
+  // "board" that isn't actually one.
+  if (!act.length){
+    return `
+    <div class="fpage-panel"><div class="empty">
+      Nothing in flight. Start one with New campaign — build the chain once, save it as a template, reuse it forever.
+    </div></div>
+    ${live.length ? `
+    <button type="button" class="cg-live-head${cgLiveOpen ? " is-open" : ""}" id="cgLiveHead" aria-expanded="${cgLiveOpen}">
+      ${CARET_SVG("cg-live-caret")} Live <span class="cg-live-count">${live.length}</span>
+    </button>
+    <ul class="cg-list cg-list-live${cgLiveOpen ? "" : " hidden"}" id="cgLiveList">
+      ${live.slice(0, 12).map(cgRowHTML).join("")}
+    </ul>` : ""}`;
+  }
+
   const card = c => `
     <div class="cg-card" draggable="true" data-cg="${esc(c.id)}" role="button" tabindex="0">
       <b>${esc(c.title)}</b>
