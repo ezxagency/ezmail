@@ -266,7 +266,9 @@ function renderCampaignsPage(){
             <button type="button" class="cg-viewtog-b${board ? "" : " is-on"}" data-v="list">List</button>
             <button type="button" class="cg-viewtog-b${board ? " is-on" : ""}" data-v="board">Board</button>
           </span>
-          <button class="btn btn-ghost btn-sm" id="cgRolesBtn">Roles</button>
+          <button type="button" class="icon-btn" id="cgRolesBtn" aria-label="Roles" title="Roles">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2.5"/><circle cx="9" cy="11" r="2"/><path d="M6 17c0-1.8 1.5-3 3-3s3 1.2 3 3"/><path d="M14 10h4M14 14h4"/></svg>
+          </button>
           <button class="btn btn-go btn-sm" id="cgNewBtn">New campaign</button>` : ""}
       </div>
     </div>
