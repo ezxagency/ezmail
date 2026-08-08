@@ -169,8 +169,12 @@ async function dispatchMentionNotifications(comment, assignmentId, row){
 /* ---------- comment-tag hand-offs ----------
    Accepting writes a real assignment addressed to the accepter (the rules
    allow self-addressed creates), so the work lands straight on their
-   dashboard card as an open task - and the admin hears. Declining tells
-   the tagger. Either way the offer doc keeps its decided state. */
+   dashboard card as an open task - and the admin hears. Declining can't
+   write that same assignment FOR the tagger (the rules only allow a
+   self-addressed create, so Bob declining can't create a task addressed to
+   Alice) - instead it sends Alice a second offer, of Bob's decline, that
+   SHE answers the same self-addressed way handoffReclaim() does. Either
+   way the offer doc keeps its decided state. */
 async function handoffAccept(n){
   const me = auth.currentUser;
   const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
@@ -208,6 +212,7 @@ async function handoffAccept(n){
 async function handoffDecline(n){
   const me = auth.currentUser;
   const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const now = Date.now();
   const nref = db.collection("notifications").doc(n.id);
   await db.runTransaction(async tx => {
     const doc = await tx.get(nref);
@@ -215,12 +220,47 @@ async function handoffDecline(n){
       throw new Error("This offer was already answered");
     tx.update(nref, { status: "declined" });
   });
+  // nobody picked it up - it goes back to whoever offered it, as a real
+  // pending offer of their own (handoffReclaim), not just an FYI they'd
+  // have to go re-create the task from scratch after reading
   if (n.fromUid && n.fromUid !== me.uid) await db.collection("notifications").add({
-    toUid: n.fromUid, kind: "handoff-news",
-    msg: `${myName} declined the hand-off — ${[n.store, n.task].filter(Boolean).join(" · ") || "a task"}`,
-    fromUid: me.uid, fromName: myName, createdAt: Date.now(), read: false
+    toUid: n.fromUid, kind: "handoff-declined", status: "pending",
+    fromUid: me.uid, fromName: myName,
+    text: n.text || "", store: n.store || "", task: n.task || "",
+    assignmentId: n.assignmentId || null,
+    createdAt: now, read: false
   }).catch(e => console.error(e));
   toast("Declined — " + (n.fromName || "they") + " will know");
+}
+
+// the tagger answering their own "declined" notice - a self-addressed
+// create same as handoffAccept, just triggered from the other side
+async function handoffReclaim(n){
+  const me = auth.currentUser;
+  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const now = Date.now();
+  const nref = db.collection("notifications").doc(n.id);
+  const aref = db.collection("assignments").doc();
+  await db.runTransaction(async tx => {
+    const doc = await tx.get(nref);
+    if (!doc.exists || doc.data().status !== "pending")
+      throw new Error("This was already handled");
+    // "accepted" (not a new status value) - firestore.rules whitelists the
+    // notification doc's allowed status transitions to exactly
+    // ['accepted','declined'], so this reuses that instead of needing a
+    // rules change for a third value
+    tx.update(nref, { status: "accepted" });
+    tx.set(aref, {
+      toUid: me.uid, toName: myName,
+      fromName: n.fromName || "teammate", fromEmail: "",
+      store: n.store || "", task: n.task || "",
+      note: n.text || "",
+      snote: (n.fromName || "A teammate") + " declined the hand-off — back on your queue",
+      dueDate: null, createdAt: now, done: false, doneAt: null,
+      groupId: null, groupSize: 1, seenAt: null
+    });
+  });
+  toast("Added back to your queue");
 }
 
 /* ---------- the bell ---------- */
@@ -289,41 +329,56 @@ function openNotifCenter(){
     const meUid = (auth.currentUser || {}).uid;
     body.innerHTML = rows.length ? `<ul class="hist notif-list">
       ${rows.map((n, i) => {
+        const isDeclineNotice = n.kind === "handoff-declined";
+        const isHandoffLike = n.kind === "handoff" || isDeclineNotice;
         const head = n.msg ? esc(n.msg)
           : n.kind === "campaign" ? "A campaign moved"
+          : isDeclineNotice ? esc(n.fromName || "Someone") + " declined — " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task")
           : esc(n.fromName || "Someone") + " finished " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task");
-        const pending = n.kind === "handoff" && n.status === "pending" && n.toUid === meUid;
-        const decided = n.kind === "handoff" && n.status && n.status !== "pending";
+        const pending = isHandoffLike && n.status === "pending" && n.toUid === meUid;
+        const decided = isHandoffLike && n.status && n.status !== "pending";
         return `
         <li class="notif-item${n.read ? "" : " is-unread"}" data-i="${i}">
           <div>
             <div class="h-c">${head}${decided ? ` <span class="hf-chip is-${esc(n.status)}">${esc(n.status)}</span>` : ""}</div>
             ${n.text ? `<div class="h-d notif-text">${esc(n.text)}</div>` : ""}
             <div class="h-d">${whenLabel(n.createdAt)}</div>
-            ${pending ? `
+            ${pending ? (isDeclineNotice ? `
+            <div class="hf-acts">
+              <button type="button" class="hf-btn hf-acc" data-hf="reclaim" data-i="${i}">Add back to my queue</button>
+            </div>` : `
             <div class="hf-acts">
               <button type="button" class="hf-btn hf-acc" data-hf="acc" data-i="${i}">Accept</button>
               <button type="button" class="hf-btn hf-dec" data-hf="dec" data-i="${i}">Decline</button>
-            </div>` : ""}
+            </div>`) : ""}
           </div>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </li>`;
       }).join("")}
     </ul>` : `<div class="empty">Nothing here yet. Task comments that tag you and campaign handoffs land here — and stay.</div>`;
 
-    // Accept / Decline act right here in the inbox; the row click below
-    // must not also fire, and the list repaints with the decided state
+    // lands the task on screen right away instead of leaving it to whatever
+    // page happened to be open behind the sheet when it was answered
+    const goToDash = () => {
+      closeSheet();
+      go("");
+      const app = $("appScreen");
+      if (app.classList.contains("has-tasks")) setSidePaneOpen(true);
+    };
+
+    // Accept / Decline / reclaim act right here in the inbox; the row click
+    // below must not also fire
     body.querySelectorAll("[data-hf]").forEach(b => b.onclick = async e => {
       e.stopPropagation();
       const n = rows[Number(b.dataset.i)];
       b.closest(".hf-acts").querySelectorAll("button").forEach(x => { x.disabled = true; });
       try {
-        if (b.dataset.hf === "acc") await handoffAccept(n);
-        else await handoffDecline(n);
-        openNotifCenter();
+        if (b.dataset.hf === "acc"){ await handoffAccept(n); goToDash(); }
+        else if (b.dataset.hf === "reclaim"){ await handoffReclaim(n); goToDash(); }
+        else { await handoffDecline(n); openNotifCenter(); }
       } catch (err) {
         console.error(err);
-        toast(String(err.message || "").startsWith("This offer")
+        toast(String(err.message || "").startsWith("This")
           ? err.message
           : "Couldn't do that — make sure the updated Firestore rules are published");
         openNotifCenter();
