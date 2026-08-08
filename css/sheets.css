@@ -420,6 +420,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 /* buttons carry their own padding, so baseline-aligning them against the
    text next to them leaves them sitting low - centre those rows instead */
 .hist li > .btn{align-self:center;flex:none}
+/* Approve + reject sit inside their own .row-acts wrapper here (a labeled
+   button beside a small icon button, not the equal-sized icon pair
+   .row-acts was first built for), so it needs its own gap and centering
+   rather than the cramped 2px meant for two same-sized icons. */
+#teamPending li{align-items:center}
+#teamPending .row-acts{gap:8px;align-items:center}
 .hist .h-c{font-family:var(--wk);font-weight:600;font-size:16px;letter-spacing:.02em;color:var(--wk-white);overflow-wrap:anywhere}
 .hist .h-d{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin-top:3px;overflow-wrap:anywhere}
 .hist .h-h{font-family:var(--wk);font-size:15px;font-weight:600;white-space:nowrap;color:var(--wk-white)}

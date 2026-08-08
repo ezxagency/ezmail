@@ -26,7 +26,12 @@ async function loadTeamPending(){
       const li = document.createElement("li");
       li.innerHTML = `
         <div><div class="h-c">${esc(data.email || "Unknown")}</div><div class="h-d">Waiting for approval</div></div>
-        <button class="btn btn-go btn-sm" style="width:auto" id="approve-${doc.id}">Approve</button>
+        <div class="row-acts">
+          <button class="btn btn-go btn-sm" style="width:auto" id="approve-${doc.id}">Approve</button>
+          <button type="button" class="assign-del" id="reject-${doc.id}" aria-label="Reject and delete" title="Reject and delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+          </button>
+        </div>
       `;
       pending.append(li);
       $("approve-" + doc.id).onclick = async (e) => {
@@ -34,6 +39,10 @@ async function loadTeamPending(){
         await db.collection("users").doc(doc.id).update({ role: "worker" });
         toast(data.email + " approved");
         loadTeamPending();
+      };
+      $("reject-" + doc.id).onclick = (e) => {
+        e.stopPropagation();
+        rejectPendingUser(doc.id, data.email || "this account");
       };
     });
   } catch (e) {

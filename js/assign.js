@@ -923,11 +923,22 @@ async function ackCompletedAssignments(){
   }
 }
 
+/* Every trace of them: their shift/app state, their directory entry, and
+   any tasks still assigned to them (left behind otherwise, orphaned - "who
+   is this?" the next time someone opens the Team log). Batched delete caps
+   at 500 writes; nobody on a small team has anywhere near that many open
+   assignments; not worth paging for. */
 async function deleteWorker(uid, name){
-  if (!confirm(`Delete ${name}? This removes their shift data and app access. This can't be undone.\n\nNote: it does NOT delete their login itself - to fully block them from signing in again, also remove them in Firebase Console > Authentication > Users.`)) return;
+  if (!confirm(`Delete ${name}? This removes their shift data, assigned tasks, and app access. This can't be undone.\n\nNote: it does NOT delete their login itself - to fully block them from signing in again, also remove them in Firebase Console > Authentication > Users.`)) return;
   try {
     await db.collection("appState").doc(uid).delete();
     await db.collection("users").doc(uid).delete();
+    const asg = await db.collection("assignments").where("toUid", "==", uid).get();
+    if (!asg.empty){
+      const batch = db.batch();
+      asg.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    }
     toast(name + " deleted");
     closeSheet();
     loadTeamData();      // the roster behind the sheet still lists them otherwise
@@ -935,6 +946,24 @@ async function deleteWorker(uid, name){
   } catch (e) {
     console.error(e);
     toast("Couldn't delete - check Firestore rules allow admin deletes");
+  }
+}
+
+/* A pending sign-up rejected instead of approved: deletes the directory
+   entry outright rather than leaving a "denied" status to pile up - there's
+   no shift data or assigned tasks to worry about orphaning yet, since
+   nothing here has ever been approved into the app. Same login-account
+   caveat as deleteWorker: this is Firestore only, not Firebase Auth. */
+async function rejectPendingUser(uid, email){
+  if (!confirm(`Permanently delete ${email}'s pending sign-up? This can't be undone.\n\nNote: it does NOT delete their login itself - they could sign up again later and would need approval again.`)) return;
+  try {
+    await db.collection("users").doc(uid).delete();
+    await db.collection("appState").doc(uid).delete();
+    toast(email + " removed");
+    loadTeamPending();
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't remove - check Firestore rules allow admin deletes");
   }
 }
 
