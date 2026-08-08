@@ -243,13 +243,14 @@
   display:block;font-family:var(--wk);font-size:10px;font-weight:600;
   letter-spacing:.12em;text-transform:uppercase;color:var(--wk-white-60);margin-bottom:6px;
 }
-.cg-srow-grid{display:grid;grid-template-columns:minmax(0,1fr) 86px;gap:10px}
+.cg-srow-grid{display:grid;grid-template-columns:minmax(0,1fr) 68px 68px;gap:8px}
 
-/* ---------- day-budget wheel ----------
-   Swapped in for a plain number input - 1 to 60 is a bounded, mostly-small
-   range that a scroll wheel picks faster than typing does. The track IS the
-   scrollable element (native overflow + scroll-snap does the physics); the
-   highlight band is just a visual overlay, not part of the scroll. */
+/* ---------- day/hour-budget wheels ----------
+   Swapped in for plain number inputs - both are bounded, mostly-small
+   ranges (1-60 days, 0-23 hours) that a scroll wheel picks faster than
+   typing does. The track IS the scrollable element (native overflow +
+   scroll-snap does the physics); the highlight band is just a visual
+   overlay, not part of the scroll. */
 .wheel{position:relative;height:96px}
 .wheel-track{
   height:100%;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y mandatory;

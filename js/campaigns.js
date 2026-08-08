@@ -29,6 +29,21 @@
    ============================================================ */
 
 const CG_DAY = 86400000;
+const CG_HOUR = 3600000;
+
+// a stage's time budget as ms, or null when it has none - days and hours
+// are entered as two separate wheels but always spend as one duration
+const cgBudgetMs = s => {
+  const ms = (s.days || 0) * CG_DAY + (s.hours || 0) * CG_HOUR;
+  return ms > 0 ? ms : null;
+};
+// "2d 3h budget" / "3h budget" / "2d budget" - the same pairing shown
+// wherever a stage's raw day/hour numbers need to read as prose
+const cgBudgetLabel = s => {
+  const d = s.days || 0, h = s.hours || 0;
+  if (!d && !h) return "";
+  return " · " + [d ? d + "d" : "", h ? h + "h" : ""].filter(Boolean).join(" ") + " budget";
+};
 
 /* ---------- live cache + drawer badge ---------- */
 let cgRows = null;        // every campaign this account may see; null = loading
@@ -67,9 +82,17 @@ function cgDueInfo(c){
   const s = cgStage(c);
   if (!s) return null;
   if (s.dueAt){
-    const left = Math.floor((s.dueAt - Date.now()) / CG_DAY);
-    if (left < 0)  return { cls: " is-red",   label: "overdue " + (-left) + "d" };
-    if (left === 0) return { cls: " is-amber", label: "due today" };
+    const ms = s.dueAt - Date.now();
+    // inside a day either side of the deadline, hours are the number that
+    // actually matters - "overdue 0d"/"due today" would hide a 2-hour
+    // window that a whole-day chip can't tell apart from a 20-hour one
+    if (ms < 0 && ms >= -CG_DAY)
+      return { cls: " is-red", label: "overdue " + Math.max(1, Math.round(-ms / CG_HOUR)) + "h" };
+    if (ms < 0)
+      return { cls: " is-red", label: "overdue " + Math.floor(-ms / CG_DAY) + "d" };
+    if (ms < CG_DAY)
+      return { cls: " is-amber", label: "due in " + Math.max(1, Math.round(ms / CG_HOUR)) + "h" };
+    const left = Math.floor(ms / CG_DAY);
     if (left === 1) return { cls: " is-amber", label: "due tomorrow" };
     return { cls: "", label: "due in " + left + "d" };
   }
@@ -184,6 +207,9 @@ const cgISO = ts => {
   const d = new Date(ts);
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 };
+// same "HH:MM" shape assign.js's own due-time inputs produce, so a baton
+// row's dueTime rides through dueWithTime()/afTimeLabel() unmodified
+const cgHHMM = ts => { const d = new Date(ts); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
 function cgBatonRows(){
   if (!cgRows || !auth.currentUser) return [];
   return cgRows.filter(cgIsMyTurn).map(c => {
@@ -197,6 +223,7 @@ function cgBatonRows(){
       note: (h && h.note) || c.brief || "",
       fromName: h ? h.by : ((c.createdBy && c.createdBy.name) || ""),
       dueDate: s.dueAt ? cgISO(s.dueAt) : (c.dueDate || null),
+      dueTime: s.dueAt ? cgHHMM(s.dueAt) : null,
       createdAt: s.enteredAt || c.createdAt,
       canBack: c.cur > 0,
       multi: own.length > 1 ? `${cgApproved(s).length}/${own.length} approved` : ""
@@ -536,8 +563,8 @@ function cgOpenDetail(id){
       ? (s.doneAt ? "done " + whenLabel(s.doneAt).toLowerCase() : "done")
       : cur
         ? `${seen ? "seen · " : ""}${own.length > 1 ? ap.length + "/" + own.length + " approved · " : ""}${
-            s.dueAt ? (s.dueAt < Date.now() ? "overdue" : "due " + dayStamp(s.dueAt)) : "holding" + (cgAgeDays(c) ? " · " + cgAgeDays(c) + "d" : "")}`
-        : `waiting${s.days ? " · " + s.days + "d budget" : ""}`;
+            s.dueAt ? (s.dueAt < Date.now() ? "overdue" : "due " + dayStamp(s.dueAt) + " at " + afTimeLabel(cgHHMM(s.dueAt))) : "holding" + (cgAgeDays(c) ? " · " + cgAgeDays(c) + "d" : "")}`
+        : `waiting${cgBudgetLabel(s)}`;
     return `
     <li class="cg-stg${done ? " is-done" : ""}${cur ? " is-cur" : ""}">
       <span class="cg-stg-pip">${done ? AF_TICK : ""}</span>
@@ -717,7 +744,8 @@ function cgReceive(stages, i, now){
   s.doneAt = null;
   s.approvals = [];
   s.seenBy = [];   // a fresh round needs seeing freshly
-  s.dueAt = s.days ? now + s.days * CG_DAY : null;
+  const dur = cgBudgetMs(s);
+  s.dueAt = dur ? now + dur : null;
 }
 
 async function cgMove(id, kind, note, links){
@@ -1053,27 +1081,27 @@ function cgEdPersonOpts(sel){
     `<option value="${esc(p.uid)}"${p.uid === sel ? " selected" : ""}>${esc(p.name)}${p.craft ? " · " + esc(p.craft) : ""}</option>`).join("");
 }
 
-/* iOS-style scroll wheel for the stage day budget - swapped in for a plain
-   number input because "1 to 60, most of the time under 2 weeks" is
-   exactly the kind of bounded range a wheel reads faster than typing into.
-   Native scroll + CSS scroll-snap does the physics (mouse wheel, trackpad,
-   touch swipe all just work); this only tracks where it settled and reports
-   that back. The empty "—" entry ahead of 1 IS the "no day budget" state,
-   so there is no separate clear button to keep in sync. */
-function cgDaysWheelRender(containerId, opts){
-  const { value, onChange, min = 1, max = 60 } = opts;
+/* iOS-style scroll wheel for the stage day/hour budget - swapped in for
+   plain number inputs because both are bounded ranges (1-60, 0-23) a wheel
+   reads faster than typing into. Native scroll + CSS scroll-snap does the
+   physics (mouse wheel, trackpad, touch swipe all just work); this only
+   tracks where it settled and reports that back. `options` carries the
+   {v, label} pairs so Days (with its "—" no-budget entry) and Hours (plain
+   0-23, no empty state - 0 already means "no extra hours") share one
+   implementation instead of two near-identical copies. */
+function cgWheelRender(containerId, opts){
+  const { value, onChange, options } = opts;
   const box = $(containerId);
   if (!box) return;
   const ITEM_H = 32;
-  const values = [null, ...Array.from({ length: max - min + 1 }, (_, i) => min + i)];
   box.innerHTML = `
     <div class="wheel-track" id="${containerId}Track" style="padding:${ITEM_H}px 0">
-      ${values.map(v => `<div class="wheel-item" data-v="${v === null ? "" : v}">${v === null ? "—" : v}</div>`).join("")}
+      ${options.map(o => `<div class="wheel-item" data-v="${o.v === null ? "" : o.v}">${esc(o.label)}</div>`).join("")}
     </div>
     <div class="wheel-highlight"></div>`;
   const track = $(containerId + "Track");
   const items = [...track.querySelectorAll(".wheel-item")];
-  const idxOf = v => Math.max(0, values.findIndex(x => x === v));
+  const idxOf = v => Math.max(0, options.findIndex(o => o.v === v));
   const paint = () => {
     const center = Math.round(track.scrollTop / ITEM_H);
     items.forEach((el, i) => {
@@ -1082,7 +1110,7 @@ function cgDaysWheelRender(containerId, opts){
       el.style.opacity = dist === 0 ? "1" : dist === 1 ? ".5" : ".22";
     });
   };
-  track.scrollTop = idxOf(value ?? null) * ITEM_H;
+  track.scrollTop = idxOf(value) * ITEM_H;
   paint();
 
   let raf = null, settle = null;
@@ -1091,12 +1119,25 @@ function cgDaysWheelRender(containerId, opts){
     raf = requestAnimationFrame(paint);
     clearTimeout(settle);
     settle = setTimeout(() => {
-      const center = Math.max(0, Math.min(values.length - 1, Math.round(track.scrollTop / ITEM_H)));
+      const center = Math.max(0, Math.min(options.length - 1, Math.round(track.scrollTop / ITEM_H)));
       track.scrollTo({ top: center * ITEM_H, behavior: "smooth" });
-      onChange(values[center]);
+      onChange(options[center].v);
     }, 130);
   };
   items.forEach((el, i) => el.onclick = () => track.scrollTo({ top: i * ITEM_H, behavior: "smooth" }));
+}
+
+function cgDaysWheelRender(containerId, opts){
+  const { value, onChange, min = 1, max = 60 } = opts;
+  const options = [{ v: null, label: "—" },
+    ...Array.from({ length: max - min + 1 }, (_, i) => ({ v: min + i, label: String(min + i) }))];
+  cgWheelRender(containerId, { value: value ?? null, onChange, options });
+}
+
+function cgHoursWheelRender(containerId, opts){
+  const { value, onChange } = opts;
+  const options = Array.from({ length: 24 }, (_, i) => ({ v: i, label: String(i) }));
+  cgWheelRender(containerId, { value: value || 0, onChange, options });
 }
 
 function cgEdRowsHTML(){
@@ -1129,7 +1170,10 @@ function cgEdRowsHTML(){
           </select>
         </label>
         <label class="cg-fld"><span>Days</span>
-          <div class="wheel" id="cgDaysWheel${i}" title="Time budget in days (optional)"></div>
+          <div class="wheel" id="cgDaysWheel${i}" title="Time budget - days (optional)"></div>
+        </label>
+        <label class="cg-fld"><span>Hours</span>
+          <div class="wheel" id="cgHoursWheel${i}" title="Time budget - extra hours (optional)"></div>
         </label>
       </div>
       ${roleOn ? "" : uids.slice(1).map((u, k) => `
@@ -1152,6 +1196,7 @@ function cgEdPaintRows(){
     const s = cgEdStages[i];
     row.querySelector(".cg-srow-name").oninput = e => { s.name = e.target.value; };
     cgDaysWheelRender("cgDaysWheel" + i, { value: s.days || null, onChange: v => { s.days = v; } });
+    cgHoursWheelRender("cgHoursWheel" + i, { value: s.hours || 0, onChange: v => { s.hours = v; } });
     row.querySelectorAll(".cg-srow-who").forEach(selEl => {
       const o = Number(selEl.dataset.o);
       selEl.onchange = e => {
@@ -1211,6 +1256,7 @@ function cgToEdShape(s){
   return {
     name: s.name || "",
     days: s.days || null,
+    hours: s.hours || 0,
     role: s.role || null,
     uids: s.owners ? s.owners.map(o => o.uid) : (s.uid ? [s.uid] : [])
   };
@@ -1222,7 +1268,7 @@ async function cgEditorSheet(edit){
   cgEdMembers = dir.filter(p => p.name).sort((a, b) => a.name.localeCompare(b.name));
   cgEdStages = edit
     ? edit.stages.map(cgToEdShape)
-    : [{ name: "", days: null, role: null, uids: [] }, { name: "", days: null, role: null, uids: [] }];
+    : [{ name: "", days: null, hours: 0, role: null, uids: [] }, { name: "", days: null, hours: 0, role: null, uids: [] }];
   const templates = edit ? [] : await cgLoadTemplates();
 
   const stores = [...new Set([...CONFIG.clients, ...(cgRows || []).map(c => c.store).filter(Boolean)])].sort();
@@ -1244,7 +1290,7 @@ async function cgEditorSheet(edit){
     <label class="fld"><span>Brief — optional</span>
       <textarea id="cgEdBrief" placeholder="What is this campaign about?">${esc(edit ? edit.brief || "" : "")}</textarea></label>
     <p class="cg-dt-label">The chain</p>
-    <p class="cg-ed-help">Work travels top to bottom. Each stage gets a name, an owner and — if you want the clock running — a day budget. Give a stage several owners and all of them must approve.</p>
+    <p class="cg-ed-help">Work travels top to bottom. Each stage gets a name, an owner and — if you want the clock running — a time budget in days and hours. Give a stage several owners and all of them must approve.</p>
     <div id="cgEdRows"></div>
     <button type="button" class="btn btn-ghost btn-sm" id="cgEdAdd">+ Add stage</button>
     <label class="cg-tpl-save"><input type="checkbox" id="cgEdSaveTpl"><span>Save this chain as a template</span></label>
@@ -1253,7 +1299,7 @@ async function cgEditorSheet(edit){
     <button class="btn btn-ghost btn-sm" id="cgEdCancel">Cancel</button>
   `, () => {
     cgEdPaintRows();
-    $("cgEdAdd").onclick = () => { cgEdStages.push({ name: "", days: null, role: null, uids: [] }); cgEdPaintRows(); };
+    $("cgEdAdd").onclick = () => { cgEdStages.push({ name: "", days: null, hours: 0, role: null, uids: [] }); cgEdPaintRows(); };
     $("cgEdCancel").onclick = () => { if (edit) cgOpenDetail(edit.id); else closeSheet(); };
     $("cgEdSaveTpl").onchange = e => $("cgEdTplName").classList.toggle("hidden", !e.target.checked);
 
@@ -1285,7 +1331,7 @@ async function cgEdSubmit(edit){
   const title = $("cgEdTitle").value.trim();
   // a row is real once it says anything; blank padding rows are dropped
   const rows = cgEdStages
-    .map(s => ({ name: s.name.trim(), days: s.days || null, role: s.role,
+    .map(s => ({ name: s.name.trim(), days: s.days || null, hours: s.hours || 0, role: s.role,
                  uids: [...new Set((s.uids || []).filter(Boolean))] }))
     .filter(s => s.name || s.role || s.uids.length);
   if (title.length < 2){ toast("Give the campaign a name"); $("cgEdTitle").focus(); return; }
@@ -1333,8 +1379,8 @@ async function cgEdSubmit(edit){
       await db.collection("campaignTemplates").add({
         name: tn,
         stages: rows.map(r => r.role
-          ? { name: r.name, days: r.days, role: r.role }
-          : { name: r.name, days: r.days,
+          ? { name: r.name, days: r.days, hours: r.hours || 0, role: r.role }
+          : { name: r.name, days: r.days, hours: r.hours || 0,
               owners: r.uids.map(u => {
                 const p = cgEdMembers.find(m => m.uid === u);
                 return { uid: u, uname: p ? p.name : "Unknown" };
@@ -1365,7 +1411,7 @@ async function cgEdSubmit(edit){
         let curNew = -1;
         const stages = resolved.map((r, idx) => {
           const m = pool.find(p => !p.used && p.name.toLowerCase() === r.name.toLowerCase());
-          const base = { name: r.name, days: r.days, role: r.role || null, owners: r.owners };
+          const base = { name: r.name, days: r.days, hours: r.hours || 0, role: r.role || null, owners: r.owners };
           if (m){
             m.used = true;
             if (m.i === live.cur) curNew = idx;
@@ -1375,8 +1421,10 @@ async function cgEdSubmit(edit){
                           dueAt: m.dueAt || null, seenBy: m.seenBy || [] };
             // a changed budget on a stage already holding the baton
             // re-anchors its deadline to when the baton actually arrived
-            if (out.enteredAt && (r.days || null) !== (m.days || null))
-              out.dueAt = r.days ? out.enteredAt + r.days * CG_DAY : null;
+            if (out.enteredAt && ((r.days || null) !== (m.days || null) || (r.hours || 0) !== (m.hours || 0))){
+              const dur = cgBudgetMs(r);
+              out.dueAt = dur ? out.enteredAt + dur : null;
+            }
             return out;
           }
           return { ...base, rounds: 1, doneAt: null, enteredAt: null, approvals: [], dueAt: null, seenBy: [] };
@@ -1391,7 +1439,8 @@ async function cgEdSubmit(edit){
           }
           if (!stages[cur].enteredAt){
             stages[cur].enteredAt = now;
-            stages[cur].dueAt = stages[cur].days ? now + stages[cur].days * CG_DAY : null;
+            const dur = cgBudgetMs(stages[cur]);
+            stages[cur].dueAt = dur ? now + dur : null;
             stages[cur].seenBy = [];
           }
         } else cur = Math.min(live.cur, stages.length - 1);
@@ -1417,10 +1466,10 @@ async function cgEdSubmit(edit){
       toast("Campaign updated");
     } else {
       const stages = resolved.map((r, i) => ({
-        name: r.name, days: r.days, role: r.role || null, owners: r.owners,
+        name: r.name, days: r.days, hours: r.hours || 0, role: r.role || null, owners: r.owners,
         rounds: 1, doneAt: null, approvals: [],
         enteredAt: i === 0 ? now : null,
-        dueAt: i === 0 && r.days ? now + r.days * CG_DAY : null
+        dueAt: i === 0 ? (cgBudgetMs(r) ? now + cgBudgetMs(r) : null) : null
       }));
       const ref = await db.collection("campaigns").add({
         ...common, stages, status: "active", cur: 0, liveAt: null, links: [],
