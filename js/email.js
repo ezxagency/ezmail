@@ -8,10 +8,15 @@
    project setup (extension + rules).
    ============================================================ */
 
-// [startISO, endISO] inclusive, matched against the shift's clock-in day
+// [startISO, endISO] inclusive, matched against the shift's clock-in
+// moment. Accepts either a plain date ("2026-08-11", defaults to that
+// day's first/last instant - what Email Summary still passes) or a full
+// datetime ("2026-08-11T14:00" - what the History pages' calendar+time
+// pickers pass), so this one function serves both without either caller
+// needing to know which shape the other uses.
 function summaryFilterRows(rows, startISO, endISO){
-  const a = startISO ? new Date(startISO + "T00:00:00").getTime() : -Infinity;
-  const b = endISO ? new Date(endISO + "T23:59:59.999").getTime() : Infinity;
+  const a = startISO ? new Date(startISO.includes("T") ? startISO : startISO + "T00:00:00").getTime() : -Infinity;
+  const b = endISO ? new Date(endISO.includes("T") ? endISO : endISO + "T23:59:59.999").getTime() : Infinity;
   return rows.filter(r => r.startedAt >= a && r.startedAt <= b);
 }
 

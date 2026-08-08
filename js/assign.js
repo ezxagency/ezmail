@@ -35,6 +35,21 @@ function afDueLabel(iso){
     .toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
 
+// due time is display-only (see dueWithTime) - this just makes "17:30"
+// read as "5:30 PM" wherever it's shown in prose
+function afTimeLabel(hhmm){
+  const p = String(hhmm).split(":").map(Number);
+  if (p.length !== 2 || p.some(isNaN)) return hhmm;
+  return new Date(2000, 0, 1, p[0], p[1]).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+/* dueTime is purely additive display info, never part of comparisons -
+   dueDate stays a plain YYYY-MM-DD string everywhere it's sorted or
+   checked against "today" (r.dueDate === today, r.dueDate < today), since
+   swapping it for a datetime would break every one of those exact-match
+   checks. This just tacks the time on for the rows that show a due date. */
+function dueWithTime(r){ return r.dueDate ? r.dueDate + (r.dueTime ? " " + r.dueTime : "") : ""; }
+
 function afRenderSentence(){
   const s = afState, el = $("afSentence");
   if (!el) return;
@@ -46,7 +61,7 @@ function afRenderSentence(){
   });
   const total = afAllPairs().length;
   el.innerHTML = bits.join(" · ")
-    + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}</b>` : "")
+    + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}${s.dueTime ? " at " + esc(afTimeLabel(s.dueTime)) : ""}</b>` : "")
     + (total > 1 ? `<span class="af-count">${total} tasks · one send</span>` : "");
 }
 
@@ -368,11 +383,13 @@ async function openAssignFlow(preUid, preName, editThread){
   // date is the one most of them carry (older groups could vary per line),
   // and combos absent from the cross product start dropped
   const openRows = afEdit ? afEdit.rows.filter(r => !r.done) : [];
-  let sharedDue = "";
+  let sharedDue = "", sharedDueTime = "";
   if (openRows.length){
     const freq = new Map();
     openRows.forEach(r => freq.set(r.dueDate || "", (freq.get(r.dueDate || "") || 0) + 1));
     sharedDue = [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const withShared = openRows.find(r => r.dueDate === sharedDue && r.dueTime);
+    sharedDueTime = withShared ? withShared.dueTime : "";
   }
   // the first (often only) person block; editing rebuilds it from the
   // thread's rows - the nested shape IS the stored shape
@@ -390,7 +407,8 @@ async function openAssignFlow(preUid, preName, editThread){
   afState = {
     people: [first],
     note: openRows.length ? (openRows[0].note || "") : "",
-    due: sharedDue
+    due: sharedDue,
+    dueTime: sharedDueTime
   };
   afOpen = null;
   afMembers = []; afStores = [];
@@ -413,7 +431,10 @@ async function openAssignFlow(preUid, preName, editThread){
         <span class="af-step-label">Details — for everyone</span>
       </div>
       <textarea id="afNote" placeholder="The shared brief — per-store notes above ride along with it"></textarea>
-      <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
+      <div class="af-due-row">
+        <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
+        <label class="af-due"><span>Due time</span><input type="time" id="afDueTime"></label>
+      </div>
     </div>
     <button class="btn btn-go" id="afSave" disabled>${afEdit ? "Save changes" : "Assign"}</button>
     <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
@@ -461,6 +482,7 @@ async function openAssignFlow(preUid, preName, editThread){
     };
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
+    $("afDueTime").onchange = () => { afState.dueTime = $("afDueTime").value; afRenderSentence(); };
     $("afCancel").onclick = () => {
       afCloseMenu(); afEdit = null;
       closeSheet();
@@ -468,6 +490,7 @@ async function openAssignFlow(preUid, preName, editThread){
     $("afSave").onclick = afSubmit;
     $("afNote").value = afState.note;
     if (afState.due) $("afDue").value = afState.due;
+    if (afState.dueTime) $("afDueTime").value = afState.dueTime;
     loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; });
   };
 
@@ -549,7 +572,11 @@ async function afSubmit(){
     store: pr.store, task: pr.task,
     note: s.note.trim(),
     snote: (p.storeNotes[pr.store] || "").trim() || null,
-    dueDate: p.storeDues[pr.store] || s.due || null
+    dueDate: p.storeDues[pr.store] || s.due || null,
+    // only carries the shared due time - a per-store due override has no
+    // time of its own, so tagging the shared time onto a different date
+    // would misrepresent it
+    dueTime: p.storeDues[pr.store] ? null : (s.dueTime || null)
   });
 
   try {
@@ -767,13 +794,13 @@ function renderAssignedList(rows){
                <button type="button" class="btn btn-ghost btn-sm atask-view" data-cg="${esc(r.cg)}">Open</button>`
             : `<button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>`;
           const meta = r.cg
-            ? `From ${esc(r.fromName || "admin")}${r.createdAt ? " · your stage since " + dayStamp(r.createdAt) : ""}${r.multi ? " · " + esc(r.multi) : ""} · ${r.dueDate ? "due " + esc(r.dueDate) : "no due date"}`
-            : `From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(r.dueDate) : "no due date"}`;
+            ? `From ${esc(r.fromName || "admin")}${r.createdAt ? " · your stage since " + dayStamp(r.createdAt) : ""}${r.multi ? " · " + esc(r.multi) : ""} · ${r.dueDate ? "due " + esc(dueWithTime(r)) : "no due date"}`
+            : `From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(dueWithTime(r)) : "no due date"}`;
           return `
           <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
             <button type="button" class="atask-head" data-tid="${esc(r.id)}" aria-expanded="${tOpen}">
               <span class="atask-name">${esc(r.task)}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
-              <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(r.dueDate) : ""}</span>
+              <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(dueWithTime(r)) : ""}</span>
               ${CARET_SVG("atask-caret")}
             </button>
             <div class="atask-body">
@@ -843,7 +870,7 @@ function renderAssignedBrief(rows){
   next.innerHTML = up
     ? `<div class="team-latest-who">${esc(up.store || "—")} · ${esc(up.task || "task")}</div>
        <div class="team-latest-what">${esc(up.note || "")}<span class="team-latest-when">${
-         up.dueDate ? " · due " + esc(up.dueDate) : " · no due date"}</span></div>`
+         up.dueDate ? " · due " + esc(dueWithTime(up)) : " · no due date"}</span></div>`
     : `<div class="team-latest-none">Nothing assigned right now.</div>`;
 }
 

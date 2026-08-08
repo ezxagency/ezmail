@@ -306,6 +306,7 @@ function updateMissionTick(){
 let hxRange = "today"; // today | all | 7 | 30 | custom — survives leaving the page
 let hxQuery = "";
 let hxStart = "", hxEnd = "";   // the custom range's calendar bounds
+let hxStartTime = "00:00", hxEndTime = "23:59";
 let hxOpenKeys = new Set();
 
 // uid disambiguates two members clocking in at the same millisecond
@@ -319,7 +320,9 @@ function hxFiltered(){
     const key = dayStamp(Date.now());
     rows = rows.filter(r => dayStamp(r.startedAt) === key);
   } else if (hxRange === "custom"){
-    rows = summaryFilterRows(rows, hxStart, hxEnd);
+    rows = summaryFilterRows(rows,
+      hxStart ? hxStart + "T" + (hxStartTime || "00:00") : "",
+      hxEnd ? hxEnd + "T" + (hxEndTime || "23:59") : "");
   } else if (hxRange !== "all"){
     const cut = Date.now() - Number(hxRange) * 86400000;
     rows = rows.filter(r => r.startedAt >= cut);
@@ -405,6 +408,99 @@ function sparklineSvg(values, title){
     </svg>`;
 }
 
+/* ---------- reusable inline calendar range-picker ----------
+   Swaps in for a pair of native <input type=date> fields - the OS-native
+   picker is a plain white/light popup that looks jarring dropped into a
+   dark, custom-styled sheet (the same reason type=date got its own
+   color-scheme:dark treatment elsewhere; a full replacement reads better
+   than fighting the native chrome's styling limits). Two clicks pick a
+   range: first click sets the start (clearing any existing end), the
+   next sets the end - clicking before the current start restarts it
+   rather than producing a backwards range. get/set are passed in rather
+   than hardcoded to one page's state, so the same calendar drives both
+   Team's and this page's own History range without duplicating it.
+   viewKey just needs to be unique per calendar on screen, so flipping
+   months on one doesn't affect another. Lives here (not team.js) since
+   Team's History section already reuses this file's other stateless
+   history helpers (sparklineSvg, hxMonthKey) the same way. */
+let calViewMonth = {};
+function calRangeRender(containerId, opts){
+  const { getStart, getEnd, onPick, viewKey } = opts;
+  const box = $(containerId);
+  if (!box) return;
+  const start = getStart(), end = getEnd();
+  if (calViewMonth[viewKey] === undefined){
+    const base = start ? new Date(start + "T00:00") : new Date();
+    calViewMonth[viewKey] = base.getFullYear() * 12 + base.getMonth();
+  }
+  const vm = calViewMonth[viewKey];
+  const year = Math.floor(vm / 12), month = ((vm % 12) + 12) % 12;
+  const first = new Date(year, month, 1);
+  const startWeekday = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const todayISO = summaryISO(Date.now());
+  const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++){
+    const d = daysInPrevMonth - startWeekday + 1 + i;
+    cells.push({ iso: iso(month === 0 ? year - 1 : year, (month + 11) % 12, d), d, other: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ iso: iso(year, month, d), d, other: false });
+  let nextD = 1;
+  while (cells.length % 7 !== 0) cells.push({ iso: iso(month === 11 ? year + 1 : year, (month + 1) % 12, nextD), d: nextD++, other: true });
+
+  const inRange = i => start && end && i > start && i < end;
+  const hint = !start ? "Pick a start date" : !end ? "Pick an end date" : "";
+
+  box.innerHTML = `
+    <div class="cal-head">
+      <button type="button" class="cal-nav" id="${containerId}Prev" aria-label="Previous month">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <span class="cal-month">${first.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
+      <button type="button" class="cal-nav" id="${containerId}Next" aria-label="Next month">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <div class="cal-dow">${["S", "M", "T", "W", "T", "F", "S"].map(d => `<span>${d}</span>`).join("")}</div>
+    <div class="cal-grid">
+      ${cells.map(c => `<button type="button" class="cal-day${c.other ? " is-other" : ""}${c.iso === todayISO ? " is-today" : ""}${c.iso === start ? " is-start" : ""}${c.iso === end ? " is-end" : ""}${inRange(c.iso) ? " is-in-range" : ""}" data-iso="${c.iso}">${c.d}</button>`).join("")}
+    </div>
+    ${hint ? `<p class="cal-hint">${hint}</p>` : ""}`;
+
+  $(containerId + "Prev").onclick = () => { calViewMonth[viewKey]--; calRangeRender(containerId, opts); };
+  $(containerId + "Next").onclick = () => { calViewMonth[viewKey]++; calRangeRender(containerId, opts); };
+  box.querySelectorAll(".cal-day").forEach(btn => {
+    btn.onclick = () => {
+      const picked = btn.dataset.iso;
+      const s = getStart(), e = getEnd();
+      if (!s || (s && e) || picked < s) onPick(picked, "");
+      else onPick(s, picked);
+      calRangeRender(containerId, opts);
+    };
+  });
+}
+
+/* Optional companion to calRangeRender: two <input type=time> once a start
+   date exists, refining the picked days down to an exact moment instead
+   of defaulting to midnight-through-midnight. Kept separate from the
+   calendar itself rather than folded in - most ranges only ever needed
+   day precision, so a caller that doesn't want time inputs just never
+   renders this container. */
+function calTimeRowRender(containerId, opts){
+  const { hasStart, getStartTime, getEndTime, onStartTime, onEndTime } = opts;
+  const box = $(containerId);
+  if (!box) return;
+  if (!hasStart()){ box.innerHTML = ""; return; }
+  box.innerHTML = `
+    <label>Start time <input type="time" id="${containerId}Start" value="${esc(getStartTime())}"></label>
+    <label>End time <input type="time" id="${containerId}End" value="${esc(getEndTime())}"></label>`;
+  $(containerId + "Start").onchange = e => onStartTime(e.target.value || "00:00");
+  $(containerId + "End").onchange = e => onEndTime(e.target.value || "23:59");
+}
+
 function renderHistoryPage(){
   const box = $("historyBody");
   if (!box) return;
@@ -433,8 +529,8 @@ function renderHistoryPage(){
       <label class="fpage-search"><input type="text" id="hxSearch" placeholder="Search store, task or note…" value="${esc(hxQuery)}" autocomplete="off"></label>
     </div>
     <div class="fpage-dates${hxRange === "custom" ? "" : " hidden"}" id="hxDates">
-      <label>From <input type="date" id="hxStart" value="${esc(hxStart)}"></label>
-      <label>To <input type="date" id="hxEnd" value="${esc(hxEnd)}"></label>
+      <div class="cal-picker" id="hxCal"></div>
+      <div class="cal-time-row" id="hxTimeRow"></div>
     </div>
     <div id="hxList"></div>`;
 
@@ -442,20 +538,25 @@ function renderHistoryPage(){
     c.setAttribute("aria-pressed", String(c.dataset.range === hxRange));
     c.onclick = () => {
       hxRange = c.dataset.range;
-      // picking the calendar for the first time: seed it with this week
-      if (hxRange === "custom" && !hxStart && !hxEnd){
-        hxStart = summaryISO(Date.now() - 6 * 86400000);
-        hxEnd = summaryISO(Date.now());
-      }
       renderHistoryPage();
     };
   });
   const search = $("hxSearch");
   search.oninput = () => { hxQuery = search.value; renderHistoryList(); };
-  const dateInput = id => { const el = $(id); if (el) el.onchange = () => {
-    hxStart = $("hxStart").value; hxEnd = $("hxEnd").value; renderHistoryList();
-  }; };
-  dateInput("hxStart"); dateInput("hxEnd");
+  if (hxRange === "custom"){
+    const renderHxTimeRow = () => calTimeRowRender("hxTimeRow", {
+      hasStart: () => !!hxStart,
+      getStartTime: () => hxStartTime, getEndTime: () => hxEndTime,
+      onStartTime: v => { hxStartTime = v; renderHistoryList(); },
+      onEndTime: v => { hxEndTime = v; renderHistoryList(); }
+    });
+    calRangeRender("hxCal", {
+      getStart: () => hxStart, getEnd: () => hxEnd,
+      onPick: (s, e) => { hxStart = s; hxEnd = e; renderHistoryList(); renderHxTimeRow(); },
+      viewKey: "hx"
+    });
+    renderHxTimeRow();
+  }
   renderHistoryList();
 }
 

@@ -28,14 +28,15 @@ label.fld > span{
    the browser default - a white box with a black calendar glyph sitting in a
    dark sheet. color-scheme:dark also darkens the native picker popup.
    Keep font-size at 16px: anything smaller makes iOS Safari zoom on focus. */
-input[type=text],input[type=date],input[type=month],input[type=number],select,textarea{
+input[type=text],input[type=date],input[type=month],input[type=time],input[type=number],select,textarea{
   width:100%;font-family:var(--wk);font-size:16px;padding:16px 14px;
   border:1px solid rgba(255,255,255,.3);border-radius:14px;background:rgba(255,255,255,.08);color:var(--wk-white);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
 }
-input[type=date],input[type=month]{color-scheme:dark;min-height:56px}
+input[type=date],input[type=month],input[type=time]{color-scheme:dark;min-height:56px}
 input[type=date]::-webkit-calendar-picker-indicator,
-input[type=month]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.7;cursor:pointer}
+input[type=month]::-webkit-calendar-picker-indicator,
+input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.7;cursor:pointer}
 textarea{min-height:110px;resize:vertical;line-height:1.6}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#fff 50%),linear-gradient(135deg,#fff 50%,transparent 50%);background-position:calc(100% - 20px) 22px,calc(100% - 14px) 22px;background-size:6px 6px;background-repeat:no-repeat}
 input::placeholder,textarea::placeholder{color:rgba(255,255,255,.4)}
@@ -193,12 +194,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   background:var(--wk-white);color:#12131a;font-family:var(--wk);font-weight:600;font-size:14px;
 }
 #afStepdetails textarea{min-height:92px}
+.af-due-row{display:flex;gap:14px;margin-top:12px}
+.af-due-row .af-due{flex:1;margin-top:0}
 .af-due{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
 .af-due > span{
   flex:none;font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.14em;
   text-transform:uppercase;color:var(--wk-white-60);
 }
-.af-due input[type=date]{width:auto;flex:1;max-width:210px;padding:12px 14px;min-height:0}
+.af-due input[type=date],.af-due input[type=time]{width:auto;flex:1;max-width:210px;padding:12px 14px;min-height:0}
 
 /* ---------- person blocks: one per teammate, sketch-style nesting ---------- */
 .af-person{
@@ -540,7 +543,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .table-card{corner-shape:var(--squircle-lg)}
   .af-panel{corner-shape:var(--squircle-lg)}
   .af-person,.preview{corner-shape:var(--squircle-md)}
-  .star,.af-trigger,input[type=text],input[type=date],input[type=month],
+  .star,.af-trigger,input[type=text],input[type=date],input[type=month],input[type=time],
   input[type=number],select,textarea,.af-custom-ok,.af-person-x,.af-add-ico,
   .af-sub-copy{corner-shape:var(--squircle-sm)}
   .af-check,.af-pair-tog{corner-shape:var(--squircle-xs)}

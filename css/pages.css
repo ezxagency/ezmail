@@ -259,11 +259,12 @@
 }
 .fpage-dates input[type=date]{width:auto;min-height:0;padding:10px 12px;font-size:14px;border-radius:12px}
 
-/* ---------- inline calendar range-picker (Team History's Custom range) ----------
+/* ---------- inline calendar range-picker (History pages' Custom range) ----------
    Replaces a pair of native date inputs - the OS picker is a plain light
    popup that looks out of place dropped into this dark, custom-styled
    sheet. Circular day cells, one continuous fill through the selected
-   range, no legend needed (a calendar reads itself). */
+   range, no legend needed (a calendar reads itself). Shared by Team's
+   and the worker's own History section (js/nav.js). */
 .cal-picker{width:100%;max-width:320px;padding:14px 2px 4px}
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .cal-month{font-family:var(--wk);font-size:13px;font-weight:700;color:var(--wk-white);text-transform:uppercase;letter-spacing:.04em}
@@ -289,6 +290,10 @@
 .cal-day.is-in-range{background:rgba(0,174,11,.16);border-radius:0}
 .cal-day.is-start,.cal-day.is-end{background:var(--wk-green);color:#08210a;font-weight:700;border-radius:50%}
 .cal-hint{margin:8px 2px 0;font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60)}
+
+/* companion to .cal-picker: start/end time-of-day, shown once a start date exists */
+.cal-time-row{display:flex;gap:10px;margin-top:10px}
+.cal-time-row label{flex:1;display:flex;flex-direction:column;gap:4px;font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--wk-white-60)}
 
 /* ---------- squircle corners (superellipse, progressive enhancement) ----------
    Pills/dots (.tbar-track/-fill, .fpage-status + its dot, .hf-chip, the
