@@ -1053,6 +1053,52 @@ function cgEdPersonOpts(sel){
     `<option value="${esc(p.uid)}"${p.uid === sel ? " selected" : ""}>${esc(p.name)}${p.craft ? " · " + esc(p.craft) : ""}</option>`).join("");
 }
 
+/* iOS-style scroll wheel for the stage day budget - swapped in for a plain
+   number input because "1 to 60, most of the time under 2 weeks" is
+   exactly the kind of bounded range a wheel reads faster than typing into.
+   Native scroll + CSS scroll-snap does the physics (mouse wheel, trackpad,
+   touch swipe all just work); this only tracks where it settled and reports
+   that back. The empty "—" entry ahead of 1 IS the "no day budget" state,
+   so there is no separate clear button to keep in sync. */
+function cgDaysWheelRender(containerId, opts){
+  const { value, onChange, min = 1, max = 60 } = opts;
+  const box = $(containerId);
+  if (!box) return;
+  const ITEM_H = 32;
+  const values = [null, ...Array.from({ length: max - min + 1 }, (_, i) => min + i)];
+  box.innerHTML = `
+    <div class="wheel-track" id="${containerId}Track" style="padding:${ITEM_H}px 0">
+      ${values.map(v => `<div class="wheel-item" data-v="${v === null ? "" : v}">${v === null ? "—" : v}</div>`).join("")}
+    </div>
+    <div class="wheel-highlight"></div>`;
+  const track = $(containerId + "Track");
+  const items = [...track.querySelectorAll(".wheel-item")];
+  const idxOf = v => Math.max(0, values.findIndex(x => x === v));
+  const paint = () => {
+    const center = Math.round(track.scrollTop / ITEM_H);
+    items.forEach((el, i) => {
+      const dist = Math.abs(i - center);
+      el.classList.toggle("is-sel", dist === 0);
+      el.style.opacity = dist === 0 ? "1" : dist === 1 ? ".5" : ".22";
+    });
+  };
+  track.scrollTop = idxOf(value ?? null) * ITEM_H;
+  paint();
+
+  let raf = null, settle = null;
+  track.onscroll = () => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(paint);
+    clearTimeout(settle);
+    settle = setTimeout(() => {
+      const center = Math.max(0, Math.min(values.length - 1, Math.round(track.scrollTop / ITEM_H)));
+      track.scrollTo({ top: center * ITEM_H, behavior: "smooth" });
+      onChange(values[center]);
+    }, 130);
+  };
+  items.forEach((el, i) => el.onclick = () => track.scrollTo({ top: i * ITEM_H, behavior: "smooth" }));
+}
+
 function cgEdRowsHTML(){
   const crafts = cgEdCrafts();
   return cgEdStages.map((s, i) => {
@@ -1083,7 +1129,7 @@ function cgEdRowsHTML(){
           </select>
         </label>
         <label class="cg-fld"><span>Days</span>
-          <input type="number" class="cg-srow-days" min="1" max="60" value="${s.days || ""}" placeholder="—" title="Time budget in days (optional)">
+          <div class="wheel" id="cgDaysWheel${i}" title="Time budget in days (optional)"></div>
         </label>
       </div>
       ${roleOn ? "" : uids.slice(1).map((u, k) => `
@@ -1105,10 +1151,7 @@ function cgEdPaintRows(){
     const i = Number(row.dataset.i);
     const s = cgEdStages[i];
     row.querySelector(".cg-srow-name").oninput = e => { s.name = e.target.value; };
-    row.querySelector(".cg-srow-days").oninput = e => {
-      const n = parseInt(e.target.value, 10);
-      s.days = (n && n > 0) ? Math.min(n, 60) : null;
-    };
+    cgDaysWheelRender("cgDaysWheel" + i, { value: s.days || null, onChange: v => { s.days = v; } });
     row.querySelectorAll(".cg-srow-who").forEach(selEl => {
       const o = Number(selEl.dataset.o);
       selEl.onchange = e => {

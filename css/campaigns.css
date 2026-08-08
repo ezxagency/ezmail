@@ -244,7 +244,32 @@
   letter-spacing:.12em;text-transform:uppercase;color:var(--wk-white-60);margin-bottom:6px;
 }
 .cg-srow-grid{display:grid;grid-template-columns:minmax(0,1fr) 86px;gap:10px}
-.cg-srow .cg-srow-days{text-align:center;padding-left:8px;padding-right:8px}
+
+/* ---------- day-budget wheel ----------
+   Swapped in for a plain number input - 1 to 60 is a bounded, mostly-small
+   range that a scroll wheel picks faster than typing does. The track IS the
+   scrollable element (native overflow + scroll-snap does the physics); the
+   highlight band is just a visual overlay, not part of the scroll. */
+.wheel{position:relative;height:96px}
+.wheel-track{
+  height:100%;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y mandatory;
+  scrollbar-width:none;-ms-overflow-style:none;
+  mask-image:linear-gradient(to bottom,transparent,#000 22%,#000 78%,transparent);
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 22%,#000 78%,transparent);
+}
+.wheel-track::-webkit-scrollbar{display:none}
+.wheel-item{
+  height:32px;display:flex;align-items:center;justify-content:center;
+  scroll-snap-align:center;cursor:pointer;user-select:none;
+  font-family:var(--wk);font-size:14px;font-weight:600;color:var(--wk-white);
+  transition:opacity .12s ease,font-size .12s ease;
+}
+.wheel-item.is-sel{font-size:16px;color:var(--wk-green)}
+.wheel-highlight{
+  position:absolute;left:0;right:0;top:50%;height:32px;transform:translateY(-50%);
+  border-top:1px solid rgba(0,174,11,.4);border-bottom:1px solid rgba(0,174,11,.4);
+  background:rgba(0,174,11,.06);border-radius:8px;pointer-events:none;
+}
 .cg-srow-addco{
   display:inline-block;margin:2px 0 4px;padding:8px 13px;border-radius:10px;cursor:pointer;
   background:rgba(0,174,11,.12);border:1px solid rgba(0,174,11,.38);
