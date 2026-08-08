@@ -563,6 +563,79 @@ function renderThxMembers(rows){
   });
 }
 
+/* ---------- reusable inline calendar range-picker ----------
+   Swaps in for a pair of native <input type=date> fields - the OS-native
+   picker is a plain white/light popup that looks jarring dropped into a
+   dark, custom-styled sheet (the same reason type=date got its own
+   color-scheme:dark treatment elsewhere; a full replacement reads better
+   than fighting the native chrome's styling limits). Two clicks pick a
+   range: first click sets the start (clearing any existing end), the
+   next sets the end - clicking before the current start restarts it
+   rather than producing a backwards range. get/set are passed in rather
+   than hardcoded to one page's state, so the same calendar could drive
+   the worker-facing History page's own range later without duplicating
+   this. viewKey just needs to be unique per calendar on screen, so
+   flipping months on one doesn't affect another. */
+let calViewMonth = {};
+function calRangeRender(containerId, opts){
+  const { getStart, getEnd, onPick, viewKey } = opts;
+  const box = $(containerId);
+  if (!box) return;
+  const start = getStart(), end = getEnd();
+  if (calViewMonth[viewKey] === undefined){
+    const base = start ? new Date(start + "T00:00") : new Date();
+    calViewMonth[viewKey] = base.getFullYear() * 12 + base.getMonth();
+  }
+  const vm = calViewMonth[viewKey];
+  const year = Math.floor(vm / 12), month = ((vm % 12) + 12) % 12;
+  const first = new Date(year, month, 1);
+  const startWeekday = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const todayISO = summaryISO(Date.now());
+  const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++){
+    const d = daysInPrevMonth - startWeekday + 1 + i;
+    cells.push({ iso: iso(month === 0 ? year - 1 : year, (month + 11) % 12, d), d, other: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ iso: iso(year, month, d), d, other: false });
+  let nextD = 1;
+  while (cells.length % 7 !== 0) cells.push({ iso: iso(month === 11 ? year + 1 : year, (month + 1) % 12, nextD), d: nextD++, other: true });
+
+  const inRange = i => start && end && i > start && i < end;
+  const hint = !start ? "Pick a start date" : !end ? "Pick an end date" : "";
+
+  box.innerHTML = `
+    <div class="cal-head">
+      <button type="button" class="cal-nav" id="${containerId}Prev" aria-label="Previous month">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <span class="cal-month">${first.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
+      <button type="button" class="cal-nav" id="${containerId}Next" aria-label="Next month">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <div class="cal-dow">${["S", "M", "T", "W", "T", "F", "S"].map(d => `<span>${d}</span>`).join("")}</div>
+    <div class="cal-grid">
+      ${cells.map(c => `<button type="button" class="cal-day${c.other ? " is-other" : ""}${c.iso === todayISO ? " is-today" : ""}${c.iso === start ? " is-start" : ""}${c.iso === end ? " is-end" : ""}${inRange(c.iso) ? " is-in-range" : ""}" data-iso="${c.iso}">${c.d}</button>`).join("")}
+    </div>
+    ${hint ? `<p class="cal-hint">${hint}</p>` : ""}`;
+
+  $(containerId + "Prev").onclick = () => { calViewMonth[viewKey]--; calRangeRender(containerId, opts); };
+  $(containerId + "Next").onclick = () => { calViewMonth[viewKey]++; calRangeRender(containerId, opts); };
+  box.querySelectorAll(".cal-day").forEach(btn => {
+    btn.onclick = () => {
+      const picked = btn.dataset.iso;
+      const s = getStart(), e = getEnd();
+      if (!s || (s && e) || picked < s) onPick(picked, "");
+      else onPick(s, picked);
+      calRangeRender(containerId, opts);
+    };
+  });
+}
+
 function renderTeamHistorySection(){
   const box = $("teamHistorySection");
   if (!box) return;
@@ -594,8 +667,7 @@ function renderTeamHistorySection(){
       <label class="fpage-search"><input type="text" id="thxSearch" placeholder="Search member, store, task or note…" value="${esc(thxQuery)}" autocomplete="off"></label>
     </div>
     <div class="fpage-dates${thxRange === "custom" ? "" : " hidden"}" id="thxDates">
-      <label>From <input type="date" id="thxStart" value="${esc(thxStart)}"></label>
-      <label>To <input type="date" id="thxEnd" value="${esc(thxEnd)}"></label>
+      <div class="cal-picker" id="thxCal"></div>
     </div>
     <div id="thxMembers"></div>
     <div id="thxList"></div>`;
@@ -604,19 +676,18 @@ function renderTeamHistorySection(){
     c.setAttribute("aria-pressed", String(c.dataset.range === thxRange));
     c.onclick = () => {
       thxRange = c.dataset.range;
-      if (thxRange === "custom" && !thxStart && !thxEnd){
-        thxStart = summaryISO(Date.now() - 6 * 86400000);
-        thxEnd = summaryISO(Date.now());
-      }
       renderTeamHistorySection();
     };
   });
+  if (thxRange === "custom"){
+    calRangeRender("thxCal", {
+      getStart: () => thxStart, getEnd: () => thxEnd,
+      onPick: (s, e) => { thxStart = s; thxEnd = e; renderTeamHistoryList(); },
+      viewKey: "thx"
+    });
+  }
   const search = $("thxSearch");
   search.oninput = () => { thxQuery = search.value; renderTeamHistoryList(); };
-  const dateInput = id => { const el = $(id); if (el) el.onchange = () => {
-    thxStart = $("thxStart").value; thxEnd = $("thxEnd").value; renderTeamHistoryList();
-  }; };
-  dateInput("thxStart"); dateInput("thxEnd");
   renderTeamHistoryList();
 }
 
