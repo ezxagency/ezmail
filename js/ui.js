@@ -76,7 +76,10 @@ function wheelRender(containerId, opts){
   const { value, onChange, options } = opts;
   const box = $(containerId);
   if (!box) return;
-  const ITEM_H = 32;
+  // itemH: row height override (Assign Task's Figma-canvas wheels use 50px
+  // rows; Campaigns keeps the 32px default). noFade: skip the JS-inline
+  // opacity tiers so CSS can own the neighbor styling instead.
+  const ITEM_H = opts.itemH || 32;
   box.innerHTML = `
     <div class="wheel-track" id="${containerId}Track" style="padding:${ITEM_H}px 0">
       ${options.map(o => `<div class="wheel-item" data-v="${o.v === null ? "" : o.v}">${esc(o.label)}</div>`).join("")}
@@ -90,7 +93,7 @@ function wheelRender(containerId, opts){
     items.forEach((el, i) => {
       const dist = Math.abs(i - center);
       el.classList.toggle("is-sel", dist === 0);
-      el.style.opacity = dist === 0 ? "1" : dist === 1 ? ".5" : ".22";
+      el.style.opacity = opts.noFade ? "" : (dist === 0 ? "1" : dist === 1 ? ".5" : ".22");
     });
   };
   // A short wheel (few options, so little scrollable range) can end up with

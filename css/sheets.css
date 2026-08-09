@@ -273,146 +273,153 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
 
-/* ---------- Assign Task v2 ----------
-   A literal match to the exact CSS the user pulled from Figma (file
-   b8wlr037Nz5whqz8TuIzEO, "Frame 72") - LIGHT #D9D9D9 cards on the app's
-   existing dark sheet, not the dark #3f3f3f cards an earlier pass used.
-   The one accent color in the whole file is the time-ring stroke,
-   #00AD0C - close enough to this app's own --wk-green (#00AE0B) that it
-   uses that token rather than a near-duplicate literal. Every text node
-   is Poppins (Bold or ExtraBold), carried via --af-font. index.html's
-   Google Fonts link pulls weight 800 alongside the 700/300 the brand
-   wordmark already used. One deliberate adaptation: Figma's icon-pill
-   physically overlaps the wheel capsule at a fixed 1014px canvas width;
-   at this sheet's much narrower width that overlap has nowhere to go, so
-   the pill sits beside the wheel instead of on top of it. */
-.af-head{--af-font:"Poppins",var(--wk);display:flex;align-items:center;justify-content:space-between;gap:12px}
-.af-head h2{margin:0;color:#fff;font-family:var(--af-font);font-weight:700}
-.af-divider{height:0;border-top:2px solid #fff;margin:10px 0 16px}
-.af-theme-tog{
-  flex:none;width:46px;height:26px;border-radius:999px;position:relative;cursor:pointer;padding:0;
-  background:#999898;border:0;
-}
-.af-theme-tog::after{
-  content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
-  background:#fff;transition:transform .18s cubic-bezier(.22,1,.36,1);
-}
-.af-theme-tog[aria-pressed=true]::after{transform:translateX(20px);background:#878787}
-
-.af-top-row{--af-font:"Poppins",var(--wk);display:flex;align-items:flex-start;gap:8px;margin-bottom:14px}
-
-/* Personal Rating: bare text+icon on the dark sheet in the source file -
-   no card behind it, so none here either. */
-.af-rating-wrap{flex:none;width:64px;text-align:center;padding-top:8px}
-.af-rating-star{width:24px;height:24px;color:#fff;margin:0 auto 6px}
-.af-rating-val{display:block;font-family:var(--af-font);font-size:20px;font-weight:800;color:#fff;line-height:1}
-.af-rating-val.is-empty{opacity:.6}
-.af-rating-label{
-  display:block;margin-top:4px;font-family:var(--af-font);font-size:8.5px;font-weight:800;
-  letter-spacing:.03em;color:#fff;line-height:1.3;
-}
-
-/* .af-who-card also carries .af-trigger (reusing afWireDropdown's engine),
-   whose own rule makes it a row flexbox - override back to a centered
-   column, since this card stacks avatar/label/name vertically, not
-   side by side */
-.af-who-card{
-  flex:1 1 0;min-width:0;padding:14px 10px 12px;border-radius:22px;cursor:pointer;text-align:center;
-  background:#d9d9d9;border:0;
-  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;
-}
-.af-who-avatar-wrap{position:relative;width:44px;height:44px;margin:0 auto 6px}
-.af-who-avatar{
-  width:100%;height:100%;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  background:#fff;color:#2a292a;background-size:cover;background-position:center;
-  font-family:var(--af-font);font-weight:700;font-size:15px;text-transform:uppercase;
-}
-.af-who-avatar svg{width:60%;height:60%}
-.af-who-badge{
-  position:absolute;top:-2px;left:-2px;width:15px;height:15px;border-radius:50%;
-  background:#fff;color:#2a292a;font-family:var(--af-font);font-size:9px;font-weight:800;
-  display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #d9d9d9;
-}
-.af-who-label{
-  display:block;font-family:var(--af-font);font-size:9px;font-weight:700;letter-spacing:.06em;
-  color:#2a292a;margin-bottom:2px;
-}
-.af-who-name{
-  flex:none;display:block;width:100%;font-family:var(--af-font);font-size:15px;font-weight:800;color:#2a292a;
-  text-align:center;overflow-wrap:anywhere;white-space:normal;
-}
-.af-who-name.is-placeholder{opacity:.55;font-weight:600}
-
-.af-time-card{
+/* ---------- Assign Task v3: the literal Figma canvas ----------
+   A 1:1 reproduction of Figma Frame 72 (file b8wlr037Nz5whqz8TuIzEO,
+   node 75:724). Every element sits at its EXACT exported coordinate on a
+   fixed 1014px-wide canvas; the whole canvas is then uniformly scaled
+   (transform:scale, --af-scale set by afScaleCanvas()) to the sheet's
+   real width, so on-screen proportions can't drift from the design the
+   way re-flowed layouts did. Colors/sizes/weights below are the Figma
+   export's own values, verbatim - don't "modernize" them onto the app's
+   token system; matching the file is the whole point. */
+.af-canvas-wrap{position:relative;width:100%;margin-bottom:14px}
+.af-canvas{
   --af-font:"Poppins",var(--wk);
-  flex:none;width:84px;padding:12px 6px 10px;border-radius:15px;text-align:center;background:#d9d9d9;
+  position:absolute;top:0;left:0;width:1014px;height:1450px;
+  transform:scale(var(--af-scale,0.42));transform-origin:0 0;
+  font-family:var(--af-font);
 }
-.af-time-ring-wrap{position:relative;width:44px;height:44px;margin:0 auto}
-.af-time-ring{width:100%;height:100%;display:block;transform:rotate(-90deg)}
-.af-time-ring-track{fill:none;stroke:#fff;stroke-width:4}
-.af-time-ring-fill{fill:none;stroke:var(--wk-green);stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset .5s ease}
-.af-time-ring-val{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-family:var(--af-font);font-size:9px;font-weight:600;color:#2d2d2d;font-variant-numeric:tabular-nums;
-}
-.af-time-label{
-  display:block;margin-top:6px;font-family:var(--af-font);font-size:9px;font-weight:700;
-  letter-spacing:.02em;color:#2d2d2d;line-height:1.25;
-}
+.af-canvas *{box-sizing:border-box}
+.af-canvas i{font-style:normal}
+.af-cv-bg{position:absolute;left:0;top:-9px;width:1014px;height:1459px;background:rgba(217,217,217,.27);border-radius:59px}
+.af-cv-title{position:absolute;left:83px;top:48px;width:848px;text-align:center;font-weight:700;font-size:48px;line-height:72px;color:#fff}
+.af-cv-divider{position:absolute;left:83px;top:149px;width:838px;height:8px;background:#fff;border-radius:4px}
+.af-cv-tog{position:absolute;left:735px;top:52px;width:186px;height:58px;border-radius:29px;background:#999898;border:0;cursor:pointer;padding:0}
+.af-cv-tog-knob{position:absolute;left:0;top:0;width:58px;height:58px;border-radius:50%;background:#fff;transition:transform .2s ease}
+.af-cv-tog-knob i{position:absolute;left:60px;width:14px;height:7px;border-radius:4px;background:#fff}
+.af-cv-tog-knob i:nth-child(1){top:8px;transform:rotate(-35deg)}
+.af-cv-tog-knob i:nth-child(2){top:26px}
+.af-cv-tog-knob i:nth-child(3){top:44px;transform:rotate(35deg)}
+.af-cv-tog-dark{position:absolute;right:0;top:0;width:58px;height:58px;border-radius:50%;background:#878787;transition:transform .2s ease}
+.af-cv-tog[aria-pressed=true] .af-cv-tog-knob{transform:translateX(128px)}
+.af-cv-tog[aria-pressed=true] .af-cv-tog-dark{transform:translateX(-128px)}
 
-/* the thin connector between chained sections */
-.af-tick{width:1px;height:14px;background:rgba(255,255,255,.5);margin:0 auto}
+.af-cv-star{position:absolute;left:152px;top:223px;width:95px;height:80px;color:#fff}
+.af-cv-star svg{width:100%;height:100%;display:block}
+.af-cv-rate{position:absolute;left:144px;top:294px;width:112px;text-align:center;font-weight:800;font-size:40px;line-height:60px;color:#fff}
+.af-cv-rate-label{position:absolute;left:135px;top:364px;width:130px;text-align:center;font-weight:800;font-size:16px;line-height:15px;color:#fff}
 
-.af-wheel-row{
-  --af-font:"Poppins",var(--wk);
-  display:flex;align-items:stretch;gap:0;border-radius:22px;background:#d9d9d9;
-  padding:6px;margin-bottom:2px;overflow:hidden;
-}
-.af-wheel-pill{
-  flex:none;display:flex;align-items:center;gap:8px;align-self:center;
-  padding:12px 14px;border-radius:999px;box-shadow:0 4px 4px rgba(0,0,0,.25);
-  background:#fff;color:#2a292a;
-}
-.af-wheel-pill.is-dark{background:#2a292a;color:#fff}
-.af-wheel-pill svg{width:17px;height:17px;flex:none}
-.af-wheel-pill span{
-  font-family:var(--af-font);font-size:12px;font-weight:800;letter-spacing:.02em;white-space:nowrap;
-}
-.af-wheel-row .wheel{flex:1;min-width:0}
-.af-wheel-row .wheel-item{font-family:var(--af-font);font-size:17px;font-weight:800;color:#212121}
-.af-wheel-row .wheel-item.is-sel{font-size:19px;color:#000}
-.af-wheel-row .wheel-highlight{display:none}
-.af-wheel-thumb{
-  flex:none;width:6px;align-self:center;height:52px;border-radius:6px;
-  background:rgba(67,67,67,.3);position:relative;margin-left:2px;
-}
-.af-wheel-thumb::after{
-  content:"";position:absolute;left:0;right:0;top:38%;height:24%;border-radius:6px;background:#fff;
-}
-
-.af-commit-row{display:flex;gap:12px;margin:16px 0 16px}
-.af-commit-ico{
-  flex:1;position:relative;display:flex;align-items:center;justify-content:center;
-  padding:18px;border-radius:22px;cursor:pointer;background:#d9d9d9;border:0;
-}
-.af-commit-ico-circle{
-  width:56px;height:56px;border-radius:50%;background:#fff;
-  display:flex;align-items:center;justify-content:center;color:#000;
-}
-.af-commit-ico-circle svg{width:26px;height:26px}
-.af-commit-ico:hover{background:#c9c9c9}
-.af-commit-ico.is-idle{opacity:.55}
-.af-commit-badge{
-  position:absolute;top:10px;right:10px;width:17px;height:17px;border-radius:50%;
-  background:#2a292a;color:#fff;font-family:"Poppins",var(--wk);font-size:12px;font-weight:800;line-height:1;
+.af-cv-who{position:absolute;left:347px;top:218px;width:313px;height:189px;border-radius:39px;background:#d9d9d9;border:0;cursor:pointer;padding:0}
+.af-cv-avatar{position:absolute;left:113px;top:0;width:87px;height:82px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.af-cv-avatar-glyph{width:36px;height:30px;color:#2a292a;display:block}
+.af-cv-avatar-glyph svg{width:100%;height:100%;display:block}
+.af-cv-avatar-who{font-family:var(--af-font);font-weight:700;font-size:16px;line-height:1;color:#2a292a}
+.af-cv-qbadge{
+  position:absolute;left:146px;top:4px;width:23px;height:23px;border-radius:50%;
+  border:4px solid #2a292a;background:#fff;color:#2a292a;
+  font-family:var(--af-font);font-weight:800;font-size:12px;line-height:1;
   display:flex;align-items:center;justify-content:center;
 }
+.af-cv-name{
+  position:absolute;left:20px;top:102px;width:273px;text-align:center;
+  font-family:var(--af-font);font-weight:800;font-size:24px;line-height:36px;color:#2a292a;
+  text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.af-cv-name.is-placeholder{opacity:.55}
 
-/* the Details card + submit button, restyled to match the new light-card
-   language above (Figma's own mockup doesn't show this part of the sheet,
-   but leaving it in the OLD dark .af-step/.af-pip treatment reads as two
-   unrelated screens stitched together) */
+.af-cv-time{position:absolute;left:735px;top:212px;width:180px;height:207px;border-radius:32px;background:#d9d9d9}
+.af-cv-ring{position:absolute;left:29px;top:11px;width:122px;height:120px;filter:drop-shadow(0 4px 4px rgba(0,0,0,.25))}
+.af-cv-ring svg{width:100%;height:100%;display:block}
+.af-cv-clock{position:absolute;left:0;top:64px;width:100%;text-align:center;font-weight:400;font-size:24px;line-height:36px;color:#2d2d2d}
+.af-cv-clock sup{font-size:15px}
+.af-cv-time-label{
+  position:absolute;left:6px;top:144px;width:168px;text-align:center;
+  font-weight:700;font-size:24px;line-height:20px;color:#2d2d2d;
+  text-shadow:0 4px 4px rgba(0,0,0,.25);
+}
+
+.af-cv-tick{position:absolute;width:10px;height:29px;border-radius:5px;background:#fff}
+.af-cv-tick1{left:503px;top:410px}
+.af-cv-tick2{left:508px;top:617px}
+
+.af-cv-blur{position:absolute;border-radius:75px;filter:blur(20px)}
+.af-cv-blur-store{left:575px;top:489px;width:216px;height:150px;background:rgba(59,59,59,.58)}
+.af-cv-blur-task{left:575px;top:668px;width:216px;height:125px;background:rgba(59,59,59,.45)}
+
+.af-cv-capsule{position:absolute;width:843px;height:102px;border-radius:39px;background:#d9d9d9}
+.af-cv-capsule-store{left:86px;top:513px}
+.af-cv-capsule-task{left:86px;top:692px}
+
+.af-cv-pill{
+  position:absolute;width:312px;height:67px;border-radius:33.5px;
+  box-shadow:0 4px 4px rgba(0,0,0,.25);display:block;
+}
+.af-cv-pill-store{left:109px;top:530px;background:#fff;color:#2a292a}
+.af-cv-pill-task{left:109px;top:709px;background:#2a292a;color:#fff}
+.af-cv-pill-label{position:absolute;left:120px;top:18px;font-family:var(--af-font);font-weight:800;font-size:20px;line-height:30px;white-space:nowrap}
+/* the store/task glyphs, drawn exactly as the two exported rectangles each */
+.af-cv-sico-a{position:absolute;left:59px;top:6px;width:36px;height:16px;background:#d9d9d9;border:8px solid #444044}
+.af-cv-sico-b{position:absolute;left:59px;top:31px;width:36px;height:36px;border:8px solid #444044}
+.af-cv-tico-a{position:absolute;left:52px;top:10px;width:36px;height:28px;border:8px solid #fff;border-radius:8px}
+.af-cv-tico-b{position:absolute;left:29px;top:27px;width:35px;height:27px;border:8px solid #fff;border-radius:8px}
+
+/* prefixed with .af-canvas for specificity: campaigns.css loads AFTER this
+   file and its generic .wheel{position:relative;height:96px} would
+   otherwise win the tie and knock the canvas wheels out of position */
+.af-canvas .af-cv-wheel{position:absolute;left:480px;width:400px;height:150px}
+.af-canvas .af-cv-wheel-store{top:489px}
+.af-canvas .af-cv-wheel-task{top:668px}
+.af-canvas .af-cv-wheel .wheel-item{height:50px;font-family:var(--af-font);font-weight:800;font-size:20px}
+.af-canvas .af-cv-wheel-store .wheel-item{color:rgba(255,255,255,.59)}
+.af-canvas .af-cv-wheel-store .wheel-item.is-sel{font-size:40px;color:#fff}
+.af-canvas .af-cv-wheel-store .wheel-item.is-sel ~ .wheel-item{color:rgba(255,255,255,.38)}
+.af-canvas .af-cv-wheel-task .wheel-item{color:rgba(255,255,255,.59)}
+.af-canvas .af-cv-wheel-task .wheel-item.is-sel{font-size:40px;color:#212121}
+.af-canvas .af-cv-wheel-task .wheel-item.is-sel ~ .wheel-item{color:rgba(255,255,255,.57)}
+.af-canvas .af-cv-wheel .wheel-highlight{display:none}
+.af-canvas .af-cv-wheel .af-opt-none{color:rgba(255,255,255,.7);font-family:var(--af-font);font-size:20px;text-align:center;padding:60px 0 0;margin:0}
+
+.af-cv-sbar{position:absolute;width:8px;height:68px;border-radius:7px;background:rgba(67,67,67,.3)}
+.af-cv-sbar i{position:absolute;left:0;top:20px;width:8px;height:29px;border-radius:7px;background:#fff}
+.af-cv-sbar-store{left:793px;top:529px}
+.af-cv-sbar-task{left:793px;top:708px}
+
+.af-cv-arrow{position:absolute;left:499px;top:822px;width:20px;height:40px;color:#fff}
+.af-cv-branch-l{position:absolute;left:225px;top:893px;width:8px;height:118px;background:#d9d9d9}
+.af-cv-branch-r{position:absolute;left:777px;top:893px;width:8px;height:118px;background:#d9d9d9}
+.af-cv-branch-h{position:absolute;left:225px;top:889px;width:564px;height:8px;background:#fff;border-radius:4px}
+
+.af-cv-card{position:absolute;top:1007px;width:280px;height:250px;border-radius:23px;background:#d9d9d9;border:0;cursor:pointer;padding:0}
+.af-cv-card-person{left:86px}
+.af-cv-card-pair{left:649px}
+.af-cv-card:hover{background:#cfcfcf}
+.af-cv-card.is-idle{opacity:.55}
+.af-cv-card-circle{position:absolute;left:46px;top:33px;width:188px;height:184px;border-radius:50%;background:#fff;display:block}
+.af-cv-card-glyph{position:absolute;left:40px;top:34px;width:107px;height:150px;display:block}
+.af-cv-card-glyph svg{width:100%;height:100%;display:block}
+.af-cv-sq{position:absolute;width:93px;height:77px;border:8px solid #000;border-radius:8px}
+.af-cv-sq1{left:30px;top:64px}
+.af-cv-sq2{left:65px;top:33px}
+
+.af-cv-submit{
+  position:absolute;left:251px;top:1319px;width:511px;height:107px;border-radius:67.5px;
+  background:#d9d9d9;border:0;cursor:pointer;padding:0;
+  font-family:var(--af-font);font-weight:700;font-size:48px;line-height:107px;text-align:center;color:#000;
+}
+.af-cv-submit:hover:not(:disabled){background:#cfcfcf}
+.af-cv-submit:disabled{opacity:.55;cursor:default}
+
+/* the WHO dropdown + type-a-name input aren't part of the Figma frame -
+   they overlay the scaled canvas at readable (unscaled) size, anchored
+   just below the WHO card */
+.af-cv-panel,.af-cv-custom{
+  position:absolute;left:6%;right:6%;z-index:9;margin-top:0;
+  top:calc(var(--af-scale,0.42) * 420px);
+}
+
+/* the Details card below the canvas - not depicted in the Figma frame, so
+   it borrows the frame's own light-card language rather than the app's
+   dark styling to read as one continuous screen */
 .af-details-card{
   --af-font:"Poppins",var(--wk);
   background:#d9d9d9;border-radius:22px;padding:16px 16px 6px;margin-bottom:16px;
@@ -431,12 +438,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-details-card input[type=date],.af-details-card input[type=time]{
   background:#fff;border:1px solid rgba(0,0,0,.12);color:#2a292a;color-scheme:light;backdrop-filter:none;
 }
-.af-submit-btn{
-  --af-font:"Poppins",var(--wk);
-  background:#d9d9d9;color:#000;font-family:var(--af-font);font-weight:700;
-  border:0;box-shadow:none;
-}
-.af-submit-btn:disabled{opacity:.5}
 
 /* ---------- Assign Task: light theme, scoped to this one sheet ----------
    A one-off flip to a white surface, requested for this flow only - it will
@@ -547,33 +548,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-sheet-light .af-pair.is-off .af-pair-tog{background:none;border-color:var(--afl-border);color:transparent}
 .af-sheet-light .af-pair-name{color:var(--afl-ink)}
 
-.af-sheet-light .af-theme-tog{background:#c7cad0}
-.af-sheet-light .af-theme-tog::after{background:#fff}
-.af-sheet-light .af-theme-tog[aria-pressed=true]::after{background:var(--afl-ink)}
-
-.af-sheet-light .af-rating-star,.af-sheet-light .af-rating-val,.af-sheet-light .af-rating-label{color:var(--afl-muted)}
-
-.af-sheet-light .af-who-card,.af-sheet-light .af-time-card{background:var(--afl-fill)}
-.af-sheet-light .af-who-avatar{background:#fff;color:var(--afl-ink)}
-.af-sheet-light .af-who-badge{background:#fff;color:var(--afl-ink);box-shadow:0 0 0 2px var(--afl-fill)}
-.af-sheet-light .af-who-label,.af-sheet-light .af-who-name,.af-sheet-light .af-time-label,.af-sheet-light .af-time-ring-val{color:var(--afl-ink)}
-.af-sheet-light .af-who-name.is-placeholder{color:var(--afl-placeholder)}
-.af-sheet-light .af-time-ring-track{stroke:var(--afl-border)}
-.af-sheet-light .af-time-ring-fill{stroke:var(--afl-ink)}
-
-.af-sheet-light .af-tick{background:var(--afl-border)}
-.af-sheet-light .af-wheel-row{background:var(--afl-fill)}
-.af-sheet-light .af-wheel-pill{background:#fff;color:var(--afl-ink);box-shadow:0 4px 4px rgba(15,23,42,.1)}
-.af-sheet-light .af-wheel-pill.is-dark{background:var(--afl-ink);color:#fff}
-.af-sheet-light .af-wheel-row .wheel-item{color:var(--afl-ink)}
-.af-sheet-light .af-wheel-row .wheel-item.is-sel{color:var(--afl-ink)}
-.af-sheet-light .af-wheel-thumb{background:var(--afl-border)}
-.af-sheet-light .af-wheel-thumb::after{background:var(--afl-ink)}
-
-.af-sheet-light .af-commit-ico{background:var(--afl-fill)}
-.af-sheet-light .af-commit-ico:hover{background:var(--afl-border)}
-.af-sheet-light .af-commit-ico-circle{background:var(--afl-ink);color:#fff}
-.af-sheet-light .af-commit-badge{background:#fff;color:var(--afl-ink)}
+/* Canvas on the light sheet: only what's WHITE on the dark sheet needs to
+   flip to ink, everything sitting on its own light card or dark blur
+   backdrop already reads fine on either surface */
+.af-sheet-light .af-cv-title,.af-sheet-light .af-cv-rate,.af-sheet-light .af-cv-rate-label{color:var(--afl-ink)}
+.af-sheet-light .af-cv-star,.af-sheet-light .af-cv-arrow{color:var(--afl-ink)}
+.af-sheet-light .af-cv-divider,.af-sheet-light .af-cv-tick,.af-sheet-light .af-cv-branch-h{background:var(--afl-ink)}
+.af-sheet-light .af-cv-branch-l,.af-sheet-light .af-cv-branch-r{background:#b9bcc2}
+.af-sheet-light .af-cv-bg{background:rgba(42,41,42,.06)}
 
 .sheet.af-sheet-light .btn{
   background:#fff;color:var(--afl-ink);border:1.5px solid var(--afl-border);
@@ -738,7 +720,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .sheet{corner-shape:var(--squircle-xl)}
   .table-card{corner-shape:var(--squircle-lg)}
   .af-panel{corner-shape:var(--squircle-lg)}
-  .af-person,.preview,.af-who-card,.af-time-card,.af-commit-ico,.af-wheel-row{corner-shape:var(--squircle-md)}
+  .af-person,.preview{corner-shape:var(--squircle-md)}
   .star,.af-trigger,input[type=text],input[type=date],input[type=month],input[type=time],
   input[type=number],select,textarea,.af-custom-ok,.af-person-x,.af-add-ico,
   .af-sub-copy{corner-shape:var(--squircle-sm)}
