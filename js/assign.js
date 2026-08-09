@@ -56,21 +56,6 @@ function afTimeLabel(hhmm){
    checks. This just tacks the time on for the rows that show a due date. */
 function dueWithTime(r){ return r.dueDate ? r.dueDate + (r.dueTime ? " " + r.dueTime : "") : ""; }
 
-function afRenderSentence(){
-  const s = afState, el = $("afSentence");
-  if (!el) return;
-  const bits = s.people.map(p => {
-    if (!p.name) return `<i class="af-slot">someone</i>`;
-    const n = afPersonPairs(p).length;
-    return `<b class="af-tok">${esc(p.name)}</b>${n
-      ? ` — ${n} task${n === 1 ? "" : "s"} at ${esc(p.stores.join(", "))}` : ""}`;
-  });
-  const total = afAllPairs().length;
-  el.innerHTML = bits.join(" · ")
-    + (s.due ? `, due <b class="af-tok">${esc(afDueLabel(s.due))}${s.dueTime ? " at " + esc(afTimeLabel(s.dueTime)) : ""}</b>` : "")
-    + (total > 1 ? `<span class="af-count">${total} tasks · one send</span>` : "");
-}
-
 /* The Assign button and the two commit-row action cards all derive from
    the same validity checks. The wheel-chain UI doesn't lock/dim fields the
    way the old step list did (there's nothing to lock - the wheels always
@@ -97,7 +82,6 @@ function afSync(){
     addPair.title = label;
     addPair.setAttribute("aria-label", label);
   }
-  afRenderSentence();
   const save = $("afSave");
   if (save) save.disabled = !afReady();
 }
@@ -233,9 +217,13 @@ const AF_STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2
 // a person's avatar as one element (background-image OR the initial as
 // text), same convention as the drawer avatar - no separate <img>/fallback
 // swap to keep in sync
+const AF_PERSON_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
+// a generic person glyph before anyone's picked (the "?" badge already
+// covers "not chosen yet" - showing "?" a second time inside the circle
+// too was redundant), the initial once a name is set
 function afAvatarHTML(id, name){
-  const initial = (name || "").trim().charAt(0).toUpperCase() || "?";
-  return `<span class="af-who-avatar" id="${esc(id)}">${esc(initial)}</span>`;
+  const initial = (name || "").trim().charAt(0).toUpperCase();
+  return `<span class="af-who-avatar" id="${esc(id)}">${initial ? esc(initial) : AF_PERSON_ICON}</span>`;
 }
 
 // shell only this phase - always "no data yet". Phase 3 wires afStarsByUid
@@ -506,22 +494,19 @@ async function openAssignFlow(preUid, preName, editThread){
       <h2>${afEdit ? "Edit assignment" : "Assign task"}</h2>
       <button type="button" class="af-theme-tog" id="afThemeTog"
               aria-label="Light theme" aria-pressed="${afLightTheme}"></button>
-    </div>`;
+    </div>
+    <div class="af-divider" aria-hidden="true"></div>`;
   const body = `
-    <p class="af-sentence" id="afSentence"></p>
     <div id="afPeople"></div>
-    <div class="af-step is-locked" id="afStepdetails">
-      <div class="af-step-head">
-        <span class="af-pip" aria-hidden="true"></span>
-        <span class="af-step-label">Details — for everyone</span>
-      </div>
+    <div class="af-details-card" id="afStepdetails">
+      <span class="af-details-label">Details — for everyone</span>
       <textarea id="afNote" placeholder="The shared brief — per-store notes above ride along with it"></textarea>
       <div class="af-due-row">
         <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
         <label class="af-due"><span>Due time</span><input type="time" id="afDueTime"></label>
       </div>
     </div>
-    <button class="btn btn-go" id="afSave" disabled>${afEdit ? "Save changes" : "Assign"}</button>
+    <button class="btn btn-go af-submit-btn" id="afSave" disabled>${afEdit ? "Save changes" : "Assign"}</button>
     <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
   `;
   const setup = () => {
@@ -535,8 +520,8 @@ async function openAssignFlow(preUid, preName, editThread){
       themeTog.setAttribute("aria-pressed", afLightTheme);
     };
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
-    $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
-    $("afDueTime").onchange = () => { afState.dueTime = $("afDueTime").value; afRenderSentence(); };
+    $("afDue").onchange = () => { afState.due = $("afDue").value; };
+    $("afDueTime").onchange = () => { afState.dueTime = $("afDueTime").value; };
     $("afCancel").onclick = () => {
       afCloseMenu(); afEdit = null;
       closeSheet();
