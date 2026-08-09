@@ -273,95 +273,134 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
 
-/* ---------- Assign Task v2: WHO card, rating/time-estimate shells,
-   wheel-chain, commit cards ---------- */
+/* ---------- Assign Task v2 ----------
+   A literal match to the Figma redesign (file b8wlr037Nz5whqz8TuIzEO,
+   node 75:513) - dark grayscale cards, no accent color anywhere in the
+   source file, not the app's own mint-green kit. Colors below are the
+   file's actual fills (#3f3f3f cards, #cbcbcb title, #bababa values,
+   #505050 labels-on-light, #d9d9d9 rating widget), not reinterpreted
+   through --wk-*. The one deliberate adaptation: Figma's icon-pill
+   physically overlaps the wheel capsule at a fixed 1014px canvas width;
+   at this sheet's much narrower width that overlap has nowhere to go, so
+   the pill sits beside the wheel instead of on top of it - same two
+   elements, same colors, laid out side by side rather than stacked. */
 .af-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.af-head h2{margin:0}
+.af-head h2{margin:0;color:#cbcbcb}
 .af-theme-tog{
   flex:none;width:46px;height:26px;border-radius:999px;position:relative;cursor:pointer;padding:0;
-  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);
-  transition:background .18s ease,border-color .18s ease;
+  background:#7a7a7a;border:0;
 }
 .af-theme-tog::after{
-  content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
-  background:var(--wk-white);transition:transform .18s cubic-bezier(.22,1,.36,1);
-  box-shadow:0 2px 6px rgba(0,0,0,.3);
+  content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
+  background:#fff;transition:transform .18s cubic-bezier(.22,1,.36,1);
 }
-.af-theme-tog[aria-pressed=true]{background:rgba(0,174,11,.35);border-color:rgba(0,174,11,.6)}
-.af-theme-tog[aria-pressed=true]::after{transform:translateX(20px);background:var(--wk-navy)}
+.af-theme-tog[aria-pressed=true]::after{transform:translateX(20px);background:#1a1a1a}
 
-.af-top-row{display:flex;gap:8px;margin-bottom:12px}
-.af-who-card{
-  flex:1;min-width:0;padding:12px 8px;border-radius:16px;cursor:pointer;text-align:center;
-  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
-  display:flex;flex-direction:column;align-items:center;gap:2px;
+.af-top-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:14px}
+
+/* Personal Rating: bare text+icon on the dark canvas in the source file -
+   no card behind it, so none here either. */
+.af-rating-wrap{flex:none;width:64px;text-align:center;padding-top:8px}
+.af-rating-star{width:24px;height:24px;color:#d9d9d9;margin:0 auto 6px}
+.af-rating-val{display:block;font-family:var(--wk);font-size:20px;font-weight:800;color:#d9d9d9;line-height:1}
+.af-rating-val.is-empty{opacity:.6}
+.af-rating-label{
+  display:block;margin-top:4px;font-family:var(--wk);font-size:8.5px;font-weight:800;
+  letter-spacing:.03em;color:#d9d9d9;line-height:1.3;
 }
+
+/* .af-who-card also carries .af-trigger (reusing afWireDropdown's engine),
+   whose own rule makes it a row flexbox - override back to a centered
+   column, since this card stacks avatar/label/name vertically, not
+   side by side */
+.af-who-card{
+  flex:1 1 0;min-width:0;padding:14px 10px 12px;border-radius:22px;cursor:pointer;text-align:center;
+  background:#3f3f3f;border:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;
+}
+.af-who-avatar-wrap{position:relative;width:44px;height:44px;margin:0 auto 6px}
 .af-who-avatar{
-  width:36px;height:36px;border-radius:50%;margin-bottom:4px;
+  width:100%;height:100%;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  background:var(--wk-white);color:var(--wk-navy);background-size:cover;background-position:center;
-  font-family:var(--wk);font-weight:700;font-size:14px;text-transform:uppercase;
+  background:#fff;color:#3f3f3f;background-size:cover;background-position:center;
+  font-family:var(--wk);font-weight:700;font-size:15px;text-transform:uppercase;
+}
+.af-who-badge{
+  position:absolute;top:-2px;left:-2px;width:15px;height:15px;border-radius:50%;
+  background:#fff;color:#3f3f3f;font-family:var(--wk);font-size:9px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #3f3f3f;
 }
 .af-who-label{
-  font-family:var(--wk);font-size:9px;font-weight:700;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--wk-white-60);
+  display:block;font-family:var(--wk);font-size:9px;font-weight:800;letter-spacing:.06em;
+  color:#bababa;margin-bottom:2px;
 }
 .af-who-name{
-  width:100%;font-family:var(--wk);font-size:13px;font-weight:700;color:var(--wk-white);
-  text-align:center;
+  flex:none;display:block;width:100%;font-family:var(--wk);font-size:15px;font-weight:800;color:#bababa;
+  text-align:center;overflow-wrap:anywhere;white-space:normal;
 }
-.af-who-name.is-placeholder{color:var(--wk-white-60);font-weight:500}
+.af-who-name.is-placeholder{opacity:.6;font-weight:600}
 
-.af-rating-card,.af-time-card{
-  flex:none;width:76px;padding:10px 4px;border-radius:16px;text-align:center;
-  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+.af-time-card{
+  flex:none;width:84px;padding:12px 6px 10px;border-radius:15px;text-align:center;background:#3f3f3f;
 }
-.af-rating-star{width:15px;height:15px;color:var(--wk-green)}
-.af-rating-val{font-family:var(--wk);font-size:13px;font-weight:700;color:var(--wk-white)}
-.af-rating-val.is-empty{color:var(--wk-white-60);font-weight:500}
-.af-mini-label{
-  font-family:var(--wk);font-size:7.5px;font-weight:700;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--wk-white-60);
-}
-.af-time-ring-wrap{position:relative;width:40px;height:40px}
+.af-time-ring-wrap{position:relative;width:44px;height:44px;margin:0 auto}
 .af-time-ring{width:100%;height:100%;display:block;transform:rotate(-90deg)}
-.af-time-ring-track{fill:none;stroke:rgba(255,255,255,.14);stroke-width:5}
-.af-time-ring-fill{fill:none;stroke:var(--wk-green);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .5s ease}
+.af-time-ring-track{fill:none;stroke:#5c5c5c;stroke-width:4}
+.af-time-ring-fill{fill:none;stroke:#bababa;stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset .5s ease}
 .af-time-ring-val{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:8px;font-weight:600;color:var(--wk-white);
-  font-variant-numeric:tabular-nums;
+  font-family:var(--wk);font-size:9px;font-weight:600;color:#bababa;font-variant-numeric:tabular-nums;
+}
+.af-time-label{
+  display:block;margin-top:6px;font-family:var(--wk);font-size:9px;font-weight:800;
+  letter-spacing:.02em;color:#bababa;line-height:1.25;
 }
 
-/* the thin connector between chained sections (WHO -> pairs -> wheels) -
-   just enough of a line to read as "this flows into that" */
-.af-tick{width:1px;height:14px;background:rgba(255,255,255,.16);margin:0 auto}
+/* the thin connector between chained sections */
+.af-tick{width:1px;height:14px;background:rgba(255,255,255,.3);margin:0 auto}
 
-.af-wheel-block{margin-bottom:2px}
-.af-wheel-label{
-  display:block;padding:0 4px 8px;
-  font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--wk-white-60);
+.af-wheel-row{
+  display:flex;align-items:stretch;gap:0;border-radius:22px;background:#3f3f3f;
+  padding:6px;margin-bottom:2px;overflow:hidden;
 }
-.af-wheel-block .wheel{
-  background:rgba(255,244,229,.04);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:0 8px;
+.af-wheel-pill{
+  flex:none;display:flex;align-items:center;gap:8px;align-self:center;
+  padding:12px 14px;border-radius:999px;box-shadow:0 4px 4px rgba(0,0,0,.25);
+  background:#ddd;color:#505050;
+}
+.af-wheel-pill.is-dark{background:#000;color:#e6e6e6}
+.af-wheel-pill svg{width:17px;height:17px;flex:none}
+.af-wheel-pill span{
+  font-family:var(--wk);font-size:12px;font-weight:800;letter-spacing:.02em;white-space:nowrap;
+}
+.af-wheel-row .wheel{flex:1;min-width:0}
+.af-wheel-row .wheel-item{font-size:17px;font-weight:800;color:#fff}
+.af-wheel-row .wheel-item.is-sel{font-size:19px;color:#fff}
+.af-wheel-row .wheel-highlight{display:none}
+.af-wheel-thumb{
+  flex:none;width:6px;align-self:center;height:52px;border-radius:6px;
+  background:rgba(255,255,255,.16);position:relative;margin-left:2px;
+}
+.af-wheel-thumb::after{
+  content:"";position:absolute;left:0;right:0;top:38%;height:24%;border-radius:6px;background:#ddd;
 }
 
-.af-commit-row{display:flex;gap:10px;margin:16px 0 16px}
+.af-commit-row{display:flex;gap:12px;margin:16px 0 16px}
 .af-commit-ico{
   flex:1;position:relative;display:flex;align-items:center;justify-content:center;
-  padding:16px;border-radius:16px;cursor:pointer;
-  background:rgba(0,174,11,.1);border:1px dashed rgba(0,174,11,.45);color:var(--wk-green);
+  padding:18px;border-radius:22px;cursor:pointer;background:#4a4a4a;border:0;
 }
-.af-commit-ico svg{width:24px;height:24px}
-.af-commit-ico:hover{background:rgba(0,174,11,.2)}
+.af-commit-ico-circle{
+  width:56px;height:56px;border-radius:50%;background:#0a0a0a;
+  display:flex;align-items:center;justify-content:center;color:#fff;
+}
+.af-commit-ico-circle svg{width:26px;height:26px}
+.af-commit-ico:hover{background:#565656}
 .af-commit-ico.is-idle{opacity:.55}
 .af-commit-badge{
-  position:absolute;top:6px;right:6px;width:16px;height:16px;border-radius:50%;
-  background:var(--wk-green);color:#08210a;font-family:var(--wk);font-size:12px;font-weight:800;line-height:1;
+  position:absolute;top:10px;right:10px;width:17px;height:17px;border-radius:50%;
+  background:#c9c9c9;color:#3f3f3f;font-family:var(--wk);font-size:12px;font-weight:800;line-height:1;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 0 0 2px rgba(22,25,34,.85);
 }
 
 /* ---------- Assign Task: light theme, scoped to this one sheet ----------
@@ -473,36 +512,33 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-sheet-light .af-pair.is-off .af-pair-tog{background:none;border-color:var(--afl-border);color:transparent}
 .af-sheet-light .af-pair-name{color:var(--afl-ink)}
 
-.af-sheet-light .af-theme-tog{background:var(--afl-fill);border-color:var(--afl-border)}
-.af-sheet-light .af-theme-tog::after{background:#fff;box-shadow:0 2px 6px rgba(15,23,42,.18)}
-.af-sheet-light .af-theme-tog[aria-pressed=true]{background:var(--afl-accent-soft);border-color:var(--afl-accent-border)}
-.af-sheet-light .af-theme-tog[aria-pressed=true]::after{background:var(--afl-accent)}
+.af-sheet-light .af-theme-tog{background:#c7cad0}
+.af-sheet-light .af-theme-tog::after{background:#fff}
+.af-sheet-light .af-theme-tog[aria-pressed=true]::after{background:var(--afl-ink)}
 
-.af-sheet-light .af-who-card,.af-sheet-light .af-rating-card,.af-sheet-light .af-time-card{
-  background:var(--afl-fill);border:1px solid var(--afl-border);
-}
-.af-sheet-light .af-who-label,.af-sheet-light .af-mini-label{color:var(--afl-muted)}
-.af-sheet-light .af-who-name{color:var(--afl-ink)}
+.af-sheet-light .af-rating-star,.af-sheet-light .af-rating-val,.af-sheet-light .af-rating-label{color:var(--afl-muted)}
+
+.af-sheet-light .af-who-card,.af-sheet-light .af-time-card{background:var(--afl-fill)}
+.af-sheet-light .af-who-avatar{background:#fff;color:var(--afl-ink)}
+.af-sheet-light .af-who-badge{background:#fff;color:var(--afl-ink);box-shadow:0 0 0 2px var(--afl-fill)}
+.af-sheet-light .af-who-label,.af-sheet-light .af-who-name,.af-sheet-light .af-time-label,.af-sheet-light .af-time-ring-val{color:var(--afl-ink)}
 .af-sheet-light .af-who-name.is-placeholder{color:var(--afl-placeholder)}
-.af-sheet-light .af-rating-star{color:var(--afl-accent)}
-.af-sheet-light .af-rating-val{color:var(--afl-ink)}
-.af-sheet-light .af-rating-val.is-empty{color:var(--afl-placeholder)}
 .af-sheet-light .af-time-ring-track{stroke:var(--afl-border)}
-.af-sheet-light .af-time-ring-fill{stroke:var(--afl-accent)}
-.af-sheet-light .af-time-ring-val{color:var(--afl-ink)}
+.af-sheet-light .af-time-ring-fill{stroke:var(--afl-ink)}
 
 .af-sheet-light .af-tick{background:var(--afl-border)}
-.af-sheet-light .af-wheel-label{color:var(--afl-muted)}
-.af-sheet-light .af-wheel-block .wheel{background:var(--afl-fill);border-color:var(--afl-border)}
-.af-sheet-light .wheel-item{color:var(--afl-ink)}
-.af-sheet-light .wheel-item.is-sel{color:var(--afl-accent)}
-.af-sheet-light .wheel-highlight{border-color:var(--afl-accent-border);background:var(--afl-accent-soft)}
+.af-sheet-light .af-wheel-row{background:var(--afl-fill)}
+.af-sheet-light .af-wheel-pill{background:#fff;color:var(--afl-ink);box-shadow:0 4px 4px rgba(15,23,42,.1)}
+.af-sheet-light .af-wheel-pill.is-dark{background:var(--afl-ink);color:#fff}
+.af-sheet-light .af-wheel-row .wheel-item{color:var(--afl-ink)}
+.af-sheet-light .af-wheel-row .wheel-item.is-sel{color:var(--afl-ink)}
+.af-sheet-light .af-wheel-thumb{background:var(--afl-border)}
+.af-sheet-light .af-wheel-thumb::after{background:var(--afl-ink)}
 
-.af-sheet-light .af-commit-ico{
-  background:var(--afl-accent-soft);border-color:var(--afl-accent-border);color:var(--afl-accent);
-}
-.af-sheet-light .af-commit-ico:hover{background:rgba(0,174,11,.16)}
-.af-sheet-light .af-commit-badge{box-shadow:0 0 0 2px #fff}
+.af-sheet-light .af-commit-ico{background:var(--afl-fill)}
+.af-sheet-light .af-commit-ico:hover{background:var(--afl-border)}
+.af-sheet-light .af-commit-ico-circle{background:var(--afl-ink);color:#fff}
+.af-sheet-light .af-commit-badge{background:#fff;color:var(--afl-ink)}
 
 .sheet.af-sheet-light .btn{
   background:#fff;color:var(--afl-ink);border:1.5px solid var(--afl-border);
@@ -667,9 +703,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .sheet{corner-shape:var(--squircle-xl)}
   .table-card{corner-shape:var(--squircle-lg)}
   .af-panel{corner-shape:var(--squircle-lg)}
-  .af-person,.preview,.af-who-card,.af-rating-card,.af-time-card,.af-commit-ico{corner-shape:var(--squircle-md)}
+  .af-person,.preview,.af-who-card,.af-time-card,.af-commit-ico,.af-wheel-row{corner-shape:var(--squircle-md)}
   .star,.af-trigger,input[type=text],input[type=date],input[type=month],input[type=time],
   input[type=number],select,textarea,.af-custom-ok,.af-person-x,.af-add-ico,
-  .af-sub-copy,.af-wheel-block .wheel{corner-shape:var(--squircle-sm)}
+  .af-sub-copy{corner-shape:var(--squircle-sm)}
   .af-check,.af-pair-tog{corner-shape:var(--squircle-xs)}
 }

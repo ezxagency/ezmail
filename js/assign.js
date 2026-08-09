@@ -243,24 +243,27 @@ function afAvatarHTML(id, name){
 function afRatingCardHTML(){
   return `
     <span class="af-rating-star" aria-hidden="true">${AF_STAR_SVG}</span>
-    <span class="af-rating-val is-empty">—</span>
-    <span class="af-mini-label">Rating</span>`;
+    <span class="af-rating-val is-empty">0/5</span>
+    <span class="af-rating-label">PERSONAL<br>RATING</span>`;
 }
 
 // shell only this phase - always empty. Phase 2 sums estimateMin across a
 // person's pairs and fills the ring/label in for real.
 function afTimeCardHTML(){
-  const circ = (2 * Math.PI * 26).toFixed(2);
+  const circ = (2 * Math.PI * 20).toFixed(2);
   return `
     <div class="af-time-ring-wrap">
-      <svg class="af-time-ring" viewBox="0 0 64 64" aria-hidden="true">
-        <circle class="af-time-ring-track" cx="32" cy="32" r="26"></circle>
-        <circle class="af-time-ring-fill" cx="32" cy="32" r="26" stroke-dasharray="${circ}" style="stroke-dashoffset:${circ}"></circle>
+      <svg class="af-time-ring" viewBox="0 0 48 48" aria-hidden="true">
+        <circle class="af-time-ring-track" cx="24" cy="24" r="20"></circle>
+        <circle class="af-time-ring-fill" cx="24" cy="24" r="20" stroke-dasharray="${circ}" style="stroke-dashoffset:${circ}"></circle>
       </svg>
       <span class="af-time-ring-val">00:00</span>
     </div>
-    <span class="af-mini-label">Total time</span>`;
+    <span class="af-time-label">TOTAL TIME<br>ESTIMATED</span>`;
 }
+
+const AF_STORE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10 5.5 4h13L20 10"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>';
+const AF_TASK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>';
 
 // CONFIG's list plus anything typed under any block this session - a
 // custom task picked once is one click everywhere else. Shared by the task
@@ -307,13 +310,16 @@ function afPersonBlockHTML(p, pi, isActive){
         <button type="button" class="af-person-x" data-px="${pi}" title="Remove this block">×</button>
       </div>` : ""}
       <div class="af-top-row">
+        <div class="af-rating-wrap">${afRatingCardHTML()}</div>
         <button type="button" class="af-who-card af-trigger" id="afTrigwho${pi}"
                 aria-expanded="false" aria-controls="afPanelwho${pi}">
-          ${afAvatarHTML("afWhoAvatar" + pi, p.name)}
-          <span class="af-who-label">Who</span>
+          <div class="af-who-avatar-wrap">
+            ${afAvatarHTML("afWhoAvatar" + pi, p.name)}
+            <span class="af-who-badge" aria-hidden="true">?</span>
+          </div>
+          <span class="af-who-label">WHO</span>
           <span class="af-value af-who-name${p.name ? "" : " is-placeholder"}" id="afValwho${pi}">${p.name ? esc(p.name) : "Choose"}</span>
         </button>
-        <div class="af-rating-card">${afRatingCardHTML()}</div>
         <div class="af-time-card">${afTimeCardHTML()}</div>
       </div>
       <div class="af-panel" id="afPanelwho${pi}" hidden></div>
@@ -326,14 +332,16 @@ function afPersonBlockHTML(p, pi, isActive){
 
       ${isActive ? `
       <div class="af-tick" aria-hidden="true"></div>
-      <div class="af-wheel-block">
-        <span class="af-wheel-label">Choose store</span>
+      <div class="af-wheel-row">
+        <span class="af-wheel-pill"><span aria-hidden="true">${AF_STORE_ICON}</span><span>CHOOSE STORE</span></span>
         <div class="wheel" id="afStoreWheel${pi}"></div>
+        <span class="af-wheel-thumb" aria-hidden="true"></span>
       </div>
       <div class="af-tick" aria-hidden="true"></div>
-      <div class="af-wheel-block">
-        <span class="af-wheel-label">Choose task</span>
+      <div class="af-wheel-row">
+        <span class="af-wheel-pill is-dark"><span aria-hidden="true">${AF_TASK_ICON}</span><span>CHOOSE TASK</span></span>
         <div class="wheel" id="afTaskWheel${pi}"></div>
+        <span class="af-wheel-thumb" aria-hidden="true"></span>
       </div>` : ""}
     </div>`;
 }
@@ -377,11 +385,15 @@ function afRenderPeople(){
     <div class="af-commit-row">
       ${afEdit ? "" : `
       <button type="button" class="af-commit-ico" id="afCommitPerson" aria-label="New person" title="New person">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>
+        <span class="af-commit-ico-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>
+        </span>
         <span class="af-commit-badge" aria-hidden="true">+</span>
       </button>`}
       <button type="button" class="af-commit-ico" id="afCommitPair" aria-label="Add this pair" title="Add this pair">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="11" height="11" rx="2.4"/><rect x="9.5" y="9.5" width="11" height="11" rx="2.4"/></svg>
+        <span class="af-commit-ico-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="11" height="11" rx="2.4"/><rect x="9.5" y="9.5" width="11" height="11" rx="2.4"/></svg>
+        </span>
         <span class="af-commit-badge" aria-hidden="true">+</span>
       </button>
     </div>`;
