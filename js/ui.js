@@ -8,9 +8,11 @@ let sheetDismissible = true;
 let sheetThemeCls = null;
 function openSheet(html, setup, opts){
   sheetDismissible = !opts || opts.dismissible !== false;
-  if (sheetThemeCls) $("sheet").classList.remove(sheetThemeCls);
+  // cls may carry several space-separated classes (Assign Task stacks its
+  // wide-layout class with its optional light theme)
+  if (sheetThemeCls) $("sheet").classList.remove(...sheetThemeCls.split(" "));
   sheetThemeCls = (opts && opts.cls) || null;
-  if (sheetThemeCls) $("sheet").classList.add(sheetThemeCls);
+  if (sheetThemeCls) $("sheet").classList.add(...sheetThemeCls.split(" "));
   $("sheetBody").innerHTML = html;
   $("scrim").classList.add("on");
   $("sheet").classList.add("on");

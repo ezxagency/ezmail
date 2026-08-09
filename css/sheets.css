@@ -417,6 +417,23 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   top:calc(var(--af-scale,0.42) * 420px);
 }
 
+/* The Assign Task sheet outgrows the app's stock 460px sheet on anything
+   bigger than a phone - the canvas is a 1014px design, so from tablet up
+   the sheet widens to let it render at (or near) native size instead of
+   phone-scale. .sheet.af-sheet-wide out-specifies both the base .sheet
+   rule here and responsive.css's desktop centered-modal .sheet rule, so
+   file order doesn't matter. */
+@media (min-width:640px){
+  .sheet.af-sheet-wide{max-width:min(94vw,1060px)}
+}
+@media (min-width:1024px){
+  .sheet.af-sheet-wide{width:min(92vw,1060px);max-height:92vh}
+}
+/* below the canvas the functional strip shouldn't stretch to 1000px wide -
+   cap and center it so the wide sheet still reads composed */
+.af-sheet-wide .af-details-card,.af-sheet-wide .af-pairs{max-width:720px;margin-left:auto;margin-right:auto}
+.af-sheet-wide #afCancel{display:block;max-width:720px;margin-left:auto;margin-right:auto}
+
 /* the Details card below the canvas - not depicted in the Figma frame, so
    it borrows the frame's own light-card language rather than the app's
    dark styling to read as one continuous screen */

@@ -399,7 +399,9 @@ function afRenderPeople(){
     afLightTheme = !afLightTheme;
     localStorage.setItem("afTheme", afLightTheme ? "light" : "dark");
     $("sheet").classList.toggle("af-sheet-light", afLightTheme);
-    sheetThemeCls = afLightTheme ? "af-sheet-light" : null;
+    // keep the wide class in the tracked set so the NEXT sheet still
+    // removes both, not just the light theme
+    sheetThemeCls = "af-sheet-wide" + (afLightTheme ? " af-sheet-light" : "");
     themeTog.setAttribute("aria-pressed", afLightTheme);
   };
 
@@ -535,7 +537,7 @@ async function openAssignFlow(preUid, preName, editThread){
     loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; afRenderPeople(); });
   };
 
-  openSheet(body, setup, { cls: afLightTheme ? "af-sheet-light" : null });
+  openSheet(body, setup, { cls: "af-sheet-wide" + (afLightTheme ? " af-sheet-light" : "") });
 }
 
 /* Members carry their current open-task count, so you can see who is already
