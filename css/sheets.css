@@ -274,12 +274,13 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
 
 /* ---------- Assign Task v4: terminal kit ----------
-   Rebuilt from the user's terminal/HUD-style inspiration screen, with the
-   SITE'S own palette in place of the inspo's neons: --wk-green for every
-   accent, the sheet's existing navy glass for surfaces, --mono for the
-   HUD type. Plain flowing markup (no fixed canvas), so it's responsive
-   for free. Cards carry the inspo's corner-bracket accents via
-   ::before/::after quarter-arcs. */
+   Rebuilt from the user's terminal/HUD-style inspiration screen. Accents
+   are WHITE shades (user's call, replacing the first green pass): #fff
+   for strong accents, rgba(255,255,255,.x) for fills/borders/glows, on
+   the sheet's existing navy glass, with --mono for the HUD type. Plain
+   flowing markup (no fixed canvas), so it's responsive for free. Cards
+   carry the inspo's corner-bracket accents via ::before/::after
+   quarter-arcs. */
 .tk-head{display:flex;align-items:center;gap:12px;margin:2px 0 18px}
 .tk-icon-btn{
   flex:none;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -294,12 +295,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .tk-head-title span{
   display:block;margin-top:2px;font-family:var(--mono);font-size:10.5px;
-  letter-spacing:.3em;color:var(--wk-green);
+  letter-spacing:.3em;color:#fff;
 }
 
 .tk-label{
   font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.24em;
-  text-transform:uppercase;color:var(--wk-green);
+  text-transform:uppercase;color:#fff;
 }
 .tk-label-lg{font-size:12px}
 
@@ -311,11 +312,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   content:"";position:absolute;width:16px;height:16px;pointer-events:none;
 }
 .tk-card::before{
-  top:-1px;left:-1px;border-top:2px solid var(--wk-green);border-left:2px solid var(--wk-green);
+  top:-1px;left:-1px;border-top:2px solid #fff;border-left:2px solid #fff;
   border-top-left-radius:16px;
 }
 .tk-card::after{
-  bottom:-1px;right:-1px;border-bottom:2px solid var(--wk-green);border-right:2px solid var(--wk-green);
+  bottom:-1px;right:-1px;border-bottom:2px solid #fff;border-right:2px solid #fff;
   border-bottom-right-radius:16px;
 }
 
@@ -324,22 +325,23 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .tk-field{display:flex;flex-direction:column;gap:10px}
 .tk-tog{
   position:relative;width:64px;height:32px;border-radius:999px;cursor:pointer;padding:0;
-  background:rgba(0,174,11,.16);border:1.5px solid rgba(0,174,11,.55);
+  background:rgba(255,255,255,.16);border:1.5px solid rgba(255,255,255,.55);
   transition:background .18s ease;
 }
 .tk-tog i{
   position:absolute;top:3px;left:4px;width:23px;height:23px;border-radius:50%;
-  background:var(--wk-green);box-shadow:0 0 10px rgba(0,174,11,.6);
+  background:#fff;box-shadow:0 0 10px rgba(255,255,255,.6);
   transition:transform .18s cubic-bezier(.22,1,.36,1);font-style:normal;
 }
 .tk-tog[aria-pressed=true]{background:rgba(255,255,255,.85);border-color:rgba(255,255,255,.9)}
-.tk-tog[aria-pressed=true] i{transform:translateX(31px)}
+/* a white knob on the pressed track's white fill would vanish - flip it dark */
+.tk-tog[aria-pressed=true] i{transform:translateX(31px);background:#12131a;box-shadow:none}
 .tk-rating{
   display:flex;align-items:center;gap:8px;
   font-family:var(--mono);font-size:19px;color:var(--wk-white-60);
 }
-.tk-rating b{font-weight:700;color:var(--wk-green);font-size:22px}
-.tk-rating-star{width:20px;height:20px;color:var(--wk-green);display:block}
+.tk-rating b{font-weight:700;color:#fff;font-size:22px}
+.tk-rating-star{width:20px;height:20px;color:#fff;display:block}
 .tk-rating-star svg{width:100%;height:100%;display:block}
 .tk-divider{height:1px;background:rgba(255,255,255,.1);margin:16px 0}
 .tk-status-bottom{display:flex;align-items:center;justify-content:space-between;gap:16px}
@@ -356,21 +358,21 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .tk-ring svg{width:100%;height:100%;display:block;transform:rotate(-90deg)}
 .tk-ring-track{fill:none;stroke:rgba(255,255,255,.14);stroke-width:3;stroke-dasharray:2 5}
 .tk-ring-fill{
-  fill:none;stroke:var(--wk-green);stroke-width:4.5;stroke-linecap:round;
-  filter:drop-shadow(0 0 5px rgba(0,174,11,.6));transition:stroke-dashoffset .5s ease;
+  fill:none;stroke:#fff;stroke-width:4.5;stroke-linecap:round;
+  filter:drop-shadow(0 0 5px rgba(255,255,255,.6));transition:stroke-dashoffset .5s ease;
 }
 .tk-ring-pct{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:13px;font-weight:700;color:var(--wk-green);
+  font-family:var(--mono);font-size:13px;font-weight:700;color:#fff;
 }
 
 /* workload matrix */
 .tk-load-head{display:flex;align-items:center;gap:10px}
 .tk-dot{
-  width:9px;height:9px;border-radius:50%;background:var(--wk-green);
-  box-shadow:0 0 8px rgba(0,174,11,.7);
+  width:9px;height:9px;border-radius:50%;background:#fff;
+  box-shadow:0 0 8px rgba(255,255,255,.7);
 }
-.tk-spin{margin-left:auto;width:26px;height:26px;color:var(--wk-green);opacity:.8}
+.tk-spin{margin-left:auto;width:26px;height:26px;color:#fff;opacity:.8}
 .tk-spin svg{width:100%;height:100%;display:block}
 .tk-load-bars{display:flex;gap:10px;margin:16px 0 8px}
 .tk-load-bars i{
@@ -378,8 +380,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   transition:background .2s ease,box-shadow .2s ease;
 }
 .tk-load-bars i.is-on{
-  background:rgba(0,174,11,.55);border:1px solid var(--wk-green);
-  box-shadow:0 0 10px rgba(0,174,11,.35);height:30px;margin-top:-4px;border-radius:6px;
+  background:rgba(255,255,255,.55);border:1px solid #fff;
+  box-shadow:0 0 10px rgba(255,255,255,.35);height:30px;margin-top:-4px;border-radius:6px;
 }
 .tk-load-lbl{display:flex;justify-content:space-between}
 .tk-load-lbl span{
@@ -394,7 +396,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .tk-row::before{
   content:"";position:absolute;top:-1px;left:-1px;width:14px;height:14px;
-  border-top:2px solid var(--wk-green);border-left:2px solid var(--wk-green);
+  border-top:2px solid #fff;border-left:2px solid #fff;
   border-top-left-radius:16px;pointer-events:none;
 }
 .tk-row:hover{background:rgba(255,255,255,.06)}
@@ -409,20 +411,20 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .tk-row-val.is-placeholder{color:var(--wk-white-60);font-weight:400}
-.tk-chev{flex:none;width:18px;height:18px;color:var(--wk-green);opacity:.8}
-.tk-link{width:2px;height:22px;margin-left:39px;background:rgba(0,174,11,.35)}
+.tk-chev{flex:none;width:18px;height:18px;color:#fff;opacity:.8}
+.tk-link{width:2px;height:22px;margin-left:39px;background:rgba(255,255,255,.35)}
 
 /* assign target card */
 .tk-target{
   position:relative;width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;
   padding:26px 18px 24px;border-radius:18px;cursor:pointer;margin:0 0 16px;
-  background:rgba(0,174,11,.05);border:1.5px solid rgba(0,174,11,.5);color:var(--wk-white);
+  background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.5);color:var(--wk-white);
 }
-.tk-target:hover{background:rgba(0,174,11,.1)}
+.tk-target:hover{background:rgba(255,255,255,.1)}
 .tk-target-ico{
   width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  background:rgba(0,174,11,.14);border:1.5px solid rgba(0,174,11,.55);color:var(--wk-green);
-  box-shadow:0 0 18px rgba(0,174,11,.25);margin-bottom:6px;
+  background:rgba(255,255,255,.14);border:1.5px solid rgba(255,255,255,.55);color:#fff;
+  box-shadow:0 0 18px rgba(255,255,255,.25);margin-bottom:6px;
 }
 .tk-target-ico svg{width:28px;height:28px}
 .tk-target-name{
@@ -435,17 +437,17 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 /* add operative */
 .tk-add{
   display:block;width:100%;margin:0 0 16px;padding:13px;border-radius:12px;cursor:pointer;
-  background:none;border:1.5px dashed rgba(0,174,11,.5);color:var(--wk-green);
+  background:none;border:1.5px dashed rgba(255,255,255,.5);color:#fff;
   font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.22em;
 }
-.tk-add:hover{background:rgba(0,174,11,.08)}
+.tk-add:hover{background:rgba(255,255,255,.08)}
 .tk-add.is-idle{opacity:.5}
 
 /* configuration card */
 .tk-config{transition:opacity .28s ease}
 .tk-config.is-locked{opacity:.45}
 .tk-config-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.tk-config-ico{width:20px;height:20px;color:var(--wk-green)}
+.tk-config-ico{width:20px;height:20px;color:#fff}
 .tk-config-ico svg{width:100%;height:100%;display:block}
 .tk-chip{
   margin-left:auto;padding:5px 10px;border-radius:6px;
@@ -457,12 +459,17 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 /* submit */
 .tk-go{
   display:block;width:100%;padding:17px;border-radius:14px;cursor:pointer;margin:2px 0 4px;
-  background:var(--wk-green);border:0;color:#08210a;
+  background:#fff;border:0;color:#08210a;
   font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.22em;
-  box-shadow:0 10px 26px rgba(0,174,11,.28);
+  box-shadow:0 10px 26px rgba(255,255,255,.28);
 }
 .tk-go:hover:not(:disabled){filter:brightness(1.08)}
 .tk-go:disabled{opacity:.4;cursor:default;box-shadow:none}
+
+/* the pair chips ride inside this sheet - their tick follows the kit's
+   white accent here rather than the app-wide green */
+#afPairsBox .af-pair-tog{background:#fff;border-color:#fff;color:#12131a}
+#afPairsBox .af-pair.is-off .af-pair-tog{background:none;border-color:rgba(255,255,255,.34);color:transparent}
 
 /* the terminal layout is phone-proportioned by design; on desktop it just
    gets a touch more room and the full 92vh height allowance */
@@ -579,20 +586,35 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-sheet-light .af-pair.is-off .af-pair-tog{background:none;border-color:var(--afl-border);color:transparent}
 .af-sheet-light .af-pair-name{color:var(--afl-ink)}
 
-/* Terminal kit on the light sheet: surfaces flip to light fills with ink
-   text; the green accent stays the site's green on both. */
+/* Terminal kit on the light sheet: surfaces flip to light fills, and the
+   kit's WHITE accents flip to ink - white-on-white would vanish. */
 .af-sheet-light .tk-head-title b{color:var(--afl-ink)}
+.af-sheet-light .tk-head-title span{color:var(--afl-muted)}
 .af-sheet-light .tk-icon-btn{color:var(--afl-ink)}
 .af-sheet-light .tk-icon-btn:hover{background:var(--afl-fill)}
+.af-sheet-light .tk-label,.af-sheet-light .tk-ring-pct,.af-sheet-light .tk-chev,.af-sheet-light .tk-spin,.af-sheet-light .tk-config-ico,.af-sheet-light .tk-add,.af-sheet-light .tk-rating-star{color:var(--afl-ink)}
 .af-sheet-light .tk-card,.af-sheet-light .tk-row{background:#fff;border-color:var(--afl-border)}
+.af-sheet-light .tk-card::before,.af-sheet-light .tk-card::after,.af-sheet-light .tk-row::before{border-color:var(--afl-ink)}
 .af-sheet-light .tk-row:hover{background:var(--afl-fill)}
 .af-sheet-light .tk-row-ico{background:var(--afl-fill);border-color:var(--afl-border);color:var(--afl-ink)}
 .af-sheet-light .tk-row-val,.af-sheet-light .tk-clock,.af-sheet-light .tk-target-name,.af-sheet-light .tk-rating b{color:var(--afl-ink)}
 .af-sheet-light .tk-row-val.is-placeholder,.af-sheet-light .tk-sub,.af-sheet-light .tk-load-lbl span,.af-sheet-light .tk-chip,.af-sheet-light .tk-rating{color:var(--afl-muted)}
 .af-sheet-light .tk-divider{background:var(--afl-border)}
+.af-sheet-light .tk-dot{background:var(--afl-ink);box-shadow:none}
+.af-sheet-light .tk-link{background:var(--afl-border)}
 .af-sheet-light .tk-ring-track{stroke:var(--afl-border)}
+.af-sheet-light .tk-ring-fill{stroke:var(--afl-ink);filter:none}
 .af-sheet-light .tk-load-bars i{background:var(--afl-fill)}
-.af-sheet-light .tk-target{background:var(--afl-accent-soft)}
+.af-sheet-light .tk-load-bars i.is-on{background:rgba(22,25,34,.55);border-color:var(--afl-ink);box-shadow:none}
+.af-sheet-light .tk-tog{background:var(--afl-fill);border-color:var(--afl-border)}
+.af-sheet-light .tk-tog i{background:var(--afl-ink);box-shadow:none}
+.af-sheet-light .tk-tog[aria-pressed=true]{background:var(--afl-ink);border-color:var(--afl-ink)}
+.af-sheet-light .tk-tog[aria-pressed=true] i{background:#fff}
+.af-sheet-light .tk-target{background:#fff;border-color:var(--afl-border)}
+.af-sheet-light .tk-target-ico{background:var(--afl-fill);border-color:var(--afl-border);color:var(--afl-ink);box-shadow:none}
+.af-sheet-light .tk-add{border-color:var(--afl-border)}
+.af-sheet-light .tk-go{background:var(--afl-ink);color:#fff;box-shadow:none}
+.af-sheet-light #afPairsBox .af-pair-tog{background:var(--afl-ink);border-color:var(--afl-ink);color:#fff}
 .af-sheet-light .tk-chip{background:var(--afl-fill);border-color:var(--afl-border)}
 
 .sheet.af-sheet-light .btn{
