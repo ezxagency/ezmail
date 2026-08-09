@@ -137,7 +137,9 @@ function renderTodaysWork(docs){
 
   box.innerHTML = `
     <div class="work-head">
-      <p class="hint" style="margin:0">Today's work</p>
+      <p class="hint" style="margin:0">Today's work
+        ${canAssignTasks ? `<button type="button" class="cx-mini" id="twAssign" aria-haspopup="dialog">› assign</button>` : ""}
+      </p>
       <p class="work-sum">${rows.length} on the clock today · <b>${humanDur(totalNet)}</b> net${onNow ? ` · ${onNow} still on shift` : ""}</p>
     </div>
     <div class="table-card">
@@ -166,6 +168,8 @@ function renderTodaysWork(docs){
         </tbody>
       </table>
     </div>`;
+  const tw = $("twAssign");
+  if (tw) tw.onclick = () => openComposer();
 }
 
 // Team is a full page (not a sheet) - admin gets the whole viewport to
@@ -272,6 +276,11 @@ function renderTeamStatusCards(box, rows){
       e.stopPropagation();
       deleteAssignment(b.dataset.del);
     });
+    card.querySelectorAll("button[data-edit]").forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      const t = tlogThreadsByKey.get(b.dataset.edit);
+      if (t) openComposerEdit(t);
+    });
   });
 }
 
@@ -315,6 +324,11 @@ function tlogItemHtml(status, t){
         <span>${secondLine}</span>
       </span>
       <span class="tlog-acts row-acts">
+        ${status !== "done" && canAssignTasks ? `
+        <button type="button" class="assign-del assign-edit" data-edit="${esc(threadKey(t))}"
+                aria-label="Edit this assignment" title="Edit this assignment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        </button>` : ""}
         ${!isAdmin ? "" : `
         <button type="button" class="assign-del" data-del="${esc(t.rows.map(x => x.id).join(","))}"
                 aria-label="Delete this assignment" title="Delete this assignment">
@@ -1387,11 +1401,14 @@ function viewWorker(data, s, uid){
     <h2>${esc(name)}</h2>
     <p class="hint">${hist.length} shift${hist.length===1?"":"s"} · ${humanDur(total)} net worked</p>
     <ul class="hist">${rows}</ul>
+    <button class="btn btn-go" id="assign">Assign work</button>
     <button class="btn" id="mailSum" ${hist.length ? "" : "disabled"}>Email summary…</button>
     <button class="btn btn-ghost btn-sm" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>
     <button class="btn btn-break btn-sm" id="delWorker">Remove Member</button>
   `, () => {
+    // the composer replaces this sheet rather than stacking over it
+    $("assign").onclick = () => { closeSheet(); openComposer(uid, name); };
     $("mailSum").onclick = () => askWorkerSummaryEmail(name, data.email || "", hist);
     // the raw spreadsheet is the admin's audit tool; the email is the
     // readable summary either of you can be sent

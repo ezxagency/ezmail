@@ -21,7 +21,8 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   dashboard.css     app shell, band, rings, punch card, panes, dock
   drawer.css        hamburger + off-canvas drawer
   pages.css         buttons, full-page shells, stat tiles, history rows
-  sheets.css        bottom sheet, forms, chips, assign flow
+  sheets.css        bottom sheet, forms, chips, shared dropdown primitives
+  assign.css        the assign composer (command bar + sentence) + its launchers
   tables.css        responsive tables, today's work, toast
   responsive.css    landscape + desktop grid + height tiers
   pomodoro.css      focus mode, the 12 theme veils, settings controls
@@ -39,7 +40,7 @@ js/   classic scripts sharing one global scope; loaded in order
   nav.js            drawer, hash router, Mission + History pages
   boot.js           per-login session boot and teardown
   team.js           team page, assignment log, team pane, team Excel export
-  assign.js         staged assign flow, my-tasks watcher, notifications
+  assign.js         the assign composer, my-tasks watcher, notifications
   notify.js         directory + in-app notifications, @mention autocomplete
   campaigns.js      campaigns baton-pass pipeline: stages, approvals, client links
   auth.js           role resolution, sign-in/out wiring, login UI, email verification

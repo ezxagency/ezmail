@@ -1,0 +1,187 @@
+/* ============================================================
+   ASSIGN — the composer.
+
+   A from-scratch rebuild of the assign UI as a command bar: one input
+   that understands names, stores and tasks, a suggestion deck under it,
+   and the assignment composing itself as a readable three-line sentence
+   (SEND / TO / AT) of removable chips. Opens as a centered floating
+   console - deliberately NOT the bottom sheet every other flow uses -
+   in the app's own materials: navy glass, white ink, SF for prose,
+   SF Mono for the little labels. No theme toggle; one look.
+   ============================================================ */
+
+.cx-scrim{
+  position:fixed;inset:0;z-index:64;background:rgba(8,9,13,.6);
+  backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+.cx-scrim.on{opacity:1;pointer-events:auto}
+
+.cx{
+  position:fixed;left:0;right:0;z-index:65;margin:0 auto;
+  top:clamp(12px,8vh,110px);width:min(94vw,560px);
+  max-height:calc(100dvh - clamp(12px,8vh,110px) - 16px);overflow-y:auto;
+  background:rgba(12,14,20,.96);color:var(--wk-white);
+  backdrop-filter:blur(30px) saturate(140%);-webkit-backdrop-filter:blur(30px) saturate(140%);
+  border:1px solid rgba(255,255,255,.16);border-radius:22px;
+  box-shadow:0 30px 80px rgba(0,0,0,.55);
+  padding:14px 18px calc(env(safe-area-inset-bottom) + 18px);
+  opacity:0;transform:translateY(-10px) scale(.98);pointer-events:none;
+  transition:opacity .2s ease,transform .22s cubic-bezier(.22,1,.36,1);
+}
+.cx.on{opacity:1;transform:none;pointer-events:auto}
+
+.cx-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 12px}
+.cx-eyebrow{
+  font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.26em;
+  text-transform:uppercase;color:var(--wk-white-60);
+}
+.cx-x{
+  flex:none;width:34px;height:34px;margin:-4px -6px 0 0;border-radius:50%;cursor:pointer;
+  background:none;border:0;color:var(--wk-white);
+  display:flex;align-items:center;justify-content:center;
+}
+.cx-x svg{width:19px;height:19px}
+.cx-x:hover{background:rgba(255,255,255,.1)}
+
+/* ---------- the bar itself ---------- */
+.cx-inputrow{
+  display:flex;align-items:center;gap:10px;padding:0 14px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.28);border-radius:14px;
+  transition:border-color .15s ease;
+}
+.cx-inputrow:focus-within{border-color:rgba(255,255,255,.65)}
+.cx-prompt{
+  flex:none;font-family:var(--mono);font-size:19px;font-weight:700;
+  color:var(--wk-white);transform:translateY(-1px);
+}
+/* the global sheet input styling is a glass box of its own - inside the
+   bar the input is bare, the row carries the box */
+.cx input[type=text]{
+  flex:1;min-width:0;background:none;border:0;border-radius:0;padding:15px 0;
+  font-size:16px;color:var(--wk-white);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.cx input[type=text]:focus{outline:none}
+.cx-kbd{
+  flex:none;font-family:var(--mono);font-size:10px;color:var(--wk-white-60);
+  border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:3px 6px;
+}
+
+/* ---------- suggestion deck ---------- */
+.cx-sugs{margin-top:8px}
+.cx-sugs:empty{display:none}
+.cx-sug{
+  width:100%;display:flex;align-items:center;gap:11px;
+  padding:10px 12px;border:0;border-radius:11px;cursor:pointer;text-align:left;
+  background:none;color:var(--wk-white);font-family:var(--wk);font-size:14.5px;
+}
+.cx-sug:hover,.cx-sug.is-hi{background:rgba(255,255,255,.1)}
+.cx-tag{
+  flex:none;min-width:52px;text-align:center;padding:3px 7px;border-radius:5px;
+  border:1px solid rgba(255,255,255,.24);color:var(--wk-white-70);
+  font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.16em;
+}
+.cx-sug.is-hi .cx-tag{border-color:rgba(255,255,255,.55);color:var(--wk-white)}
+.cx-tag-new{border-style:dashed}
+.cx-sug-main{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-sug-meta{flex:none;font-family:var(--wk);font-size:11px;letter-spacing:.04em;color:var(--wk-white-60)}
+.cx-sug-meta.is-clear{color:var(--wk-green)}
+.cx-none{
+  margin:0;padding:12px;font-family:var(--wk);font-size:13px;color:var(--wk-white-60);
+}
+
+/* ---------- the sentence ---------- */
+.cx-line{margin:14px 0 2px}
+.cx-row{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.14);
+}
+.cx-row:last-child{border-bottom:0}
+.cx-verb{
+  flex:none;width:46px;
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.22em;
+  color:var(--wk-white-60);
+}
+.cx-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 6px 6px 13px;border-radius:999px;
+  background:rgba(255,244,229,.14);border:1px solid rgba(255,255,255,.28);
+  font-family:var(--wk);font-size:13.5px;font-weight:600;color:var(--wk-white);
+  overflow-wrap:anywhere;animation:cxChipIn .2s cubic-bezier(.22,1,.36,1);
+}
+.cx-chip.no-x{padding-right:13px}
+@keyframes cxChipIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+.cx-chip-x{
+  flex:none;width:19px;height:19px;border-radius:50%;cursor:pointer;padding:0;
+  background:rgba(255,255,255,.1);border:0;color:var(--wk-white-70);
+  display:flex;align-items:center;justify-content:center;
+}
+.cx-chip-x svg{width:11px;height:11px}
+.cx-chip-x:hover{background:rgba(255,92,92,.22);color:#FF8E8E}
+.cx-slot{
+  padding:6px 13px;border-radius:999px;cursor:pointer;
+  background:none;border:1.5px dashed rgba(255,255,255,.32);
+  font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);
+}
+.cx-slot:hover{border-color:rgba(255,255,255,.6);color:var(--wk-white)}
+
+/* ---------- brief + due ---------- */
+.cx-label{
+  display:block;margin:14px 0 8px;
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--wk-white-60);
+}
+.cx textarea{min-height:76px;font-size:15px}
+.cx-due{display:flex;gap:12px;margin-top:4px}
+.cx-due label{flex:1;min-width:0}
+.cx-due .cx-label{margin:10px 0 8px}
+.cx-due input[type=date],.cx-due input[type=time]{padding:12px;min-height:0;font-size:14px}
+
+/* ---------- send ---------- */
+.cx-send{
+  display:block;width:100%;margin-top:16px;padding:16px;border-radius:14px;cursor:pointer;
+  background:var(--wk-white);border:0;color:#12131a;
+  font-family:var(--wk);font-size:15px;font-weight:700;letter-spacing:.02em;
+  transition:filter .15s ease,opacity .2s ease;
+}
+.cx-send:hover:not(:disabled){filter:brightness(1.08)}
+.cx-send:disabled{opacity:.35;cursor:default}
+
+.cx :focus-visible{outline:2px solid var(--wk-white);outline-offset:2px}
+
+/* ---------- entry points ---------- */
+/* the band launcher: same pill language as the sign-out control */
+.cx-launch{
+  flex:none;display:flex;align-items:center;gap:8px;margin-top:2px;
+  background:transparent;border:2px solid var(--wk-white);color:var(--wk-white);
+  font-family:var(--wk);font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;
+  padding:10px 16px;border-radius:999px;cursor:pointer;
+  transition:background .15s ease,transform .12s ease;
+}
+.cx-launch:hover{background:rgba(255,255,255,.14)}
+.cx-launch.hidden{display:none}
+.cx-launch-glyph{font-family:var(--mono);font-size:14px;font-weight:700;transform:translateY(-.5px)}
+/* the word costs too much band on a phone; the caret alone carries it */
+@media (max-width:430px){
+  .cx-launch{width:44px;height:44px;padding:0;justify-content:center;gap:0}
+  .cx-launch-txt{display:none}
+}
+/* the Team page's small header affordance */
+.cx-mini{
+  display:inline-flex;align-items:center;gap:5px;margin-left:8px;vertical-align:middle;
+  background:none;border:1px solid rgba(255,255,255,.3);border-radius:999px;
+  padding:5px 11px;cursor:pointer;color:var(--wk-white-70);
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+}
+.cx-mini:hover{border-color:rgba(255,255,255,.6);color:var(--wk-white)}
+
+@media (prefers-reduced-motion:reduce){
+  .cx,.cx-scrim,.cx-chip{transition:none;animation:none}
+}
+
+@supports (corner-shape:superellipse(1)){
+  .cx{corner-shape:var(--squircle-xl)}
+  .cx-inputrow,.cx-send{corner-shape:var(--squircle-sm)}
+  .cx-sug,.cx-tag{corner-shape:var(--squircle-xs)}
+}

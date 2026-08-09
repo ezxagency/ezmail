@@ -84,6 +84,7 @@ document.addEventListener("keydown", e => {
     const pdropOpen = document.querySelector(".pdrop .af-panel:not([hidden])");
     if ($("drawer").classList.contains("on")) { closeDrawer(); e.preventDefault(); }
     else if (pdropOpen) { pomoDropCloseAll(); e.preventDefault(); }
+    else if (typeof cxIsOpen === "function" && cxIsOpen()) { closeComposer(); e.preventDefault(); }
     else if (sheetIsOpen()) { if (sheetDismissible) closeSheet(); e.preventDefault(); }
     else if (currentRoute()) { go(""); e.preventDefault(); }
     return;
@@ -92,6 +93,7 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if ($("sheet").classList.contains("on")) return;
+  if (typeof cxIsOpen === "function" && cxIsOpen()) return;
   const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "team" };
   if (!(e.key in map)) return;
   const r = map[e.key];

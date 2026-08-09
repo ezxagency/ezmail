@@ -44,6 +44,8 @@ function enterFullApp(user, role){
   // separate personal-history page is only useful to everyone else
   $("drawerHistory").classList.toggle("hidden", isAdmin);
   $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
+  // the composer's launcher follows the same permission as assigning itself
+  $("assignLaunch").classList.toggle("hidden", !canAssignTasks);
   // everyone on desktop gets the two-pane shell; the role only decides
   // what the third column holds
   $("appScreen").classList.add("panes");
@@ -146,6 +148,7 @@ if (!FB_READY){
       notifDir = null;
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
+      $("assignLaunch").classList.add("hidden");
       $("drawerTeam").classList.add("hidden");
       $("drawerHistory").classList.remove("hidden");   // visible-by-default; only admin hides it
       closeDrawer();
@@ -153,6 +156,7 @@ if (!FB_READY){
       // would otherwise float the old account's data over the login screen
       sheetDismissible = true;
       closeSheet();
+      closeComposer();
       // the next person to sign in starts on the dashboard, not wherever
       // the previous session happened to be parked
       Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.add("hidden"));
