@@ -439,15 +439,27 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 @media (min-width:640px){
   .sheet.af-sheet-wide{max-width:min(94vw,700px)}
 }
+/* Desktop: two columns - the canvas scaled to fit the viewport HEIGHT on
+   the left (afScaleCanvas sizes the column; the whole flow is visible
+   with no scrolling), the functional strip (pair chips, brief, due
+   date/time, cancel) as a side column on the right. */
+.af-layout{display:flex;flex-direction:column}
+.af-side{min-width:0}
 @media (min-width:1024px){
-  /* ~0.65 canvas scale: a comfortable desktop dialog - full 1:1 read as
-     oversized/bulky in practice, the mock's chunky strokes want to sit a
-     bit smaller than their authored size */
-  .sheet.af-sheet-wide{width:min(88vw,700px);max-height:92vh}
+  .sheet.af-sheet-wide{width:min(92vw,1000px);max-width:min(92vw,1000px);max-height:92vh}
+  .af-sheet-wide .af-layout{flex-direction:row;gap:24px;align-items:stretch}
+  .af-sheet-wide #afPeople{flex:none}
+  .af-sheet-wide .af-side{
+    flex:1;min-width:300px;display:flex;flex-direction:column;
+    padding-top:8px;
+  }
+  .af-sheet-wide .af-side .af-details-card{margin-top:auto}
+  .af-sheet-wide .af-canvas-wrap{margin-bottom:0}
+  /* the side column is too narrow for date+time side by side */
+  .af-sheet-wide .af-side .af-due-row{flex-direction:column;gap:0}
+  .af-sheet-wide .af-side .af-due input[type=date],
+  .af-sheet-wide .af-side .af-due input[type=time]{max-width:190px}
 }
-/* below the canvas the functional strip matches the canvas width */
-.af-sheet-wide .af-details-card,.af-sheet-wide .af-pairs{max-width:660px;margin-left:auto;margin-right:auto}
-.af-sheet-wide #afCancel{display:block;max-width:660px;margin-left:auto;margin-right:auto}
 
 /* the Details card below the canvas - not depicted in the Figma frame, so
    it borrows the frame's own light-card language rather than the app's

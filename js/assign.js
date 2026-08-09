@@ -339,13 +339,30 @@ function afCanvasHTML(p, pi){
   </div>`;
 }
 
-// measure the sheet's real width and scale the 1014px canvas to fit
+/* Scale the 1014x1450 canvas to fit. On phones/tablets it fills the sheet
+   width and the sheet scrolls, same as any tall content. On desktop the
+   whole flow should be visible at once - so the scale also respects the
+   viewport HEIGHT (92vh sheet cap minus chrome), and the canvas column
+   shrinks to exactly the scaled width so the side column gets the rest. */
 function afScaleCanvas(){
   const wrap = $("afCanvasWrap");
-  if (!wrap || !wrap.clientWidth) return;
-  const scale = wrap.clientWidth / 1014;
-  wrap.style.setProperty("--af-scale", scale);
-  wrap.style.height = (1450 * scale) + "px";
+  if (!wrap) return;
+  const desktop = window.matchMedia("(min-width:1024px)").matches;
+  if (desktop){
+    const bodyW = $("sheetBody") ? $("sheetBody").clientWidth : 0;
+    const availW = Math.max(320, bodyW - 344);            // side column min 320 + gap
+    const availH = Math.max(420, window.innerHeight * 0.92 - 64);
+    const scale = Math.min(availW / 1014, availH / 1450);
+    wrap.style.setProperty("--af-scale", scale);
+    wrap.style.width = (1014 * scale) + "px";
+    wrap.style.height = (1450 * scale) + "px";
+  } else {
+    if (!wrap.clientWidth) return;
+    wrap.style.width = "";
+    const scale = wrap.clientWidth / 1014;
+    wrap.style.setProperty("--af-scale", scale);
+    wrap.style.height = (1450 * scale) + "px";
+  }
 }
 window.addEventListener("resize", () => { if (sheetIsOpen()) afScaleCanvas(); });
 
@@ -384,7 +401,9 @@ function afRenderPeople(){
   afCloseMenu();
   const lastIdx = afState.people.length - 1;
   const p = afState.people[lastIdx];
-  box.innerHTML = afCanvasHTML(p, lastIdx) + afPairsHTML();
+  box.innerHTML = afCanvasHTML(p, lastIdx);
+  const pairsBox = $("afPairsBox");
+  if (pairsBox) pairsBox.innerHTML = afPairsHTML();
   afScaleCanvas();
 
   afWireDropdown("who" + lastIdx, () => afMembers, (v, l) => {
@@ -408,7 +427,7 @@ function afRenderPeople(){
   const save = $("afSave");
   if (save) save.onclick = afSubmit;
 
-  box.querySelectorAll(".af-pair-tog").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#afPairsBox .af-pair-tog").forEach(b => b.onclick = () => {
     const row = b.closest(".af-pair");
     const pi0 = Number(row.dataset.pi);
     const pp = afState.people[pi0];
@@ -508,16 +527,21 @@ async function openAssignFlow(preUid, preName, editThread){
   // the frame doesn't depict but the flow still needs - the shared brief,
   // due date/time, and a way out
   const body = `
-    <div id="afPeople"></div>
-    <div class="af-details-card" id="afStepdetails">
-      <span class="af-details-label">Details — for everyone</span>
-      <textarea id="afNote" placeholder="The shared brief — per-store notes above ride along with it"></textarea>
-      <div class="af-due-row">
-        <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
-        <label class="af-due"><span>Due time</span><input type="time" id="afDueTime"></label>
+    <div class="af-layout">
+      <div id="afPeople"></div>
+      <div class="af-side">
+        <div id="afPairsBox"></div>
+        <div class="af-details-card" id="afStepdetails">
+          <span class="af-details-label">Details — for everyone</span>
+          <textarea id="afNote" placeholder="The shared brief — per-store notes above ride along with it"></textarea>
+          <div class="af-due-row">
+            <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
+            <label class="af-due"><span>Due time</span><input type="time" id="afDueTime"></label>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
       </div>
     </div>
-    <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
   `;
   const setup = () => {
     afRenderPeople();
