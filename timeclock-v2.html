@@ -18,20 +18,20 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=114">
-<link rel="stylesheet" href="css/dashboard.css?v=114">
-<link rel="stylesheet" href="css/drawer.css?v=114">
-<link rel="stylesheet" href="css/pages.css?v=114">
-<link rel="stylesheet" href="css/sheets.css?v=114">
-<link rel="stylesheet" href="css/tables.css?v=114">
-<link rel="stylesheet" href="css/responsive.css?v=114">
-<link rel="stylesheet" href="css/pomodoro.css?v=114">
-<link rel="stylesheet" href="css/personal.css?v=114">
-<link rel="stylesheet" href="css/campaigns.css?v=114">
-<link rel="stylesheet" href="css/assign.css?v=114">
-<link rel="stylesheet" href="css/login.css?v=114">
+<link rel="stylesheet" href="css/base.css?v=115">
+<link rel="stylesheet" href="css/dashboard.css?v=115">
+<link rel="stylesheet" href="css/drawer.css?v=115">
+<link rel="stylesheet" href="css/pages.css?v=115">
+<link rel="stylesheet" href="css/sheets.css?v=115">
+<link rel="stylesheet" href="css/tables.css?v=115">
+<link rel="stylesheet" href="css/responsive.css?v=115">
+<link rel="stylesheet" href="css/pomodoro.css?v=115">
+<link rel="stylesheet" href="css/personal.css?v=115">
+<link rel="stylesheet" href="css/campaigns.css?v=115">
+<link rel="stylesheet" href="css/assign.css?v=115">
+<link rel="stylesheet" href="css/login.css?v=115">
 <!-- last on purpose: the premium layer standardizes motion over everything -->
-<link rel="stylesheet" href="css/premium.css?v=114">
+<link rel="stylesheet" href="css/premium.css?v=115">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -141,10 +141,10 @@
       </div>
     </div>
     <div class="band-actions">
-      <!-- the way into the composer, for anyone allowed to assign -->
-      <button type="button" class="cx-launch hidden" id="assignLaunch" aria-haspopup="dialog" aria-controls="cx">
-        <span class="cx-launch-glyph" aria-hidden="true">›</span>
-        <span class="cx-launch-txt">Assign</span>
+      <!-- the way into the composer, for anyone allowed to assign: the
+           command-bar glyph (the composer's own › prompt in a frame) -->
+      <button type="button" class="band-signout admin-icon-btn hidden" id="assignLaunch" aria-label="Assign work" title="Assign work" aria-haspopup="dialog" aria-controls="cx">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7.5 9l3.2 3-3.2 3"/><path d="M13.5 15h3"/></svg>
       </button>
       <button type="button" class="band-signout admin-icon-btn hidden" id="notifBell" aria-label="Notifications" title="Notifications">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.4a6 6 0 0 0-12 0c0 6.6-2.6 8.4-2.6 8.4h17.2S18 15 18 8.4z"/><path d="M13.8 20.4a2.1 2.1 0 0 1-3.6 0"/></svg>
@@ -308,6 +308,9 @@
       </button>
       <div class="card-head">
         <span>Daily<br>Mission</span>
+        <button type="button" class="panel-menu cx-head hidden" id="cardAssignBtn" aria-label="Assign work" title="Assign work" aria-haspopup="dialog" aria-controls="cx">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7.5 9l3.2 3-3.2 3"/><path d="M13.5 15h3"/></svg>
+        </button>
         <button type="button" class="panel-menu" id="cardMenu" aria-label="Card menu" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="4.6" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19.4" r="1.9"/></svg>
         </button>
@@ -417,6 +420,9 @@
           <svg viewBox="-1 -1 26 26" fill="currentColor"><path d="M12 0c.9 7.4 4.6 11.1 12 12-7.4.9-11.1 4.6-12 12-.9-7.4-4.6-11.1-12-12C7.4 11.1 11.1 7.4 12 0z"/></svg>
         </span>
         <h2 class="team-panel-title">Team</h2>
+        <button type="button" class="panel-menu cx-head hidden" id="teamPanelAssignBtn" aria-label="Assign work" title="Assign work" aria-haspopup="dialog" aria-controls="cx">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7.5 9l3.2 3-3.2 3"/><path d="M13.5 15h3"/></svg>
+        </button>
         <button type="button" class="panel-menu" id="teamMenu" aria-label="Team menu" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="4.6" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19.4" r="1.9"/></svg>
         </button>
@@ -575,18 +581,18 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=114"></script>
-<script src="js/render.js?v=114"></script>
-<script src="js/ui.js?v=114"></script>
-<script src="js/shift.js?v=114"></script>
-<script src="js/email.js?v=114"></script>
-<script src="js/nav.js?v=114"></script>
-<script src="js/boot.js?v=114"></script>
-<script src="js/team.js?v=114"></script>
-<script src="js/assign.js?v=114"></script>
-<script src="js/notify.js?v=114"></script>
-<script src="js/campaigns.js?v=114"></script>
-<script src="js/auth.js?v=114"></script>
-<script src="js/personal.js?v=114"></script>
-<script src="js/pomodoro.js?v=114"></script>
-<script src="js/premium.js?v=114"></script>
+<script src="js/config.js?v=115"></script>
+<script src="js/render.js?v=115"></script>
+<script src="js/ui.js?v=115"></script>
+<script src="js/shift.js?v=115"></script>
+<script src="js/email.js?v=115"></script>
+<script src="js/nav.js?v=115"></script>
+<script src="js/boot.js?v=115"></script>
+<script src="js/team.js?v=115"></script>
+<script src="js/assign.js?v=115"></script>
+<script src="js/notify.js?v=115"></script>
+<script src="js/campaigns.js?v=115"></script>
+<script src="js/auth.js?v=115"></script>
+<script src="js/personal.js?v=115"></script>
+<script src="js/pomodoro.js?v=115"></script>
+<script src="js/premium.js?v=115"></script>

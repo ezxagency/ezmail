@@ -59,6 +59,9 @@ let cxKindHint = null; // lane a tapped placeholder slot asked to fill next
 let cxPrevFocus = null;
 
 const CX_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>';
+// the composer's mark - its › prompt in a command-bar frame. The same
+// glyph is every launcher: band, card heads, Team page, roster sheet.
+const CX_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7.5 9l3.2 3-3.2 3"/><path d="M13.5 15h3"/></svg>';
 
 const cxIsOpen = () => $("cx").classList.contains("on");
 const cxPairCount = () => cx ? cx.who.length * cx.stores.length * cx.tasks.length : 0;
@@ -156,7 +159,10 @@ function openComposer(preUid, preName, editThread){
 
   $("cx").innerHTML = `
     <div class="cx-top">
-      <span class="cx-eyebrow">${edit ? "Edit assignment" : "New assignment"}</span>
+      <span class="cx-top-l">
+        <span class="cx-mark" aria-hidden="true">${CX_ICON}</span>
+        <span class="cx-eyebrow">${edit ? "Edit assignment" : "New assignment"}</span>
+      </span>
       <button type="button" class="cx-x" id="cxClose" aria-label="Close">${CX_X}</button>
     </div>
     <div class="cx-inputrow">

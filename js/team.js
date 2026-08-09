@@ -138,7 +138,7 @@ function renderTodaysWork(docs){
   box.innerHTML = `
     <div class="work-head">
       <p class="hint" style="margin:0">Today's work
-        ${canAssignTasks ? `<button type="button" class="cx-mini" id="twAssign" aria-haspopup="dialog">› assign</button>` : ""}
+        ${canAssignTasks ? `<button type="button" class="panel-menu cx-head cx-head-inline" id="twAssign" aria-label="Assign work" title="Assign work" aria-haspopup="dialog">${CX_ICON}</button>` : ""}
       </p>
       <p class="work-sum">${rows.length} on the clock today · <b>${humanDur(totalNet)}</b> net${onNow ? ` · ${onNow} still on shift` : ""}</p>
     </div>
@@ -1401,7 +1401,7 @@ function viewWorker(data, s, uid){
     <h2>${esc(name)}</h2>
     <p class="hint">${hist.length} shift${hist.length===1?"":"s"} · ${humanDur(total)} net worked</p>
     <ul class="hist">${rows}</ul>
-    <button class="btn btn-go" id="assign">Assign work</button>
+    <button class="btn btn-go" id="assign"><span class="cx-btn-ico" aria-hidden="true">${CX_ICON}</span>Assign work</button>
     <button class="btn" id="mailSum" ${hist.length ? "" : "disabled"}>Email summary…</button>
     <button class="btn btn-ghost btn-sm" id="xl" ${hist.length ? "" : "disabled"}>Export to Excel</button>
     <button class="btn btn-ghost btn-sm" id="dn">Close</button>

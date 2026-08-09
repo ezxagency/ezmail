@@ -78,8 +78,11 @@ async function startWorkerApp(){
   $("cardRestore").onclick = () => setSidePaneOpen(false);
   $("assignPanelMenu").onclick = openCardMenu;
 
-  // the composer's launcher; auth.js decides who actually sees it
+  // the composer's launchers - the same glyph wherever it rides;
+  // auth.js decides who actually sees them
   $("assignLaunch").onclick = () => openComposer();
+  $("cardAssignBtn").onclick = () => openComposer();
+  $("teamPanelAssignBtn").onclick = () => openComposer();
 
   if (staleShift) {
     toast("Shift left open a long time — please review and close it");
