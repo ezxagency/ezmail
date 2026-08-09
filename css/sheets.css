@@ -411,8 +411,29 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .tk-row-val.is-placeholder{color:var(--wk-white-60);font-weight:400}
-.tk-chev{flex:none;width:18px;height:18px;color:#fff;opacity:.8}
+.tk-chev{flex:none;width:18px;height:18px;color:#fff;opacity:.8;transition:transform .18s ease}
+.af-trigger[aria-expanded=true] .tk-chev{transform:rotate(90deg)}
 .tk-link{width:2px;height:22px;margin-left:39px;background:rgba(255,255,255,.35)}
+
+/* each picker row anchors its dropdown as a floating overlay - opening a
+   panel must not shove the rest of the sheet downward */
+.tk-slot{position:relative}
+.tk-slot .af-panel{
+  position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:40;margin-top:0;
+}
+.tk-slot .af-custom{
+  position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:40;margin-top:0;
+  background:rgba(9,11,16,.97);border:1px solid rgba(255,255,255,.18);border-radius:14px;
+  padding:8px;box-shadow:0 18px 38px rgba(0,0,0,.45);
+}
+/* the pickers follow the kit's white accent inside this sheet */
+.tk-slot .af-opt-new{color:#fff}
+.tk-slot .af-opt.is-on .af-check{background:#fff;border-color:#fff;color:#12131a}
+/* keep the due fields inside the config card's bounds on narrow sheets -
+   they wrap to their own lines rather than colliding */
+.tk-config .af-due-row{flex-wrap:wrap}
+.tk-config .af-due{flex:1 1 220px;min-width:0}
+.tk-config .af-due input[type=date],.tk-config .af-due input[type=time]{max-width:170px;padding:12px 10px;font-size:14px}
 
 /* assign target card */
 .tk-target{
@@ -616,6 +637,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-sheet-light .tk-go{background:var(--afl-ink);color:#fff;box-shadow:none}
 .af-sheet-light #afPairsBox .af-pair-tog{background:var(--afl-ink);border-color:var(--afl-ink);color:#fff}
 .af-sheet-light .tk-chip{background:var(--afl-fill);border-color:var(--afl-border)}
+.af-sheet-light .tk-slot .af-custom{background:#fff;border-color:var(--afl-border);box-shadow:0 18px 38px rgba(15,23,42,.14)}
 
 .sheet.af-sheet-light .btn{
   background:#fff;color:var(--afl-ink);border:1.5px solid var(--afl-border);

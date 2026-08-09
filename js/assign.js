@@ -53,17 +53,12 @@ function afTimeLabel(hhmm){
    checks. This just tacks the time on for the rows that show a due date. */
 function dueWithTime(r){ return r.dueDate ? r.dueDate + (r.dueTime ? " " + r.dueTime : "") : ""; }
 
-/* The submit button, the config section's lock, and the ADD OPERATIVE
-   dimming all derive from the same validity checks. */
+/* The submit button and the ADD OPERATIVE dimming derive from the same
+   validity checks. Unlike the old step-sequence UI, NOTHING locks here -
+   the terminal layout isn't sequential, so the brief/due fields stay
+   typeable in any order and only the submit itself is gated. */
 function afSync(){
-  const set = (el, done, locked) => {
-    if (!el) return;
-    el.classList.toggle("is-done", done);
-    el.classList.toggle("is-locked", locked);
-    el.querySelectorAll("button,input,textarea").forEach(c => { c.disabled = locked; });
-  };
   const allBlocks = afState.people.every(afPersonValid);
-  set($("afStepdetails"), afState.note.trim().length >= 3, !allBlocks);
   // ADD OPERATIVE never disables (its click explains itself); it just dims
   // while pressing it couldn't succeed yet
   const addPerson = $("afCommitPerson");
@@ -79,7 +74,7 @@ function afSync(){
 // ancestors to match, and multi-select would slam shut on every pick.
 document.addEventListener("click", e => {
   if (!e.target.isConnected) return;
-  if (afOpen && !e.target.closest(".af-step, .af-trigger, .af-panel")) afCloseMenu();
+  if (afOpen && !e.target.closest(".af-step, .af-trigger, .af-panel, .af-custom")) afCloseMenu();
 });
 
 function afCloseMenu(){
@@ -254,8 +249,9 @@ function afPairsHTML(){
     </div>`;
 }
 
-// dropdown skeleton for one row key (panel + type-your-own input),
-// rendered right below its trigger row
+// dropdown skeleton for one row key (panel + type-your-own input) - these
+// FLOAT over the content below their row (see .tk-slot) instead of shoving
+// the whole sheet down every time a picker opens
 function afTkPanelHTML(key, typePlaceholder){
   return `
     <div class="af-panel" id="afPanel${key}" hidden></div>
@@ -266,40 +262,47 @@ function afTkPanelHTML(key, typePlaceholder){
 }
 
 /* The ORIGIN NODE / PROTOCOL rows + ASSIGN TARGET card for the ACTIVE
-   (last) person. Earlier people live on as chips in the config section. */
+   (last) person. Earlier people live on as chips in the config section.
+   Each row + its floating panel share a .tk-slot anchor. */
 function afRowsHTML(p, pi){
   return `
-    <button type="button" class="tk-row af-trigger" id="afTrigwhere${pi}"
-            aria-expanded="false" aria-controls="afPanelwhere${pi}">
-      <span class="tk-row-ico" aria-hidden="true">${AF_TK_STORE}</span>
-      <span class="tk-row-main">
-        <span class="tk-label">ORIGIN NODE</span>
-        <span class="tk-row-val af-value${p.stores.length ? "" : " is-placeholder"}" id="afValwhere${pi}">${p.stores.length ? esc(p.stores.join(", ")) : "Choose stores"}</span>
-      </span>
-      ${AF_TK_CHEV}
-    </button>
-    ${afTkPanelHTML("where" + pi, "Type a store")}
+    <div class="tk-slot">
+      <button type="button" class="tk-row af-trigger" id="afTrigwhere${pi}"
+              aria-expanded="false" aria-controls="afPanelwhere${pi}">
+        <span class="tk-row-ico" aria-hidden="true">${AF_TK_STORE}</span>
+        <span class="tk-row-main">
+          <span class="tk-label">ORIGIN NODE</span>
+          <span class="tk-row-val af-value${p.stores.length ? "" : " is-placeholder"}" id="afValwhere${pi}">${p.stores.length ? esc(p.stores.join(", ")) : "Choose stores"}</span>
+        </span>
+        ${AF_TK_CHEV}
+      </button>
+      ${afTkPanelHTML("where" + pi, "Type a store")}
+    </div>
     <div class="tk-link" aria-hidden="true"></div>
 
-    <button type="button" class="tk-row af-trigger" id="afTrigproto${pi}"
-            aria-expanded="false" aria-controls="afPanelproto${pi}">
-      <span class="tk-row-ico" aria-hidden="true">${AF_TK_CLIP}</span>
-      <span class="tk-row-main">
-        <span class="tk-label">PROTOCOL</span>
-        <span class="tk-row-val af-value${afUnionTasks(p).length ? "" : " is-placeholder"}" id="afValproto${pi}">${afUnionTasks(p).length ? esc(afUnionTasks(p).join(", ")) : "Choose tasks"}</span>
-      </span>
-      ${AF_TK_CHEV}
-    </button>
-    ${afTkPanelHTML("proto" + pi, "Type a task")}
+    <div class="tk-slot">
+      <button type="button" class="tk-row af-trigger" id="afTrigproto${pi}"
+              aria-expanded="false" aria-controls="afPanelproto${pi}">
+        <span class="tk-row-ico" aria-hidden="true">${AF_TK_CLIP}</span>
+        <span class="tk-row-main">
+          <span class="tk-label">PROTOCOL</span>
+          <span class="tk-row-val af-value${afUnionTasks(p).length ? "" : " is-placeholder"}" id="afValproto${pi}">${afUnionTasks(p).length ? esc(afUnionTasks(p).join(", ")) : "Choose tasks"}</span>
+        </span>
+        ${AF_TK_CHEV}
+      </button>
+      ${afTkPanelHTML("proto" + pi, "Type a task")}
+    </div>
     <div class="tk-link" aria-hidden="true"></div>
 
-    <button type="button" class="tk-target af-trigger" id="afTrigwho${pi}"
-            aria-expanded="false" aria-controls="afPanelwho${pi}">
-      <span class="tk-target-ico" aria-hidden="true">${AF_TK_PERSONADD}</span>
-      <span class="tk-label">ASSIGN TARGET</span>
-      <span class="tk-target-name af-value${p.name ? "" : " is-placeholder"}" id="afValwho${pi}">${p.name ? esc(p.name) : "CHOOSE WHO"}</span>
-    </button>
-    ${afTkPanelHTML("who" + pi, "Type a name")}`;
+    <div class="tk-slot">
+      <button type="button" class="tk-target af-trigger" id="afTrigwho${pi}"
+              aria-expanded="false" aria-controls="afPanelwho${pi}">
+        <span class="tk-target-ico" aria-hidden="true">${AF_TK_PERSONADD}</span>
+        <span class="tk-label">ASSIGN TARGET</span>
+        <span class="tk-target-name af-value${p.name ? "" : " is-placeholder"}" id="afValwho${pi}">${p.name ? esc(p.name) : "CHOOSE WHO"}</span>
+      </button>
+      ${afTkPanelHTML("who" + pi, "Type a name")}
+    </div>`;
 }
 
 // the workload matrix reflects the chosen person's real open-task count
