@@ -20,13 +20,10 @@ const pairKey = (store, task) => store + "\n" + task;
 
 /* The form is PEOPLE-first, exactly as sketched: each person block nests
    their stores, each store nests its own tasks - plus an optional note and
-   due date of its own. "+ Another person" repeats the whole block, so one
+   due date of its own. "+ ADD OPERATIVE" repeats the whole block, so one
    submit can hand different work at different stores to different
-   teammates: Pz gets Design at abc while Jack gets Copy at mno.
-   _pendStore/_pendTask are ephemeral UI state - whatever the store/task
-   wheels are currently dialed to, not yet committed as a pair. They never
-   reach Firestore (afPersonPairs/rowFor only ever read stores/storeTasks). */
-const afBlankPerson = () => ({ uid: "", name: "", stores: [], storeTasks: {}, storeNotes: {}, storeDues: {}, _pendStore: "", _pendTask: "" });
+   teammates: Pz gets Design at abc while Jack gets Copy at mno. */
+const afBlankPerson = () => ({ uid: "", name: "", stores: [], storeTasks: {}, storeNotes: {}, storeDues: {} });
 const afPersonPairs = p => p.stores.flatMap(st => (p.storeTasks[st] || []).map(task => ({ store: st, task })));
 const afPersonValid = p => !!p.uid && p.stores.length > 0
   && p.stores.every(st => (p.storeTasks[st] || []).length > 0);
@@ -56,11 +53,8 @@ function afTimeLabel(hhmm){
    checks. This just tacks the time on for the rows that show a due date. */
 function dueWithTime(r){ return r.dueDate ? r.dueDate + (r.dueTime ? " " + r.dueTime : "") : ""; }
 
-/* The Assign button and the two commit-row action cards all derive from
-   the same validity checks. The wheel-chain UI doesn't lock/dim fields the
-   way the old step list did (there's nothing to lock - the wheels always
-   have a value); the only thing gated now is whether committing would
-   actually succeed. */
+/* The submit button, the config section's lock, and the ADD OPERATIVE
+   dimming all derive from the same validity checks. */
 function afSync(){
   const set = (el, done, locked) => {
     if (!el) return;
@@ -70,18 +64,10 @@ function afSync(){
   };
   const allBlocks = afState.people.every(afPersonValid);
   set($("afStepdetails"), afState.note.trim().length >= 3, !allBlocks);
-  // the commit-row cards never disable (their click explains itself); they
-  // just dim while pressing them couldn't succeed yet
+  // ADD OPERATIVE never disables (its click explains itself); it just dims
+  // while pressing it couldn't succeed yet
   const addPerson = $("afCommitPerson");
   if (addPerson) addPerson.classList.toggle("is-idle", !allBlocks);
-  const addPair = $("afCommitPair");
-  if (addPair){
-    const last = afState.people[afState.people.length - 1];
-    addPair.classList.toggle("is-idle", !last || !last.uid);
-    const label = "Add this pair" + (last && last.name ? " for " + last.name : "");
-    addPair.title = label;
-    addPair.setAttribute("aria-label", label);
-  }
   const save = $("afSave");
   if (save) save.disabled = !afReady();
 }
@@ -212,23 +198,28 @@ function afWireDropdown(key, getItems, onPick, customLabel, opts){
 }
 
 /* ============================================================
-   ASSIGN TASK CANVAS — a literal reproduction of Figma Frame 72
-   (file b8wlr037Nz5whqz8TuIzEO, node 75:724).
+   ASSIGN TASK — "terminal kit" UI.
 
-   Every element below sits at its EXACT Figma coordinate on a fixed
-   1014px-wide canvas, then the whole canvas is uniformly scaled
-   (transform:scale) to the sheet's real width. Scaling the finished
-   layout instead of re-flowing it is what guarantees the on-screen
-   result matches the design's proportions at any size - the three
-   previous "responsive translation" attempts all drifted.
+   Rebuilt from the user's terminal/HUD-style inspiration screen
+   (status card, workload matrix, node/protocol rows, assign-target
+   card, configuration section) with the SITE'S own palette - the
+   inspo's neon green swapped for --wk-green, its blue-black for the
+   sheet's existing navy glass. Unlike the previous fixed-canvas
+   approach this is ordinary flowing markup, so it's responsive for
+   free. Data model unchanged: stores multi-select via ORIGIN NODE,
+   tasks multi-select via PROTOCOL (applied across the selected
+   stores), person via ASSIGN TARGET, and the cross product still
+   becomes one Firestore doc per store x task pair in afSubmit.
    ============================================================ */
-const AF_STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.4 7 .7-5.3 4.7 1.6 6.9L12 17.6l-6.2 3.6 1.6-6.9L2.1 9.6l7-.7z"/></svg>';
-// small head+shoulders inside the WHO avatar circle
-const AF_CV_AVATAR_GLYPH = '<svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="7" r="4.4"/><path d="M3.5 21c0-4.7 3.8-7.6 8.5-7.6s8.5 2.9 8.5 7.6"/></svg>';
-// big outlined person for the add-person card (#362B36 per the Figma export)
-const AF_CV_PERSON_BIG = '<svg viewBox="0 0 110 152" fill="none" stroke="#362B36" stroke-width="9" stroke-linecap="round"><circle cx="55" cy="35" r="24"/><path d="M9 145c0-29 20.6-45 46-45s46 16 46 45"/></svg>';
-// the stopwatch ring: white circle, green (#00AD0C) right half + arrow tip
-const AF_CV_RING = '<svg viewBox="0 0 122 120" fill="none"><circle cx="61" cy="60" r="51" stroke="#FFFFFF" stroke-width="10"/><path d="M61 9 A51 51 0 0 1 61 111" stroke="#00AD0C" stroke-width="10"/><path d="M64 102 L64 120 L46 111 Z" fill="#00AD0C"/></svg>';
+const AF_TK_STAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.5l6.3-.7z"/></svg>';
+const AF_TK_STORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5 5.3 4h13.4L20 9.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9.5 20v-5.5h5V20"/><path d="M4 9.5h16"/></svg>';
+const AF_TK_CLIP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 10h6M9 14h6M9 18h3.5"/></svg>';
+const AF_TK_PERSONADD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>';
+const AF_TK_SLIDERS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h13M21 17h-1"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="19" cy="17" r="2"/></svg>';
+const AF_TK_SPIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 1-6.4 2.6"/></svg>';
+const AF_TK_CHEV = '<svg class="tk-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+const AF_TK_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>';
+const AF_TK_HELP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.6 2.6 0 0 1 4.9 1.1c0 1.7-2.5 2.1-2.5 3.6"/><circle cx="12" cy="17.4" r=".4" fill="currentColor"/></svg>';
 
 // CONFIG's list plus anything typed under any block this session - a
 // custom task picked once is one click everywhere else
@@ -237,13 +228,16 @@ function afTaskOptions(){
   CONFIG.tasks.forEach(t => seen.set(t.toLowerCase(), t));
   afState.people.forEach(pp => Object.values(pp.storeTasks).flat()
     .forEach(t => seen.set(t.toLowerCase(), t)));
-  return [...seen.values()].map(t => ({ v: t, label: t }));
+  return [...seen.values()].map(t => ({ value: t, label: t }));
 }
 
+// the active person's task list as PROTOCOL shows it: the union across
+// their stores (per-store variance from old edits survives untouched
+// until a task is explicitly toggled)
+const afUnionTasks = p => [...new Set(p.stores.flatMap(st => p.storeTasks[st] || []))];
+
 /* Every committed store+task pair across every person, as a togglable
-   list below the canvas - the Figma frame itself only ever depicts the
-   pair currently being dialed in, so committed pairs need somewhere
-   functional to live. Tap the tick to drop a pair. */
+   list inside the CONFIGURATION section. Tap the tick to drop a pair. */
 function afPairsHTML(){
   const multi = afState.people.length > 1;
   const rows = [];
@@ -260,174 +254,73 @@ function afPairsHTML(){
     </div>`;
 }
 
-/* The canvas itself - one per render, always showing the ACTIVE (last)
-   person. Coordinates are the Figma export's own values, verbatim. */
-function afCanvasHTML(p, pi){
+// dropdown skeleton for one row key (panel + type-your-own input),
+// rendered right below its trigger row
+function afTkPanelHTML(key, typePlaceholder){
   return `
-  <div class="af-canvas-wrap" id="afCanvasWrap">
-    <div class="af-canvas">
-      <div class="af-cv-bg"></div>
-      <div class="af-cv-title">${afEdit ? "EDIT TASK" : "ASSIGN TASK"}</div>
-      <button type="button" class="af-cv-tog" id="afThemeTog" aria-label="Light theme" aria-pressed="${afLightTheme}">
-        <span class="af-cv-tog-knob"><i></i><i></i><i></i></span>
-        <span class="af-cv-tog-dark"></span>
-      </button>
-      <div class="af-cv-divider"></div>
+    <div class="af-panel" id="afPanel${key}" hidden></div>
+    <div class="af-custom" id="afCustom${key}" hidden>
+      <input type="text" id="afInput${key}" placeholder="${esc(typePlaceholder)}" autocomplete="off">
+      <button type="button" class="af-custom-ok" id="afOk${key}">Use</button>
+    </div>`;
+}
 
-      <div class="af-cv-star" aria-hidden="true">${AF_STAR_SVG}</div>
-      <div class="af-cv-rate">0/5</div>
-      <div class="af-cv-rate-label">PERSONAL RATING</div>
-
-      <button type="button" class="af-cv-who af-trigger" id="afTrigwho${pi}"
-              aria-expanded="false" aria-controls="afPanelwho${pi}">
-        <span class="af-cv-avatar">
-          <span class="af-cv-avatar-glyph" aria-hidden="true">${AF_CV_AVATAR_GLYPH}</span>
-          <span class="af-cv-avatar-who">WHO</span>
-        </span>
-        <span class="af-cv-qbadge" aria-hidden="true">?</span>
-        <span class="af-value af-cv-name${p.name ? "" : " is-placeholder"}" id="afValwho${pi}">${p.name ? esc(p.name) : "CHOOSE"}</span>
-      </button>
-
-      <div class="af-cv-time">
-        <div class="af-cv-ring" aria-hidden="true">${AF_CV_RING}</div>
-        <div class="af-cv-clock">00:00<sup>00</sup></div>
-        <div class="af-cv-time-label">TOTAL TIME<br>ESTIMATED</div>
-      </div>
-
-      <span class="af-cv-tick af-cv-tick1" aria-hidden="true"></span>
-
-      <div class="af-cv-capsule af-cv-capsule-store" aria-hidden="true"></div>
-      <div class="af-cv-blur af-cv-blur-store" aria-hidden="true"></div>
-      <span class="af-cv-pill af-cv-pill-store">
-        <i class="af-cv-sico-a" aria-hidden="true"></i><i class="af-cv-sico-b" aria-hidden="true"></i>
-        <span class="af-cv-pill-label">CHOOSE STORE</span>
+/* The ORIGIN NODE / PROTOCOL rows + ASSIGN TARGET card for the ACTIVE
+   (last) person. Earlier people live on as chips in the config section. */
+function afRowsHTML(p, pi){
+  return `
+    <button type="button" class="tk-row af-trigger" id="afTrigwhere${pi}"
+            aria-expanded="false" aria-controls="afPanelwhere${pi}">
+      <span class="tk-row-ico" aria-hidden="true">${AF_TK_STORE}</span>
+      <span class="tk-row-main">
+        <span class="tk-label">ORIGIN NODE</span>
+        <span class="tk-row-val af-value${p.stores.length ? "" : " is-placeholder"}" id="afValwhere${pi}">${p.stores.length ? esc(p.stores.join(", ")) : "Choose stores"}</span>
       </span>
-      <div class="wheel af-cv-wheel af-cv-wheel-store" id="afStoreWheel${pi}"></div>
-      <span class="af-cv-sbar af-cv-sbar-store" aria-hidden="true"><i></i></span>
+      ${AF_TK_CHEV}
+    </button>
+    ${afTkPanelHTML("where" + pi, "Type a store")}
+    <div class="tk-link" aria-hidden="true"></div>
 
-      <span class="af-cv-tick af-cv-tick2" aria-hidden="true"></span>
-
-      <div class="af-cv-capsule af-cv-capsule-task" aria-hidden="true"></div>
-      <div class="af-cv-blur af-cv-blur-task" aria-hidden="true"></div>
-      <span class="af-cv-pill af-cv-pill-task">
-        <i class="af-cv-tico-a" aria-hidden="true"></i><i class="af-cv-tico-b" aria-hidden="true"></i>
-        <span class="af-cv-pill-label">CHOOSE TASK</span>
+    <button type="button" class="tk-row af-trigger" id="afTrigproto${pi}"
+            aria-expanded="false" aria-controls="afPanelproto${pi}">
+      <span class="tk-row-ico" aria-hidden="true">${AF_TK_CLIP}</span>
+      <span class="tk-row-main">
+        <span class="tk-label">PROTOCOL</span>
+        <span class="tk-row-val af-value${afUnionTasks(p).length ? "" : " is-placeholder"}" id="afValproto${pi}">${afUnionTasks(p).length ? esc(afUnionTasks(p).join(", ")) : "Choose tasks"}</span>
       </span>
-      <div class="wheel af-cv-wheel af-cv-wheel-task" id="afTaskWheel${pi}"></div>
-      <span class="af-cv-sbar af-cv-sbar-task" aria-hidden="true"><i></i></span>
+      ${AF_TK_CHEV}
+    </button>
+    ${afTkPanelHTML("proto" + pi, "Type a task")}
+    <div class="tk-link" aria-hidden="true"></div>
 
-      <svg class="af-cv-arrow" viewBox="0 0 20 40" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v27"/><path d="M3 24l7 12 7-12"/></svg>
-      <span class="af-cv-branch-l" aria-hidden="true"></span>
-      <span class="af-cv-branch-r" aria-hidden="true"></span>
-      <span class="af-cv-branch-h" aria-hidden="true"></span>
-
-      ${afEdit ? "" : `
-      <button type="button" class="af-cv-card af-cv-card-person" id="afCommitPerson" aria-label="New person" title="New person">
-        <span class="af-cv-card-circle"><span class="af-cv-card-glyph">${AF_CV_PERSON_BIG}</span></span>
-      </button>`}
-      <button type="button" class="af-cv-card af-cv-card-pair" id="afCommitPair" aria-label="Add this pair" title="Add this pair">
-        <span class="af-cv-card-circle"><i class="af-cv-sq af-cv-sq1"></i><i class="af-cv-sq af-cv-sq2"></i></span>
-      </button>
-
-      <button type="button" class="af-cv-submit" id="afSave" disabled>${afEdit ? "SAVE CHANGES." : "ASSIGN TASK."}</button>
-    </div>
-    <div class="af-panel af-cv-panel" id="afPanelwho${pi}" hidden></div>
-    <div class="af-custom af-cv-custom" id="afCustomwho${pi}" hidden>
-      <input type="text" id="afInputwho${pi}" placeholder="Type a name" autocomplete="off">
-      <button type="button" class="af-custom-ok" id="afOkwho${pi}">Use</button>
-    </div>
-  </div>`;
+    <button type="button" class="tk-target af-trigger" id="afTrigwho${pi}"
+            aria-expanded="false" aria-controls="afPanelwho${pi}">
+      <span class="tk-target-ico" aria-hidden="true">${AF_TK_PERSONADD}</span>
+      <span class="tk-label">ASSIGN TARGET</span>
+      <span class="tk-target-name af-value${p.name ? "" : " is-placeholder"}" id="afValwho${pi}">${p.name ? esc(p.name) : "CHOOSE WHO"}</span>
+    </button>
+    ${afTkPanelHTML("who" + pi, "Type a name")}`;
 }
 
-/* Scale the 1014x1450 canvas to fit. On phones/tablets it fills the sheet
-   width and the sheet scrolls, same as any tall content. On desktop the
-   whole flow should be visible at once - so the scale also respects the
-   viewport HEIGHT (92vh sheet cap minus chrome), and the canvas column
-   shrinks to exactly the scaled width so the side column gets the rest. */
-function afScaleCanvas(){
-  const wrap = $("afCanvasWrap");
-  if (!wrap) return;
-  const desktop = window.matchMedia("(min-width:1024px)").matches;
-  if (desktop){
-    const bodyW = $("sheetBody") ? $("sheetBody").clientWidth : 0;
-    const availW = Math.max(320, bodyW - 344);            // side column min 320 + gap
-    const availH = Math.max(420, window.innerHeight * 0.92 - 64);
-    const scale = Math.min(availW / 1014, availH / 1450);
-    wrap.style.setProperty("--af-scale", scale);
-    wrap.style.width = (1014 * scale) + "px";
-    wrap.style.height = (1450 * scale) + "px";
-  } else {
-    if (!wrap.clientWidth) return;
-    wrap.style.width = "";
-    const scale = wrap.clientWidth / 1014;
-    wrap.style.setProperty("--af-scale", scale);
-    wrap.style.height = (1450 * scale) + "px";
-  }
-}
-window.addEventListener("resize", () => { if (sheetIsOpen()) afScaleCanvas(); });
-
-// stores load async (loadAssignOptions, fired from openAssignFlow's setup);
-// tasks don't (CONFIG.tasks is static), so only the store wheel can find
-// itself with zero options on the very first paint - show a loading line
-// until the real list lands and re-renders this.
-function afWireWheels(p, pi){
-  const storeBox = $("afStoreWheel" + pi);
-  if (storeBox){
-    if (!afStores.length){
-      storeBox.innerHTML = `<p class="af-opt-none">Loading stores…</p>`;
-    } else {
-      if (!p._pendStore) p._pendStore = afStores[0].value;
-      wheelRender("afStoreWheel" + pi, {
-        value: p._pendStore, itemH: 50, noFade: true,
-        options: afStores.map(s => ({ v: s.value, label: s.label })),
-        onChange: v => { p._pendStore = v; }
-      });
-    }
-  }
-  const taskOpts = afTaskOptions();
-  if (!p._pendTask && taskOpts.length) p._pendTask = taskOpts[0].v;
-  wheelRender("afTaskWheel" + pi, {
-    value: p._pendTask, itemH: 50, noFade: true,
-    options: taskOpts, onChange: v => { p._pendTask = v; }
-  });
+// the workload matrix reflects the chosen person's real open-task count
+// (the same "N open" meta the member list already computes) - 0..4+ fills
+// the four segments left to right
+function afUpdateMeta(p){
+  const bars = $("afLoadBars");
+  if (!bars) return;
+  let n = 0;
+  const m = afMembers.find(x => x.value === p.uid);
+  if (m && m.meta){ const num = parseInt(m.meta, 10); n = isNaN(num) ? 0 : Math.min(4, num); }
+  [...bars.children].forEach((el, i) => el.classList.toggle("is-on", i < n));
 }
 
-/* Rebuilt whole whenever the active person or the committed pairs change.
-   The canvas always shows the LAST person (the one being built); everyone
-   else's committed pairs live in the chip list below it. */
-function afRenderPeople(){
-  const box = $("afPeople");
-  if (!box) return;
-  afCloseMenu();
-  const lastIdx = afState.people.length - 1;
-  const p = afState.people[lastIdx];
-  box.innerHTML = afCanvasHTML(p, lastIdx);
+// repaint just the chips + their remove wiring (called on every state nudge
+// without tearing down whichever dropdown panel is open)
+function afPaintPairs(){
   const pairsBox = $("afPairsBox");
-  if (pairsBox) pairsBox.innerHTML = afPairsHTML();
-  afScaleCanvas();
-
-  afWireDropdown("who" + lastIdx, () => afMembers, (v, l) => {
-    p.uid = v; p.name = l;
-    afRenderPeople();
-    afSync();
-  });
-  afWireWheels(p, lastIdx);
-
-  const themeTog = $("afThemeTog");
-  if (themeTog) themeTog.onclick = () => {
-    afLightTheme = !afLightTheme;
-    localStorage.setItem("afTheme", afLightTheme ? "light" : "dark");
-    $("sheet").classList.toggle("af-sheet-light", afLightTheme);
-    // keep the wide class in the tracked set so the NEXT sheet still
-    // removes both, not just the light theme
-    sheetThemeCls = "af-sheet-wide" + (afLightTheme ? " af-sheet-light" : "");
-    themeTog.setAttribute("aria-pressed", afLightTheme);
-  };
-
-  const save = $("afSave");
-  if (save) save.onclick = afSubmit;
-
-  document.querySelectorAll("#afPairsBox .af-pair-tog").forEach(b => b.onclick = () => {
+  if (!pairsBox) return;
+  pairsBox.innerHTML = afPairsHTML();
+  pairsBox.querySelectorAll(".af-pair-tog").forEach(b => b.onclick = () => {
     const row = b.closest(".af-pair");
     const pi0 = Number(row.dataset.pi);
     const pp = afState.people[pi0];
@@ -442,47 +335,74 @@ function afRenderPeople(){
         delete pp.storeNotes[store]; delete pp.storeDues[store];
       }
     }
-    // a non-active person with nothing left assigned has no block on
-    // screen to act on anymore - drop them rather than leaving an
-    // invisible, invalid person silently blocking submit
+    // a non-active person with nothing left assigned has no rows on screen
+    // to act on anymore - drop them rather than leaving an invisible,
+    // invalid person silently blocking submit
     if (!afPersonPairs(pp).length && pi0 !== afState.people.length - 1){
       afState.people.splice(pi0, 1);
       if (!afState.people.length) afState.people.push(afBlankPerson());
     }
     afRenderPeople();
-    afSync();
+  });
+}
+
+/* Rebuild the active person's rows + wire their dropdowns. Store/task
+   picks update text + chips in place (the multi-select panel stays open,
+   same as the classic flow); only person-level changes re-render. */
+function afRenderPeople(){
+  const box = $("afPeople");
+  if (!box) return;
+  afCloseMenu();
+  const pi = afState.people.length - 1;
+  const p = afState.people[pi];
+  box.innerHTML = afRowsHTML(p, pi);
+
+  afWireDropdown("who" + pi, () => afMembers, (v, l) => {
+    p.uid = v; p.name = l;
+    afRenderPeople();
   });
 
-  // both commit cards stay clickable at all times: a press that can't be
-  // honoured yet SAYS why, instead of a dead disabled button that reads as
-  // broken
-  const addPerson = $("afCommitPerson");
-  if (addPerson) addPerson.onclick = () => {
-    const bad = afState.people.find(pp => !afPersonValid(pp));
-    if (bad){
-      toast(!bad.uid ? "Pick who first — then add the next person"
-        : `Add at least one store + task for ${bad.name || "them"} first`);
-      return;
+  afWireDropdown("where" + pi, () => afStores, v => {
+    const i = p.stores.indexOf(v);
+    if (i >= 0){
+      p.stores.splice(i, 1);
+      delete p.storeTasks[v]; delete p.storeNotes[v]; delete p.storeDues[v];
+    } else {
+      p.stores.push(v);
+      // a new store inherits the person's current task set, so "same
+      // everywhere" costs nothing extra
+      p.storeTasks[v] = afUnionTasks(p).filter(t => t);
     }
-    afState.people.push(afBlankPerson());
-    afRenderPeople();
-    const t = $("afTrigwho" + (afState.people.length - 1));
-    if (t) t.focus();
-  };
-  const addPair = $("afCommitPair");
-  if (addPair) addPair.onclick = () => {
-    const pi0 = afState.people.length - 1;
-    const pp = afState.people[pi0];
-    if (!pp.uid){ toast("Pick who first — the store belongs to a person"); return; }
-    if (!pp._pendStore || !pp._pendTask){ toast("Pick a store and a task first"); return; }
-    if (!pp.stores.includes(pp._pendStore)) pp.stores.push(pp._pendStore);
-    const arr = pp.storeTasks[pp._pendStore] = pp.storeTasks[pp._pendStore] || [];
-    if (arr.includes(pp._pendTask)){ toast(`${pp._pendTask} is already added for ${pp._pendStore}`); return; }
-    arr.push(pp._pendTask);
-    afRenderPeople();
+    const val = $("afValwhere" + pi);
+    if (val){ val.textContent = p.stores.length ? p.stores.join(", ") : "Choose stores"; val.classList.toggle("is-placeholder", !p.stores.length); }
+    afPaintPairs();
     afSync();
-  };
+  }, "+ Another store", {
+    chosen: () => p.stores,
+    onDone: () => { const t = $("afTrigproto" + pi); if (t) t.focus(); }
+  });
 
+  afWireDropdown("proto" + pi, afTaskOptions, v => {
+    if (!p.stores.length){ toast("Pick a store first — tasks attach to stores"); return; }
+    const has = afUnionTasks(p).includes(v);
+    p.stores.forEach(st => {
+      const arr = p.storeTasks[st] = p.storeTasks[st] || [];
+      const at = arr.indexOf(v);
+      if (has){ if (at >= 0) arr.splice(at, 1); }
+      else if (at < 0) arr.push(v);
+    });
+    const val = $("afValproto" + pi);
+    const u = afUnionTasks(p);
+    if (val){ val.textContent = u.length ? u.join(", ") : "Choose tasks"; val.classList.toggle("is-placeholder", !u.length); }
+    afPaintPairs();
+    afSync();
+  }, "+ Another task", {
+    chosen: () => afUnionTasks(p),
+    onDone: () => { const t = $("afTrigwho" + pi); if (t) t.focus(); }
+  });
+
+  afPaintPairs();
+  afUpdateMeta(p);
   afSync();
 }
 
@@ -522,26 +442,73 @@ async function openAssignFlow(preUid, preName, editThread){
   afOpen = null;
   afMembers = []; afStores = [];
 
-  // the title, theme toggle, and submit pill all live INSIDE the canvas
-  // (that's where the Figma frame puts them); the body only carries what
-  // the frame doesn't depict but the flow still needs - the shared brief,
-  // due date/time, and a way out
   const body = `
-    <div class="af-layout">
-      <div id="afPeople"></div>
-      <div class="af-side">
-        <div id="afPairsBox"></div>
-        <div class="af-details-card" id="afStepdetails">
-          <span class="af-details-label">Details — for everyone</span>
-          <textarea id="afNote" placeholder="The shared brief — per-store notes above ride along with it"></textarea>
-          <div class="af-due-row">
-            <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
-            <label class="af-due"><span>Due time</span><input type="time" id="afDueTime"></label>
-          </div>
+    <div class="tk-head">
+      <button type="button" class="tk-icon-btn" id="afCancel" aria-label="Close">${AF_TK_X}</button>
+      <div class="tk-head-title">
+        <b>${afEdit ? "EDIT TASK" : "ASSIGN TASK"}</b>
+        <span>SYS_OP_04</span>
+      </div>
+      <button type="button" class="tk-icon-btn" id="afHelp" aria-label="Help">${AF_TK_HELP}</button>
+    </div>
+
+    <div class="tk-card tk-status">
+      <div class="tk-status-top">
+        <div class="tk-field">
+          <span class="tk-label">STATE</span>
+          <button type="button" class="tk-tog" id="afThemeTog" aria-label="Light theme" aria-pressed="${afLightTheme}"><i></i></button>
         </div>
-        <button class="btn btn-ghost btn-sm" id="afCancel">Cancel</button>
+        <div class="tk-field">
+          <span class="tk-label">P-RATING</span>
+          <span class="tk-rating"><span class="tk-rating-star" aria-hidden="true">${AF_TK_STAR}</span><b>0</b>/5</span>
+        </div>
+      </div>
+      <div class="tk-divider" aria-hidden="true"></div>
+      <div class="tk-status-bottom">
+        <div class="tk-time">
+          <span class="tk-label">TOTAL TIME</span>
+          <span class="tk-clock" id="afTotalTime">00:00:00</span>
+          <span class="tk-sub">EST. COMPLEXITY: —</span>
+        </div>
+        <div class="tk-ring" aria-hidden="true">
+          <svg viewBox="0 0 72 72">
+            <circle class="tk-ring-track" cx="36" cy="36" r="29"></circle>
+            <circle class="tk-ring-fill" cx="36" cy="36" r="29" stroke-dasharray="182.2" style="stroke-dashoffset:182.2"></circle>
+          </svg>
+          <span class="tk-ring-pct" id="afRingPct">0%</span>
+        </div>
       </div>
     </div>
+
+    <div class="tk-card tk-load">
+      <div class="tk-load-head">
+        <span class="tk-dot" aria-hidden="true"></span>
+        <span class="tk-label">WORKLOAD MATRIX</span>
+        <span class="tk-spin" aria-hidden="true">${AF_TK_SPIN}</span>
+      </div>
+      <div class="tk-load-bars" id="afLoadBars"><i></i><i></i><i></i><i></i></div>
+      <div class="tk-load-lbl"><span>IDLE</span><span>MAX</span></div>
+    </div>
+
+    <div id="afPeople"></div>
+
+    <div id="afPairsBox"></div>
+    ${afEdit ? "" : `<button type="button" class="tk-add" id="afCommitPerson">+ ADD OPERATIVE</button>`}
+
+    <div class="tk-card tk-config" id="afStepdetails">
+      <div class="tk-config-head">
+        <span class="tk-config-ico" aria-hidden="true">${AF_TK_SLIDERS}</span>
+        <span class="tk-label tk-label-lg">CONFIGURATION DATA</span>
+        <span class="tk-chip">GLOBAL_SCOPE</span>
+      </div>
+      <textarea id="afNote" placeholder="The shared brief — it rides along with every task in this send"></textarea>
+      <div class="af-due-row">
+        <label class="af-due"><span>Due date</span><input type="date" id="afDue"></label>
+        <label class="af-due"><span>Due time</span><input type="time" id="afDueTime"></label>
+      </div>
+    </div>
+
+    <button type="button" class="tk-go" id="afSave" disabled>${afEdit ? "COMMIT CHANGES" : "INITIATE ASSIGNMENT"}</button>
   `;
   const setup = () => {
     afRenderPeople();
@@ -552,12 +519,37 @@ async function openAssignFlow(preUid, preName, editThread){
       afCloseMenu(); afEdit = null;
       closeSheet();
     };
+    const help = $("afHelp");
+    if (help) help.onclick = () => toast("Pick the store, the tasks and who — then initiate.");
+    const themeTog = $("afThemeTog");
+    if (themeTog) themeTog.onclick = () => {
+      afLightTheme = !afLightTheme;
+      localStorage.setItem("afTheme", afLightTheme ? "light" : "dark");
+      $("sheet").classList.toggle("af-sheet-light", afLightTheme);
+      // keep the wide class in the tracked set so the NEXT sheet still
+      // removes both, not just the light theme
+      sheetThemeCls = "af-sheet-wide" + (afLightTheme ? " af-sheet-light" : "");
+      themeTog.setAttribute("aria-pressed", afLightTheme);
+    };
+    const addPerson = $("afCommitPerson");
+    if (addPerson) addPerson.onclick = () => {
+      const bad = afState.people.find(pp => !afPersonValid(pp));
+      if (bad){
+        toast(!bad.uid ? "Pick who first — then add the next person"
+          : `Add at least one store + task for ${bad.name || "them"} first`);
+        return;
+      }
+      afState.people.push(afBlankPerson());
+      afRenderPeople();
+      const t = $("afTrigwho" + (afState.people.length - 1));
+      if (t) t.focus();
+    };
+    $("afSave").onclick = afSubmit;
     $("afNote").value = afState.note;
     if (afState.due) $("afDue").value = afState.due;
     if (afState.dueTime) $("afDueTime").value = afState.dueTime;
-    // the store wheel opens with zero options until this resolves - once it
-    // does, re-render so the wheel picks up the real list instead of
-    // sitting on its "Loading stores…" placeholder forever
+    // the member/store lists load async - re-render once they land so the
+    // rows can populate their panels with real options
     loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; afRenderPeople(); });
   };
 

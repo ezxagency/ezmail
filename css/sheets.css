@@ -1,4 +1,4 @@
-/* ---------- sheet (History / Profile / prompts) ---------- */
+﻿/* ---------- sheet (History / Profile / prompts) ---------- */
 .scrim{position:fixed;inset:0;background:rgba(8,9,13,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:40}
 .scrim.on{opacity:1;pointer-events:auto}
 .sheet{
@@ -273,214 +273,201 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
 
-/* ---------- Assign Task v3: the literal Figma canvas ----------
-   A 1:1 reproduction of Figma Frame 72 (file b8wlr037Nz5whqz8TuIzEO,
-   node 75:724). Every element sits at its EXACT exported coordinate on a
-   fixed 1014px-wide canvas; the whole canvas is then uniformly scaled
-   (transform:scale, --af-scale set by afScaleCanvas()) to the sheet's
-   real width, so on-screen proportions can't drift from the design the
-   way re-flowed layouts did. Colors/sizes/weights below are the Figma
-   export's own values, verbatim - don't "modernize" them onto the app's
-   token system; matching the file is the whole point. */
-.af-canvas-wrap{position:relative;width:100%;margin-bottom:14px}
-.af-canvas{
-  --af-font:"Poppins",var(--wk);
-  position:absolute;top:0;left:0;width:1014px;height:1450px;
-  transform:scale(var(--af-scale,0.42));transform-origin:0 0;
-  font-family:var(--af-font);
+/* ---------- Assign Task v4: terminal kit ----------
+   Rebuilt from the user's terminal/HUD-style inspiration screen, with the
+   SITE'S own palette in place of the inspo's neons: --wk-green for every
+   accent, the sheet's existing navy glass for surfaces, --mono for the
+   HUD type. Plain flowing markup (no fixed canvas), so it's responsive
+   for free. Cards carry the inspo's corner-bracket accents via
+   ::before/::after quarter-arcs. */
+.tk-head{display:flex;align-items:center;gap:12px;margin:2px 0 18px}
+.tk-icon-btn{
+  flex:none;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:none;border:0;cursor:pointer;color:var(--wk-white);
 }
-.af-canvas *{box-sizing:border-box}
-.af-canvas i{font-style:normal}
-.af-cv-bg{position:absolute;left:0;top:-9px;width:1014px;height:1459px;background:rgba(217,217,217,.27);border-radius:59px}
-.af-cv-title{position:absolute;left:83px;top:48px;width:848px;text-align:center;font-weight:700;font-size:48px;line-height:72px;color:#fff}
-.af-cv-divider{position:absolute;left:83px;top:149px;width:838px;height:8px;background:#fff;border-radius:4px}
-.af-cv-tog{position:absolute;left:735px;top:52px;width:186px;height:58px;border-radius:29px;background:#999898;border:0;cursor:pointer;padding:0}
-.af-cv-tog-knob{position:absolute;left:0;top:0;width:58px;height:58px;border-radius:50%;background:#fff;transition:transform .2s ease}
-.af-cv-tog-knob i{position:absolute;left:60px;width:14px;height:7px;border-radius:4px;background:#fff}
-.af-cv-tog-knob i:nth-child(1){top:8px;transform:rotate(-35deg)}
-.af-cv-tog-knob i:nth-child(2){top:26px}
-.af-cv-tog-knob i:nth-child(3){top:44px;transform:rotate(35deg)}
-.af-cv-tog-dark{position:absolute;right:0;top:0;width:58px;height:58px;border-radius:50%;background:#878787;transition:transform .2s ease}
-.af-cv-tog[aria-pressed=true] .af-cv-tog-knob{transform:translateX(128px)}
-.af-cv-tog[aria-pressed=true] .af-cv-tog-dark{transform:translateX(-128px)}
-
-.af-cv-star{position:absolute;left:152px;top:223px;width:95px;height:80px;color:#fff}
-.af-cv-star svg{width:100%;height:100%;display:block}
-.af-cv-rate{position:absolute;left:144px;top:294px;width:112px;text-align:center;font-weight:800;font-size:40px;line-height:60px;color:#fff}
-.af-cv-rate-label{position:absolute;left:135px;top:364px;width:130px;text-align:center;font-weight:800;font-size:16px;line-height:15px;color:#fff}
-
-.af-cv-who{position:absolute;left:347px;top:218px;width:313px;height:189px;border-radius:39px;background:#d9d9d9;border:0;cursor:pointer;padding:0}
-.af-cv-avatar{position:absolute;left:113px;top:0;width:87px;height:82px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
-.af-cv-avatar-glyph{width:36px;height:30px;color:#2a292a;display:block}
-.af-cv-avatar-glyph svg{width:100%;height:100%;display:block}
-.af-cv-avatar-who{font-family:var(--af-font);font-weight:700;font-size:16px;line-height:1;color:#2a292a}
-.af-cv-qbadge{
-  position:absolute;left:146px;top:4px;width:23px;height:23px;border-radius:50%;
-  border:4px solid #2a292a;background:#fff;color:#2a292a;
-  font-family:var(--af-font);font-weight:800;font-size:12px;line-height:1;
-  display:flex;align-items:center;justify-content:center;
+.tk-icon-btn svg{width:22px;height:22px}
+.tk-icon-btn:hover{background:rgba(255,255,255,.08)}
+.tk-head-title{flex:1;text-align:center}
+.tk-head-title b{
+  display:block;font-family:var(--mono);font-size:17px;font-weight:700;
+  letter-spacing:.18em;color:var(--wk-white);
 }
-.af-cv-name{
-  position:absolute;left:20px;top:102px;width:273px;text-align:center;
-  font-family:var(--af-font);font-weight:800;font-size:24px;line-height:36px;color:#2a292a;
-  text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-.af-cv-name.is-placeholder{opacity:.55}
-
-.af-cv-time{position:absolute;left:735px;top:212px;width:180px;height:207px;border-radius:32px;background:#d9d9d9}
-.af-cv-ring{position:absolute;left:29px;top:11px;width:122px;height:120px;filter:drop-shadow(0 4px 4px rgba(0,0,0,.25))}
-.af-cv-ring svg{width:100%;height:100%;display:block}
-.af-cv-clock{position:absolute;left:0;top:64px;width:100%;text-align:center;font-weight:400;font-size:24px;line-height:36px;color:#2d2d2d}
-.af-cv-clock sup{font-size:15px}
-.af-cv-time-label{
-  position:absolute;left:6px;top:144px;width:168px;text-align:center;
-  font-weight:700;font-size:24px;line-height:20px;color:#2d2d2d;
-  text-shadow:0 4px 4px rgba(0,0,0,.25);
+.tk-head-title span{
+  display:block;margin-top:2px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.3em;color:var(--wk-green);
 }
 
-.af-cv-tick{position:absolute;width:10px;height:29px;border-radius:5px;background:#fff}
-.af-cv-tick1{left:503px;top:410px}
-.af-cv-tick2{left:508px;top:617px}
-
-/* glow blobs widened from the authored 216px (same center): the mock only
-   ever shows short names - real store names like "Football-Nation" spill
-   past a 216px blob and lose their contrast backing */
-.af-cv-blur{position:absolute;border-radius:75px;filter:blur(20px)}
-.af-cv-blur-store{left:533px;top:489px;width:300px;height:150px;background:rgba(59,59,59,.58)}
-.af-cv-blur-task{left:533px;top:668px;width:300px;height:125px;background:rgba(59,59,59,.45)}
-
-.af-cv-capsule{position:absolute;width:843px;height:102px;border-radius:39px;background:#d9d9d9}
-.af-cv-capsule-store{left:86px;top:513px}
-.af-cv-capsule-task{left:86px;top:692px}
-
-.af-cv-pill{
-  position:absolute;width:312px;height:67px;border-radius:33.5px;
-  box-shadow:0 4px 4px rgba(0,0,0,.25);display:block;
+.tk-label{
+  font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--wk-green);
 }
-.af-cv-pill-store{left:109px;top:530px;background:#fff;color:#2a292a}
-.af-cv-pill-task{left:109px;top:709px;background:#2a292a;color:#fff}
-.af-cv-pill-label{position:absolute;left:120px;top:18px;font-family:var(--af-font);font-weight:800;font-size:20px;line-height:30px;white-space:nowrap}
-/* the store/task glyphs, drawn exactly as the two exported rectangles each */
-.af-cv-sico-a{position:absolute;left:59px;top:6px;width:36px;height:16px;background:#d9d9d9;border:8px solid #444044}
-.af-cv-sico-b{position:absolute;left:59px;top:31px;width:36px;height:36px;border:8px solid #444044}
-.af-cv-tico-a{position:absolute;left:52px;top:10px;width:36px;height:28px;border:8px solid #fff;border-radius:8px}
-.af-cv-tico-b{position:absolute;left:29px;top:27px;width:35px;height:27px;border:8px solid #fff;border-radius:8px}
+.tk-label-lg{font-size:12px}
 
-/* prefixed with .af-canvas for specificity: campaigns.css loads AFTER this
-   file and its generic .wheel{position:relative;height:96px} would
-   otherwise win the tie and knock the canvas wheels out of position */
-.af-canvas .af-cv-wheel{position:absolute;left:480px;width:400px;height:150px}
-.af-canvas .af-cv-wheel-store{top:489px}
-.af-canvas .af-cv-wheel-task{top:668px}
-/* block+line-height instead of the wheel's default flex centering so long
-   names can ellipsize instead of spilling over the scroll thumb. The
-   transition override kills campaigns.css's font-size morph - the design
-   has no size animation, and a transition frozen mid-flight (throttled
-   tabs, screenshots) leaves the selected item stuck at the small size. */
-.af-canvas .af-cv-wheel .wheel-item{
-  display:block;height:50px;line-height:50px;text-align:center;padding:0 10px;
+.tk-card{
+  position:relative;margin-bottom:16px;padding:18px;border-radius:16px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);
+}
+.tk-card::before,.tk-card::after{
+  content:"";position:absolute;width:16px;height:16px;pointer-events:none;
+}
+.tk-card::before{
+  top:-1px;left:-1px;border-top:2px solid var(--wk-green);border-left:2px solid var(--wk-green);
+  border-top-left-radius:16px;
+}
+.tk-card::after{
+  bottom:-1px;right:-1px;border-bottom:2px solid var(--wk-green);border-right:2px solid var(--wk-green);
+  border-bottom-right-radius:16px;
+}
+
+/* status card */
+.tk-status-top{display:flex;align-items:flex-start;gap:34px}
+.tk-field{display:flex;flex-direction:column;gap:10px}
+.tk-tog{
+  position:relative;width:64px;height:32px;border-radius:999px;cursor:pointer;padding:0;
+  background:rgba(0,174,11,.16);border:1.5px solid rgba(0,174,11,.55);
+  transition:background .18s ease;
+}
+.tk-tog i{
+  position:absolute;top:3px;left:4px;width:23px;height:23px;border-radius:50%;
+  background:var(--wk-green);box-shadow:0 0 10px rgba(0,174,11,.6);
+  transition:transform .18s cubic-bezier(.22,1,.36,1);font-style:normal;
+}
+.tk-tog[aria-pressed=true]{background:rgba(255,255,255,.85);border-color:rgba(255,255,255,.9)}
+.tk-tog[aria-pressed=true] i{transform:translateX(31px)}
+.tk-rating{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:19px;color:var(--wk-white-60);
+}
+.tk-rating b{font-weight:700;color:var(--wk-green);font-size:22px}
+.tk-rating-star{width:20px;height:20px;color:var(--wk-green);display:block}
+.tk-rating-star svg{width:100%;height:100%;display:block}
+.tk-divider{height:1px;background:rgba(255,255,255,.1);margin:16px 0}
+.tk-status-bottom{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.tk-time{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:1;text-align:right}
+.tk-clock{
+  font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:.08em;
+  color:var(--wk-white);font-variant-numeric:tabular-nums;
+}
+.tk-sub{
+  font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--wk-white-60);
+}
+.tk-ring{position:relative;flex:none;width:74px;height:74px}
+.tk-ring svg{width:100%;height:100%;display:block;transform:rotate(-90deg)}
+.tk-ring-track{fill:none;stroke:rgba(255,255,255,.14);stroke-width:3;stroke-dasharray:2 5}
+.tk-ring-fill{
+  fill:none;stroke:var(--wk-green);stroke-width:4.5;stroke-linecap:round;
+  filter:drop-shadow(0 0 5px rgba(0,174,11,.6));transition:stroke-dashoffset .5s ease;
+}
+.tk-ring-pct{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:700;color:var(--wk-green);
+}
+
+/* workload matrix */
+.tk-load-head{display:flex;align-items:center;gap:10px}
+.tk-dot{
+  width:9px;height:9px;border-radius:50%;background:var(--wk-green);
+  box-shadow:0 0 8px rgba(0,174,11,.7);
+}
+.tk-spin{margin-left:auto;width:26px;height:26px;color:var(--wk-green);opacity:.8}
+.tk-spin svg{width:100%;height:100%;display:block}
+.tk-load-bars{display:flex;gap:10px;margin:16px 0 8px}
+.tk-load-bars i{
+  flex:1;height:22px;border-radius:4px;background:rgba(255,255,255,.08);
+  transition:background .2s ease,box-shadow .2s ease;
+}
+.tk-load-bars i.is-on{
+  background:rgba(0,174,11,.55);border:1px solid var(--wk-green);
+  box-shadow:0 0 10px rgba(0,174,11,.35);height:30px;margin-top:-4px;border-radius:6px;
+}
+.tk-load-lbl{display:flex;justify-content:space-between}
+.tk-load-lbl span{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:var(--wk-white-60);
+}
+
+/* origin node / protocol rows */
+.tk-row{
+  position:relative;width:100%;display:flex;align-items:center;gap:14px;
+  padding:14px 16px;border-radius:16px;cursor:pointer;text-align:left;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);color:var(--wk-white);
+}
+.tk-row::before{
+  content:"";position:absolute;top:-1px;left:-1px;width:14px;height:14px;
+  border-top:2px solid var(--wk-green);border-left:2px solid var(--wk-green);
+  border-top-left-radius:16px;pointer-events:none;
+}
+.tk-row:hover{background:rgba(255,255,255,.06)}
+.tk-row-ico{
+  flex:none;width:46px;height:46px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);color:var(--wk-white);
+}
+.tk-row-ico svg{width:22px;height:22px}
+.tk-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.tk-row-val{
+  font-family:var(--mono);font-size:16.5px;font-weight:700;color:var(--wk-white);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-family:var(--af-font);font-weight:800;font-size:20px;
-  transition:none;
 }
-.af-canvas .af-cv-wheel-store .wheel-item{color:rgba(255,255,255,.59)}
-.af-canvas .af-cv-wheel-store .wheel-item.is-sel{font-size:40px;color:#fff}
-.af-canvas .af-cv-wheel-store .wheel-item.is-sel ~ .wheel-item{color:rgba(255,255,255,.38)}
-.af-canvas .af-cv-wheel-task .wheel-item{color:rgba(255,255,255,.59)}
-.af-canvas .af-cv-wheel-task .wheel-item.is-sel{font-size:40px;color:#212121}
-.af-canvas .af-cv-wheel-task .wheel-item.is-sel ~ .wheel-item{color:rgba(255,255,255,.57)}
-.af-canvas .af-cv-wheel .wheel-highlight{display:none}
-.af-canvas .af-cv-wheel .af-opt-none{color:rgba(255,255,255,.7);font-family:var(--af-font);font-size:20px;text-align:center;padding:60px 0 0;margin:0}
+.tk-row-val.is-placeholder{color:var(--wk-white-60);font-weight:400}
+.tk-chev{flex:none;width:18px;height:18px;color:var(--wk-green);opacity:.8}
+.tk-link{width:2px;height:22px;margin-left:39px;background:rgba(0,174,11,.35)}
 
-.af-cv-sbar{position:absolute;width:8px;height:68px;border-radius:7px;background:rgba(67,67,67,.3)}
-.af-cv-sbar i{position:absolute;left:0;top:20px;width:8px;height:29px;border-radius:7px;background:#fff}
-.af-cv-sbar-store{left:793px;top:529px}
-.af-cv-sbar-task{left:793px;top:708px}
-
-.af-cv-arrow{position:absolute;left:499px;top:822px;width:20px;height:40px;color:#fff}
-.af-cv-branch-l{position:absolute;left:225px;top:893px;width:8px;height:118px;background:#d9d9d9}
-.af-cv-branch-r{position:absolute;left:777px;top:893px;width:8px;height:118px;background:#d9d9d9}
-.af-cv-branch-h{position:absolute;left:225px;top:889px;width:564px;height:8px;background:#fff;border-radius:4px}
-
-.af-cv-card{position:absolute;top:1007px;width:280px;height:250px;border-radius:23px;background:#d9d9d9;border:0;cursor:pointer;padding:0}
-.af-cv-card-person{left:86px}
-.af-cv-card-pair{left:649px}
-.af-cv-card:hover{background:#cfcfcf}
-.af-cv-card.is-idle{opacity:.55}
-.af-cv-card-circle{position:absolute;left:46px;top:33px;width:188px;height:184px;border-radius:50%;background:#fff;display:block}
-.af-cv-card-glyph{position:absolute;left:40px;top:34px;width:107px;height:150px;display:block}
-.af-cv-card-glyph svg{width:100%;height:100%;display:block}
-.af-cv-sq{position:absolute;width:93px;height:77px;border:8px solid #000;border-radius:8px}
-.af-cv-sq1{left:30px;top:64px}
-.af-cv-sq2{left:65px;top:33px}
-
-.af-cv-submit{
-  position:absolute;left:251px;top:1319px;width:511px;height:107px;border-radius:67.5px;
-  background:#d9d9d9;border:0;cursor:pointer;padding:0;
-  font-family:var(--af-font);font-weight:700;font-size:48px;line-height:107px;text-align:center;color:#000;
+/* assign target card */
+.tk-target{
+  position:relative;width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:26px 18px 24px;border-radius:18px;cursor:pointer;margin:0 0 16px;
+  background:rgba(0,174,11,.05);border:1.5px solid rgba(0,174,11,.5);color:var(--wk-white);
 }
-.af-cv-submit:hover:not(:disabled){background:#cfcfcf}
-.af-cv-submit:disabled{opacity:.55;cursor:default}
-
-/* the WHO dropdown + type-a-name input aren't part of the Figma frame -
-   they overlay the scaled canvas at readable (unscaled) size, anchored
-   just below the WHO card */
-.af-cv-panel,.af-cv-custom{
-  position:absolute;left:6%;right:6%;z-index:9;margin-top:0;
-  top:calc(var(--af-scale,0.42) * 420px);
+.tk-target:hover{background:rgba(0,174,11,.1)}
+.tk-target-ico{
+  width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,174,11,.14);border:1.5px solid rgba(0,174,11,.55);color:var(--wk-green);
+  box-shadow:0 0 18px rgba(0,174,11,.25);margin-bottom:6px;
 }
-
-/* The Assign Task sheet outgrows the app's stock 460px sheet on anything
-   bigger than a phone - the canvas is a 1014px design, so from tablet up
-   the sheet widens to let it render at (or near) native size instead of
-   phone-scale. .sheet.af-sheet-wide out-specifies both the base .sheet
-   rule here and responsive.css's desktop centered-modal .sheet rule, so
-   file order doesn't matter. */
-@media (min-width:640px){
-  .sheet.af-sheet-wide{max-width:min(94vw,700px)}
+.tk-target-ico svg{width:28px;height:28px}
+.tk-target-name{
+  font-family:var(--mono);font-size:21px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--wk-white);max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-/* Desktop: two columns - the canvas scaled to fit the viewport HEIGHT on
-   the left (afScaleCanvas sizes the column; the whole flow is visible
-   with no scrolling), the functional strip (pair chips, brief, due
-   date/time, cancel) as a side column on the right. */
-.af-layout{display:flex;flex-direction:column}
-.af-side{min-width:0}
+.tk-target-name.is-placeholder{color:var(--wk-white)}
+
+/* add operative */
+.tk-add{
+  display:block;width:100%;margin:0 0 16px;padding:13px;border-radius:12px;cursor:pointer;
+  background:none;border:1.5px dashed rgba(0,174,11,.5);color:var(--wk-green);
+  font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.22em;
+}
+.tk-add:hover{background:rgba(0,174,11,.08)}
+.tk-add.is-idle{opacity:.5}
+
+/* configuration card */
+.tk-config{transition:opacity .28s ease}
+.tk-config.is-locked{opacity:.45}
+.tk-config-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.tk-config-ico{width:20px;height:20px;color:var(--wk-green)}
+.tk-config-ico svg{width:100%;height:100%;display:block}
+.tk-chip{
+  margin-left:auto;padding:5px 10px;border-radius:6px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--wk-white-60);
+}
+.tk-config textarea{min-height:88px;font-family:var(--wk)}
+
+/* submit */
+.tk-go{
+  display:block;width:100%;padding:17px;border-radius:14px;cursor:pointer;margin:2px 0 4px;
+  background:var(--wk-green);border:0;color:#08210a;
+  font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.22em;
+  box-shadow:0 10px 26px rgba(0,174,11,.28);
+}
+.tk-go:hover:not(:disabled){filter:brightness(1.08)}
+.tk-go:disabled{opacity:.4;cursor:default;box-shadow:none}
+
+/* the terminal layout is phone-proportioned by design; on desktop it just
+   gets a touch more room and the full 92vh height allowance */
 @media (min-width:1024px){
-  .sheet.af-sheet-wide{width:min(92vw,1000px);max-width:min(92vw,1000px);max-height:92vh}
-  .af-sheet-wide .af-layout{flex-direction:row;gap:24px;align-items:stretch}
-  .af-sheet-wide #afPeople{flex:none}
-  .af-sheet-wide .af-side{
-    flex:1;min-width:300px;display:flex;flex-direction:column;
-    padding-top:8px;
-  }
-  .af-sheet-wide .af-side .af-details-card{margin-top:auto}
-  .af-sheet-wide .af-canvas-wrap{margin-bottom:0}
-  /* the side column is too narrow for date+time side by side */
-  .af-sheet-wide .af-side .af-due-row{flex-direction:column;gap:0}
-  .af-sheet-wide .af-side .af-due input[type=date],
-  .af-sheet-wide .af-side .af-due input[type=time]{max-width:190px}
-}
-
-/* the Details card below the canvas - not depicted in the Figma frame, so
-   it borrows the frame's own light-card language rather than the app's
-   dark styling to read as one continuous screen */
-.af-details-card{
-  --af-font:"Poppins",var(--wk);
-  background:#d9d9d9;border-radius:22px;padding:16px 16px 6px;margin-bottom:16px;
-  transition:opacity .28s ease;
-}
-.af-details-card.is-locked{opacity:.5}
-.af-details-label{
-  display:block;margin-bottom:10px;font-family:var(--af-font);font-size:11px;font-weight:800;
-  letter-spacing:.08em;text-transform:uppercase;color:#2a292a;
-}
-.af-details-card textarea{
-  background:#fff;border:1px solid rgba(0,0,0,.12);color:#2a292a;backdrop-filter:none;
-}
-.af-details-card textarea::placeholder{color:rgba(42,41,42,.5)}
-.af-details-card .af-due > span{color:#2a292a}
-.af-details-card input[type=date],.af-details-card input[type=time]{
-  background:#fff;border:1px solid rgba(0,0,0,.12);color:#2a292a;color-scheme:light;backdrop-filter:none;
+  .sheet.af-sheet-wide{width:min(92vw,520px);max-width:min(92vw,520px);max-height:min(92vh,1100px)}
 }
 
 /* ---------- Assign Task: light theme, scoped to this one sheet ----------
@@ -592,14 +579,21 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-sheet-light .af-pair.is-off .af-pair-tog{background:none;border-color:var(--afl-border);color:transparent}
 .af-sheet-light .af-pair-name{color:var(--afl-ink)}
 
-/* Canvas on the light sheet: only what's WHITE on the dark sheet needs to
-   flip to ink, everything sitting on its own light card or dark blur
-   backdrop already reads fine on either surface */
-.af-sheet-light .af-cv-title,.af-sheet-light .af-cv-rate,.af-sheet-light .af-cv-rate-label{color:var(--afl-ink)}
-.af-sheet-light .af-cv-star,.af-sheet-light .af-cv-arrow{color:var(--afl-ink)}
-.af-sheet-light .af-cv-divider,.af-sheet-light .af-cv-tick,.af-sheet-light .af-cv-branch-h{background:var(--afl-ink)}
-.af-sheet-light .af-cv-branch-l,.af-sheet-light .af-cv-branch-r{background:#b9bcc2}
-.af-sheet-light .af-cv-bg{background:rgba(42,41,42,.06)}
+/* Terminal kit on the light sheet: surfaces flip to light fills with ink
+   text; the green accent stays the site's green on both. */
+.af-sheet-light .tk-head-title b{color:var(--afl-ink)}
+.af-sheet-light .tk-icon-btn{color:var(--afl-ink)}
+.af-sheet-light .tk-icon-btn:hover{background:var(--afl-fill)}
+.af-sheet-light .tk-card,.af-sheet-light .tk-row{background:#fff;border-color:var(--afl-border)}
+.af-sheet-light .tk-row:hover{background:var(--afl-fill)}
+.af-sheet-light .tk-row-ico{background:var(--afl-fill);border-color:var(--afl-border);color:var(--afl-ink)}
+.af-sheet-light .tk-row-val,.af-sheet-light .tk-clock,.af-sheet-light .tk-target-name,.af-sheet-light .tk-rating b{color:var(--afl-ink)}
+.af-sheet-light .tk-row-val.is-placeholder,.af-sheet-light .tk-sub,.af-sheet-light .tk-load-lbl span,.af-sheet-light .tk-chip,.af-sheet-light .tk-rating{color:var(--afl-muted)}
+.af-sheet-light .tk-divider{background:var(--afl-border)}
+.af-sheet-light .tk-ring-track{stroke:var(--afl-border)}
+.af-sheet-light .tk-load-bars i{background:var(--afl-fill)}
+.af-sheet-light .tk-target{background:var(--afl-accent-soft)}
+.af-sheet-light .tk-chip{background:var(--afl-fill);border-color:var(--afl-border)}
 
 .sheet.af-sheet-light .btn{
   background:#fff;color:var(--afl-ink);border:1.5px solid var(--afl-border);
