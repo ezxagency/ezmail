@@ -78,12 +78,6 @@ async function startWorkerApp(){
   $("cardRestore").onclick = () => setSidePaneOpen(false);
   $("assignPanelMenu").onclick = openCardMenu;
 
-  // the quick-assign icons: header + section heads, shown only to people
-  // who can actually assign (auth.js toggles their visibility)
-  $("bandAssignBtn").onclick = () => openAssignFlow();
-  $("cardAssignBtn").onclick = () => openAssignFlow();
-  $("teamPanelAssignBtn").onclick = () => openAssignFlow();
-
   if (staleShift) {
     toast("Shift left open a long time — please review and close it");
     askWrapUp();

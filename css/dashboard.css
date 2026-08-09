@@ -157,9 +157,6 @@
 .panel-menu:hover{opacity:1}
 .panel-menu svg{display:block;width:20px;height:20px}
 /* the quick "hand out a task" affordance that rides on section headers */
-.head-assign{opacity:.7}
-.head-assign:hover{opacity:1}
-.head-assign.hidden{display:none}
 .team-panel-counts{margin:0 0 14px}
 /* The status row reuses the expanded table's pips, so the collapsed card
    doubles as its legend. Zero counts stay in place but dimmed - the row keeps

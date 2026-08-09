@@ -84,7 +84,6 @@ document.addEventListener("keydown", e => {
     const pdropOpen = document.querySelector(".pdrop .af-panel:not([hidden])");
     if ($("drawer").classList.contains("on")) { closeDrawer(); e.preventDefault(); }
     else if (pdropOpen) { pomoDropCloseAll(); e.preventDefault(); }
-    else if (typeof afOpen !== "undefined" && afOpen) { afCloseMenu(); e.preventDefault(); }
     else if (sheetIsOpen()) { if (sheetDismissible) closeSheet(); e.preventDefault(); }
     else if (currentRoute()) { go(""); e.preventDefault(); }
     return;

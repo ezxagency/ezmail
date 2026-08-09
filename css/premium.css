@@ -16,8 +16,8 @@
 .sheet :where(button):not([disabled]):active,
 .drawer :where(button):not([disabled]):active{transform:scale(.98)}
 #appScreen :where(.pomo-side,.panel-menu,.admin-icon-btn,.menu-btn,.band-signout,
-  .pt-check,.pt-del,.pt-add-btn,.af-person-x,.drawer-signout):not([disabled]):active,
-.sheet :where(.cg-link-x,.af-person-x,.pswitch,.toast-act):not([disabled]):active{transform:scale(.9)}
+  .pt-check,.pt-del,.pt-add-btn,.drawer-signout):not([disabled]):active,
+.sheet :where(.cg-link-x,.pswitch,.toast-act):not([disabled]):active{transform:scale(.9)}
 /* anything that presses must travel smoothly, not snap */
 #appScreen :where(button),.sheet :where(button),.drawer :where(button){
   transition-property:transform,background,color,border-color,box-shadow,opacity;
@@ -69,7 +69,7 @@
 
 /* ---------- desktop hover: things lift toward the cursor ---------- */
 @media (hover:hover){
-  #appScreen :where(.pomo-side,.panel-menu,.admin-icon-btn,.band-signout,.pt-add-btn,.pt-del,.af-person-x):hover{transform:translateY(-1px)}
+  #appScreen :where(.pomo-side,.panel-menu,.admin-icon-btn,.band-signout,.pt-add-btn,.pt-del):hover{transform:translateY(-1px)}
   #appScreen .pt-check:hover{border-color:var(--wk-green)}
   #appScreen .pt-row:hover{background:rgba(255,255,255,.1)}
   .sheet .af-opt:hover,.sheet .chip:hover{background:rgba(255,255,255,.12)}

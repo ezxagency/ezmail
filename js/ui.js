@@ -8,8 +8,7 @@ let sheetDismissible = true;
 let sheetThemeCls = null;
 function openSheet(html, setup, opts){
   sheetDismissible = !opts || opts.dismissible !== false;
-  // cls may carry several space-separated classes (Assign Task stacks its
-  // wide-layout class with its optional light theme)
+  // cls may carry several space-separated classes
   if (sheetThemeCls) $("sheet").classList.remove(...sheetThemeCls.split(" "));
   sheetThemeCls = (opts && opts.cls) || null;
   if (sheetThemeCls) $("sheet").classList.add(...sheetThemeCls.split(" "));
@@ -65,22 +64,19 @@ const OTHER_RE = /^[A-Za-z0-9][A-Za-z0-9 .\-#]{1,39}$/;
 /* ============================================================
    SCROLL WHEEL PICKER
    ============================================================ */
-/* iOS-style scroll wheel - originally built for Campaigns' stage day/hour
-   budget (bounded numeric ranges a wheel picks faster than typing into),
-   now shared with Assign Task's store/task pickers too, so it lives here
-   rather than in campaigns.js - team.js/nav.js already reuse a shared-helper
-   file the same way (hxMonthKey/sparklineSvg). Native scroll + CSS
-   scroll-snap does the physics (mouse wheel, trackpad, touch swipe all
-   just work); this only tracks where it settled and reports that back.
-   `options` is {v, label} pairs so numeric wheels (Campaigns) and text
-   wheels (Assign Task store/task names) share one implementation. */
+/* iOS-style scroll wheel - built for Campaigns' stage day/hour budget
+   (bounded numeric ranges a wheel picks faster than typing into). Lives
+   here rather than in campaigns.js - team.js/nav.js already reuse a
+   shared-helper file the same way (hxMonthKey/sparklineSvg). Native
+   scroll + CSS scroll-snap does the physics (mouse wheel, trackpad,
+   touch swipe all just work); this only tracks where it settled and
+   reports that back. `options` is {v, label} pairs. */
 function wheelRender(containerId, opts){
   const { value, onChange, options } = opts;
   const box = $(containerId);
   if (!box) return;
-  // itemH: row height override (Assign Task's Figma-canvas wheels use 50px
-  // rows; Campaigns keeps the 32px default). noFade: skip the JS-inline
-  // opacity tiers so CSS can own the neighbor styling instead.
+  // itemH: row height override. noFade: skip the JS-inline opacity tiers
+  // so CSS can own the neighbor styling instead.
   const ITEM_H = opts.itemH || 32;
   box.innerHTML = `
     <div class="wheel-track" id="${containerId}Track" style="padding:${ITEM_H}px 0">
