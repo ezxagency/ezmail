@@ -1081,63 +1081,22 @@ function cgEdPersonOpts(sel){
     `<option value="${esc(p.uid)}"${p.uid === sel ? " selected" : ""}>${esc(p.name)}${p.craft ? " · " + esc(p.craft) : ""}</option>`).join("");
 }
 
-/* iOS-style scroll wheel for the stage day/hour budget - swapped in for
-   plain number inputs because both are bounded ranges (1-60, 0-23) a wheel
-   reads faster than typing into. Native scroll + CSS scroll-snap does the
-   physics (mouse wheel, trackpad, touch swipe all just work); this only
-   tracks where it settled and reports that back. `options` carries the
-   {v, label} pairs so Days (with its "—" no-budget entry) and Hours (plain
-   0-23, no empty state - 0 already means "no extra hours") share one
-   implementation instead of two near-identical copies. */
-function cgWheelRender(containerId, opts){
-  const { value, onChange, options } = opts;
-  const box = $(containerId);
-  if (!box) return;
-  const ITEM_H = 32;
-  box.innerHTML = `
-    <div class="wheel-track" id="${containerId}Track" style="padding:${ITEM_H}px 0">
-      ${options.map(o => `<div class="wheel-item" data-v="${o.v === null ? "" : o.v}">${esc(o.label)}</div>`).join("")}
-    </div>
-    <div class="wheel-highlight"></div>`;
-  const track = $(containerId + "Track");
-  const items = [...track.querySelectorAll(".wheel-item")];
-  const idxOf = v => Math.max(0, options.findIndex(o => o.v === v));
-  const paint = () => {
-    const center = Math.round(track.scrollTop / ITEM_H);
-    items.forEach((el, i) => {
-      const dist = Math.abs(i - center);
-      el.classList.toggle("is-sel", dist === 0);
-      el.style.opacity = dist === 0 ? "1" : dist === 1 ? ".5" : ".22";
-    });
-  };
-  track.scrollTop = idxOf(value) * ITEM_H;
-  paint();
-
-  let raf = null, settle = null;
-  track.onscroll = () => {
-    if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(paint);
-    clearTimeout(settle);
-    settle = setTimeout(() => {
-      const center = Math.max(0, Math.min(options.length - 1, Math.round(track.scrollTop / ITEM_H)));
-      track.scrollTo({ top: center * ITEM_H, behavior: "smooth" });
-      onChange(options[center].v);
-    }, 130);
-  };
-  items.forEach((el, i) => el.onclick = () => track.scrollTo({ top: i * ITEM_H, behavior: "smooth" }));
-}
-
+/* Numeric wheels for the stage day/hour budget - bounded ranges (1-60,
+   0-23) a wheel picks faster than typing into. The generic scroll-wheel
+   mechanic (wheelRender) lives in ui.js now - Assign Task's store/task
+   pickers reuse it too, same as team.js/nav.js already share hxMonthKey/
+   sparklineSvg from one file rather than each defining their own copy. */
 function cgDaysWheelRender(containerId, opts){
   const { value, onChange, min = 1, max = 60 } = opts;
   const options = [{ v: null, label: "—" },
     ...Array.from({ length: max - min + 1 }, (_, i) => ({ v: min + i, label: String(min + i) }))];
-  cgWheelRender(containerId, { value: value ?? null, onChange, options });
+  wheelRender(containerId, { value: value ?? null, onChange, options });
 }
 
 function cgHoursWheelRender(containerId, opts){
   const { value, onChange } = opts;
   const options = Array.from({ length: 24 }, (_, i) => ({ v: i, label: String(i) }));
-  cgWheelRender(containerId, { value: value || 0, onChange, options });
+  wheelRender(containerId, { value: value || 0, onChange, options });
 }
 
 function cgEdRowsHTML(){

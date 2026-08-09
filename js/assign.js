@@ -10,6 +10,9 @@ let afState = null;      // { people: [...], note, due } - the answers so far
 let afOpen = null;       // key of the dropdown currently open, if any
 let afEdit = null;       // the thread being edited, or null when assigning fresh
 let afMembers = [], afStores = [];   // dropdown feeds, loaded async per open
+// this one sheet's own light/dark preference, independent of the rest of
+// the (always-dark) app - see .af-sheet-light in sheets.css
+let afLightTheme = localStorage.getItem("afTheme") === "light";
 
 // one key per store x task combination; a newline can't appear in either
 // name (both come from single-line inputs), so it is a safe separator
@@ -19,8 +22,11 @@ const pairKey = (store, task) => store + "\n" + task;
    their stores, each store nests its own tasks - plus an optional note and
    due date of its own. "+ Another person" repeats the whole block, so one
    submit can hand different work at different stores to different
-   teammates: Pz gets Design at abc while Jack gets Copy at mno. */
-const afBlankPerson = () => ({ uid: "", name: "", stores: [], storeTasks: {}, storeNotes: {}, storeDues: {} });
+   teammates: Pz gets Design at abc while Jack gets Copy at mno.
+   _pendStore/_pendTask are ephemeral UI state - whatever the store/task
+   wheels are currently dialed to, not yet committed as a pair. They never
+   reach Firestore (afPersonPairs/rowFor only ever read stores/storeTasks). */
+const afBlankPerson = () => ({ uid: "", name: "", stores: [], storeTasks: {}, storeNotes: {}, storeDues: {}, _pendStore: "", _pendTask: "" });
 const afPersonPairs = p => p.stores.flatMap(st => (p.storeTasks[st] || []).map(task => ({ store: st, task })));
 const afPersonValid = p => !!p.uid && p.stores.length > 0
   && p.stores.every(st => (p.storeTasks[st] || []).length > 0);
@@ -65,9 +71,11 @@ function afRenderSentence(){
     + (total > 1 ? `<span class="af-count">${total} tasks · one send</span>` : "");
 }
 
-/* Locks, pips and the Assign button all derive from the same validity
-   checks, per person block: Where waits for Who, the store rows wait for
-   Where, Details waits for every block being whole. */
+/* The Assign button and the two commit-row action cards all derive from
+   the same validity checks. The wheel-chain UI doesn't lock/dim fields the
+   way the old step list did (there's nothing to lock - the wheels always
+   have a value); the only thing gated now is whether committing would
+   actually succeed. */
 function afSync(){
   const set = (el, done, locked) => {
     if (!el) return;
@@ -75,27 +83,19 @@ function afSync(){
     el.classList.toggle("is-locked", locked);
     el.querySelectorAll("button,input,textarea").forEach(c => { c.disabled = locked; });
   };
-  afState.people.forEach((p, pi) => {
-    set($("afStepwho" + pi), !!p.uid, false);
-    set($("afStepwhere" + pi), p.stores.length > 0, !p.uid);
-    set($("afStepwhat" + pi),
-      p.stores.length > 0 && p.stores.every(st => (p.storeTasks[st] || []).length > 0),
-      !p.stores.length);
-  });
   const allBlocks = afState.people.every(afPersonValid);
   set($("afStepdetails"), afState.note.trim().length >= 3, !allBlocks);
-  // the add buttons never disable (their click explains itself); they just
-  // dim while pressing them couldn't succeed, and the store one's tooltip
-  // names whose block it extends
-  const add = $("afAddPerson");
-  if (add) add.classList.toggle("is-idle", !allBlocks);
-  const more = $("afAddMore");
-  if (more){
+  // the commit-row cards never disable (their click explains itself); they
+  // just dim while pressing them couldn't succeed yet
+  const addPerson = $("afCommitPerson");
+  if (addPerson) addPerson.classList.toggle("is-idle", !allBlocks);
+  const addPair = $("afCommitPair");
+  if (addPair){
     const last = afState.people[afState.people.length - 1];
-    more.classList.toggle("is-idle", !last || !last.uid);
-    const label = "Another store" + (last && last.name ? " for " + last.name : "");
-    more.title = label;
-    more.setAttribute("aria-label", label);
+    addPair.classList.toggle("is-idle", !last || !last.uid);
+    const label = "Add this pair" + (last && last.name ? " for " + last.name : "");
+    addPair.title = label;
+    addPair.setAttribute("aria-label", label);
   }
   afRenderSentence();
   const save = $("afSave");
@@ -227,65 +227,190 @@ function afWireDropdown(key, getItems, onPick, customLabel, opts){
   };
 }
 
-/* One block per person, rebuilt whole whenever the roster of blocks
-   changes. Each block owns its Who dropdown, its Where multi-select and
-   its per-store task rows; the closures below carry the person object, so
-   there is no global "current person" to get confused about. */
-function afRenderPeople(){
-  const box = $("afPeople");
-  if (!box) return;
-  afCloseMenu();
-  box.innerHTML = afState.people.map((p, pi) => `
+// filled-star glyph for the rating widget shell (Phase 2/3 wire real data in)
+const AF_STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.4 7 .7-5.3 4.7 1.6 6.9L12 17.6l-6.2 3.6 1.6-6.9L2.1 9.6l7-.7z"/></svg>';
+
+// a person's avatar as one element (background-image OR the initial as
+// text), same convention as the drawer avatar - no separate <img>/fallback
+// swap to keep in sync
+function afAvatarHTML(id, name){
+  const initial = (name || "").trim().charAt(0).toUpperCase() || "?";
+  return `<span class="af-who-avatar" id="${esc(id)}">${esc(initial)}</span>`;
+}
+
+// shell only this phase - always "no data yet". Phase 3 wires afStarsByUid
+// in and re-renders this with a real average once a person is picked.
+function afRatingCardHTML(){
+  return `
+    <span class="af-rating-star" aria-hidden="true">${AF_STAR_SVG}</span>
+    <span class="af-rating-val is-empty">—</span>
+    <span class="af-mini-label">Rating</span>`;
+}
+
+// shell only this phase - always empty. Phase 2 sums estimateMin across a
+// person's pairs and fills the ring/label in for real.
+function afTimeCardHTML(){
+  const circ = (2 * Math.PI * 26).toFixed(2);
+  return `
+    <div class="af-time-ring-wrap">
+      <svg class="af-time-ring" viewBox="0 0 64 64" aria-hidden="true">
+        <circle class="af-time-ring-track" cx="32" cy="32" r="26"></circle>
+        <circle class="af-time-ring-fill" cx="32" cy="32" r="26" stroke-dasharray="${circ}" style="stroke-dashoffset:${circ}"></circle>
+      </svg>
+      <span class="af-time-ring-val">00:00</span>
+    </div>
+    <span class="af-mini-label">Total time</span>`;
+}
+
+// CONFIG's list plus anything typed under any block this session - a
+// custom task picked once is one click everywhere else. Shared by the task
+// wheel and (still) by the pairs list, so it lives at module scope now
+// instead of inside a single store row's closure.
+function afTaskOptions(){
+  const seen = new Map();
+  CONFIG.tasks.forEach(t => seen.set(t.toLowerCase(), t));
+  afState.people.forEach(pp => Object.values(pp.storeTasks).flat()
+    .forEach(t => seen.set(t.toLowerCase(), t)));
+  return [...seen.values()].map(t => ({ v: t, label: t }));
+}
+
+/* Already-committed store+task pairs for one person, as a togglable list -
+   tap the tick to drop a pair (mirrors the old multi-select checkbox: off
+   just means "not part of this submit"). Only appears once there's at
+   least one committed pair; the wheel-pair-in-progress below isn't part of
+   this list until "+" commits it. */
+function afPairsHTML(p, pi){
+  const pairs = afPersonPairs(p);
+  if (!pairs.length) return "";
+  return `
+    <div class="af-pairs">
+      ${pairs.map(pr => `
+      <div class="af-pair" data-pi="${pi}" data-store="${esc(pr.store)}" data-task="${esc(pr.task)}">
+        <button type="button" class="af-pair-tog" aria-label="Remove ${esc(pr.store)} · ${esc(pr.task)}">${AF_TICK}</button>
+        <span class="af-pair-name">${esc(pr.store)} · ${esc(pr.task)}</span>
+      </div>`).join("")}
+    </div>`;
+}
+
+/* One person block: WHO card (+ rating/time-estimate shells) up top,
+   already-committed pairs as a list, then - only for the person currently
+   being built (the last one) - the store/task wheel pair-in-progress.
+   Earlier, already-answered people collapse to just their pairs list, the
+   same way a finished .af-step used to fade to "done" rather than stay
+   fully interactive. */
+function afPersonBlockHTML(p, pi, isActive){
+  return `
     <div class="af-person">
       ${afState.people.length > 1 ? `
       <div class="af-person-head">
         <span class="af-person-n">Person ${pi + 1}</span>
         <button type="button" class="af-person-x" data-px="${pi}" title="Remove this block">×</button>
       </div>` : ""}
-      ${afDropdownMarkup("who" + pi, "Who", "Choose a team member")}
-      ${afDropdownMarkup("where" + pi, "Where", "Choose stores")}
-      <div class="af-step is-locked" id="afStepwhat${pi}">
-        <div class="af-step-head">
-          <span class="af-pip" aria-hidden="true"></span>
-          <span class="af-step-label">What — per store</span>
-        </div>
-        <div id="afWhatRows${pi}"></div>
+      <div class="af-top-row">
+        <button type="button" class="af-who-card af-trigger" id="afTrigwho${pi}"
+                aria-expanded="false" aria-controls="afPanelwho${pi}">
+          ${afAvatarHTML("afWhoAvatar" + pi, p.name)}
+          <span class="af-who-label">Who</span>
+          <span class="af-value af-who-name${p.name ? "" : " is-placeholder"}" id="afValwho${pi}">${p.name ? esc(p.name) : "Choose"}</span>
+        </button>
+        <div class="af-rating-card">${afRatingCardHTML()}</div>
+        <div class="af-time-card">${afTimeCardHTML()}</div>
       </div>
-    </div>`).join("");
+      <div class="af-panel" id="afPanelwho${pi}" hidden></div>
+      <div class="af-custom" id="afCustomwho${pi}" hidden>
+        <input type="text" id="afInputwho${pi}" placeholder="Type a name" autocomplete="off">
+        <button type="button" class="af-custom-ok" id="afOkwho${pi}">Use</button>
+      </div>
+
+      ${afPairsHTML(p, pi)}
+
+      ${isActive ? `
+      <div class="af-tick" aria-hidden="true"></div>
+      <div class="af-wheel-block">
+        <span class="af-wheel-label">Choose store</span>
+        <div class="wheel" id="afStoreWheel${pi}"></div>
+      </div>
+      <div class="af-tick" aria-hidden="true"></div>
+      <div class="af-wheel-block">
+        <span class="af-wheel-label">Choose task</span>
+        <div class="wheel" id="afTaskWheel${pi}"></div>
+      </div>` : ""}
+    </div>`;
+}
+
+// stores load async (loadAssignOptions, fired from openAssignFlow's setup);
+// tasks don't (CONFIG.tasks is static), so only the store wheel can find
+// itself with zero options on the very first paint - show a loading line
+// instead of an empty wheel until the real list lands and re-renders this.
+function afWireWheels(p, pi){
+  const storeBox = $("afStoreWheel" + pi);
+  if (storeBox){
+    if (!afStores.length){
+      storeBox.innerHTML = `<p class="af-opt-none">Loading stores…</p>`;
+    } else {
+      if (!p._pendStore) p._pendStore = afStores[0].value;
+      wheelRender("afStoreWheel" + pi, {
+        value: p._pendStore,
+        options: afStores.map(s => ({ v: s.value, label: s.label })),
+        onChange: v => { p._pendStore = v; }
+      });
+    }
+  }
+  const taskOpts = afTaskOptions();
+  if (!p._pendTask && taskOpts.length) p._pendTask = taskOpts[0].v;
+  wheelRender("afTaskWheel" + pi, { value: p._pendTask, options: taskOpts, onChange: v => { p._pendTask = v; } });
+}
+
+/* One block per person, rebuilt whole whenever the roster of blocks or
+   their committed pairs changes. Each block owns its own Who dropdown; the
+   closures below carry the person object, so there is no global "current
+   person" to get confused about. The commit-row (the two "+" cards) is
+   generated here too, not in openAssignFlow's static body, since it needs
+   re-wiring every time this whole box is rebuilt. */
+function afRenderPeople(){
+  const box = $("afPeople");
+  if (!box) return;
+  afCloseMenu();
+  const lastIdx = afState.people.length - 1;
+  box.innerHTML = afState.people.map((p, pi) => afPersonBlockHTML(p, pi, pi === lastIdx)).join("")
+    + `
+    <div class="af-commit-row">
+      ${afEdit ? "" : `
+      <button type="button" class="af-commit-ico" id="afCommitPerson" aria-label="New person" title="New person">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>
+        <span class="af-commit-badge" aria-hidden="true">+</span>
+      </button>`}
+      <button type="button" class="af-commit-ico" id="afCommitPair" aria-label="Add this pair" title="Add this pair">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="11" height="11" rx="2.4"/><rect x="9.5" y="9.5" width="11" height="11" rx="2.4"/></svg>
+        <span class="af-commit-badge" aria-hidden="true">+</span>
+      </button>
+    </div>`;
 
   afState.people.forEach((p, pi) => {
     afWireDropdown("who" + pi, () => afMembers, (v, l) => {
       p.uid = v; p.name = l;
-      const val = $("afValwho" + pi);
-      if (val) val.textContent = l;
+      afRenderPeople();
       afSync();
-      const nxt = $("afTrigwhere" + pi);
-      if (nxt && !nxt.disabled) nxt.focus();
     });
-    afWireDropdown("where" + pi, () => afStores, v => {
-      const i = p.stores.indexOf(v);
-      if (i >= 0){
-        p.stores.splice(i, 1);
-        delete p.storeTasks[v]; delete p.storeNotes[v]; delete p.storeDues[v];
-      } else {
-        p.stores.push(v);
-        // when this person's stores so far share one task set, a new store
-        // inherits it - the same-everywhere case costs nothing extra
-        const sets = p.stores.slice(0, -1).map(st => (p.storeTasks[st] || []).join("\n"));
-        p.storeTasks[v] =
-          (sets.length && sets.every(x => x && x === sets[0])) ? sets[0].split("\n") : [];
+    if (pi === lastIdx) afWireWheels(p, pi);
+  });
+
+  box.querySelectorAll(".af-pair-tog").forEach(b => b.onclick = () => {
+    const row = b.closest(".af-pair");
+    const p = afState.people[Number(row.dataset.pi)];
+    const store = row.dataset.store, task = row.dataset.task;
+    const arr = p.storeTasks[store];
+    if (arr){
+      const at = arr.indexOf(task);
+      if (at >= 0) arr.splice(at, 1);
+      if (!arr.length){
+        delete p.storeTasks[store];
+        p.stores = p.stores.filter(s => s !== store);
+        delete p.storeNotes[store]; delete p.storeDues[store];
       }
-      const val = $("afValwhere" + pi);
-      if (val) val.textContent = p.stores.length ? p.stores.join(", ") : "Choose stores";
-      afRenderStores(p, pi);
-      afSync();
-    }, "+ Another store", {
-      chosen: () => p.stores,
-      onDone: () => { const t = $(`afTrigwhat${pi}_0`); if (t && !t.disabled) t.focus(); }
-    });
-    if (p.name){ const v = $("afValwho" + pi); if (v) v.textContent = p.name; }
-    if (p.stores.length){ const v = $("afValwhere" + pi); if (v) v.textContent = p.stores.join(", "); }
-    afRenderStores(p, pi);
+    }
+    afRenderPeople();
+    afSync();
   });
 
   box.querySelectorAll(".af-person-x").forEach(b => b.onclick = () => {
@@ -294,87 +419,38 @@ function afRenderPeople(){
     afRenderPeople();
     afSync();
   });
-  afSync();
-}
 
-/* One person's store rows: task picker per store, plus that store's own
-   optional note and due date - "Task is nested to the store", exactly as
-   sketched. The shared Details brief and date below stay the defaults. */
-function afRenderStores(p, pi){
-  const box = $("afWhatRows" + pi);
-  if (!box) return;
-  if (afOpen && String(afOpen).startsWith("what" + pi + "_")) afCloseMenu();
-  if (!p.stores.length){
-    box.innerHTML = `<p class="af-opt-none">Pick stores first — each gets its own tasks.</p>`;
-    return;
-  }
-  box.innerHTML = p.stores.map((store, si) => {
-    const k = `what${pi}_${si}`;
-    const chosen = p.storeTasks[store] || [];
-    return `
-    <div class="af-sub">
-      <span class="af-sub-store">${esc(store)}</span>
-      <button type="button" class="af-trigger" id="afTrig${k}"
-              aria-expanded="false" aria-controls="afPanel${k}">
-        <span class="af-value">${esc(chosen.join(", ") || "Choose tasks")}</span>
-        <svg class="af-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
-      <div class="af-panel" id="afPanel${k}" hidden></div>
-      <div class="af-custom" id="afCustom${k}" hidden>
-        <input type="text" id="afInput${k}" placeholder="Type a task" autocomplete="off">
-        <button type="button" class="af-custom-ok" id="afOk${k}">Use</button>
-      </div>
-      <div class="af-sub-extra">
-        <input type="text" class="af-sub-note" id="afSnote${k}" placeholder="Note just for ${esc(store)} (optional)" value="${esc(p.storeNotes[store] || "")}" autocomplete="off">
-        <input type="date" class="af-sub-due" id="afSdue${k}" value="${esc(p.storeDues[store] || "")}" title="Due date for ${esc(store)} only (optional)">
-      </div>
-    </div>`;
-  }).join("")
-  + (p.stores.length > 1 ? `<button type="button" class="af-sub-copy" data-cp="1">Same tasks for every store</button>` : "");
-
-  p.stores.forEach((store, si) => afWireStoreRow(p, pi, store, si));
-  const cp = box.querySelector("[data-cp]");
-  if (cp) cp.onclick = () => {
-    const src = p.stores.map(st => p.storeTasks[st] || []).find(a => a.length);
-    if (!src){ toast("Pick tasks under one store first"); return; }
-    p.stores.forEach(st => { p.storeTasks[st] = [...src]; });
-    afRenderStores(p, pi);
-    afSync();
-  };
-}
-
-// one store's task picker: wired through afWireDropdown's multi-select
-// mode, same as the "where" dropdown above - its checkbox state just
-// lives on the person block instead of a dropdown-local one
-function afWireStoreRow(p, pi, store, si){
-  const key = `what${pi}_${si}`;
-  const trig = $("afTrig" + key);
-  // CONFIG's list plus anything typed under any block this session - a
-  // custom task picked once is one click everywhere else
-  const options = () => {
-    const seen = new Map();
-    CONFIG.tasks.forEach(t => seen.set(t.toLowerCase(), t));
-    afState.people.forEach(pp => Object.values(pp.storeTasks).flat()
-      .forEach(t => seen.set(t.toLowerCase(), t)));
-    return [...seen.values()].map(t => ({ value: t, label: t }));
-  };
-  afWireDropdown(key, options, v => {
-    const arr = p.storeTasks[store] = p.storeTasks[store] || [];
-    const at = arr.indexOf(v);
-    if (at >= 0) arr.splice(at, 1); else arr.push(v);
-    trig.querySelector(".af-value").textContent = arr.join(", ") || "Choose tasks";
-    afSync();
-  }, "+ Another task", {
-    chosen: () => p.storeTasks[store] || [],
-    onDone: () => {
-      const nxt = $(`afTrigwhat${pi}_${si + 1}`) || $("afTrigwho" + (pi + 1)) || $("afNote");
-      if (nxt && !nxt.disabled) nxt.focus();
+  // both commit cards stay clickable at all times: a press that can't be
+  // honoured yet SAYS why, instead of a dead disabled button that reads as
+  // broken - same rule the old add buttons followed
+  const addPerson = $("afCommitPerson");
+  if (addPerson) addPerson.onclick = () => {
+    const bad = afState.people.find(pp => !afPersonValid(pp));
+    if (bad){
+      toast(!bad.uid ? "Pick who first — then add the next person"
+        : `Add at least one store + task for ${bad.name || "them"} first`);
+      return;
     }
-  });
+    afState.people.push(afBlankPerson());
+    afRenderPeople();
+    const t = $("afTrigwho" + (afState.people.length - 1));
+    if (t) t.focus();
+  };
+  const addPair = $("afCommitPair");
+  if (addPair) addPair.onclick = () => {
+    const pi = afState.people.length - 1;
+    const p = afState.people[pi];
+    if (!p.uid){ toast("Pick who first — the store belongs to a person"); return; }
+    if (!p._pendStore || !p._pendTask){ toast("Pick a store and a task first"); return; }
+    if (!p.stores.includes(p._pendStore)) p.stores.push(p._pendStore);
+    const arr = p.storeTasks[p._pendStore] = p.storeTasks[p._pendStore] || [];
+    if (arr.includes(p._pendTask)){ toast(`${p._pendTask} is already added for ${p._pendStore}`); return; }
+    arr.push(p._pendTask);
+    afRenderPeople();
+    afSync();
+  };
 
-  const sn = $("afSnote" + key), sd = $("afSdue" + key);
-  if (sn) sn.oninput = () => { p.storeNotes[store] = sn.value; };
-  if (sd) sd.onchange = () => { p.storeDues[store] = sd.value; afRenderSentence(); };
+  afSync();
 }
 
 async function openAssignFlow(preUid, preName, editThread){
@@ -413,18 +489,15 @@ async function openAssignFlow(preUid, preName, editThread){
   afOpen = null;
   afMembers = []; afStores = [];
 
+  const header = `
+    <div class="af-head">
+      <h2>${afEdit ? "Edit assignment" : "Assign task"}</h2>
+      <button type="button" class="af-theme-tog" id="afThemeTog"
+              aria-label="Light theme" aria-pressed="${afLightTheme}"></button>
+    </div>`;
   const body = `
     <p class="af-sentence" id="afSentence"></p>
     <div id="afPeople"></div>
-    ${afEdit ? "" : `
-    <div class="af-add-row">
-      <button type="button" class="af-add-ico" id="afAddMore" aria-label="Another store" title="Another store">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5 5 4h14l1.5 5.5"/><path d="M5 9.5V20h14V9.5"/><path d="M12 12v5.4M9.3 14.7h5.4"/></svg>
-      </button>
-      <button type="button" class="af-add-ico" id="afAddPerson" aria-label="New person" title="New person">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 20.5c0-3.5 2.9-6 6.5-6 .9 0 1.8.16 2.6.45"/><path d="M17.5 14.5v6M14.5 17.5h6"/></svg>
-      </button>
-    </div>`}
     <div class="af-step is-locked" id="afStepdetails">
       <div class="af-step-head">
         <span class="af-pip" aria-hidden="true"></span>
@@ -441,44 +514,13 @@ async function openAssignFlow(preUid, preName, editThread){
   `;
   const setup = () => {
     afRenderPeople();
-    // both add buttons stay clickable at all times: a press that can't be
-    // honoured yet SAYS why, instead of a dead disabled button that reads
-    // as broken
-    const add = $("afAddPerson");
-    if (add) add.onclick = () => {
-      const bad = afState.people.find(p => !afPersonValid(p));
-      if (bad){
-        toast(!bad.uid ? "Pick who first — then add the next person"
-          : !bad.stores.length ? `Give ${bad.name || "them"} a store first`
-          : `Every store under ${bad.name || "this person"} needs a task first`);
-        return;
-      }
-      afState.people.push(afBlankPerson());
-      afRenderPeople();
-      const t = $("afTrigwho" + (afState.people.length - 1));
-      if (t) t.focus();
-    };
-    // more work for the SAME person: jump straight into their store picker
-    // instead of making the admin re-add who they already added
-    const more = $("afAddMore");
-    if (more) more.onclick = () => {
-      const pi = afState.people.length - 1;
-      const p = afState.people[pi];
-      if (!p.uid){ toast("Pick who first — the store belongs to a person"); return; }
-      const t = $("afTrigwhere" + pi);
-      if (!t) return;
-      t.scrollIntoView({ behavior: "smooth", block: "center" });
-      // deferred: a synthetic click fired synchronously here is still
-      // nested inside afAddMore's own click event. That event keeps
-      // bubbling to the document afterward, where the "click outside
-      // closes menus" listener sees afAddMore (not the trigger) as the
-      // target and immediately shuts the panel this just opened. Waiting
-      // a tick lets that bubble finish first, so the fresh click on t is
-      // its own event and the listener sees it land inside .af-trigger.
-      setTimeout(() => {
-        if (t.getAttribute("aria-expanded") !== "true") t.click();
-        t.focus();
-      }, 0);
+    const themeTog = $("afThemeTog");
+    if (themeTog) themeTog.onclick = () => {
+      afLightTheme = !afLightTheme;
+      localStorage.setItem("afTheme", afLightTheme ? "light" : "dark");
+      $("sheet").classList.toggle("af-sheet-light", afLightTheme);
+      sheetThemeCls = afLightTheme ? "af-sheet-light" : null;
+      themeTog.setAttribute("aria-pressed", afLightTheme);
     };
     $("afNote").oninput = () => { afState.note = $("afNote").value; afSync(); };
     $("afDue").onchange = () => { afState.due = $("afDue").value; afRenderSentence(); };
@@ -491,10 +533,13 @@ async function openAssignFlow(preUid, preName, editThread){
     $("afNote").value = afState.note;
     if (afState.due) $("afDue").value = afState.due;
     if (afState.dueTime) $("afDueTime").value = afState.dueTime;
-    loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; });
+    // the store wheel opens with zero options until this resolves - once it
+    // does, re-render so the wheel picks up the real list instead of
+    // sitting on its "Loading stores…" placeholder forever
+    loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; afRenderPeople(); });
   };
 
-  openSheet(`<h2>${afEdit ? "Edit assignment" : "Assign task"}</h2>` + body, setup);
+  openSheet(header + body, setup, { cls: afLightTheme ? "af-sheet-light" : null });
 }
 
 /* Members carry their current open-task count, so you can see who is already

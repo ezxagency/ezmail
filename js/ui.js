@@ -60,3 +60,66 @@ function wireChipsIn(container, onPick){
 function wireChips(onPick){ wireChipsIn($("sheetBody"), onPick); }
 const OTHER_RE = /^[A-Za-z0-9][A-Za-z0-9 .\-#]{1,39}$/;
 
+/* ============================================================
+   SCROLL WHEEL PICKER
+   ============================================================ */
+/* iOS-style scroll wheel - originally built for Campaigns' stage day/hour
+   budget (bounded numeric ranges a wheel picks faster than typing into),
+   now shared with Assign Task's store/task pickers too, so it lives here
+   rather than in campaigns.js - team.js/nav.js already reuse a shared-helper
+   file the same way (hxMonthKey/sparklineSvg). Native scroll + CSS
+   scroll-snap does the physics (mouse wheel, trackpad, touch swipe all
+   just work); this only tracks where it settled and reports that back.
+   `options` is {v, label} pairs so numeric wheels (Campaigns) and text
+   wheels (Assign Task store/task names) share one implementation. */
+function wheelRender(containerId, opts){
+  const { value, onChange, options } = opts;
+  const box = $(containerId);
+  if (!box) return;
+  const ITEM_H = 32;
+  box.innerHTML = `
+    <div class="wheel-track" id="${containerId}Track" style="padding:${ITEM_H}px 0">
+      ${options.map(o => `<div class="wheel-item" data-v="${o.v === null ? "" : o.v}">${esc(o.label)}</div>`).join("")}
+    </div>
+    <div class="wheel-highlight"></div>`;
+  const track = $(containerId + "Track");
+  const items = [...track.querySelectorAll(".wheel-item")];
+  const idxOf = v => Math.max(0, options.findIndex(o => o.v === v));
+  const paint = () => {
+    const center = Math.round(track.scrollTop / ITEM_H);
+    items.forEach((el, i) => {
+      const dist = Math.abs(i - center);
+      el.classList.toggle("is-sel", dist === 0);
+      el.style.opacity = dist === 0 ? "1" : dist === 1 ? ".5" : ".22";
+    });
+  };
+  // A short wheel (few options, so little scrollable range) can end up with
+  // scroll-snap-type:mandatory fighting a smooth scrollTo - the snap system
+  // treats the in-flight animation as "not yet at a valid point" and keeps
+  // correcting it back toward the start, so the scroll never actually
+  // arrives. Sidestepping that entirely: drop snap for one frame, jump the
+  // position directly, put snap back once the jump has landed. This trades
+  // the smooth glide for an instant reposition on tap/settle, but it's the
+  // one thing that reliably works regardless of how many options there are.
+  const scrollToIndex = i => {
+    track.style.scrollSnapType = "none";
+    track.scrollTop = i * ITEM_H;
+    requestAnimationFrame(() => requestAnimationFrame(() => { track.style.scrollSnapType = ""; }));
+  };
+  scrollToIndex(idxOf(value));
+  paint();
+
+  let raf = null, settle = null;
+  track.onscroll = () => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(paint);
+    clearTimeout(settle);
+    settle = setTimeout(() => {
+      const center = Math.max(0, Math.min(options.length - 1, Math.round(track.scrollTop / ITEM_H)));
+      scrollToIndex(center);
+      onChange(options[center].v);
+    }, 130);
+  };
+  items.forEach((el, i) => el.onclick = () => scrollToIndex(i));
+}
+

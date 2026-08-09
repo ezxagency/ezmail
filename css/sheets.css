@@ -273,6 +273,97 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-pair.is-off .af-pair-name{opacity:.35;text-decoration:line-through}
 
+/* ---------- Assign Task v2: WHO card, rating/time-estimate shells,
+   wheel-chain, commit cards ---------- */
+.af-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.af-head h2{margin:0}
+.af-theme-tog{
+  flex:none;width:46px;height:26px;border-radius:999px;position:relative;cursor:pointer;padding:0;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);
+  transition:background .18s ease,border-color .18s ease;
+}
+.af-theme-tog::after{
+  content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
+  background:var(--wk-white);transition:transform .18s cubic-bezier(.22,1,.36,1);
+  box-shadow:0 2px 6px rgba(0,0,0,.3);
+}
+.af-theme-tog[aria-pressed=true]{background:rgba(0,174,11,.35);border-color:rgba(0,174,11,.6)}
+.af-theme-tog[aria-pressed=true]::after{transform:translateX(20px);background:var(--wk-navy)}
+
+.af-top-row{display:flex;gap:8px;margin-bottom:12px}
+.af-who-card{
+  flex:1;min-width:0;padding:12px 8px;border-radius:16px;cursor:pointer;text-align:center;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.af-who-avatar{
+  width:36px;height:36px;border-radius:50%;margin-bottom:4px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--wk-white);color:var(--wk-navy);background-size:cover;background-position:center;
+  font-family:var(--wk);font-weight:700;font-size:14px;text-transform:uppercase;
+}
+.af-who-label{
+  font-family:var(--wk);font-size:9px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--wk-white-60);
+}
+.af-who-name{
+  width:100%;font-family:var(--wk);font-size:13px;font-weight:700;color:var(--wk-white);
+  text-align:center;
+}
+.af-who-name.is-placeholder{color:var(--wk-white-60);font-weight:500}
+
+.af-rating-card,.af-time-card{
+  flex:none;width:76px;padding:10px 4px;border-radius:16px;text-align:center;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+}
+.af-rating-star{width:15px;height:15px;color:var(--wk-green)}
+.af-rating-val{font-family:var(--wk);font-size:13px;font-weight:700;color:var(--wk-white)}
+.af-rating-val.is-empty{color:var(--wk-white-60);font-weight:500}
+.af-mini-label{
+  font-family:var(--wk);font-size:7.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--wk-white-60);
+}
+.af-time-ring-wrap{position:relative;width:40px;height:40px}
+.af-time-ring{width:100%;height:100%;display:block;transform:rotate(-90deg)}
+.af-time-ring-track{fill:none;stroke:rgba(255,255,255,.14);stroke-width:5}
+.af-time-ring-fill{fill:none;stroke:var(--wk-green);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .5s ease}
+.af-time-ring-val{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:8px;font-weight:600;color:var(--wk-white);
+  font-variant-numeric:tabular-nums;
+}
+
+/* the thin connector between chained sections (WHO -> pairs -> wheels) -
+   just enough of a line to read as "this flows into that" */
+.af-tick{width:1px;height:14px;background:rgba(255,255,255,.16);margin:0 auto}
+
+.af-wheel-block{margin-bottom:2px}
+.af-wheel-label{
+  display:block;padding:0 4px 8px;
+  font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--wk-white-60);
+}
+.af-wheel-block .wheel{
+  background:rgba(255,244,229,.04);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:0 8px;
+}
+
+.af-commit-row{display:flex;gap:10px;margin:16px 0 16px}
+.af-commit-ico{
+  flex:1;position:relative;display:flex;align-items:center;justify-content:center;
+  padding:16px;border-radius:16px;cursor:pointer;
+  background:rgba(0,174,11,.1);border:1px dashed rgba(0,174,11,.45);color:var(--wk-green);
+}
+.af-commit-ico svg{width:24px;height:24px}
+.af-commit-ico:hover{background:rgba(0,174,11,.2)}
+.af-commit-ico.is-idle{opacity:.55}
+.af-commit-badge{
+  position:absolute;top:6px;right:6px;width:16px;height:16px;border-radius:50%;
+  background:var(--wk-green);color:#08210a;font-family:var(--wk);font-size:12px;font-weight:800;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 0 2px rgba(22,25,34,.85);
+}
+
 /* ---------- Assign Task: light theme, scoped to this one sheet ----------
    A one-off flip to a white surface, requested for this flow only - it will
    read as inconsistent next to the rest of the dark-glass app, and that's
@@ -381,6 +472,37 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 }
 .af-sheet-light .af-pair.is-off .af-pair-tog{background:none;border-color:var(--afl-border);color:transparent}
 .af-sheet-light .af-pair-name{color:var(--afl-ink)}
+
+.af-sheet-light .af-theme-tog{background:var(--afl-fill);border-color:var(--afl-border)}
+.af-sheet-light .af-theme-tog::after{background:#fff;box-shadow:0 2px 6px rgba(15,23,42,.18)}
+.af-sheet-light .af-theme-tog[aria-pressed=true]{background:var(--afl-accent-soft);border-color:var(--afl-accent-border)}
+.af-sheet-light .af-theme-tog[aria-pressed=true]::after{background:var(--afl-accent)}
+
+.af-sheet-light .af-who-card,.af-sheet-light .af-rating-card,.af-sheet-light .af-time-card{
+  background:var(--afl-fill);border:1px solid var(--afl-border);
+}
+.af-sheet-light .af-who-label,.af-sheet-light .af-mini-label{color:var(--afl-muted)}
+.af-sheet-light .af-who-name{color:var(--afl-ink)}
+.af-sheet-light .af-who-name.is-placeholder{color:var(--afl-placeholder)}
+.af-sheet-light .af-rating-star{color:var(--afl-accent)}
+.af-sheet-light .af-rating-val{color:var(--afl-ink)}
+.af-sheet-light .af-rating-val.is-empty{color:var(--afl-placeholder)}
+.af-sheet-light .af-time-ring-track{stroke:var(--afl-border)}
+.af-sheet-light .af-time-ring-fill{stroke:var(--afl-accent)}
+.af-sheet-light .af-time-ring-val{color:var(--afl-ink)}
+
+.af-sheet-light .af-tick{background:var(--afl-border)}
+.af-sheet-light .af-wheel-label{color:var(--afl-muted)}
+.af-sheet-light .af-wheel-block .wheel{background:var(--afl-fill);border-color:var(--afl-border)}
+.af-sheet-light .wheel-item{color:var(--afl-ink)}
+.af-sheet-light .wheel-item.is-sel{color:var(--afl-accent)}
+.af-sheet-light .wheel-highlight{border-color:var(--afl-accent-border);background:var(--afl-accent-soft)}
+
+.af-sheet-light .af-commit-ico{
+  background:var(--afl-accent-soft);border-color:var(--afl-accent-border);color:var(--afl-accent);
+}
+.af-sheet-light .af-commit-ico:hover{background:rgba(0,174,11,.16)}
+.af-sheet-light .af-commit-badge{box-shadow:0 0 0 2px #fff}
 
 .sheet.af-sheet-light .btn{
   background:#fff;color:var(--afl-ink);border:1.5px solid var(--afl-border);
@@ -537,14 +659,17 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
    Pills/circles (.chip, .af-pip, .donut, .chart-bar-track/-fill) are left
    alone on purpose - see the token comment in base.css for why. .af-check
    and .af-pair-tog are boxy tick/toggle squares (6px/5px radius), not
-   circles, so they get the smallest squircle tier instead of an exclusion. */
+   circles, so they get the smallest squircle tier instead of an exclusion.
+   Same exclusion for .af-theme-tog/.af-who-avatar/.af-commit-badge below -
+   all three are pills or circles by design (toggle switch, avatar, badge
+   dot), not boxy cards, so they stay untouched. */
 @supports (corner-shape:superellipse(1)){
   .sheet{corner-shape:var(--squircle-xl)}
   .table-card{corner-shape:var(--squircle-lg)}
   .af-panel{corner-shape:var(--squircle-lg)}
-  .af-person,.preview{corner-shape:var(--squircle-md)}
+  .af-person,.preview,.af-who-card,.af-rating-card,.af-time-card,.af-commit-ico{corner-shape:var(--squircle-md)}
   .star,.af-trigger,input[type=text],input[type=date],input[type=month],input[type=time],
   input[type=number],select,textarea,.af-custom-ok,.af-person-x,.af-add-ico,
-  .af-sub-copy{corner-shape:var(--squircle-sm)}
+  .af-sub-copy,.af-wheel-block .wheel{corner-shape:var(--squircle-sm)}
   .af-check,.af-pair-tog{corner-shape:var(--squircle-xs)}
 }
