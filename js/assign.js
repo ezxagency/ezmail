@@ -10,6 +10,12 @@ let afState = null;      // { people: [...], note, due } - the answers so far
 let afOpen = null;       // key of the dropdown currently open, if any
 let afEdit = null;       // the thread being edited, or null when assigning fresh
 let afMembers = [], afStores = [];   // dropdown feeds, loaded async per open
+let afRoles = [];        // "ALL <craft>" bulk options, built from the directory
+let afBoardRows = [];    // open assignments for the execution board
+// ASSIGN TARGET is a GROUP: everyone toggled since the last ADD OPERATIVE
+// shares one stores/tasks config (their person entries are kept in sync).
+// afGroupStart marks where the current group begins in afState.people.
+let afGroupStart = 0;
 // this one sheet's own light/dark preference, independent of the rest of
 // the (always-dark) app - see .af-sheet-light in sheets.css
 let afLightTheme = localStorage.getItem("afTheme") === "light";
@@ -272,7 +278,7 @@ function afRowsHTML(p, pi){
         <span class="tk-row-ico" aria-hidden="true">${AF_TK_STORE}</span>
         <span class="tk-row-main">
           <span class="tk-label">ORIGIN NODE</span>
-          <span class="tk-row-val af-value${p.stores.length ? "" : " is-placeholder"}" id="afValwhere${pi}">${p.stores.length ? esc(p.stores.join(", ")) : "Choose stores"}</span>
+          <span class="tk-row-val af-value${p.stores.length ? "" : " is-placeholder"}" id="afValwhere${pi}">${esc(afWhereText(p))}</span>
         </span>
         ${AF_TK_CHEV}
       </button>
@@ -299,21 +305,66 @@ function afRowsHTML(p, pi){
               aria-expanded="false" aria-controls="afPanelwho${pi}">
         <span class="tk-target-ico" aria-hidden="true">${AF_TK_PERSONADD}</span>
         <span class="tk-label">ASSIGN TARGET</span>
-        <span class="tk-target-name af-value${p.name ? "" : " is-placeholder"}" id="afValwho${pi}">${p.name ? esc(p.name) : "CHOOSE WHO"}</span>
+        <span class="tk-target-name af-value${afWhoText() === "CHOOSE WHO" ? " is-placeholder" : ""}" id="afValwho${pi}">${esc(afWhoText())}</span>
       </button>
       ${afTkPanelHTML("who" + pi, "Type a name")}
     </div>`;
 }
 
-// the workload matrix reflects the chosen person's real open-task count
-// (the same "N open" meta the member list already computes) - 0..4+ fills
-// the four segments left to right
-function afUpdateMeta(p){
+/* ----- the active assignee GROUP -----
+   Everyone toggled in ASSIGN TARGET since the last ADD OPERATIVE. They all
+   share one stores/tasks config; mutations below run across the group so
+   the entries never drift apart. */
+const afGroup = () => afState.people.slice(afGroupStart);
+const afGroupUids = () => afGroup().map(gp => gp.uid).filter(Boolean);
+
+function afWhoText(){
+  const names = afGroup().map(gp => gp.name).filter(Boolean);
+  return names.length ? names.join(", ") : "CHOOSE WHO";
+}
+function afWhereText(p){
+  if (!p.stores.length) return "Choose stores";
+  if (afStores.length && p.stores.length === afStores.length) return "ALL LOCATIONS";
+  return p.stores.join(", ");
+}
+
+function afAddGroupMember(uid, name){
+  const g = afGroup();
+  const blank = g.find(gp => !gp.uid);
+  if (blank){ blank.uid = uid; blank.name = name; return; }
+  // a new member joins with a copy of the group's current config
+  const src = g[0] || afBlankPerson();
+  const clone = afBlankPerson();
+  clone.uid = uid; clone.name = name;
+  clone.stores = [...src.stores];
+  src.stores.forEach(st => {
+    clone.storeTasks[st] = [...(src.storeTasks[st] || [])];
+    if (src.storeNotes[st]) clone.storeNotes[st] = src.storeNotes[st];
+    if (src.storeDues[st]) clone.storeDues[st] = src.storeDues[st];
+  });
+  afState.people.push(clone);
+}
+function afRemoveGroupMember(uid){
+  for (let i = afState.people.length - 1; i >= afGroupStart; i--){
+    if (afState.people[i].uid === uid){ afState.people.splice(i, 1); break; }
+  }
+  // the group (and the sheet) always needs an active person to hang the
+  // rows off - an emptied group gets its placeholder back
+  if (afState.people.length <= afGroupStart) afState.people.push(afBlankPerson());
+}
+
+// the workload matrix shows the heaviest-loaded member of the group (the
+// same "N open" meta the member list already computes) - 0..4+ fills the
+// four segments left to right
+function afUpdateMeta(){
   const bars = $("afLoadBars");
   if (!bars) return;
   let n = 0;
-  const m = afMembers.find(x => x.value === p.uid);
-  if (m && m.meta){ const num = parseInt(m.meta, 10); n = isNaN(num) ? 0 : Math.min(4, num); }
+  afGroupUids().forEach(uid => {
+    const m = afMembers.find(x => x.value === uid);
+    if (m && m.meta){ const num = parseInt(m.meta, 10); if (!isNaN(num)) n = Math.max(n, num); }
+  });
+  n = Math.min(4, n);
   [...bars.children].forEach((el, i) => el.classList.toggle("is-on", i < n));
 }
 
@@ -338,20 +389,22 @@ function afPaintPairs(){
         delete pp.storeNotes[store]; delete pp.storeDues[store];
       }
     }
-    // a non-active person with nothing left assigned has no rows on screen
-    // to act on anymore - drop them rather than leaving an invisible,
-    // invalid person silently blocking submit
-    if (!afPersonPairs(pp).length && pi0 !== afState.people.length - 1){
+    // a person from a PREVIOUS group with nothing left assigned has no rows
+    // on screen to act on anymore - drop them rather than leaving an
+    // invisible, invalid person silently blocking submit. (Current-group
+    // members stay: they're still visible in ASSIGN TARGET.)
+    if (!afPersonPairs(pp).length && pi0 < afGroupStart){
       afState.people.splice(pi0, 1);
-      if (!afState.people.length) afState.people.push(afBlankPerson());
+      afGroupStart--;
+      if (!afState.people.length){ afState.people.push(afBlankPerson()); afGroupStart = 0; }
     }
     afRenderPeople();
   });
 }
 
-/* Rebuild the active person's rows + wire their dropdowns. Store/task
-   picks update text + chips in place (the multi-select panel stays open,
-   same as the classic flow); only person-level changes re-render. */
+/* Rebuild the active group's rows + wire their dropdowns. Picks update
+   text + chips in place (multi-select panels stay open); the whole box
+   only re-renders when the roster itself changes shape. */
 function afRenderPeople(){
   const box = $("afPeople");
   if (!box) return;
@@ -360,24 +413,86 @@ function afRenderPeople(){
   const p = afState.people[pi];
   box.innerHTML = afRowsHTML(p, pi);
 
-  afWireDropdown("who" + pi, () => afMembers, (v, l) => {
-    p.uid = v; p.name = l;
-    afRenderPeople();
-  });
+  // ASSIGN TARGET: multi-select group of members, plus "ALL <craft>" bulk
+  // options from the directory. Editing an existing thread stays
+  // single-person (its submit path rebuilds exactly one person's rows).
+  const whoItems = () => afMembers.concat(afRoles.map(r =>
+    ({ value: r.value, label: r.label, meta: r.uids.length + " ppl" })));
+  const syncWho = () => {
+    const val = $("afValwho" + pi);
+    if (val){
+      const t = afWhoText();
+      val.textContent = t;
+      val.classList.toggle("is-placeholder", t === "CHOOSE WHO");
+    }
+    afPaintPairs();
+    afUpdateMeta();
+    afSync();
+  };
+  if (afEdit){
+    afWireDropdown("who" + pi, () => afMembers, (v, l) => {
+      p.uid = v; p.name = l;
+      afRenderPeople();
+    });
+  } else {
+    afWireDropdown("who" + pi, whoItems, v => {
+      if (String(v).startsWith("role:")){
+        const r = afRoles.find(x => x.value === v);
+        if (!r) return;
+        const allIn = r.uids.every(u => afGroupUids().includes(u));
+        r.uids.forEach(u => {
+          const m = afMembers.find(mm => mm.value === u);
+          if (!m) return;
+          if (allIn) afRemoveGroupMember(u);
+          else if (!afGroupUids().includes(u)) afAddGroupMember(u, m.label);
+        });
+      } else {
+        const m = afMembers.find(mm => mm.value === v);
+        if (!m) return;
+        if (afGroupUids().includes(v)) afRemoveGroupMember(v);
+        else afAddGroupMember(v, m.label);
+      }
+      syncWho();
+    }, null, {
+      chosen: afGroupUids,
+      onDone: () => { const t = $("afTrigwhere" + pi); if (t) t.focus(); }
+    });
+  }
 
-  afWireDropdown("where" + pi, () => afStores, v => {
-    const i = p.stores.indexOf(v);
-    if (i >= 0){
-      p.stores.splice(i, 1);
-      delete p.storeTasks[v]; delete p.storeNotes[v]; delete p.storeDues[v];
+  // ORIGIN NODE: multi-select stores, "ALL LOCATIONS" as a one-tap bulk
+  // toggle - applied across every member of the group
+  const whereItems = () => (afStores.length > 1
+    ? [{ value: "__all", label: "ALL LOCATIONS", meta: afStores.length + "" }] : []).concat(afStores);
+  afWireDropdown("where" + pi, whereItems, v => {
+    if (v === "__all"){
+      const allOn = afStores.length && p.stores.length === afStores.length;
+      afGroup().forEach(gp => {
+        if (allOn){
+          gp.stores = []; gp.storeTasks = {}; gp.storeNotes = {}; gp.storeDues = {};
+        } else {
+          afStores.forEach(s => {
+            if (!gp.stores.includes(s.value)){
+              gp.stores.push(s.value);
+              gp.storeTasks[s.value] = afUnionTasks(gp).filter(t => t);
+            }
+          });
+        }
+      });
     } else {
-      p.stores.push(v);
-      // a new store inherits the person's current task set, so "same
-      // everywhere" costs nothing extra
-      p.storeTasks[v] = afUnionTasks(p).filter(t => t);
+      const on = p.stores.includes(v);
+      afGroup().forEach(gp => {
+        const i = gp.stores.indexOf(v);
+        if (on){
+          if (i >= 0){ gp.stores.splice(i, 1); delete gp.storeTasks[v]; delete gp.storeNotes[v]; delete gp.storeDues[v]; }
+        } else if (i < 0){
+          gp.stores.push(v);
+          // a new store inherits the group's current task set
+          gp.storeTasks[v] = afUnionTasks(gp).filter(t => t);
+        }
+      });
     }
     const val = $("afValwhere" + pi);
-    if (val){ val.textContent = p.stores.length ? p.stores.join(", ") : "Choose stores"; val.classList.toggle("is-placeholder", !p.stores.length); }
+    if (val){ val.textContent = afWhereText(p); val.classList.toggle("is-placeholder", !p.stores.length); }
     afPaintPairs();
     afSync();
   }, "+ Another store", {
@@ -385,14 +500,17 @@ function afRenderPeople(){
     onDone: () => { const t = $("afTrigproto" + pi); if (t) t.focus(); }
   });
 
+  // PROTOCOL: task multi-select, applied to every store of every group member
   afWireDropdown("proto" + pi, afTaskOptions, v => {
     if (!p.stores.length){ toast("Pick a store first — tasks attach to stores"); return; }
     const has = afUnionTasks(p).includes(v);
-    p.stores.forEach(st => {
-      const arr = p.storeTasks[st] = p.storeTasks[st] || [];
-      const at = arr.indexOf(v);
-      if (has){ if (at >= 0) arr.splice(at, 1); }
-      else if (at < 0) arr.push(v);
+    afGroup().forEach(gp => {
+      gp.stores.forEach(st => {
+        const arr = gp.storeTasks[st] = gp.storeTasks[st] || [];
+        const at = arr.indexOf(v);
+        if (has){ if (at >= 0) arr.splice(at, 1); }
+        else if (at < 0) arr.push(v);
+      });
     });
     const val = $("afValproto" + pi);
     const u = afUnionTasks(p);
@@ -405,7 +523,7 @@ function afRenderPeople(){
   });
 
   afPaintPairs();
-  afUpdateMeta(p);
+  afUpdateMeta();
   afSync();
 }
 
@@ -443,7 +561,8 @@ async function openAssignFlow(preUid, preName, editThread){
     dueTime: sharedDueTime
   };
   afOpen = null;
-  afMembers = []; afStores = [];
+  afMembers = []; afStores = []; afRoles = []; afBoardRows = [];
+  afGroupStart = 0;
 
   const body = `
     <div class="tk-head">
@@ -512,6 +631,8 @@ async function openAssignFlow(preUid, preName, editThread){
     </div>
 
     <button type="button" class="tk-go" id="afSave" disabled>${afEdit ? "COMMIT CHANGES" : "INITIATE ASSIGNMENT"}</button>
+
+    <div id="afBoardBox"></div>
   `;
   const setup = () => {
     afRenderPeople();
@@ -523,7 +644,7 @@ async function openAssignFlow(preUid, preName, editThread){
       closeSheet();
     };
     const help = $("afHelp");
-    if (help) help.onclick = () => toast("Pick the store, the tasks and who — then initiate.");
+    if (help) help.onclick = () => toast("Pick who, the stores and the tasks — then initiate.");
     const themeTog = $("afThemeTog");
     if (themeTog) themeTog.onclick = () => {
       afLightTheme = !afLightTheme;
@@ -542,6 +663,8 @@ async function openAssignFlow(preUid, preName, editThread){
           : `Add at least one store + task for ${bad.name || "them"} first`);
         return;
       }
+      // close out the current group; the next toggles build a fresh one
+      afGroupStart = afState.people.length;
       afState.people.push(afBlankPerson());
       afRenderPeople();
       const t = $("afTrigwho" + (afState.people.length - 1));
@@ -551,12 +674,60 @@ async function openAssignFlow(preUid, preName, editThread){
     $("afNote").value = afState.note;
     if (afState.due) $("afDue").value = afState.due;
     if (afState.dueTime) $("afDueTime").value = afState.dueTime;
-    // the member/store lists load async - re-render once they land so the
-    // rows can populate their panels with real options
-    loadAssignOptions().then(d => { afMembers = d.members; afStores = d.stores; afRenderPeople(); });
+    // the member/store/role lists + board rows load async - re-render once
+    // they land so the rows can populate their panels with real options
+    loadAssignOptions().then(d => {
+      afMembers = d.members; afStores = d.stores;
+      afRoles = d.roles || []; afBoardRows = d.board || [];
+      afRenderPeople();
+      afRenderBoard();
+    });
   };
 
   openSheet(body, setup, { cls: "af-sheet-wide" + (afLightTheme ? " af-sheet-light" : "") });
+}
+
+/* ---------- execution board ----------
+   Every OPEN assignment across the team, right inside the assign sheet -
+   see what's already in flight while handing out more, and resolve a line
+   with one tap (with the same undo the worker-side Done flow has). Hidden
+   while editing a thread; shown only when there's data to show. */
+function afRenderBoard(){
+  const box = $("afBoardBox");
+  if (!box) return;
+  if (afEdit || !afBoardRows.length){ box.innerHTML = ""; return; }
+  box.innerHTML = `
+    <div class="tk-card tk-board">
+      <div class="tk-load-head">
+        <span class="tk-dot" aria-hidden="true"></span>
+        <span class="tk-label">EXECUTION BOARD</span>
+        <span class="tk-chip">${afBoardRows.length} OPEN</span>
+      </div>
+      <div class="tk-board-rows">
+        ${afBoardRows.map(r => `
+        <div class="tk-brow" data-id="${esc(r.id)}">
+          <span class="tk-brow-chip">PENDING</span>
+          <span class="tk-brow-main">${esc(r.toName || "—")} — ${esc(r.store || "—")} · ${esc(r.task || "—")}</span>
+          <button type="button" class="tk-brow-done" aria-label="Mark done">${AF_TICK}</button>
+        </div>`).join("")}
+      </div>
+    </div>`;
+  box.querySelectorAll(".tk-brow-done").forEach(b => b.onclick = async () => {
+    const row = b.closest(".tk-brow");
+    const id = row.dataset.id;
+    b.disabled = true;
+    try {
+      // ack:true - resolving your own board shouldn't ring your own bell
+      await db.collection("assignments").doc(id).update({ done: true, doneAt: Date.now(), ack: true });
+      afBoardRows = afBoardRows.filter(r => r.id !== id);
+      afRenderBoard();
+      toast("Marked done", { label: "Undo", run: () => undoDone([id]) });
+    } catch (e) {
+      console.error(e);
+      b.disabled = false;
+      toast("Couldn't mark it done — check your connection");
+    }
+  });
 }
 
 /* Members carry their current open-task count, so you can see who is already
@@ -597,7 +768,34 @@ async function loadAssignOptions(){
   const stores = [...seen.values()].sort((a, b) => a.localeCompare(b))
     .map(s => ({ value: s, label: s }));
 
-  return { members, stores };
+  // "ALL <craft>" bulk targets, from the same directory the @mention
+  // autocomplete and campaign role-routing already read
+  let roles = [];
+  try {
+    const dir = await loadDirectory();
+    const byCraft = new Map();
+    dir.forEach(pp => {
+      const craft = (pp.craft || "").trim().toLowerCase();
+      if (!craft || !members.some(m => m.value === pp.uid)) return;
+      if (!byCraft.has(craft)) byCraft.set(craft, []);
+      byCraft.get(craft).push(pp.uid);
+    });
+    roles = [...byCraft.entries()]
+      .filter(([, uids]) => uids.length)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([craft, uids]) => ({
+        value: "role:" + craft,
+        label: "ALL " + craft.toUpperCase(),
+        uids
+      }));
+  } catch (e) { console.error(e); }
+
+  // the execution board: every still-open line, soonest due first
+  const board = rows.filter(r => !r.done)
+    .sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"))
+    .map(r => ({ id: r.id, toName: r.toName, store: r.store, task: r.task }));
+
+  return { members, stores, roles, board };
 }
 
 /* Every store x task pair becomes its own assignment rather than one record

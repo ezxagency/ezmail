@@ -487,6 +487,32 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .tk-go:hover:not(:disabled){filter:brightness(1.08)}
 .tk-go:disabled{opacity:.4;cursor:default;box-shadow:none}
 
+/* execution board */
+.tk-board{margin-top:16px}
+.tk-board-rows{margin-top:14px}
+.tk-brow{
+  display:flex;align-items:center;gap:10px;padding:10px 0;
+  border-bottom:1px dashed rgba(255,255,255,.12);
+}
+.tk-brow:last-child{border-bottom:0}
+.tk-brow-chip{
+  flex:none;padding:3px 8px;border-radius:5px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);
+  font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.16em;color:var(--wk-white-70);
+}
+.tk-brow-main{
+  flex:1;min-width:0;font-family:var(--mono);font-size:12.5px;color:var(--wk-white);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.tk-brow-done{
+  flex:none;width:28px;height:28px;border-radius:8px;cursor:pointer;
+  background:none;border:1.5px solid rgba(255,255,255,.4);color:#fff;
+  display:flex;align-items:center;justify-content:center;padding:0;
+}
+.tk-brow-done svg{width:14px;height:14px}
+.tk-brow-done:hover{background:#fff;color:#12131a}
+.tk-brow-done:disabled{opacity:.4;cursor:default}
+
 /* the pair chips ride inside this sheet - their tick follows the kit's
    white accent here rather than the app-wide green */
 #afPairsBox .af-pair-tog{background:#fff;border-color:#fff;color:#12131a}
@@ -638,6 +664,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .af-sheet-light #afPairsBox .af-pair-tog{background:var(--afl-ink);border-color:var(--afl-ink);color:#fff}
 .af-sheet-light .tk-chip{background:var(--afl-fill);border-color:var(--afl-border)}
 .af-sheet-light .tk-slot .af-custom{background:#fff;border-color:var(--afl-border);box-shadow:0 18px 38px rgba(15,23,42,.14)}
+.af-sheet-light .tk-brow{border-bottom-color:var(--afl-border)}
+.af-sheet-light .tk-brow-chip{background:var(--afl-fill);border-color:var(--afl-border);color:var(--afl-muted)}
+.af-sheet-light .tk-brow-main{color:var(--afl-ink)}
+.af-sheet-light .tk-brow-done{border-color:var(--afl-border);color:var(--afl-ink)}
+.af-sheet-light .tk-brow-done:hover{background:var(--afl-ink);color:#fff}
 
 .sheet.af-sheet-light .btn{
   background:#fff;color:var(--afl-ink);border:1.5px solid var(--afl-border);
