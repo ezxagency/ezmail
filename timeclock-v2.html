@@ -13,25 +13,28 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.60/dist/drawflow.min.js"></script>
 <link rel="preload" as="image" href="assets/bg-marble-mobile.webp" media="(max-width:1023px)">
 <link rel="preload" as="image" href="assets/bg-marble.webp" media="(min-width:1024px)">
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=115">
-<link rel="stylesheet" href="css/dashboard.css?v=115">
-<link rel="stylesheet" href="css/drawer.css?v=115">
-<link rel="stylesheet" href="css/pages.css?v=115">
-<link rel="stylesheet" href="css/sheets.css?v=115">
-<link rel="stylesheet" href="css/tables.css?v=115">
-<link rel="stylesheet" href="css/responsive.css?v=115">
-<link rel="stylesheet" href="css/pomodoro.css?v=115">
-<link rel="stylesheet" href="css/personal.css?v=115">
-<link rel="stylesheet" href="css/campaigns.css?v=115">
-<link rel="stylesheet" href="css/assign.css?v=115">
-<link rel="stylesheet" href="css/login.css?v=115">
+<link rel="stylesheet" href="css/base.css?v=116">
+<link rel="stylesheet" href="css/dashboard.css?v=116">
+<link rel="stylesheet" href="css/drawer.css?v=116">
+<link rel="stylesheet" href="css/pages.css?v=116">
+<link rel="stylesheet" href="css/sheets.css?v=116">
+<link rel="stylesheet" href="css/tables.css?v=116">
+<link rel="stylesheet" href="css/responsive.css?v=116">
+<link rel="stylesheet" href="css/pomodoro.css?v=116">
+<link rel="stylesheet" href="css/personal.css?v=116">
+<link rel="stylesheet" href="css/campaigns.css?v=116">
+<link rel="stylesheet" href="css/assign.css?v=116">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.60/dist/drawflow.min.css">
+<link rel="stylesheet" href="css/workflow.css?v=116">
+<link rel="stylesheet" href="css/login.css?v=116">
 <!-- last on purpose: the premium layer standardizes motion over everything -->
-<link rel="stylesheet" href="css/premium.css?v=115">
+<link rel="stylesheet" href="css/premium.css?v=116">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -488,6 +491,11 @@
         <span class="drawer-txt">Team<small>Roster &amp; approvals</small></span>
         <kbd class="drawer-kbd">5</kbd>
       </a>
+      <a class="drawer-item" href="#/workflow" data-route="workflow">
+        <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1.5"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M12 7.5V11M12 11H5.5v5M12 11h6.5v5"/></svg></span>
+        <span class="drawer-txt">Workflows<small>Blueprints &amp; runs</small></span>
+        <kbd class="drawer-kbd">6</kbd>
+      </a>
     </nav>
 
     <div class="drawer-foot">
@@ -570,6 +578,22 @@
     </div>
   </div>
 
+  <div class="admin-page fpage hidden" id="workflowScreen">
+    <div class="admin-page-inner">
+      <div class="admin-page-head">
+        <div>
+          <p class="fpage-eyebrow">Blueprints &amp; runs</p>
+          <h1 class="admin-page-title">Workflows</h1>
+        </div>
+        <button type="button" class="page-back" data-back>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          Back
+        </button>
+      </div>
+      <div id="workflowBody"></div>
+    </div>
+  </div>
+
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -581,18 +605,20 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=115"></script>
-<script src="js/render.js?v=115"></script>
-<script src="js/ui.js?v=115"></script>
-<script src="js/shift.js?v=115"></script>
-<script src="js/email.js?v=115"></script>
-<script src="js/nav.js?v=115"></script>
-<script src="js/boot.js?v=115"></script>
-<script src="js/team.js?v=115"></script>
-<script src="js/assign.js?v=115"></script>
-<script src="js/notify.js?v=115"></script>
-<script src="js/campaigns.js?v=115"></script>
-<script src="js/auth.js?v=115"></script>
-<script src="js/personal.js?v=115"></script>
-<script src="js/pomodoro.js?v=115"></script>
-<script src="js/premium.js?v=115"></script>
+<script src="js/config.js?v=116"></script>
+<script src="js/render.js?v=116"></script>
+<script src="js/ui.js?v=116"></script>
+<script src="js/shift.js?v=116"></script>
+<script src="js/email.js?v=116"></script>
+<script src="js/nav.js?v=116"></script>
+<script src="js/boot.js?v=116"></script>
+<script src="js/team.js?v=116"></script>
+<script src="js/assign.js?v=116"></script>
+<script src="js/notify.js?v=116"></script>
+<script src="js/campaigns.js?v=116"></script>
+<script src="js/auth.js?v=116"></script>
+<script src="js/personal.js?v=116"></script>
+<script src="js/pomodoro.js?v=116"></script>
+<script src="js/workflow-engine.js?v=116"></script>
+<script src="js/workflow.js?v=116"></script>
+<script src="js/premium.js?v=116"></script>

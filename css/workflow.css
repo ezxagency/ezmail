@@ -1,0 +1,10 @@
+/* ============================================================
+   WORKFLOW BUILDER — page + canvas skin.
+   Loads right after drawflow.min.css (vendor defaults) so every
+   rule here wins the cascade over Drawflow's own; premium.css
+   still loads after this and owns motion, same as everywhere.
+   Step 1 ships the empty routed page only — the page scaffolding
+   (fpage-*, admin-page-*, empty) all comes from pages.css, so
+   there is nothing to override yet. The canvas skin (block
+   colors, handles, wires) lands here with the builder step.
+   ============================================================ */

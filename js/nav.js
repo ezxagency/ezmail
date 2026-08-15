@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", team: "teamScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", team: "teamScreen", workflow: "workflowScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -94,7 +94,7 @@ document.addEventListener("keydown", e => {
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if ($("sheet").classList.contains("on")) return;
   if (typeof cxIsOpen === "function" && cxIsOpen()) return;
-  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "team" };
+  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "team", "6": "workflow" };
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (r === "team" && !isAdmin) return;
@@ -116,6 +116,7 @@ function applyRoute(){
   else if (r === "history") renderHistoryPage();
   else if (r === "campaigns") enterCampaignsPage();
   else if (r === "team") loadTeamScreen();
+  else if (r === "workflow") enterWorkflowPage();
 }
 window.addEventListener("hashchange", applyRoute);
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(""));

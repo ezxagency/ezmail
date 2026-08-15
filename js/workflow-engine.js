@@ -15,7 +15,11 @@
 /**
  * One block on the canvas. `type` decides what `config` holds:
  *  - "trigger": { label? }                       exactly one per blueprint, no incoming edges
- *  - "role":    { role?, assigneeId?, label? }   a human acts; the task waits until they complete
+ *  - "role":    { role?, assigneeId?, label?, outputs? }  a human acts; the task waits until
+ *               they complete. `outputs` DECLARES the named values this stop must record,
+ *               [{ key, type:"boolean"|"number"|"text", label? }] — e.g. an approve/reject
+ *               role declares { key:"approved", type:"boolean" } and the completion UI
+ *               collects it, so a downstream LOGIC/route condition always finds it
  *  - "split":   { mode:"route"|"parallel", branches:[{ id, label, condition?, isElse? }] }
  *               route mode: exactly one branch has isElse:true; edges name their branch via fromHandle
  *  - "logic":   { condition }                    edges carry fromHandle "true" | "false"
@@ -92,8 +96,11 @@
 
 /**
  * One node's story inside one run. `output` is what downstream conditions
- * read (engine rule 2): whatever the actor saved, plus engine stamps like
- * a logic gate's boolean `result` or a route split's `pickedBranch` —
+ * read (engine rule 2): an OPEN key/value map, not a fixed shape. The
+ * actor's declared outputs land as named keys (approved:true,
+ * wordCount:812), the engine adds its own stamps (a logic gate's boolean
+ * `result`, a route split's `pickedBranch`), and the conventional keys
+ * `files` (string[]) and `note` (string) ride along with everything else —
  * persist enough here that a later condition never re-derives anything.
  * "skipped" is the dead-path token (engine rule 1): a route split emits
  * it down every un-picked branch and it propagates, so a later
@@ -108,5 +115,6 @@
  * @property {string} [assigneeId]
  * @property {number} arrivedAt
  * @property {number|null} completedAt
- * @property {{files:string[], note:string}} output  plus engine stamps (result, pickedBranch, …)
+ * @property {Object<string, *>} output  open map: declared outputs + engine stamps
+ *                                       + conventional files:string[] / note:string
  */
