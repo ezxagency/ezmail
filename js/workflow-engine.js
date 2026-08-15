@@ -12,9 +12,13 @@
 
    HOW ADVANCEMENT WORKS (the reconcile, not deltas): a finished
    attempt (nodeRun) EMITS a token on each outgoing edge —
-   "completed" down taken paths, "skip" down untaken ones (a
-   route's un-picked branches, a gate's other side, everything
-   below a skipped node). Each new attempt records exactly which
+   "completed" down taken paths, "skip" down a route split's
+   un-picked branches and everything below a skipped node. A
+   LOGIC gate emits ONLY down its taken side: the other side gets
+   nothing this pass — in a loop it may be taken next pass, and a
+   skip there would masquerade as a dead path and echo around the
+   loop (nested loops make that visible as phantom "skipped"
+   attempts of live nodes). Each new attempt records exactly which
    emissions it consumed (inputs: edgeId → emitter nodeRun id).
    A pending arrival is an emission no attempt has consumed —
    derived from persisted state alone, never from memory, so
@@ -340,8 +344,11 @@ function wfValidate(bp){
    ARRIVAL BOOKKEEPING (all derived, nothing cached)
    ============================================================ */
 /* What tokens a finished attempt sends, per outgoing edge. A completed
-   route/logic sends "completed" down the taken side and "skip" down the
-   rest; a skipped anything sends "skip" everywhere below it. */
+   route split sends "completed" down the picked branch and "skip" down
+   the rest (dead-path elimination, engine rule 1); a completed logic
+   gate sends "completed" down its taken side and NOTHING down the other
+   — not dead, just not this pass; a skipped anything sends "skip"
+   everywhere below it. */
 function wfEmissions(bp, nr){
   if (nr.status !== "completed" && nr.status !== "skipped") return [];
   const node = bp.nodes.find(n => n.id === nr.nodeId);
@@ -354,7 +361,7 @@ function wfEmissions(bp, nr){
   }
   if (node.type === "logic"){
     const took = String(!!(nr.output && nr.output.result));
-    return out.map(e => ({ edge: e, kind: e.fromHandle === took ? "completed" : "skip", emitter: nr.id }));
+    return out.filter(e => e.fromHandle === took).map(e => ({ edge: e, kind: "completed", emitter: nr.id }));
   }
   return out.map(e => ({ edge: e, kind: "completed", emitter: nr.id }));
 }

@@ -127,14 +127,14 @@ T("rework loop: onFalse revisits the ROLE, resolves on the 2nd pass", () => {
   st = finish(st, "r1", { approved: false, note: "logo off-brand" });
   assert.deepEqual(statuses(st, "r1"), ["completed", "in_progress"]);  // fresh attempt, fresh nodeRun
   assert.equal(attempts(st, "g")[0].output.result, false);
-  assert.deepEqual(statuses(st, "a1"), ["skipped"]);  // the untaken true-side died this pass
+  assert.equal(attempts(st, "a1").length, 0);  // the untaken true-side gets NOTHING this pass — not dead, just not yet
   assert.equal(st.run.status, "running");
 
   st = finish(st, "r1", { approved: true });
   assert.equal(st.run.status, "completed");
   assert.deepEqual(attempts(st, "g").map(nr => nr.output.result), [false, true]);
-  assert.deepEqual(statuses(st, "a1"), ["skipped", "completed"]);  // pass-2 token = new attempt
-  assert.equal(attempts(st, "r1").length, 2);  // and no ghost third attempt from the skip echo
+  assert.deepEqual(statuses(st, "a1"), ["completed"]);  // fires once, on the pass that took it
+  assert.equal(attempts(st, "r1").length, 2);  // and no ghost third attempt from a skip echo
   assert.ok(st.effects.some(e => e.type === "action"));
 });
 
@@ -303,6 +303,109 @@ T("validation: the nodeOutput declaration invariant", () => {
 
 T("starting a run on an invalid blueprint throws", () => {
   assert.throws(() => start(BP([role("r1")], []), {}), /Trigger/);
+});
+
+/* ================= ADVERSARIAL A: parallel join INSIDE a loop body ================= */
+/* t → r0 → SPLIT[parallel] → ra + rb → VAULT j [waitFor:all] → LOGIC g;
+   g true → ACTION, g false → back before the split (r0). The join must
+   re-synchronize fresh each pass: pass-1 arrivals were consumed, so pass
+   2 must wait for BOTH branches again — firing early on a stale arrival
+   and deadlocking on a spent one are the two failure modes. */
+function loopJoinBP(){
+  return BP([
+    N("t", "trigger"),
+    role("r0"),
+    N("sp", "split", { mode: "parallel", branches: [{ id: "p1" }, { id: "p2" }] }),
+    role("ra"), role("rb", { outputs: [{ key: "ok", type: "boolean" }] }),
+    N("j", "vault"),
+    N("g", "logic", { condition: { source: "nodeOutput", nodeId: "rb", path: "ok", op: "==", value: true } }),
+    N("a1", "action", { actionType: "notify" })
+  ], [
+    Ed("e0", "t", "r0"), Ed("e1", "r0", "sp"),
+    Ed("e2a", "sp", "ra", "p1"), Ed("e2b", "sp", "rb", "p2"),
+    Ed("e3a", "ra", "j"), Ed("e3b", "rb", "j"),
+    Ed("e4", "j", "g"),
+    Ed("eT", "g", "a1", "true"), Ed("eF", "g", "r0", "false")
+  ]);
+}
+
+T("adversarial A: a waitFor:all join inside a loop re-synchronizes each pass", () => {
+  let st = start(loopJoinBP(), {}, "runA");
+  st = finish(st, "r0", {});
+  assert.ok(inflight(st, "ra") && inflight(st, "rb"));
+  st = finish(st, "ra", {});
+  assert.equal(attempts(st, "j").length, 0);               // pass 1: no early fire
+  st = finish(st, "rb", { ok: false });
+  assert.deepEqual(statuses(st, "j"), ["completed"]);      // synchronized fire
+  assert.ok(inflight(st, "r0"));                            // loop re-entered
+  assert.equal(st.run.status, "running");
+  st = finish(st, "r0", {});
+  assert.ok(inflight(st, "ra") && inflight(st, "rb"));      // both branches re-armed
+  assert.equal(attempts(st, "j").length, 1);
+  st = finish(st, "ra", {});
+  assert.equal(attempts(st, "j").length, 1);               // pass 2: still waits for rb — no early fire
+  st = finish(st, "rb", { ok: true });
+  assert.deepEqual(statuses(st, "j"), ["completed", "completed"]);  // re-synchronized, no deadlock
+  assert.deepEqual(attempts(st, "g").map(nr => nr.output.result), [false, true]);
+  assert.equal(st.run.status, "completed");
+  assert.ok(attempts(st, "a1").some(nr => nr.status === "completed"));
+});
+
+/* ================= ADVERSARIAL B: nested rework loops ================= */
+/* t → rO → rI → gI (inner gate): false → rI, true → gO (outer gate):
+   false → rO, true → ACTION. Attempts must count one per iteration of
+   the loop that owns the node — the inner loop must not leak attempts
+   onto outer nodes, and a gate's untaken side must not spawn ghosts. */
+function nestedLoopBP(){
+  return BP([
+    N("t", "trigger"),
+    role("rO", { outputs: [{ key: "outerOk", type: "boolean" }] }),
+    role("rI", { outputs: [{ key: "innerOk", type: "boolean" }] }),
+    N("gI", "logic", { condition: { source: "nodeOutput", nodeId: "rI", path: "innerOk", op: "==", value: true } }),
+    N("gO", "logic", { condition: { source: "nodeOutput", nodeId: "rO", path: "outerOk", op: "==", value: true } }),
+    N("a1", "action", { actionType: "notify" })
+  ], [
+    Ed("e0", "t", "rO"), Ed("eA", "rO", "rI"), Ed("e1", "rI", "gI"),
+    Ed("eIT", "gI", "gO", "true"), Ed("eIF", "gI", "rI", "false"),
+    Ed("eOT", "gO", "a1", "true"), Ed("eOF", "gO", "rO", "false")
+  ]);
+}
+
+T("adversarial B: nested loops keep clean per-iteration attempt counts", () => {
+  let st = start(nestedLoopBP(), {}, "runB");
+  // outer pass 1: inner rejects once, then passes; outer gate rejects
+  st = finish(st, "rO", { outerOk: false });
+  st = finish(st, "rI", { innerOk: false });
+  assert.equal(attempts(st, "rI").length, 2);
+  st = finish(st, "rI", { innerOk: true });
+  // the outer gate said no → back to rO, and ONLY rO: no phantom attempts
+  assert.deepEqual(statuses(st, "rO"), ["completed", "in_progress"]);
+  assert.equal(attempts(st, "rI").length, 2);
+  assert.deepEqual(attempts(st, "gI").map(nr => nr.output.result), [false, true]);
+  assert.deepEqual(attempts(st, "gO").map(nr => nr.output.result), [false]);
+  // outer pass 2: inner rejects once again, then passes; outer gate passes
+  st = finish(st, "rO", { outerOk: true });
+  st = finish(st, "rI", { innerOk: false });
+  st = finish(st, "rI", { innerOk: true });
+  assert.equal(st.run.status, "completed");
+  assert.equal(attempts(st, "rO").length, 2);   // one per outer iteration, nothing phantom
+  assert.equal(attempts(st, "rI").length, 4);   // two per outer iteration
+  assert.deepEqual(attempts(st, "gI").map(nr => nr.output.result), [false, true, false, true]);
+  assert.deepEqual(attempts(st, "gO").map(nr => nr.output.result), [false, true]);
+  assert.deepEqual(statuses(st, "a1"), ["completed"]);
+  assert.ok(st.nodeRuns.every(nr => nr.status !== "skipped"));  // nothing on a live loop is ever "skipped"
+});
+
+T("adversarial B: the hop cap still bounds nested loops", () => {
+  let st = start(nestedLoopBP(), {}, "runB2");
+  let guard = 0;
+  while (st.run.status === "running" && guard++ < 300){
+    const stop = st.run.activeNodeIds[0];
+    st = finish(st, stop, stop === "rO" ? { outerOk: false } : { innerOk: true });
+  }
+  assert.equal(st.run.status, "failed");
+  assert.ok(guard < 300, "the cap should stop it, not the test guard");
+  assert.ok(st.run.hops <= WF_MAX_HOPS);
 });
 
 /* ================= ENGINE CONTRACT ================= */
