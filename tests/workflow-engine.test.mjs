@@ -408,6 +408,39 @@ T("adversarial B: the hop cap still bounds nested loops", () => {
   assert.ok(st.run.hops <= WF_MAX_HOPS);
 });
 
+/* ================= ADVERSARIAL C: gate as a two-way router into one join ================= */
+/* t → LOGIC g; true → A → J, false → B → J; J waitFor:"all" → ACTION.
+   No loop anywhere. Exactly one of A/B ever runs; the join must treat the
+   untaken side as provably quiet (nothing in flight can ever reach it)
+   and fire on the single live arrival — not deadlock waiting for a
+   branch no token will ever ride. */
+T("a two-way gate: the untaken side is provably quiet, the join doesn't wait", () => {
+  const mk = () => BP([
+    N("t", "trigger"),
+    N("g", "logic", { condition: taskCond("fast", "==", true) }),
+    role("A"), role("B"),
+    N("J", "role", { role: "qa" }, "all"),
+    N("a1", "action", { actionType: "notify" })
+  ], [
+    Ed("e0", "t", "g"),
+    Ed("eT", "g", "A", "true"), Ed("eF", "g", "B", "false"),
+    Ed("eJA", "A", "J"), Ed("eJB", "B", "J"),
+    Ed("e2", "J", "a1")
+  ]);
+  [[true, "A", "B"], [false, "B", "A"]].forEach(([fast, live, dead]) => {
+    let st = start(mk(), { fast }, "runG" + fast);
+    assert.ok(inflight(st, live));
+    assert.equal(attempts(st, dead).length, 0);   // the other side never runs — not even "skipped"
+    assert.equal(attempts(st, "J").length, 0);
+    st = finish(st, live, {});
+    assert.deepEqual(statuses(st, "J"), ["in_progress"]);  // fired on the single live arrival
+    st = finish(st, "J", {});
+    assert.equal(st.run.status, "completed");
+    assert.equal(attempts(st, dead).length, 0);
+    assert.ok(st.effects.some(e => e.type === "action"));
+  });
+});
+
 /* ================= ENGINE CONTRACT ================= */
 T("advance never mutates its input and is deterministic", () => {
   const st = start(reworkBP(), {}, "run6");

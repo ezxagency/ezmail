@@ -1,4 +1,4 @@
-/* Emulator test matrix for ../firestore.rules - 78 allow/deny assertions
+/* Emulator test matrix for ../firestore.rules - 85 allow/deny assertions
    across five actors: admin, assigner (worker role + special email),
    worker, pending stranger, an unverified fresh signup, and the
    unauthenticated client-link holder.
@@ -38,6 +38,7 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "campaigns/c1"), { title: "T", memberUids: ["worker1", "assigner1"], status: "active", cur: 0, stages: [], history: [], updatedAt: 1 });
   await setDoc(doc(db, "campaigns/c2"), { title: "T2", memberUids: ["worker2"], status: "active", cur: 0, stages: [], history: [], updatedAt: 1 });
   await setDoc(doc(db, "campaignTemplates/t1"), { name: "Tpl", stages: [] });
+  await setDoc(doc(db, "blueprints/bp1"), { orgId: "ez-agency", ownerId: "admin1", name: "Track", version: 1, status: "published", nodes: [], edges: [], createdAt: 1, updatedAt: 1 });
   await setDoc(doc(db, "notifications/n1"), { toUid: "worker1", fromUid: "worker2", kind: "handoff", status: "pending", store: "abc", task: "Copy", text: "@W1 take it", read: false, createdAt: 1 });
   await setDoc(doc(db, "notifications/n2"), { toRole: "admin", read: false, createdAt: 1 });
   await setDoc(doc(db, "clientReviews/tok1"), { campaignId: "c1", title: "T", stage: "Copy", status: "pending", comment: "", decidedAt: null, links: [] });
@@ -78,6 +79,19 @@ await T("worker: write other's directory DENIED", assertFails(setDoc(doc(worker,
 await T("worker: read other's appState DENIED", assertFails(getDoc(doc(worker, "appState/worker2"))));
 await T("worker: mail to self", assertSucceeds(addDoc(collection(worker, "mail"), { to: ["w1@x.com"], message: { subject: "s", html: "h" }, summary: { requestedBy: "w1@x.com" } })));
 await T("worker: mail to other DENIED", assertFails(addDoc(collection(worker, "mail"), { to: ["boss@x.com"], summary: { requestedBy: "w1@x.com" } })));
+
+// ================= WORKFLOW BLUEPRINTS =================
+await T("worker: read blueprints (runs board shows the track)", assertSucceeds(getDocs(query(collection(worker, "blueprints"), where("orgId", "==", "ez-agency")))));
+await T("worker: create blueprint DENIED", assertFails(setDoc(doc(worker, "blueprints/evil"), { orgId: "ez-agency", name: "x", nodes: [], edges: [] })));
+await T("worker: update blueprint DENIED", assertFails(updateDoc(doc(worker, "blueprints/bp1"), { name: "renamed" })));
+await T("worker: delete blueprint DENIED", assertFails(deleteDoc(doc(worker, "blueprints/bp1"))));
+await T("admin: blueprint create+update+delete", assertSucceeds((async () => {
+  await setDoc(doc(admin, "blueprints/bp2"), { orgId: "ez-agency", ownerId: "admin1", name: "New", version: 1, status: "draft", nodes: [], edges: [], createdAt: 9, updatedAt: 9 });
+  await updateDoc(doc(admin, "blueprints/bp2"), { name: "Renamed", updatedAt: 10 });
+  await deleteDoc(doc(admin, "blueprints/bp2"));
+})()));
+await T("stranger(pending): read blueprints DENIED", assertFails(getDocs(collection(stranger, "blueprints"))));
+await T("anon: read blueprint DENIED", assertFails(getDoc(doc(anon, "blueprints/bp1"))));
 
 // ================= ASSIGNER =================
 await T("assigner: unfiltered assignments read (log/picker)", assertSucceeds(getDocs(collection(assigner, "assignments"))));

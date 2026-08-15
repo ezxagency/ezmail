@@ -3,8 +3,279 @@
    Loads right after drawflow.min.css (vendor defaults) so every
    rule here wins the cascade over Drawflow's own; premium.css
    still loads after this and owns motion, same as everywhere.
-   Step 1 ships the empty routed page only — the page scaffolding
-   (fpage-*, admin-page-*, empty) all comes from pages.css, so
-   there is nothing to override yet. The canvas skin (block
-   colors, handles, wires) lands here with the builder step.
+   The page scaffolding (fpage-*, admin-page-*, empty, sheets)
+   comes from pages.css/sheets.css - this file owns only what is
+   new here: the blueprint list, the builder chrome, and the
+   re-skin of Drawflow's white left-to-right defaults into the
+   app's dark glass with TOP→BOTTOM flow (ports moved to the top
+   and bottom edges purely with CSS - Drawflow reads port
+   positions from the DOM, so the wires follow).
    ============================================================ */
+
+/* the six block colors - the palette, the node headers and the ports all
+   read from these so a type is one hue everywhere */
+#workflowScreen{
+  --wf-trigger:#F6C445;   /* yellow  - work enters */
+  --wf-role:#FF6B5E;      /* red     - a human acts */
+  --wf-split:#00AE0B;     /* green   - one path becomes many */
+  --wf-logic:#4D8DFF;     /* blue    - yes/no gate */
+  --wf-vault:#0B0C10;     /* black   - storage checkpoint */
+  --wf-action:#A970FF;    /* purple  - the system acts */
+}
+
+/* ---------- blueprint list ---------- */
+.wf-card{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;cursor:pointer;
+  padding:16px 18px;border-radius:16px;margin:0 0 10px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+  color:var(--wk-white);font-family:var(--wk);
+  transition:background .15s ease,border-color .15s ease,transform .12s ease;
+}
+.wf-card:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.26)}
+.wf-card:active{transform:scale(.995)}
+.wf-card-main{flex:1;min-width:0}
+.wf-card-name{
+  margin:0;font-weight:700;font-size:15.5px;letter-spacing:.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.wf-card-meta{margin:4px 0 0;font-size:12px;color:var(--wk-white-60)}
+.wf-status{
+  flex:none;padding:5px 10px;border-radius:999px;
+  font-family:var(--wk);font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+}
+.wf-status.is-draft{background:rgba(255,255,255,.12);color:var(--wk-white-70);border:1px solid rgba(255,255,255,.25)}
+.wf-status.is-published{background:rgba(0,174,11,.18);color:#7dfa86;border:1px solid rgba(0,174,11,.45)}
+
+/* ---------- builder chrome ---------- */
+.wf-bar-name{
+  flex:1;min-width:140px;
+}
+.wf-bar-name input{
+  width:100%;font-family:var(--wk);font-weight:700;font-size:16px;padding:10px 12px;
+  border:1px solid transparent;border-radius:12px;background:transparent;color:var(--wk-white);
+}
+.wf-bar-name input:hover{background:rgba(255,255,255,.07)}
+.wf-bar-name input:focus{outline:none;border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.08)}
+
+/* the six-block palette: colored chips, draggable onto the canvas */
+.wf-palette{
+  display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px;
+}
+.wf-pal{
+  display:inline-flex;align-items:center;gap:8px;cursor:grab;
+  padding:9px 14px 9px 10px;border-radius:999px;
+  background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.3);
+  color:var(--wk-white);font-family:var(--wk);font-size:12.5px;font-weight:600;letter-spacing:.03em;
+  transition:transform .14s ease,background .18s ease,border-color .18s ease;
+}
+.wf-pal:hover{transform:translateY(-1px);background:rgba(255,255,255,.14)}
+.wf-pal:active{cursor:grabbing}
+.wf-pal[disabled]{opacity:.35;cursor:not-allowed;transform:none}
+.wf-pal-dot{width:11px;height:11px;border-radius:4px;flex:none}
+.wf-pal[data-type=trigger] .wf-pal-dot{background:var(--wf-trigger)}
+.wf-pal[data-type=role]    .wf-pal-dot{background:var(--wf-role)}
+.wf-pal[data-type=split]   .wf-pal-dot{background:var(--wf-split)}
+.wf-pal[data-type=logic]   .wf-pal-dot{background:var(--wf-logic)}
+.wf-pal[data-type=vault]   .wf-pal-dot{background:var(--wf-vault);border:1px solid rgba(255,255,255,.6)}
+.wf-pal[data-type=action]  .wf-pal-dot{background:var(--wf-action)}
+
+/* ---------- the canvas ---------- */
+.wf-canvas-wrap{
+  position:relative;height:min(64vh,760px);min-height:380px;margin:0 0 18px;
+  border-radius:18px;overflow:hidden;
+  background:rgba(10,12,17,.55);border:1px solid rgba(255,255,255,.16);
+}
+#wfCanvas{width:100%;height:100%;outline:none}
+.wf-canvas-hint{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
+  padding:24px;pointer-events:none;
+  font-family:var(--wk);font-size:13.5px;line-height:1.6;color:var(--wk-white-60);
+}
+.wf-zoom{
+  position:absolute;right:12px;bottom:12px;display:flex;gap:6px;z-index:5;
+}
+.wf-zoom button{
+  width:34px;height:34px;border-radius:10px;cursor:pointer;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(16,18,24,.85);border:1px solid rgba(255,255,255,.28);color:var(--wk-white);
+  font-family:var(--wk);font-size:15px;font-weight:600;
+}
+.wf-zoom button:hover{background:rgba(255,255,255,.16)}
+
+/* validation results: one summary strip above the canvas... */
+.wf-errbar{
+  margin:0 0 12px;padding:12px 16px;border-radius:14px;
+  background:rgba(255,92,92,.12);border:1px solid rgba(255,92,92,.4);
+}
+.wf-errbar p{margin:0 0 6px;font-family:var(--wk);font-size:12.5px;color:#ffb4ad;line-height:1.5}
+.wf-errbar p:last-child{margin-bottom:0}
+.wf-errbar b{color:#ffd7d3;font-weight:600}
+
+/* ---------- Drawflow re-skin ---------- */
+.parent-drawflow{
+  background-image:radial-gradient(rgba(255,255,255,.09) 1px,transparent 1px);
+  background-size:22px 22px;
+}
+.drawflow .drawflow-node{
+  display:block;width:auto;min-width:172px;max-width:230px;min-height:0;padding:0;
+  background:rgba(16,18,24,.94);border:1px solid rgba(255,255,255,.2);border-radius:14px;
+  box-shadow:0 10px 26px rgba(0,0,0,.35);
+  color:var(--wk-white);font-family:var(--wk);
+}
+.drawflow .drawflow-node.selected{
+  border-color:rgba(255,255,255,.85);box-shadow:0 0 0 2px rgba(255,255,255,.25),0 10px 26px rgba(0,0,0,.4);
+}
+.drawflow .drawflow-node .drawflow_content_node{width:100%}
+
+/* ports: inputs become a dot centered on the TOP edge, outputs a row along
+   the BOTTOM edge - Drawflow measures the port elements' real positions
+   when it draws a wire, so moving them with CSS is all it takes for
+   top→bottom flow (downward = forward, per the spec) */
+.drawflow .drawflow-node .inputs,
+.drawflow .drawflow-node .outputs{
+  position:absolute;left:0;right:0;display:flex;justify-content:space-around;
+  pointer-events:none;
+}
+.drawflow .drawflow-node .inputs{top:-7px}
+.drawflow .drawflow-node .outputs{bottom:-7px}
+.drawflow .drawflow-node .input,
+.drawflow .drawflow-node .output{
+  position:static;width:14px;height:14px;margin:0;
+  background:#161922;border:2.5px solid rgba(255,255,255,.75);border-radius:50%;
+  cursor:crosshair;pointer-events:auto;
+}
+.drawflow .drawflow-node .input:hover,
+.drawflow .drawflow-node .output:hover{background:var(--mint-400);border-color:var(--mint-400)}
+
+/* per-type port + header accents */
+.drawflow .wf-trigger .output{border-color:var(--wf-trigger)}
+.drawflow .wf-role    .output{border-color:var(--wf-role)}
+.drawflow .wf-split   .output{border-color:var(--wf-split)}
+.drawflow .wf-logic   .output{border-color:var(--wf-logic)}
+.drawflow .wf-vault   .output{border-color:rgba(255,255,255,.75)}
+.drawflow .wf-action  .output{border-color:var(--wf-action)}
+
+/* wires */
+.drawflow .connection .main-path{
+  stroke:rgba(255,255,255,.45);stroke-width:2.5px;fill:none;
+}
+.drawflow .connection .main-path:hover,
+.drawflow .connection .main-path.selected{stroke:var(--mint-400)}
+.drawflow .connection.wf-err-edge .main-path{stroke:#ff5c5c}
+.drawflow .connection .point{
+  stroke:rgba(255,255,255,.6);stroke-width:2;fill:#161922;
+}
+
+/* Drawflow's right-click delete bubble */
+.drawflow-delete{
+  background:#ff5c5c;border:2px solid #fff;color:#fff;font-family:var(--wk);
+  border-radius:50%;width:26px;height:26px;line-height:22px;
+}
+
+/* ---------- the block itself ---------- */
+.wf-blk{padding:10px 12px 12px;cursor:move}
+.wf-blk-head{display:flex;align-items:center;gap:7px;margin:0 0 6px}
+.wf-blk-dot{width:10px;height:10px;border-radius:4px;flex:none}
+.wf-trigger .wf-blk-dot{background:var(--wf-trigger)}
+.wf-role    .wf-blk-dot{background:var(--wf-role)}
+.wf-split   .wf-blk-dot{background:var(--wf-split)}
+.wf-logic   .wf-blk-dot{background:var(--wf-logic)}
+.wf-vault   .wf-blk-dot{background:var(--wf-vault);border:1px solid rgba(255,255,255,.6)}
+.wf-action  .wf-blk-dot{background:var(--wf-action)}
+.wf-blk-type{
+  flex:1;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--wk-white-60);
+}
+.wf-blk-gear,.wf-blk-x{
+  flex:none;width:22px;height:22px;border-radius:7px;border:0;cursor:pointer;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.1);color:var(--wk-white-70);
+}
+.wf-blk-gear:hover{background:rgba(255,255,255,.22);color:var(--wk-white)}
+.wf-blk-x:hover{background:rgba(255,92,92,.3);color:#ffb4ad}
+.wf-blk-gear svg,.wf-blk-x svg{width:12px;height:12px}
+.wf-blk-title{
+  font-size:13.5px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;
+}
+.wf-blk-sub{
+  margin-top:3px;font-size:11px;line-height:1.45;color:var(--wk-white-60);overflow-wrap:anywhere;
+}
+.wf-blk-wait{
+  display:inline-block;margin-top:7px;padding:3px 8px;border-radius:999px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.28);
+  font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--wk-white-70);
+}
+/* labels naming each bottom port (split branches, the gate's yes/no) -
+   same space-around geometry as the ports so they line up underneath */
+.wf-outlabels{
+  display:flex;justify-content:space-around;gap:4px;margin-top:8px;
+}
+.wf-outlabels span{
+  flex:1;min-width:0;text-align:center;font-size:9px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--wk-white-60);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.wf-blk-errmsg{
+  margin-top:8px;padding:6px 9px;border-radius:9px;
+  background:rgba(255,92,92,.14);border:1px solid rgba(255,92,92,.45);
+  font-size:10.5px;line-height:1.4;color:#ffb4ad;
+}
+.drawflow-node.wf-err{border-color:rgba(255,92,92,.75);box-shadow:0 0 0 2px rgba(255,92,92,.3),0 10px 26px rgba(0,0,0,.4)}
+
+/* ---------- config sheet extras (base form kit comes from sheets.css) ---------- */
+.wf-rowlist{margin:0 0 14px}
+.wf-outrow,.wf-brrow{
+  display:flex;align-items:center;gap:8px;margin:0 0 8px;
+}
+.wf-outrow input,.wf-brrow input{padding:11px 12px;font-size:14px}
+.wf-outrow .wf-okey{flex:1.1}
+.wf-outrow .wf-olabel{flex:1.4}
+.wf-otype{
+  flex:none;display:flex;gap:4px;
+}
+.wf-otype .chip{padding:8px 10px;font-size:11px}
+.wf-row-x{
+  flex:none;width:30px;height:30px;border-radius:9px;border:0;cursor:pointer;
+  background:rgba(255,255,255,.1);color:var(--wk-white-70);font-size:15px;line-height:1;
+}
+.wf-row-x:hover{background:rgba(255,92,92,.3);color:#ffb4ad}
+.wf-addrow{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  background:none;border:1.5px dashed rgba(255,255,255,.35);border-radius:12px;
+  padding:9px 14px;color:var(--wk-white-70);font-family:var(--wk);font-size:12.5px;font-weight:600;
+}
+.wf-addrow:hover{border-color:rgba(255,255,255,.6);color:var(--wk-white)}
+.wf-brrow-else{
+  flex:none;display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+  padding:8px 10px;border-radius:999px;border:1.5px solid rgba(255,255,255,.3);
+  background:rgba(255,255,255,.06);color:var(--wk-white-70);
+  font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+}
+.wf-brrow-else[aria-pressed=true]{background:var(--wk-white);color:#12131a;border-color:transparent}
+.wf-brrow-rule{
+  flex:none;display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+  padding:8px 10px;border-radius:999px;border:1.5px solid rgba(255,255,255,.3);
+  background:rgba(255,255,255,.06);color:var(--wk-white-70);
+  font-family:var(--wk);font-size:11px;font-weight:600;
+}
+.wf-brrow-rule:hover{border-color:rgba(255,255,255,.55);color:var(--wk-white)}
+.wf-brrow-rule.has-rule{border-color:rgba(0,174,11,.55);color:#7dfa86}
+
+/* the inline condition editor (shared by LOGIC and route branches) */
+.wf-cond{
+  margin:0 0 14px;padding:14px;border-radius:14px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);
+}
+.wf-cond .fld{margin-bottom:12px}
+.wf-cond .fld:last-child{margin-bottom:0}
+.wf-cond-grid{display:flex;gap:8px}
+.wf-cond-grid > label{flex:1;min-width:0}
+.wf-cond select,.wf-cond input{padding:12px;font-size:14px}
+.wf-cond-none{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);margin:0}
+
+/* narrow screens: shorter canvas, palette scrolls */
+@media (max-width:640px){
+  .wf-canvas-wrap{height:56vh;min-height:320px}
+  .wf-palette{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .wf-pal{flex:none}
+}

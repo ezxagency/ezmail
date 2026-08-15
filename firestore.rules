@@ -108,6 +108,13 @@ service cloud.firestore {
     match /campaignTemplates/{id} {
       allow read, create, update, delete: if request.auth != null && isAdmin();
     }
+    // Workflow blueprints: the drawings only admins shape; the whole team
+    // may read them (the runs board shows which track a task rides). Runs
+    // never read these live - each run carries its own frozen snapshot.
+    match /blueprints/{id} {
+      allow read: if request.auth != null && isTeam();
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
     // Client review links: the doc id IS the capability - an unguessable
     // token carried in a link, opened with no login. Anyone holding it may
     // read that one doc and answer once: only the decision fields, only
