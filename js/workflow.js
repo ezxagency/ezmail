@@ -516,7 +516,10 @@ function wfSyncPalette(){
    thin applier after (Drawflow reads DOM port positions, so
    moving the elements is all it takes for the wires to follow).
    ============================================================ */
-const WF_LAY_COL = 270, WF_LAY_ROW = 210, WF_LAY_X0 = 60, WF_LAY_Y0 = 40;
+/* nodes are ~230×150; the grid leaves 110-120px of clear air on both
+   axes - wires need room to read, and "not overlapping" is not the same
+   thing as "not cramped" */
+const WF_LAY_COL = 340, WF_LAY_ROW = 270, WF_LAY_X0 = 60, WF_LAY_Y0 = 40;
 
 /** @returns {Object<string,{x:number,y:number}>} */
 function wfLayoutPositions(nodes, edges){
@@ -592,12 +595,12 @@ function wfLayoutPositions(nodes, edges){
   return out;
 }
 
-/* nodes are ~230×150 with ports; two closer than this read as a pile */
+/* two nodes closer than this - box plus breathing room - read as a pile */
 function wfLayoutLooksCramped(nodes){
   for (let i = 0; i < nodes.length; i++)
     for (let j = i + 1; j < nodes.length; j++){
       const a = nodes[i].position || {}, b = nodes[j].position || {};
-      if (Math.abs((a.x || 0) - (b.x || 0)) < 250 && Math.abs((a.y || 0) - (b.y || 0)) < 170) return true;
+      if (Math.abs((a.x || 0) - (b.x || 0)) < 280 && Math.abs((a.y || 0) - (b.y || 0)) < 220) return true;
     }
   return false;
 }
@@ -626,11 +629,12 @@ function wfTidyLayout(){
   return moved;
 }
 
-/* a fresh block never lands on an existing one: same column, next free row */
+/* a fresh block never lands on or crowds an existing one: same column,
+   next comfortably-free row */
 function wfFreeSpot(x, y){
   if (!wfEditor) return { x, y };
   const taken = Object.values(wfEditor.export().drawflow.Home.data).map(d => ({ x: d.pos_x, y: d.pos_y }));
-  while (taken.some(p => Math.abs(p.x - x) < 250 && Math.abs(p.y - y) < 170)) y += 190;
+  while (taken.some(p => Math.abs(p.x - x) < 300 && Math.abs(p.y - y) < 230)) y += WF_LAY_ROW;
   return { x: Math.round(x), y: Math.round(y) };
 }
 

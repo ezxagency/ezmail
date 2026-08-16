@@ -96,15 +96,15 @@ T("tidy layout: rows follow the flow, gaps are generous, zero overlaps", () => {
     `wfLayoutPositions(${JSON.stringify(g.nodes)}, ${JSON.stringify(g.edges)})`, ctx)));
   const ids = g.nodes.map(n => n.id);
   ids.forEach(id => assert.ok(pos[id], "every node got a position"));
-  // no two nodes closer than a node box + breathing room
+  // no two nodes closer than a node box + real breathing room (~110px air)
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++){
       const a = pos[ids[i]], b = pos[ids[j]];
-      assert.ok(Math.abs(a.x - b.x) >= 250 || Math.abs(a.y - b.y) >= 170,
-        ids[i] + " and " + ids[j] + " overlap");
+      assert.ok(Math.abs(a.x - b.x) >= 320 || Math.abs(a.y - b.y) >= 240,
+        ids[i] + " and " + ids[j] + " are cramped");
     }
-  // downward = forward: every wire drops at least one full row
-  g.edges.forEach(e => assert.ok(pos[e.to].y >= pos[e.from].y + 200, e.id + " should point down"));
+  // downward = forward: every wire drops at least one full generous row
+  g.edges.forEach(e => assert.ok(pos[e.to].y >= pos[e.from].y + 260, e.id + " should point down"));
   // the trigger sits alone at the top
   const minY = Math.min(...ids.map(id => pos[id].y));
   assert.equal(pos["n_t"].y, minY);
