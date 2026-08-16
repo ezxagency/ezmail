@@ -143,6 +143,15 @@ T("declared outputs are enforced at completion", () => {
   assert.throws(() => finish(st, "r1", { note: "forgot the checkbox" }), /approved/);
 });
 
+T("requiresOutput:false — a stop may complete without its declared values", () => {
+  const bp = reworkBP();
+  bp.nodes.find(n => n.id === "r1").config.requiresOutput = false;
+  let st = start(bp, {}, "run8");
+  st = finish(st, "r1", {});                                // nothing recorded, no throw
+  assert.equal(attempts(st, "g")[0].output.result, false);  // missing reads as false (rule 2's law)
+  assert.ok(inflight(st, "r1"));                            // so the gate sent it back for rework
+});
+
 /* ================= 3. HOP CAP ================= */
 T("a loop that never resolves fails at the hop cap", () => {
   let st = start(reworkBP(), {}, "run3");

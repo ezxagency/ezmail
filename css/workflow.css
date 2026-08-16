@@ -33,7 +33,11 @@
 }
 .wf-card:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.26)}
 .wf-card:active{transform:scale(.995)}
-.wf-card-main{flex:1;min-width:0}
+.wf-card-main{
+  flex:1;min-width:0;background:none;border:0;padding:0;margin:0;
+  color:inherit;font:inherit;text-align:left;cursor:pointer;
+}
+.wf-run-btn{width:auto;flex:none;padding:10px 14px}
 .wf-card-name{
   margin:0;font-weight:700;font-size:15.5px;letter-spacing:.01em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -45,6 +49,25 @@
 }
 .wf-status.is-draft{background:rgba(255,255,255,.12);color:var(--wk-white-70);border:1px solid rgba(255,255,255,.25)}
 .wf-status.is-published{background:rgba(0,174,11,.18);color:#7dfa86;border:1px solid rgba(0,174,11,.45)}
+
+/* ---------- stops (the worker-facing queue rows) ---------- */
+.wf-stop{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;
+  padding:13px 14px;border-radius:14px;margin:0 0 8px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+  color:var(--wk-white);font-family:var(--wk);
+  transition:background .15s ease,border-color .15s ease;
+}
+.wf-stop:last-child{margin-bottom:0}
+.wf-stop:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.26)}
+.wf-stop-main{flex:1;min-width:0}
+.wf-stop-title{margin:0;font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf-stop-meta{margin:3px 0 0;font-size:11.5px;color:var(--wk-white-60)}
+.wf-stop-go{
+  flex:none;padding:6px 12px;border-radius:999px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
+  font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--wk-white-70);
+}
 
 /* ---------- builder chrome ---------- */
 .wf-bar-name{

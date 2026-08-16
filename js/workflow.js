@@ -13,12 +13,16 @@
    numeric ids exist only inside one editing session, joined to
    ours through wfDf2Our/wfOur2Df.
 
-   Pinned for the run steps: a worker-driven advance may write
-   ONLY ['status','activeNodeIds','hops','completedAt'] on a run
-   doc - the firestore.rules allowlist rejects anything else, so
-   one stray field in that update would stall real runs mid-
-   flight. blueprintSnapshot is written once at run creation and
-   never again.
+   Pinned for the runs: a worker-driven advance may write ONLY
+   ['status','activeNodeIds','hops','completedAt','nodeRunIds']
+   on a run doc - the firestore.rules allowlist rejects anything
+   else, so one stray field in that update would stall real runs
+   mid-flight. The first four are the engine's own writes;
+   nodeRunIds is glue bookkeeping (transactions cannot query, so
+   the run doc carries refs to its nodeRuns and the advance
+   appends the attempts it created). blueprintSnapshot and task
+   are written once at run creation and never again - the
+   allowlist is what makes that a guarantee instead of a habit.
    ============================================================ */
 
 const WF_ORG = "ez-agency";
@@ -72,19 +76,14 @@ function enterWorkflowPage(){
   const box = $("workflowBody");
   if (!box) return;
   if (!isAdmin){
-    box.innerHTML = `
-      <div class="fpage-panel">
-        <div class="empty">
-          <span class="empty-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1.5"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M12 7.5V11M12 11H5.5v5M12 11h6.5v5"/></svg>
-          </span>
-          Nothing here yet. When a task stops at you, it lands here.
-        </div>
-      </div>`;
+    box.innerHTML = `<div id="wfStops"></div>`;
+    wfWatchStops();
+    wfRenderStops();
     return;
   }
   // returning to an open builder keeps the canvas exactly as it was -
   // the screens only hide, they don't unmount
+  wfWatchStops();
   if (wfView === "builder" && $("wfCanvas")) return;
   wfRenderList();
 }
@@ -107,6 +106,7 @@ async function wfRenderList(){
   }
   rows.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   box.innerHTML = `
+    <div id="wfStops"></div>
     <div class="fpage-bar">
       <p class="fpage-bar-note">${rows.length ? rows.length + " blueprint" + (rows.length === 1 ? "" : "s") : "Draw how work moves through the team; published blueprints carry real tasks."}</p>
       <div class="fpage-bar-acts">
@@ -115,20 +115,26 @@ async function wfRenderList(){
     </div>
     <div id="wfList">
       ${rows.length ? rows.map(r => `
-        <button type="button" class="wf-card" data-id="${esc(r.docId)}">
-          <span class="wf-card-main">
+        <div class="wf-card">
+          <button type="button" class="wf-card-main" data-open="${esc(r.docId)}">
             <p class="wf-card-name">${esc(r.name || "Untitled workflow")}</p>
             <p class="wf-card-meta">v${Number(r.version) || 1} · ${(r.nodes || []).length} block${(r.nodes || []).length === 1 ? "" : "s"} · ${r.updatedAt ? dayStamp(r.updatedAt) : ""}</p>
-          </span>
+          </button>
           <span class="wf-status ${r.status === "published" ? "is-published" : "is-draft"}">${r.status === "published" ? "Published" : "Draft"}</span>
-        </button>`).join("")
+          ${r.status === "published" ? `<button type="button" class="btn btn-sm wf-run-btn" data-run="${esc(r.docId)}">Start run</button>` : ""}
+        </div>`).join("")
       : `<div class="fpage-panel"><div class="empty">No blueprints yet. Start one and drag the six blocks into a track.</div></div>`}
     </div>`;
   $("wfNew").onclick = () => wfOpenBuilder(null);
-  box.querySelectorAll(".wf-card").forEach(c => c.onclick = () => {
-    const r = rows.find(x => x.docId === c.dataset.id);
+  box.querySelectorAll("[data-open]").forEach(c => c.onclick = () => {
+    const r = rows.find(x => x.docId === c.dataset.open);
     if (r) wfOpenBuilder(r);
   });
+  box.querySelectorAll("[data-run]").forEach(c => c.onclick = () => {
+    const r = rows.find(x => x.docId === c.dataset.run);
+    if (r) wfStartRunSheet(r);
+  });
+  wfRenderStops();
 }
 
 /* ============================================================
@@ -1091,6 +1097,299 @@ function wfSheetAction(oid){
       c.params = readParams();
       wfWaitForRead(oid);
       wfSheetSave(oid);
+    };
+  });
+}
+
+/* ============================================================
+   RUNS — execution wired to Firestore.
+   Starting is admin-only and freezes everything the run will
+   ever read (blueprintSnapshot + task). Advancing happens inside
+   a TRANSACTION: read the run doc (the serialization point) and
+   its nodeRuns by ref, apply the pure wfAdvance, write back -
+   so two branches finishing at once can't double-fire a join:
+   the loser's transaction retries, sees the join already fired,
+   and lands (or surfaces "already handled" if its own stop got
+   taken). Effects run strictly AFTER commit, and each one is
+   stamped dispatched on its nodeRun so a crash-retry can't
+   double-send.
+   ============================================================ */
+
+/* ---------- starting a run (admin) ---------- */
+function wfStartRunSheet(bpRow){
+  const fields = [];
+  const renderFields = () => {
+    const host = $("wfrFields");
+    host.innerHTML = fields.map((f, i) => `
+      <div class="wf-outrow" data-i="${i}">
+        <input type="text" class="wf-okey" placeholder="field (e.g. lane)" maxlength="30" value="${esc(f.key)}">
+        <input type="text" class="wf-olabel" placeholder="value" maxlength="80" value="${esc(String(f.value))}">
+        <button type="button" class="wf-row-x" aria-label="Remove field">×</button>
+      </div>`).join("");
+    host.querySelectorAll(".wf-outrow").forEach(row => {
+      const i = Number(row.dataset.i);
+      row.querySelector(".wf-okey").oninput = e => { fields[i].key = e.target.value.trim(); };
+      row.querySelector(".wf-olabel").oninput = e => { fields[i].value = e.target.value; };
+      row.querySelector(".wf-row-x").onclick = () => { fields.splice(i, 1); renderFields(); };
+    });
+  };
+  openSheet(`
+    <h2>Start a run</h2>
+    <p class="hint">One real task rides “${esc(bpRow.name || "this blueprint")}” v${Number(bpRow.version) || 1}. It carries a frozen copy of the track — editing the blueprint later never touches it.</p>
+    <label class="fld"><span>Task title</span><input type="text" id="wfrTitle" maxlength="80" placeholder="e.g. October launch banner"></label>
+    <label class="fld"><span>Task fields (the track's rules can read these)</span></label>
+    <div class="wf-rowlist" id="wfrFields"></div>
+    <button type="button" class="wf-addrow" id="wfrAdd">+ Add a field</button>
+    <button class="btn btn-go" style="margin-top:16px" id="wfrGo">Start run</button>
+  `, () => {
+    renderFields();
+    $("wfrAdd").onclick = () => { fields.push({ key: "", value: "" }); renderFields(); };
+    $("wfrGo").onclick = async () => {
+      const title = $("wfrTitle").value.trim();
+      if (!title){ toast("Give the task a title"); return; }
+      const task = { title };
+      fields.forEach(f => {
+        if (!f.key) return;
+        // typed the way conditions compare: yes/no and numbers, else text
+        const raw = String(f.value).trim();
+        task[f.key] = raw === "true" ? true : raw === "false" ? false
+          : (raw !== "" && !Number.isNaN(Number(raw))) ? Number(raw) : raw;
+      });
+      const btn = $("wfrGo");
+      btn.disabled = true;
+      try {
+        await wfRunStartCommit(bpRow, task);
+        closeSheet();
+        toast("Run started — it's moving");
+      } catch (e) {
+        console.error(e);
+        toast(String((e && e.message) || "Couldn't start the run"));
+        btn.disabled = false;
+      }
+    };
+  });
+}
+
+async function wfRunStartCommit(bpRow, task){
+  const runId = db.collection("runs").doc().id;
+  const bp = { id: bpRow.docId, orgId: bpRow.orgId, ownerId: bpRow.ownerId, name: bpRow.name,
+    version: bpRow.version, status: bpRow.status, nodes: bpRow.nodes, edges: bpRow.edges,
+    createdAt: bpRow.createdAt, updatedAt: bpRow.updatedAt };
+  // the pure engine builds the whole initial state; this only persists it
+  const st = wfStartRun({ blueprint: bp, runId, taskId: null, task, orgId: WF_ORG, now: Date.now() });
+  const batch = db.batch();
+  batch.set(db.collection("runs").doc(runId),
+    Object.assign({}, st.run, { nodeRunIds: st.nodeRuns.map(nr => nr.id), startedBy: auth.currentUser.uid }));
+  st.nodeRuns.forEach(nr => batch.set(db.collection("nodeRuns").doc(nr.id), nr));
+  await batch.commit();
+  wfRunCache.set(runId, st.run);
+  await wfDispatchEffects({ run: st.run, nodeRuns: st.nodeRuns }, st.effects);
+}
+
+/* ---------- the transactional advance ---------- */
+async function wfAdvanceTx(runId, nodeRunId, output){
+  const runRef = db.collection("runs").doc(runId);
+  const result = await db.runTransaction(async tx => {
+    const runSnap = await tx.get(runRef);
+    if (!runSnap.exists) throw new Error("This run is gone");
+    const run = runSnap.data();
+    // transactions can't query - the run doc carries its nodeRun refs
+    const snaps = await Promise.all((run.nodeRunIds || []).map(id => tx.get(db.collection("nodeRuns").doc(id))));
+    const nodeRuns = snaps.filter(s => s.exists).map(s => s.data());
+    const next = wfAdvance({ run, nodeRuns }, { type: "complete", nodeRunId, output }, { now: Date.now() });
+    const prevById = new Map(nodeRuns.map(n => [n.id, JSON.stringify(n)]));
+    next.nodeRuns.forEach(nr => {
+      const before = prevById.get(nr.id);
+      if (!before || before !== JSON.stringify(nr)) tx.set(db.collection("nodeRuns").doc(nr.id), nr);
+    });
+    // ONLY the allowlisted run fields - anything else would be rejected
+    // for a worker and, worse, would un-freeze what must stay frozen
+    tx.update(runRef, {
+      status: next.run.status,
+      activeNodeIds: next.run.activeNodeIds,
+      hops: next.run.hops,
+      completedAt: next.run.completedAt,
+      nodeRunIds: next.nodeRuns.map(nr => nr.id)
+    });
+    return next;
+  });
+  wfRunCache.set(runId, result.run);
+  await wfDispatchEffects(result, result.effects);
+  return result;
+}
+
+/* ---------- effects: after commit, at-most-once ---------- */
+async function wfDispatchEffects(state, effects){
+  const now = Date.now();
+  for (const ef of (effects || [])){
+    const nr = ef.nodeRunId ? state.nodeRuns.find(x => x.id === ef.nodeRunId) : null;
+    if (nr && nr.dispatched) continue;   // a retry already delivered this one
+    try {
+      if (ef.type === "role-activated" && ef.assigneeId){
+        await db.collection("notifications").add({
+          toUid: ef.assigneeId, kind: "workflow", read: false, createdAt: now,
+          text: "A task stopped at you: " + ((state.run.task && state.run.task.title) || "a workflow run")
+        });
+      } else if (ef.type === "action" && ef.actionType === "notify"){
+        await db.collection("notifications").add({
+          toRole: "admin", kind: "workflow", read: false, createdAt: now,
+          text: (ef.params && ef.params.message) || "A workflow action fired"
+        });
+      } else if (ef.type === "run-completed" || ef.type === "run-failed"){
+        await db.collection("notifications").add({
+          toRole: "admin", kind: "workflow", read: false, createdAt: now,
+          text: (ef.type === "run-completed" ? "Run finished: " : "Run FAILED (loop cap): ")
+            + ((state.run.task && state.run.task.title) || state.run.id)
+        });
+      }
+      // email/webhook actions: recorded on the nodeRun, not sent - a
+      // static site has no sender to speak for; honest over silent
+      if (nr) await db.collection("nodeRuns").doc(nr.id).update({ dispatched: true });
+    } catch (e) { console.error(e); }
+  }
+}
+
+/* ---------- my stops (and the open pool) ---------- */
+let wfStopsMine = [], wfStopsPool = [], wfWatchersOn = false;
+let wfRunCache = new Map();
+
+function wfWatchStops(){
+  if (wfWatchersOn || !db || !auth || !auth.currentUser) return;
+  wfWatchersOn = true;
+  const me = auth.currentUser.uid;
+  const grab = snap => {
+    const rows = [];
+    snap.forEach(d => rows.push(d.data()));
+    rows.sort((a, b) => (a.arrivedAt || 0) - (b.arrivedAt || 0));
+    return rows;
+  };
+  // NEEDS the composite index nodeRuns(assigneeId ASC, status ASC)
+  const u1 = db.collection("nodeRuns")
+    .where("assigneeId", "==", me).where("status", "==", "in_progress")
+    .onSnapshot(s => { wfStopsMine = grab(s); wfRenderStops(); }, e => console.error(e));
+  // role-based stops have no assignee yet: a shared pool any teammate may
+  // take (the same trusted-team tradeoff assignments already makes)
+  const u2 = db.collection("nodeRuns")
+    .where("status", "==", "in_progress")
+    .onSnapshot(s => { wfStopsPool = grab(s).filter(r => !r.assigneeId); wfRenderStops(); }, e => console.error(e));
+  onSessionEnd(() => {
+    u1(); u2();
+    wfWatchersOn = false; wfStopsMine = []; wfStopsPool = []; wfRunCache = new Map();
+  });
+}
+
+/* run docs fetched once each, for stop titles + the frozen node config */
+function wfRunFor(runId){
+  if (wfRunCache.has(runId)) return wfRunCache.get(runId);
+  wfRunCache.set(runId, null);
+  db.collection("runs").doc(runId).get()
+    .then(s => { if (s.exists){ wfRunCache.set(runId, s.data()); wfRenderStops(); } })
+    .catch(e => console.error(e));
+  return null;
+}
+
+function wfStopRow(nr, mine){
+  const run = wfRunFor(nr.runId);
+  const node = run && ((run.blueprintSnapshot || {}).nodes || []).find(n => n.id === nr.nodeId);
+  const cfg = node ? (node.config || {}) : {};
+  return `
+    <button type="button" class="wf-stop" data-nr="${esc(nr.id)}">
+      <span class="wf-stop-main">
+        <p class="wf-stop-title">${esc(cfg.label || "A stop")}</p>
+        <p class="wf-stop-meta">${run ? esc((run.task && run.task.title) || "Untitled task") : "Loading…"}${!mine && cfg.role ? " · any " + esc(cfg.role) : ""}</p>
+      </span>
+      <span class="wf-stop-go">${mine ? "Yours" : "Take it"}</span>
+    </button>`;
+}
+
+function wfRenderStops(){
+  const host = $("wfStops");
+  if (!host) return;
+  if (!wfStopsMine.length && !wfStopsPool.length){
+    host.innerHTML = isAdmin ? "" : `
+      <div class="fpage-panel">
+        <div class="empty">
+          <span class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1.5"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M12 7.5V11M12 11H5.5v5M12 11h6.5v5"/></svg>
+          </span>
+          Nothing waiting on you. When a running task stops at you, it lands here.
+        </div>
+      </div>`;
+    return;
+  }
+  host.innerHTML = `
+    ${wfStopsMine.length ? `
+      <div class="fpage-panel">
+        <p class="fpage-section-title">Waiting on you</p>
+        ${wfStopsMine.map(nr => wfStopRow(nr, true)).join("")}
+      </div>` : ""}
+    ${wfStopsPool.length ? `
+      <div class="fpage-panel">
+        <p class="fpage-section-title">Open stops — anyone on the team can take one</p>
+        ${wfStopsPool.map(nr => wfStopRow(nr, false)).join("")}
+      </div>` : ""}`;
+  host.querySelectorAll(".wf-stop").forEach(b => b.onclick = () => {
+    const nr = wfStopsMine.concat(wfStopsPool).find(x => x.id === b.dataset.nr);
+    if (nr) wfOpenStop(nr);
+  });
+}
+
+/* ---------- working a stop ---------- */
+function wfOpenStop(nr){
+  const run = wfRunFor(nr.runId);
+  if (!run){ toast("Still loading this stop — try again in a second"); return; }
+  const node = ((run.blueprintSnapshot || {}).nodes || []).find(n => n.id === nr.nodeId);
+  if (!node){ toast("This stop's block is missing from the run's snapshot"); return; }
+  const cfg = node.config || {};
+  const outs = cfg.outputs || [];
+  const required = cfg.requiresOutput !== false;
+  openSheet(`
+    <h2>${esc(cfg.label || "This stop")}</h2>
+    <p class="hint"><b>${esc((run.task && run.task.title) || "Untitled task")}</b>${cfg.instructions ? " — " + esc(cfg.instructions) : ""}</p>
+    ${outs.map((o, i) => o.type === "boolean" ? `
+      <label class="fld"><span>${esc(o.label || o.key)}${required ? ' <b class="req">*</b>' : ""}</span></label>
+      <div class="chips" id="wfso${i}">
+        <button type="button" class="chip" data-v="true" aria-pressed="false">Yes</button>
+        <button type="button" class="chip" data-v="false" aria-pressed="false">No</button>
+      </div>` : `
+      <label class="fld"><span>${esc(o.label || o.key)}${required ? ' <b class="req">*</b>' : ""}</span>
+        <input type="${o.type === "number" ? "number" : "text"}" id="wfso${i}" maxlength="200"></label>`).join("")}
+    <label class="fld"><span>Note (optional)</span><textarea id="wfsoNote" maxlength="600" placeholder="Anything the next stop should know"></textarea></label>
+    <button class="btn btn-go" id="wfsoGo">Mark this stop complete</button>
+  `, () => {
+    outs.forEach((o, i) => { if (o.type === "boolean") wireChipsIn($("wfso" + i), () => {}); });
+    $("wfsoGo").onclick = async () => {
+      const output = {};
+      let missing = null;
+      outs.forEach((o, i) => {
+        if (o.type === "boolean"){
+          const p = $("wfso" + i).querySelector('.chip[aria-pressed="true"]');
+          if (p) output[o.key] = p.dataset.v === "true";
+          else if (required) missing = missing || (o.label || o.key);
+        } else if (o.type === "number"){
+          const v = $("wfso" + i).value;
+          if (v !== "") output[o.key] = Number(v);
+          else if (required) missing = missing || (o.label || o.key);
+        } else {
+          const v = $("wfso" + i).value.trim();
+          if (v) output[o.key] = v;
+          else if (required) missing = missing || (o.label || o.key);
+        }
+      });
+      if (missing){ toast("This stop must record “" + missing + "”"); return; }
+      const note = $("wfsoNote").value.trim();
+      if (note) output.note = note;
+      const btn = $("wfsoGo");
+      btn.disabled = true;
+      try {
+        await wfAdvanceTx(nr.runId, nr.id, output);
+        closeSheet();
+        toast("Done — the task moved on");
+      } catch (e) {
+        console.error(e);
+        toast(String((e && e.message) || "Couldn't complete this stop"));
+        btn.disabled = false;
+      }
     };
   });
 }

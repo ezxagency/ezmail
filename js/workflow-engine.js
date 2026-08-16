@@ -600,9 +600,12 @@ function wfAdvance(prev, event, opts){
 
   // the declaration contract, enforced at the door: a stop that promised
   // {approved} can't complete without it, or every downstream rule that
-  // reads it would silently go false
+  // reads it would silently go false. requiresOutput:false opts a role
+  // out - its declared values become best-effort, and rule 2's law
+  // (missing reads as false) covers whatever goes unrecorded.
   const node = bp.nodes.find(n => n.id === nr.nodeId);
-  const declared = node && node.type === "role" ? ((node.config || {}).outputs || []) : [];
+  const declared = node && node.type === "role" && (node.config || {}).requiresOutput !== false
+    ? ((node.config || {}).outputs || []) : [];
   const output = Object.assign({}, event.output || {});
   const missing = declared.filter(d => output[d.key] === undefined).map(d => d.key);
   if (missing.length) throw new Error("This stop must record: " + missing.join(", "));

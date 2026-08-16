@@ -115,6 +115,29 @@ service cloud.firestore {
       allow read: if request.auth != null && isTeam();
       allow create, update, delete: if request.auth != null && isAdmin();
     }
+    // Workflow runs: one real task riding a FROZEN copy of a blueprint.
+    // Only admins start or kill runs. Any team member may advance one, but
+    // through an allowlist of progress fields only - blueprintSnapshot and
+    // task are written once at creation and this is what keeps a client
+    // (buggy or hostile) from ever rewriting the track mid-flight.
+    // nodeRunIds rides in the allowlist because transactions can't query:
+    // the run doc carries refs to its nodeRuns and an advance appends the
+    // attempts it created.
+    match /runs/{id} {
+      allow read: if request.auth != null && isTeam();
+      allow create, delete: if request.auth != null && isAdmin();
+      allow update: if request.auth != null && (isAdmin() ||
+        (isTeam() && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'activeNodeIds', 'hops', 'completedAt', 'nodeRunIds'])));
+    }
+    // One node's story inside one run. The team writes these freely while
+    // advancing (same trusted-team tradeoff the assignments collection
+    // documents); the frozen truth a run executes lives on the run doc,
+    // which the allowlist above protects.
+    match /nodeRuns/{id} {
+      allow read, create, update: if request.auth != null && isTeam();
+      allow delete: if request.auth != null && isAdmin();
+    }
     // Client review links: the doc id IS the capability - an unguessable
     // token carried in a link, opened with no login. Anyone holding it may
     // read that one doc and answer once: only the decision fields, only

@@ -1,4 +1,4 @@
-/* Emulator test matrix for ../firestore.rules - 85 allow/deny assertions
+/* Emulator test matrix for ../firestore.rules - 98 allow/deny assertions
    across five actors: admin, assigner (worker role + special email),
    worker, pending stranger, an unverified fresh signup, and the
    unauthenticated client-link holder.
@@ -39,6 +39,8 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "campaigns/c2"), { title: "T2", memberUids: ["worker2"], status: "active", cur: 0, stages: [], history: [], updatedAt: 1 });
   await setDoc(doc(db, "campaignTemplates/t1"), { name: "Tpl", stages: [] });
   await setDoc(doc(db, "blueprints/bp1"), { orgId: "ez-agency", ownerId: "admin1", name: "Track", version: 1, status: "published", nodes: [], edges: [], createdAt: 1, updatedAt: 1 });
+  await setDoc(doc(db, "runs/run1"), { id: "run1", blueprintId: "bp1", blueprintSnapshot: { nodes: [], edges: [] }, taskId: null, task: { title: "Banner" }, orgId: "ez-agency", status: "running", activeNodeIds: ["n1"], hops: 2, startedAt: 1, completedAt: null, nodeRunIds: ["run1:t:1", "run1:n1:1"] });
+  await setDoc(doc(db, "nodeRuns/run1:n1:1"), { id: "run1:n1:1", seq: 1, runId: "run1", nodeId: "n1", nodeType: "role", status: "in_progress", assigneeId: "worker1", arrivedAt: 1, completedAt: null, output: {}, inputs: {} });
   await setDoc(doc(db, "notifications/n1"), { toUid: "worker1", fromUid: "worker2", kind: "handoff", status: "pending", store: "abc", task: "Copy", text: "@W1 take it", read: false, createdAt: 1 });
   await setDoc(doc(db, "notifications/n2"), { toRole: "admin", read: false, createdAt: 1 });
   await setDoc(doc(db, "clientReviews/tok1"), { campaignId: "c1", title: "T", stage: "Copy", status: "pending", comment: "", decidedAt: null, links: [] });
@@ -92,6 +94,24 @@ await T("admin: blueprint create+update+delete", assertSucceeds((async () => {
 })()));
 await T("stranger(pending): read blueprints DENIED", assertFails(getDocs(collection(stranger, "blueprints"))));
 await T("anon: read blueprint DENIED", assertFails(getDoc(doc(anon, "blueprints/bp1"))));
+
+// ================= WORKFLOW RUNS + NODERUNS =================
+await T("worker: read a run", assertSucceeds(getDoc(doc(worker, "runs/run1"))));
+await T("worker: create run DENIED (admin starts runs)", assertFails(setDoc(doc(worker, "runs/evil"), { orgId: "ez-agency", status: "running", blueprintSnapshot: {}, task: {}, nodeRunIds: [] })));
+await T("worker: delete run DENIED", assertFails(deleteDoc(doc(worker, "runs/run1"))));
+await T("worker: advance writes progress allowlist only", assertSucceeds(updateDoc(doc(worker, "runs/run1"), { status: "running", activeNodeIds: ["n2"], hops: 3, completedAt: null, nodeRunIds: ["run1:t:1", "run1:n1:1", "run1:n2:1"] })));
+await T("worker: rewrite blueprintSnapshot mid-flight DENIED", assertFails(updateDoc(doc(worker, "runs/run1"), { hops: 4, blueprintSnapshot: { nodes: [], edges: [], hacked: true } })));
+await T("worker: rewrite frozen task DENIED", assertFails(updateDoc(doc(worker, "runs/run1"), { hops: 4, task: { title: "forged" } })));
+await T("worker: create nodeRun (the engine's new attempts)", assertSucceeds(setDoc(doc(worker, "nodeRuns/run1:n2:1"), { id: "run1:n2:1", seq: 2, runId: "run1", nodeId: "n2", nodeType: "role", status: "in_progress", assigneeId: null, arrivedAt: 9, completedAt: null, output: {}, inputs: {} })));
+await T("worker: update nodeRun (completing a stop)", assertSucceeds(updateDoc(doc(worker, "nodeRuns/run1:n1:1"), { status: "completed", completedAt: 9, output: { approved: true } })));
+await T("worker: delete nodeRun DENIED", assertFails(deleteDoc(doc(worker, "nodeRuns/run1:n1:1"))));
+await T("admin: run create+delete", assertSucceeds((async () => {
+  await setDoc(doc(admin, "runs/run2"), { id: "run2", blueprintId: "bp1", blueprintSnapshot: { nodes: [], edges: [] }, taskId: null, task: { title: "X" }, orgId: "ez-agency", status: "running", activeNodeIds: [], hops: 1, startedAt: 9, completedAt: null, nodeRunIds: [] });
+  await deleteDoc(doc(admin, "runs/run2"));
+})()));
+await T("stranger(pending): read runs DENIED", assertFails(getDoc(doc(stranger, "runs/run1"))));
+await T("stranger(pending): read nodeRuns DENIED", assertFails(getDocs(collection(stranger, "nodeRuns"))));
+await T("anon: read run DENIED", assertFails(getDoc(doc(anon, "runs/run1"))));
 
 // ================= ASSIGNER =================
 await T("assigner: unfiltered assignments read (log/picker)", assertSucceeds(getDocs(collection(assigner, "assignments"))));
