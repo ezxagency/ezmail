@@ -1,4 +1,4 @@
-/* Emulator test matrix for ../firestore.rules - 105 allow/deny assertions
+/* Emulator test matrix for ../firestore.rules - 106 allow/deny assertions
    across five actors: admin, assigner (worker role + special email),
    worker, pending stranger, an unverified fresh signup, and the
    unauthenticated client-link holder.
@@ -88,6 +88,10 @@ await T("worker: read blueprints (runs board shows the track)", assertSucceeds(g
 await T("worker: create blueprint DENIED", assertFails(setDoc(doc(worker, "blueprints/evil"), { orgId: "ez-agency", name: "x", nodes: [], edges: [] })));
 await T("worker: update blueprint DENIED", assertFails(updateDoc(doc(worker, "blueprints/bp1"), { name: "renamed" })));
 await T("worker: delete blueprint DENIED", assertFails(deleteDoc(doc(worker, "blueprints/bp1"))));
+await T("admin: delete a PUBLISHED blueprint (runs keep their frozen copies)", assertSucceeds((async () => {
+  await setDoc(doc(admin, "blueprints/bp9"), { orgId: "ez-agency", ownerId: "admin1", name: "Pub", version: 2, status: "published", nodes: [], edges: [], createdAt: 9, updatedAt: 9 });
+  await deleteDoc(doc(admin, "blueprints/bp9"));
+})()));
 await T("admin: blueprint create+update+delete", assertSucceeds((async () => {
   await setDoc(doc(admin, "blueprints/bp2"), { orgId: "ez-agency", ownerId: "admin1", name: "New", version: 1, status: "draft", nodes: [], edges: [], createdAt: 9, updatedAt: 9 });
   await updateDoc(doc(admin, "blueprints/bp2"), { name: "Renamed", updatedAt: 10 });

@@ -90,5 +90,41 @@ T("approval template's reject loop actually loops", () => {
   assert.ok(st.effects.some(e => e.type === "action"));
 });
 
+T("tidy layout: rows follow the flow, gaps are generous, zero overlaps", () => {
+  const g = tpls.find(t => t.key === "acceptance").graph;
+  const pos = JSON.parse(JSON.stringify(vm.runInContext(
+    `wfLayoutPositions(${JSON.stringify(g.nodes)}, ${JSON.stringify(g.edges)})`, ctx)));
+  const ids = g.nodes.map(n => n.id);
+  ids.forEach(id => assert.ok(pos[id], "every node got a position"));
+  // no two nodes closer than a node box + breathing room
+  for (let i = 0; i < ids.length; i++)
+    for (let j = i + 1; j < ids.length; j++){
+      const a = pos[ids[i]], b = pos[ids[j]];
+      assert.ok(Math.abs(a.x - b.x) >= 250 || Math.abs(a.y - b.y) >= 170,
+        ids[i] + " and " + ids[j] + " overlap");
+    }
+  // downward = forward: every wire drops at least one full row
+  g.edges.forEach(e => assert.ok(pos[e.to].y >= pos[e.from].y + 200, e.id + " should point down"));
+  // the trigger sits alone at the top
+  const minY = Math.min(...ids.map(id => pos[id].y));
+  assert.equal(pos["n_t"].y, minY);
+  assert.equal(ids.filter(id => pos[id].y === minY).length, 1);
+});
+
+T("tidy layout: a rework loop doesn't sink the graph (back edge ignored)", () => {
+  const g = tpls.find(t => t.key === "approval").graph;
+  const pos = JSON.parse(JSON.stringify(vm.runInContext(
+    `wfLayoutPositions(${JSON.stringify(g.nodes)}, ${JSON.stringify(g.edges)})`, ctx)));
+  // forward chain descends…
+  assert.ok(pos["r_draft"].y > pos["t"].y);
+  assert.ok(pos["r_review"].y > pos["r_draft"].y);
+  assert.ok(pos["g"].y > pos["r_review"].y);
+  assert.ok(pos["a_pub"].y > pos["g"].y);
+  // …and the loop-back edge (g → r_draft) pointing up is the exception, not
+  // a reason for ranks to explode: everything fits in 5 rows
+  const rows = new Set(Object.values(pos).map(p => p.y));
+  assert.equal(rows.size, 5);
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

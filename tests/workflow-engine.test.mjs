@@ -450,6 +450,65 @@ T("a two-way gate: the untaken side is provably quiet, the join doesn't wait", (
   });
 });
 
+/* ================= FIELD TYPES, END TO END ================= */
+/* One ROLE records all three declared types; a route SPLIT reads the
+   number, a branch reads the text, the LOGIC gate reads the boolean, a
+   VAULT passes through, the ACTION fires. The full data path the builder
+   promises, ridden in one graph. */
+function fieldTypesBP(){
+  const out = (path, op, value) => ({ source: "nodeOutput", nodeId: "r1", path, op, value });
+  return BP([
+    N("t", "trigger"),
+    role("r1", { outputs: [
+      { key: "approved", type: "boolean" },
+      { key: "wordCount", type: "number" },
+      { key: "summary", type: "text" }
+    ] }),
+    N("s", "split", { mode: "route", branches: [
+      { id: "bLong", label: "Long form", condition: out("wordCount", ">", 500) },
+      { id: "bRush", label: "Rush", condition: out("summary", "contains", "rush") },
+      { id: "bE", label: "Else", isElse: true }
+    ] }),
+    role("rLong"), role("rRush"), role("rElse"),
+    N("g", "logic", { condition: out("approved", "==", true) }),
+    N("v", "vault"),
+    N("a", "action", { actionType: "notify" })
+  ], [
+    Ed("e0", "t", "r1"), Ed("eS", "r1", "s"),
+    Ed("eL", "s", "rLong", "bLong"), Ed("eR", "s", "rRush", "bRush"), Ed("eE", "s", "rElse", "bE"),
+    Ed("gl", "rLong", "g"), Ed("gr", "rRush", "g"), Ed("ge", "rElse", "g"),
+    Ed("gT", "g", "v", "true"), Ed("gF", "g", "r1", "false"),
+    Ed("va", "v", "a")
+  ]);
+}
+
+T("field types: a number picks the route, a boolean opens the gate", () => {
+  assert.deepEqual(wfValidate(fieldTypesBP()), []);
+  let st = start(fieldTypesBP(), {}, "runF1");
+  assert.throws(() => finish(st, "r1", { approved: true }), /wordCount/);  // requiresOutput gates ALL declared values
+  st = finish(st, "r1", { approved: true, wordCount: 812, summary: "final cut" });
+  assert.equal(attempts(st, "s")[0].output.pickedBranch, "bLong");         // number > 500
+  assert.deepEqual(statuses(st, "rRush"), ["skipped"]);
+  st = finish(st, "rLong", {});
+  assert.equal(attempts(st, "g")[0].output.result, true);                  // boolean == true
+  assert.ok(attempts(st, "v")[0].output.stampedAt !== undefined);          // vault stamped, kept moving
+  assert.equal(st.run.status, "completed");
+  assert.ok(st.effects.some(e => e.type === "action"));
+});
+
+T("field types: text contains routes; a false boolean loops for rework", () => {
+  let st = start(fieldTypesBP(), {}, "runF2");
+  st = finish(st, "r1", { approved: false, wordCount: 90, summary: "rush job for friday" });
+  assert.equal(attempts(st, "s")[0].output.pickedBranch, "bRush");         // text contains "rush"
+  st = finish(st, "rRush", {});
+  assert.equal(attempts(st, "g")[0].output.result, false);
+  assert.deepEqual(statuses(st, "r1"), ["completed", "in_progress"]);      // rejected → back for rework
+  st = finish(st, "r1", { approved: true, wordCount: 90, summary: "rush job, fixed" });
+  st = finish(st, "rRush", {});
+  assert.equal(st.run.status, "completed");
+  assert.deepEqual(attempts(st, "g").map(nr => nr.output.result), [false, true]);
+});
+
 /* ================= ENGINE CONTRACT ================= */
 T("advance never mutates its input and is deterministic", () => {
   const st = start(reworkBP(), {}, "run6");

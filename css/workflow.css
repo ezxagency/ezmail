@@ -39,6 +39,7 @@
   color:inherit;font:inherit;text-align:left;cursor:pointer;
 }
 .wf-run-btn{width:auto;flex:none;padding:10px 14px}
+.wf-card-del{flex:none}
 .wf-card-name{
   margin:0;font-weight:700;font-size:15.5px;letter-spacing:.01em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;

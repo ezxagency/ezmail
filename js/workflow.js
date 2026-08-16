@@ -302,6 +302,7 @@ async function wfRenderBlueprints(){
           </button>
           <span class="wf-status ${r.status === "published" ? "is-published" : "is-draft"}">${r.status === "published" ? "Published" : "Draft"}</span>
           ${r.status === "published" ? `<button type="button" class="btn btn-sm wf-run-btn" data-run="${esc(r.docId)}">Start run</button>` : ""}
+          <button type="button" class="wf-row-x wf-card-del" data-del="${esc(r.docId)}" aria-label="Delete blueprint" title="Delete blueprint">×</button>
         </div>`).join("")
       : `<div class="fpage-panel"><div class="empty">No blueprints yet. Start one and drag the six blocks into a track.</div></div>`}
     </div>`;
@@ -313,6 +314,33 @@ async function wfRenderBlueprints(){
   host.querySelectorAll("[data-run]").forEach(c => c.onclick = () => {
     const r = rows.find(x => x.docId === c.dataset.run);
     if (r) wfStartRunSheet(r);
+  });
+  // deleting a whole blueprint - draft or published - asks once. Runs in
+  // flight are untouched either way: each executes its own frozen
+  // blueprintSnapshot and never reads the live doc (proven in
+  // tests/workflow-versions.test.mjs). Its immutable versions/ docs stay
+  // behind by design - nothing may delete those, not even an admin.
+  let delArmed = null;
+  host.querySelectorAll("[data-del]").forEach(c => c.onclick = async () => {
+    const r = rows.find(x => x.docId === c.dataset.del);
+    if (!r) return;
+    if (delArmed !== r.docId){
+      delArmed = r.docId;
+      setTimeout(() => { if (delArmed === r.docId) delArmed = null; }, 3200);
+      toast(`Delete “${r.name || "Untitled"}”${r.status === "published" ? " (published)" : ""}? Running tasks keep their frozen copies — tap again to confirm`);
+      return;
+    }
+    delArmed = null;
+    c.disabled = true;
+    try {
+      await db.collection("blueprints").doc(r.docId).delete();
+      toast("Blueprint deleted");
+      wfRenderBlueprints();
+    } catch (e) {
+      console.error(e);
+      c.disabled = false;
+      toast("Couldn't delete — admins only");
+    }
   });
 }
 
@@ -345,6 +373,7 @@ function wfOpenBuilder(bpDoc){
       <div class="wf-bar-name"><input type="text" id="wfName" maxlength="80" value="${esc(wfCurrent.name)}" aria-label="Blueprint name"></div>
       <span class="wf-status ${wfCurrent.status === "published" ? "is-published" : "is-draft"}" id="wfStatusChip">${wfCurrent.status === "published" ? "Published" : "Draft"}</span>
       <div class="fpage-bar-acts">
+        <button class="btn btn-ghost btn-sm" id="wfTidy" title="Rows by flow order, no overlaps">Tidy layout</button>
         <button class="btn btn-ghost btn-sm" id="wfHistory">History</button>
         <button class="btn btn-sm" id="wfSave">Save draft</button>
         <button class="btn btn-go btn-sm" id="wfPublish">Publish</button>
@@ -387,12 +416,32 @@ function wfOpenBuilder(bpDoc){
   $("wfSave").onclick = () => wfSaveDraft();
   $("wfPublish").onclick = () => wfPublish();
   $("wfHistory").onclick = () => wfVersionHistorySheet();
+  $("wfTidy").onclick = () => { if (wfTidyLayout()) wfMarkDirty(); };
   $("wfZoomIn").onclick = () => wfEditor.zoom_in();
   $("wfZoomOut").onclick = () => wfEditor.zoom_out();
   $("wfZoomReset").onclick = () => wfEditor.zoom_reset();
-  // the canvas takes focus on press so Drawflow's own Delete-key handling
-  // (selected node or wire) actually receives the key
+  // the canvas takes focus on press so keyboard handling lands here
   $("wfCanvas").addEventListener("mousedown", () => $("wfCanvas").focus());
+  /* Keyboard, in CAPTURE phase on the wrapper so it runs BEFORE Drawflow's
+     own container keydown (same-element listeners can't be preempted):
+     - Esc deselects the node/wire and stays on the page (preventDefault
+       stops nav.js's ladder from walking back to the dashboard);
+     - Delete/Backspace on a selected NODE goes through the confirm guard
+       instead of Drawflow's instant delete; a selected WIRE passes
+       through to Drawflow's native delete untouched. */
+  $("wfCanvasWrap").addEventListener("keydown", e => {
+    if (e.key === "Escape"){
+      if (wfDeselect()){ e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    if (e.key === "Delete" || e.key === "Backspace"){
+      const sel = wfEditor && wfEditor.node_selected;
+      if (!sel) return;
+      e.preventDefault(); e.stopPropagation();
+      const oid = wfDf2Our.get(String(sel.id).replace("node-", ""));
+      if (oid) wfRequestDeleteNode(oid);
+    }
+  }, true);
 
   // palette: drag onto the canvas (desktop) or tap to drop at center (touch)
   const palette = $("wfPalette");
@@ -458,6 +507,133 @@ function wfSyncPalette(){
   trig.title = hasTrigger ? "Every workflow has exactly one Trigger" : "Drag onto the canvas, or tap to add";
 }
 
+/* ============================================================
+   AUTO-LAYOUT — a hand-rolled layered layout: rows by distance
+   from the Trigger (longest path over forward edges, so a merge
+   always sits BELOW everything feeding it), siblings spread with
+   fixed generous gaps, zero overlaps by construction. Pure
+   function first (tests hold it to the no-overlap promise), a
+   thin applier after (Drawflow reads DOM port positions, so
+   moving the elements is all it takes for the wires to follow).
+   ============================================================ */
+const WF_LAY_COL = 270, WF_LAY_ROW = 210, WF_LAY_X0 = 60, WF_LAY_Y0 = 40;
+
+/** @returns {Object<string,{x:number,y:number}>} */
+function wfLayoutPositions(nodes, edges){
+  const ids = nodes.map(n => n.id);
+  if (!ids.length) return {};
+  const byFrom = new Map();
+  edges.forEach(e => { if (!byFrom.has(e.from)) byFrom.set(e.from, []); byFrom.get(e.from).push(e); });
+
+  // roots: the trigger (or, drafts being drafts, anything with no incoming)
+  const hasIn = new Set(edges.map(e => e.to));
+  let roots = nodes.filter(n => n.type === "trigger").map(n => n.id);
+  if (!roots.length) roots = ids.filter(id => !hasIn.has(id));
+  if (!roots.length) roots = [ids[0]];
+
+  // loop-backs must not count as "feeds into" or a rework cycle would sink
+  // forever: DFS marks the back edges, ranks are longest-path over the rest
+  const isBack = new Set(), seen = new Set(), onStack = new Set();
+  const dfs = id => {
+    seen.add(id); onStack.add(id);
+    (byFrom.get(id) || []).forEach(e => {
+      if (onStack.has(e.to)) isBack.add(e.id);
+      else if (!seen.has(e.to)) dfs(e.to);
+    });
+    onStack.delete(id);
+  };
+  roots.forEach(dfs);
+  ids.forEach(id => { if (!seen.has(id)) dfs(id); });
+
+  const fwd = edges.filter(e => !isBack.has(e.id));
+  const rank = new Map(ids.map(id => [id, 0]));
+  const indeg = new Map(ids.map(id => [id, 0]));
+  fwd.forEach(e => indeg.set(e.to, (indeg.get(e.to) || 0) + 1));
+  const q = ids.filter(id => !indeg.get(id));
+  while (q.length){
+    const id = q.shift();
+    (byFrom.get(id) || []).forEach(e => {
+      if (isBack.has(e.id)) return;
+      if (rank.get(e.to) < rank.get(id) + 1) rank.set(e.to, rank.get(id) + 1);
+      indeg.set(e.to, indeg.get(e.to) - 1);
+      if (!indeg.get(e.to)) q.push(e.to);
+    });
+  }
+
+  // rows, ordered by the average position of each node's feeders so wires
+  // cross as little as a single pass can manage
+  const rows = new Map();
+  ids.forEach(id => {
+    const r = rank.get(id);
+    if (!rows.has(r)) rows.set(r, []);
+    rows.get(r).push(id);
+  });
+  const predsOf = new Map();
+  fwd.forEach(e => { if (!predsOf.has(e.to)) predsOf.set(e.to, []); predsOf.get(e.to).push(e.from); });
+  const orderIndex = new Map();
+  const rowKeys = [...rows.keys()].sort((a, b) => a - b);
+  rowKeys.forEach(r => {
+    const row = rows.get(r);
+    const bary = id => {
+      const ps = (predsOf.get(id) || []).map(p => orderIndex.get(p)).filter(v => v !== undefined);
+      return ps.length ? ps.reduce((t, v) => t + v, 0) / ps.length : row.indexOf(id);
+    };
+    row.sort((a, b) => bary(a) - bary(b));
+    row.forEach((id, i) => orderIndex.set(id, i));
+  });
+
+  const widest = Math.max(...[...rows.values()].map(r => r.length));
+  const out = {};
+  rowKeys.forEach(r => {
+    const row = rows.get(r);
+    const x0 = WF_LAY_X0 + ((widest - row.length) * WF_LAY_COL) / 2;
+    row.forEach((id, i) => { out[id] = { x: Math.round(x0 + i * WF_LAY_COL), y: WF_LAY_Y0 + r * WF_LAY_ROW }; });
+  });
+  return out;
+}
+
+/* nodes are ~230×150 with ports; two closer than this read as a pile */
+function wfLayoutLooksCramped(nodes){
+  for (let i = 0; i < nodes.length; i++)
+    for (let j = i + 1; j < nodes.length; j++){
+      const a = nodes[i].position || {}, b = nodes[j].position || {};
+      if (Math.abs((a.x || 0) - (b.x || 0)) < 250 && Math.abs((a.y || 0) - (b.y || 0)) < 170) return true;
+    }
+  return false;
+}
+
+function wfSetNodePos(dfId, x, y){
+  const dn = wfEditor.drawflow.drawflow.Home.data[dfId];
+  if (!dn) return;
+  dn.pos_x = x; dn.pos_y = y;
+  const el = document.getElementById("node-" + dfId);
+  if (el){ el.style.left = x + "px"; el.style.top = y + "px"; }
+  wfEditor.updateConnectionNodes("node-" + dfId);
+}
+
+function wfTidyLayout(){
+  const g = wfSerializeGraph();
+  if (!g.nodes.length) return false;
+  const pos = wfLayoutPositions(g.nodes, g.edges);
+  let moved = false;
+  g.nodes.forEach(n => {
+    const p = pos[n.id];
+    const dfId = wfOur2Df.get(n.id);
+    if (!p || dfId === undefined) return;
+    if (Math.abs(p.x - n.position.x) > 1 || Math.abs(p.y - n.position.y) > 1) moved = true;
+    wfSetNodePos(dfId, p.x, p.y);
+  });
+  return moved;
+}
+
+/* a fresh block never lands on an existing one: same column, next free row */
+function wfFreeSpot(x, y){
+  if (!wfEditor) return { x, y };
+  const taken = Object.values(wfEditor.export().drawflow.Home.data).map(d => ({ x: d.pos_x, y: d.pos_y }));
+  while (taken.some(p => Math.abs(p.x - x) < 250 && Math.abs(p.y - y) < 170)) y += 190;
+  return { x: Math.round(x), y: Math.round(y) };
+}
+
 /* ---------- adding blocks ---------- */
 function wfDefaultConfig(type){
   if (type === "trigger") return { label: "Start" };
@@ -487,8 +663,9 @@ function wfAddBlock(type, x, y){
     return;
   }
   const oid = wfId("n");
+  const spot = wfFreeSpot(x, y);
   wfNodes.set(oid, { type, config: wfDefaultConfig(type), waitFor: null });
-  wfAddDfNode(oid, x, y);
+  wfAddDfNode(oid, spot.x, spot.y);
   wfMarkDirty(); wfClearErrors(); wfSyncPalette(); wfSyncHint();
 }
 
@@ -586,7 +763,45 @@ function wfWireNodeButtons(oid){
   const gear = el.querySelector(".wf-blk-gear");
   const x = el.querySelector(".wf-blk-x");
   if (gear) gear.onclick = () => wfOpenConfig(oid);
-  if (x) x.onclick = () => wfEditor.removeNodeId("node-" + dfId);
+  if (x) x.onclick = () => wfRequestDeleteNode(oid);
+}
+
+/* clear Drawflow's selection without touching anything else - Esc and
+   empty-canvas clicks both land here conceptually (the latter is native) */
+function wfDeselect(){
+  let did = false;
+  try {
+    if (wfEditor && wfEditor.node_selected){
+      wfEditor.node_selected.classList.remove("selected");
+      wfEditor.node_selected = null;
+      did = true;
+    }
+    if (wfEditor && wfEditor.connection_selected){
+      wfEditor.connection_selected.classList.remove("selected");
+      wfEditor.connection_selected = null;
+      did = true;
+    }
+    if (wfEditor) wfEditor.ele_selected = null;
+  } catch (e) { console.error(e); }
+  return did;
+}
+
+/* deleting a wired block asks once: the wires die with it, and that
+   deserves a beat of intent. An unwired block just goes. */
+let wfDeleteArmed = null, wfDeleteArmTimer = null;
+function wfRequestDeleteNode(oid){
+  if (!wfNodes.has(oid)) return;
+  const wires = wfSerializeGraph().edges.filter(e => e.from === oid || e.to === oid).length;
+  if (wires && wfDeleteArmed !== oid){
+    wfDeleteArmed = oid;
+    clearTimeout(wfDeleteArmTimer);
+    wfDeleteArmTimer = setTimeout(() => { wfDeleteArmed = null; }, 3000);
+    toast(`“${wfNodeTitle(oid)}” has ${wires} wire${wires === 1 ? "" : "s"} — tap delete again to remove both`);
+    return;
+  }
+  wfDeleteArmed = null;
+  const dfId = wfOur2Df.get(oid);
+  if (dfId !== undefined) wfEditor.removeNodeId("node-" + dfId);  // Drawflow removes its wires with it
 }
 
 function wfRefreshNode(oid){
@@ -674,7 +889,11 @@ function wfLoadIntoEditor(bp){
   });
   // now that lines exist, the waitFor badges know what they're looking at
   wfNodes.forEach((rec, oid) => wfRefreshNode(oid));
-  wfIsDirty = false; wfSyncSaveBtn();
+  // never open cramped: piled-up positions (old templates, hand-dropped
+  // chaos) get the layered layout; a deliberately arranged blueprint is
+  // left exactly as its author placed it
+  const moved = wfLayoutLooksCramped(bp.nodes || []) ? wfTidyLayout() : false;
+  wfIsDirty = moved; wfSyncSaveBtn();
 }
 
 /* ============================================================
