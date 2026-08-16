@@ -126,9 +126,13 @@ service cloud.firestore {
     match /runs/{id} {
       allow read: if request.auth != null && isTeam();
       allow create, delete: if request.auth != null && isAdmin();
+      // the status list pins team writes to the engine's own vocabulary:
+      // "cancelled" is an admin verdict, not an outcome an advance can
+      // produce, so only an admin may write it
       allow update: if request.auth != null && (isAdmin() ||
         (isTeam() && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'activeNodeIds', 'hops', 'completedAt', 'nodeRunIds'])));
+          .hasOnly(['status', 'activeNodeIds', 'hops', 'completedAt', 'nodeRunIds'])
+          && request.resource.data.status in ['running', 'completed', 'failed']));
     }
     // One node's story inside one run. The team writes these freely while
     // advancing (same trusted-team tradeoff the assignments collection

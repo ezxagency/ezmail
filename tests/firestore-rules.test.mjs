@@ -1,4 +1,4 @@
-/* Emulator test matrix for ../firestore.rules - 98 allow/deny assertions
+/* Emulator test matrix for ../firestore.rules - 100 allow/deny assertions
    across five actors: admin, assigner (worker role + special email),
    worker, pending stranger, an unverified fresh signup, and the
    unauthenticated client-link holder.
@@ -112,6 +112,8 @@ await T("admin: run create+delete", assertSucceeds((async () => {
 await T("stranger(pending): read runs DENIED", assertFails(getDoc(doc(stranger, "runs/run1"))));
 await T("stranger(pending): read nodeRuns DENIED", assertFails(getDocs(collection(stranger, "nodeRuns"))));
 await T("anon: read run DENIED", assertFails(getDoc(doc(anon, "runs/run1"))));
+await T("worker: cancel a run DENIED (verdicts are admin's)", assertFails(updateDoc(doc(worker, "runs/run1"), { status: "cancelled", activeNodeIds: [] })));
+await T("admin: cancel a run (status + cleared stops only)", assertSucceeds(updateDoc(doc(admin, "runs/run1"), { status: "cancelled", activeNodeIds: [] })));
 
 // ================= ASSIGNER =================
 await T("assigner: unfiltered assignments read (log/picker)", assertSucceeds(getDocs(collection(assigner, "assignments"))));

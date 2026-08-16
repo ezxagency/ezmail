@@ -94,19 +94,38 @@ function enterWorkflowPage(){
 async function wfRenderList(){
   wfView = "list";
   const box = $("workflowBody");
-  box.innerHTML = `<div class="fpage-panel"><div class="empty">Loading blueprints…</div></div>`;
+  box.innerHTML = `
+    <div id="wfStops"></div>
+    <div class="fpage-filters wf-tabs">
+      <button type="button" class="chip" data-tab="blueprints" aria-pressed="${wfTab === "blueprints"}">Blueprints</button>
+      <button type="button" class="chip" data-tab="runs" aria-pressed="${wfTab === "runs"}">Runs</button>
+    </div>
+    <div id="wfTabBody"></div>`;
+  box.querySelectorAll("[data-tab]").forEach(c => c.onclick = () => {
+    if (wfTab === c.dataset.tab) return;
+    wfTab = c.dataset.tab;
+    wfRenderList();
+  });
+  wfRenderStops();
+  if (wfTab === "runs"){ wfWatchRuns(); wfRenderRuns(); }
+  else await wfRenderBlueprints();
+}
+
+async function wfRenderBlueprints(){
+  const host = $("wfTabBody");
+  if (!host) return;
+  host.innerHTML = `<div class="fpage-panel"><div class="empty">Loading blueprints…</div></div>`;
   let rows = [];
   try {
     const snap = await db.collection("blueprints").where("orgId", "==", WF_ORG).get();
     snap.forEach(d => rows.push({ docId: d.id, ...d.data() }));
   } catch (e) {
     console.error(e);
-    box.innerHTML = `<div class="fpage-panel"><div class="empty">Couldn't load blueprints — check the connection and reopen this page.</div></div>`;
+    host.innerHTML = `<div class="fpage-panel"><div class="empty">Couldn't load blueprints — check the connection and reopen this page.</div></div>`;
     return;
   }
   rows.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  box.innerHTML = `
-    <div id="wfStops"></div>
+  host.innerHTML = `
     <div class="fpage-bar">
       <p class="fpage-bar-note">${rows.length ? rows.length + " blueprint" + (rows.length === 1 ? "" : "s") : "Draw how work moves through the team; published blueprints carry real tasks."}</p>
       <div class="fpage-bar-acts">
@@ -126,15 +145,14 @@ async function wfRenderList(){
       : `<div class="fpage-panel"><div class="empty">No blueprints yet. Start one and drag the six blocks into a track.</div></div>`}
     </div>`;
   $("wfNew").onclick = () => wfOpenBuilder(null);
-  box.querySelectorAll("[data-open]").forEach(c => c.onclick = () => {
+  host.querySelectorAll("[data-open]").forEach(c => c.onclick = () => {
     const r = rows.find(x => x.docId === c.dataset.open);
     if (r) wfOpenBuilder(r);
   });
-  box.querySelectorAll("[data-run]").forEach(c => c.onclick = () => {
+  host.querySelectorAll("[data-run]").forEach(c => c.onclick = () => {
     const r = rows.find(x => x.docId === c.dataset.run);
     if (r) wfStartRunSheet(r);
   });
-  wfRenderStops();
 }
 
 /* ============================================================
@@ -1392,4 +1410,178 @@ function wfOpenStop(nr){
       }
     };
   });
+}
+
+/* ============================================================
+   RUNS BOARD — admin monitoring. The LIST stays cheap on
+   purpose: every row renders from the run doc alone (the frozen
+   snapshot already carries the node labels activeNodeIds point
+   at). nodeRuns load only when a run is opened, as its timeline.
+   ============================================================ */
+let wfTab = "blueprints";           // "blueprints" | "runs"
+let wfRunsRows = [], wfRunsWatcherOn = false, wfRunsFilter = "running";
+
+const WF_RUN_STATUS = {
+  running:   { word: "Running",   cls: "is-published" },
+  completed: { word: "Completed", cls: "is-draft" },
+  failed:    { word: "Failed",    cls: "is-failed" },
+  cancelled: { word: "Cancelled", cls: "is-cancelled" }
+};
+
+function wfWatchRuns(){
+  if (wfRunsWatcherOn || !db || !auth || !auth.currentUser) return;
+  wfRunsWatcherOn = true;
+  const unsub = db.collection("runs").where("orgId", "==", WF_ORG)
+    .onSnapshot(s => {
+      const rows = [];
+      s.forEach(d => rows.push(d.data()));
+      rows.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+      wfRunsRows = rows;
+      wfRenderRuns();
+    }, e => console.error(e));
+  onSessionEnd(() => { unsub(); wfRunsWatcherOn = false; wfRunsRows = []; });
+}
+
+/* one line of "where is it": activeNodeIds → labels out of the run's own
+   frozen snapshot - no nodeRun reads for the list, ever */
+function wfRunWhere(r){
+  if (r.status !== "running") return "";
+  const nodes = (r.blueprintSnapshot || {}).nodes || [];
+  const labels = (r.activeNodeIds || []).map(id => {
+    const n = nodes.find(x => x.id === id);
+    return n ? ((n.config || {}).label || WF_TYPES[n.type].name) : id;
+  });
+  return labels.length ? "at " + labels.join(" + ") : "moving…";
+}
+
+function wfRenderRuns(){
+  const host = $("wfTabBody");
+  if (!host || wfView !== "list" || wfTab !== "runs") return;
+  const rows = wfRunsFilter === "running" ? wfRunsRows.filter(r => r.status === "running") : wfRunsRows;
+  host.innerHTML = `
+    <div class="fpage-bar">
+      <div class="fpage-filters" style="margin:0" id="wfRunsFilter">
+        <button type="button" class="chip" data-f="running" aria-pressed="${wfRunsFilter === "running"}">Running</button>
+        <button type="button" class="chip" data-f="all" aria-pressed="${wfRunsFilter === "all"}">All</button>
+      </div>
+      <p class="fpage-bar-note">${rows.length} run${rows.length === 1 ? "" : "s"}</p>
+    </div>
+    ${rows.length ? rows.map(r => {
+      const st = WF_RUN_STATUS[r.status] || WF_RUN_STATUS.running;
+      const bp = r.blueprintSnapshot || {};
+      const where = wfRunWhere(r);
+      return `
+        <button type="button" class="wf-stop" data-runid="${esc(r.id)}">
+          <span class="wf-stop-main">
+            <p class="wf-stop-title">${esc((r.task && r.task.title) || "Untitled task")}</p>
+            <p class="wf-stop-meta">${esc(bp.name || "?")} v${Number(bp.version) || 1} · ${dayStamp(r.startedAt)} ${clock(r.startedAt)}${where ? " · " + esc(where) : ""}</p>
+          </span>
+          <span class="wf-status ${st.cls}">${st.word}</span>
+        </button>`;
+    }).join("") : `<div class="fpage-panel"><div class="empty">${wfRunsFilter === "running" ? "Nothing in flight. Start a run from a published blueprint." : "No runs yet."}</div></div>`}`;
+  host.querySelectorAll("#wfRunsFilter .chip").forEach(c => c.onclick = () => {
+    wfRunsFilter = c.dataset.f;
+    wfRenderRuns();
+  });
+  host.querySelectorAll("[data-runid]").forEach(b => b.onclick = () => {
+    const r = wfRunsRows.find(x => x.id === b.dataset.runid);
+    if (r) wfOpenRunDetail(r);
+  });
+}
+
+/* ---------- one run's full story ---------- */
+function wfFmtOut(v){
+  if (v === true) return "yes";
+  if (v === false) return "no";
+  if (typeof v === "number" && v > 1e12) return clock(v);   // engine time stamps
+  return String(v);
+}
+
+async function wfOpenRunDetail(run){
+  await wfLoadDirectory();
+  let nrs = [];
+  try {
+    const snap = await db.collection("nodeRuns").where("runId", "==", run.id).get();
+    snap.forEach(d => nrs.push(d.data()));
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't load this run's stops");
+    return;
+  }
+  nrs.sort((a, b) => (a.seq || 0) - (b.seq || 0));
+  const bp = run.blueprintSnapshot || {};
+  const st = WF_RUN_STATUS[run.status] || WF_RUN_STATUS.running;
+  const nodeOf = id => (bp.nodes || []).find(n => n.id === id);
+
+  const rowsHTML = nrs.map(nr => {
+    const node = nodeOf(nr.nodeId);
+    const cfg = node ? (node.config || {}) : {};
+    const who = nr.assigneeId ? (wfDirName(nr.assigneeId) || "someone") : "";
+    const outs = Object.entries(nr.output || {}).filter(([k]) => k !== "note");
+    const word = nr.status === "in_progress" ? "waiting on a human" : nr.status.replace("_", " ");
+    return `
+      <div class="wf-tl-row is-${esc(nr.status)}">
+        <span class="wf-tl-dot"></span>
+        <div class="wf-tl-main">
+          <p class="wf-tl-title">${esc(cfg.label || cfg.vaultName || (node ? WF_TYPES[node.type].name : nr.nodeType))}<small>${esc(nr.nodeType)}</small></p>
+          <p class="wf-tl-meta">${esc(word)}${who ? " · " + esc(who) : ""} · in ${clock(nr.arrivedAt)}${nr.completedAt ? " · out " + clock(nr.completedAt) : ""}</p>
+          ${outs.length ? `<p class="wf-tl-outs">${outs.map(([k, v]) => `<span>${esc(k)}: ${esc(wfFmtOut(v))}</span>`).join("")}</p>` : ""}
+          ${nr.output && nr.output.note ? `<p class="wf-tl-note">“${esc(nr.output.note)}”</p>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+
+  openSheet(`
+    <h2>${esc((run.task && run.task.title) || "Untitled task")}</h2>
+    <p class="hint">${esc(bp.name || "?")} v${Number(bp.version) || 1} · ${st.word.toLowerCase()} · started ${dayStamp(run.startedAt)} ${clock(run.startedAt)}${run.completedAt ? " · ended " + clock(run.completedAt) : ""} · ${run.hops} hop${run.hops === 1 ? "" : "s"}</p>
+    <div class="wf-tl">${rowsHTML || `<p class="hint">No stops recorded yet.</p>`}</div>
+    ${run.status === "running" ? `<button class="btn" id="wfrdCancel">Cancel this run</button>` : ""}
+  `, () => {
+    const btn = $("wfrdCancel");
+    if (!btn) return;
+    let armed = false;
+    btn.onclick = async () => {
+      if (!armed){
+        armed = true;
+        btn.textContent = "Really cancel? It can't be restarted — tap again";
+        setTimeout(() => { if (btn.isConnected){ armed = false; btn.textContent = "Cancel this run"; } }, 3000);
+        return;
+      }
+      btn.disabled = true;
+      try {
+        await wfCancelRun(run.id);
+        closeSheet();
+        toast("Run cancelled");
+      } catch (e) {
+        console.error(e);
+        toast(String((e && e.message) || "Couldn't cancel"));
+        btn.disabled = false;
+      }
+    };
+  });
+}
+
+/* Cancel rides the same transactional path as an advance: read the run
+   and its nodeRuns by ref, write the outcome atomically. On the run doc
+   it touches status + activeNodeIds and NOTHING else; in-flight stops
+   get a glue-level "cancelled" stamp (the engine never emits or reads
+   it - a cancelled run can't advance, so those attempts are inert).
+   Admin-only by rules: the team allowlist can't write status
+   "cancelled", so a worker calling this gets a permission error. */
+async function wfCancelRun(runId){
+  const runRef = db.collection("runs").doc(runId);
+  await db.runTransaction(async tx => {
+    const s = await tx.get(runRef);
+    if (!s.exists) throw new Error("This run is gone");
+    const run = s.data();
+    if (run.status !== "running") throw new Error("Run is already " + run.status);
+    const snaps = await Promise.all((run.nodeRunIds || []).map(id => tx.get(db.collection("nodeRuns").doc(id))));
+    snaps.filter(x => x.exists).forEach(x => {
+      const nr = x.data();
+      if (nr.status === "in_progress")
+        tx.update(db.collection("nodeRuns").doc(nr.id), { status: "cancelled", completedAt: Date.now() });
+    });
+    tx.update(runRef, { status: "cancelled", activeNodeIds: [] });
+  });
+  wfRunCache.delete(runId);
 }

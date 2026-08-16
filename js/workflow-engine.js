@@ -161,6 +161,9 @@
  * @property {string} nodeId
  * @property {"trigger"|"role"|"split"|"logic"|"vault"|"action"} nodeType
  * @property {"pending"|"waiting"|"in_progress"|"completed"|"skipped"|"failed"} status
+ *   (the glue may additionally stamp "cancelled" on in-flight attempts when an
+ *   admin cancels the run — the engine never emits or reads it, since a
+ *   cancelled run can never advance again)
  * @property {string} [assigneeId]
  * @property {number} arrivedAt
  * @property {number|null} completedAt
