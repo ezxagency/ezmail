@@ -331,12 +331,17 @@ function openNotifCenter(){
       ${rows.map((n, i) => {
         const isDeclineNotice = n.kind === "handoff-declined";
         const isHandoffLike = n.kind === "handoff" || isDeclineNotice;
+        const isWfStop = n.kind === "wf-stop";
         const head = n.msg ? esc(n.msg)
+          : isWfStop ? "A task stopped at you — " + esc([n.taskTitle, n.stop].filter(Boolean).join(" · ") || "a workflow stop")
           : n.kind === "campaign" ? "A campaign moved"
           : isDeclineNotice ? esc(n.fromName || "Someone") + " declined — " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task")
           : esc(n.fromName || "Someone") + " finished " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task");
         const pending = isHandoffLike && n.status === "pending" && n.toUid === meUid;
-        const decided = isHandoffLike && n.status && n.status !== "pending";
+        // a workflow stop is an offer too: Take it claims the stop and
+        // lands it on the queue (workflow.js owns the claim transaction)
+        const wfPending = isWfStop && n.status === "pending" && n.toUid === meUid;
+        const decided = (isHandoffLike || isWfStop) && n.status && n.status !== "pending";
         return `
         <li class="notif-item${n.read ? "" : " is-unread"}" data-i="${i}">
           <div>
@@ -350,7 +355,11 @@ function openNotifCenter(){
             <div class="hf-acts">
               <button type="button" class="hf-btn hf-acc" data-hf="acc" data-i="${i}">Accept</button>
               <button type="button" class="hf-btn hf-dec" data-hf="dec" data-i="${i}">Decline</button>
-            </div>`) : ""}
+            </div>`) : wfPending ? `
+            <div class="hf-acts">
+              <button type="button" class="hf-btn hf-acc" data-hf="wfacc" data-i="${i}">Take it</button>
+              <button type="button" class="hf-btn hf-dec" data-hf="wfdec" data-i="${i}">Not me</button>
+            </div>` : ""}
           </div>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </li>`;
@@ -375,10 +384,12 @@ function openNotifCenter(){
       try {
         if (b.dataset.hf === "acc"){ await handoffAccept(n); goToDash(); }
         else if (b.dataset.hf === "reclaim"){ await handoffReclaim(n); goToDash(); }
+        else if (b.dataset.hf === "wfacc"){ await wfClaimFromNotification(n); goToDash(); }
+        else if (b.dataset.hf === "wfdec"){ await wfDeclineStopNotif(n); openNotifCenter(); }
         else { await handoffDecline(n); openNotifCenter(); }
       } catch (err) {
         console.error(err);
-        toast(String(err.message || "").startsWith("This")
+        toast(/^(This|Someone)/.test(String(err.message || ""))
           ? err.message
           : "Couldn't do that — make sure the updated Firestore rules are published");
         openNotifCenter();
@@ -396,6 +407,9 @@ function openNotifCenter(){
     body.querySelectorAll(".notif-item").forEach(li => li.onclick = () => {
       const n = rows[Number(li.dataset.i)];
       closeSheet();
+      // a workflow stop lives on the Workflows page (claimed ones also sit
+      // on the dashboard queue)
+      if (n && n.kind === "wf-stop"){ go("workflow"); return; }
       // campaign news lands on the campaign itself, not just the list page
       if (n && n.kind === "campaign"){
         go("campaigns");

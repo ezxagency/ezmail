@@ -1562,8 +1562,112 @@ async function wfAdvanceTx(runId, nodeRunId, output){
     return next;
   });
   wfRunCache.set(runId, result.run);
+  // a claimed stop lives on the dashboard queue as a linked assignment -
+  // finishing the stop finishes that row too, so the queue never shows
+  // work the run has already moved past
+  const finished = result.nodeRuns.find(nr => nr.id === nodeRunId);
+  if (finished && finished.claim && finished.claim.assignmentId){
+    try {
+      await db.collection("assignments").doc(finished.claim.assignmentId)
+        .update({ done: true, doneAt: Date.now(), ack: false });
+    } catch (e) { console.error(e); }
+  }
   await wfDispatchEffects(result, result.effects);
   return result;
+}
+
+/* ---------- claiming a stop: the bridge into the app's real queue ----------
+   The same transactional shape as notify.js's handoffAccept: ONE
+   transaction claims the nodeRun (first taker wins), creates the
+   self-addressed assignment (firestore.rules already allows exactly
+   that), and settles the notification offer - so two designers accepting
+   the same pool stop from two devices can't both land it. The assignment
+   carries wfRunId/wfNodeRunId so the dashboard queue can route its
+   button back to the stop sheet. */
+async function wfClaimStop(runId, nodeRunId, notifId){
+  const me = auth.currentUser;
+  if (!me) throw new Error("Not signed in");
+  const myName = S.worker || (me.email ? me.email.split("@")[0] : "Someone");
+  const nrRef = db.collection("nodeRuns").doc(nodeRunId);
+  const aRef = db.collection("assignments").doc();
+  const nRef = notifId ? db.collection("notifications").doc(notifId) : null;
+  await db.runTransaction(async tx => {
+    const s = await tx.get(nrRef);
+    if (!s.exists) throw new Error("This stop is gone");
+    const nr = s.data();
+    const notifSnap = nRef ? await tx.get(nRef) : null;
+    const runSnap = await tx.get(db.collection("runs").doc(runId));
+    if (nr.status !== "in_progress") throw new Error("This stop is already " + nr.status);
+    if (nr.assigneeId && nr.assigneeId !== me.uid) throw new Error("Someone already took this stop");
+    const notif = notifSnap && notifSnap.exists ? notifSnap.data() : null;
+    const settle = () => { if (nRef && notif && notif.status === "pending") tx.update(nRef, { status: "accepted" }); };
+    if (nr.claim && nr.claim.assignmentId){
+      // already on my queue (a second offer for the same stop): settle the
+      // notification, never duplicate the queue row
+      settle();
+      return;
+    }
+    const run = runSnap.exists ? runSnap.data() : null;
+    const node = run ? ((run.blueprintSnapshot || {}).nodes || []).find(x => x.id === nr.nodeId) : null;
+    const cfg = node ? node.config || {} : {};
+    let due = null;
+    if (cfg.dueAfter){
+      const d = new Date(Date.now() + Number(cfg.dueAfter) * 3600000);
+      due = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    }
+    tx.update(nrRef, { assigneeId: me.uid, claim: { assignmentId: aRef.id, uid: me.uid, at: Date.now() } });
+    tx.set(aRef, {
+      toUid: me.uid, toName: myName,
+      fromName: (run && (run.blueprintSnapshot || {}).name) || "Workflow", fromEmail: "",
+      store: (run && run.task && run.task.title) || "Workflow",
+      task: cfg.label || "Workflow stop",
+      note: cfg.instructions || "",
+      snote: "Workflow stop — finishing it moves the run to its next stop",
+      wfRunId: runId, wfNodeRunId: nodeRunId,
+      dueDate: due, createdAt: Date.now(), done: false, doneAt: null,
+      groupId: null, groupSize: 1, seenAt: null
+    });
+    settle();
+  });
+}
+
+/* the notification's Take-it button (notify.js calls these) */
+async function wfClaimFromNotification(n){
+  try {
+    await wfClaimStop(n.runId, n.nodeRunId, n.id);
+    toast("Added to your queue");
+  } catch (e) {
+    // the offer is dead if someone else got there - settle it so the
+    // buttons stop promising work that's gone
+    if (/already took/.test(String(e && e.message))) wfDeclineStopNotif(n).catch(() => {});
+    throw e;
+  }
+}
+async function wfDeclineStopNotif(n){
+  await db.runTransaction(async tx => {
+    const ref = db.collection("notifications").doc(n.id);
+    const s = await tx.get(ref);
+    if (!s.exists || s.data().status !== "pending") return;
+    tx.update(ref, { status: "declined" });
+  });
+}
+
+/* the dashboard queue's "Work this stop" button (assign.js calls this) */
+async function wfOpenStopById(nodeRunId){
+  try {
+    const s = await db.collection("nodeRuns").doc(nodeRunId).get();
+    if (!s.exists){ toast("This stop is gone"); return; }
+    const nr = s.data();
+    if (nr.status !== "in_progress"){ toast("This stop is already " + nr.status); return; }
+    if (!wfRunCache.get(nr.runId)){
+      const rs = await db.collection("runs").doc(nr.runId).get();
+      if (rs.exists) wfRunCache.set(nr.runId, rs.data());
+    }
+    wfOpenStop(nr);
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't open this stop");
+  }
 }
 
 /* ---------- effects: after commit, at-most-once, never lost silently ----------
@@ -1604,12 +1708,43 @@ async function wfExecEffect(ef, state){
   const taskTitle = (run.task && run.task.title) || "a workflow run";
 
   if (ef.type === "role-activated"){
-    if (!ef.assigneeId) return null;   // role-based stops surface via the open pool
+    // resolve WHO hears about this stop: a named person directly, or - for
+    // a role stop - everyone in the directory holding that craft. The old
+    // code returned null for role stops ("the pool will show it"), which
+    // in practice meant NOBODY was told. Never silently nobody: an empty
+    // pool rings the admins instead.
+    let recipients = [];
+    if (ef.assigneeId){
+      recipients = [ef.assigneeId];
+    } else if (ef.role){
+      const dir = await wfLoadDirectory();
+      const want = String(ef.role).trim().toLowerCase();
+      recipients = [...new Set(dir.filter(p => (p.craft || "").trim().toLowerCase() === want).map(p => p.uid))];
+    }
+    const node = ((run.blueprintSnapshot || {}).nodes || []).find(x => x.id === ef.nodeId);
+    const cfg = node ? node.config || {} : {};
+    const base = {
+      kind: "wf-stop", status: "pending",
+      runId: run.id, nodeRunId: ef.nodeRunId,
+      stop: cfg.label || "A stop", taskTitle: taskTitle,
+      fromName: (run.blueprintSnapshot || {}).name || "Workflow",
+      text: cfg.instructions || "",
+      read: false, createdAt: now
+    };
+    if (recipients.length){
+      // one atomic fan-out: every eligible person gets a claimable offer,
+      // all-or-nothing, so a crash can't half-notify the pool
+      const batch = db.batch();
+      recipients.forEach(uid => batch.set(db.collection("notifications").doc(), Object.assign({ toUid: uid }, base)));
+      await batch.commit();
+      return { state: "dispatched", reason: ef.assigneeId ? "notified the assignee"
+        : "notified " + recipients.length + " " + ef.role + (recipients.length === 1 ? "" : "s") };
+    }
     await db.collection("notifications").add({
-      toUid: ef.assigneeId, kind: "workflow", read: false, createdAt: now,
-      text: "A task stopped at you: " + taskTitle
+      toRole: "admin", kind: "workflow", read: false, createdAt: now,
+      text: "No one holds the role “" + (ef.role || "?") + "” — the stop “" + (cfg.label || ef.nodeId) + "” on “" + taskTitle + "” is waiting unclaimed in Workflows."
     });
-    return { state: "dispatched" };
+    return { state: "dispatched", reason: "no one holds the role “" + (ef.role || "?") + "” — admins alerted" };
   }
   if (ef.type === "vault") return { state: "dispatched", reason: "stamped into the run record" };
   if (ef.type === "run-completed" || ef.type === "run-failed"){
@@ -1778,7 +1913,19 @@ function wfRenderStops(){
       </div>` : ""}`;
   host.querySelectorAll(".wf-stop").forEach(b => b.onclick = () => {
     const nr = wfStopsMine.concat(wfStopsPool).find(x => x.id === b.dataset.nr);
-    if (nr) wfOpenStop(nr);
+    if (!nr) return;
+    const me = auth.currentUser ? auth.currentUser.uid : null;
+    if (nr.assigneeId === me){ wfOpenStop(nr); return; }
+    // a pool row: taking it claims it - onto your dashboard queue, off the
+    // pool for everyone else. The watchers repaint both lists.
+    b.disabled = true;
+    wfClaimStop(nr.runId, nr.id)
+      .then(() => toast("It's yours — added to your queue"))
+      .catch(e => {
+        console.error(e);
+        toast(String((e && e.message) || "Couldn't take it"));
+        b.disabled = false;
+      });
   });
 }
 

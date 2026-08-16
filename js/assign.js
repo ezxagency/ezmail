@@ -627,19 +627,24 @@ function renderAssignedList(rows){
           const late = r.dueDate && r.dueDate < today;
           const tOpen = assignedOpenTasks.has(r.id);
           // a baton row is the same row, but finishing it IS the handoff -
-          // its buttons route to the campaign, never to markAssignmentDone
+          // its buttons route to the campaign, never to markAssignmentDone.
+          // A workflow-stop row works the same way: completing it must
+          // collect the stop's declared outputs and advance the run, so it
+          // routes to the workflow stop sheet (which closes this row itself)
           const acts = r.cg
             ? `<button type="button" class="btn btn-go btn-sm atask-pass" data-cg="${esc(r.cg)}">${r.multi ? "Approve" : "Pass forward"}</button>
                ${r.canBack ? `<button type="button" class="btn btn-ghost btn-sm atask-sendback" data-cg="${esc(r.cg)}">Send back</button>` : ""}
                <button type="button" class="btn btn-ghost btn-sm atask-view" data-cg="${esc(r.cg)}">Open</button>`
-            : `<button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>`;
+            : r.wfNodeRunId
+              ? `<button type="button" class="btn btn-go btn-sm atask-wf" data-wf="${esc(r.wfNodeRunId)}">Work this stop</button>`
+              : `<button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>`;
           const meta = r.cg
             ? `From ${esc(r.fromName || "admin")}${r.createdAt ? " · your stage since " + dayStamp(r.createdAt) : ""}${r.multi ? " · " + esc(r.multi) : ""} · ${r.dueDate ? "due " + esc(dueWithTime(r)) : "no due date"}`
             : `From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(dueWithTime(r)) : "no due date"}`;
           return `
           <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
             <button type="button" class="atask-head" data-tid="${esc(r.id)}" aria-expanded="${tOpen}">
-              <span class="atask-name">${esc(r.task)}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
+              <span class="atask-name">${esc(r.task)}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.wfNodeRunId ? `<span class="atask-cgchip">workflow</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
               <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(dueWithTime(r)) : ""}</span>
               ${CARET_SVG("atask-caret")}
             </button>
@@ -668,6 +673,9 @@ function renderAssignedList(rows){
     renderAssignedQueue();
   });
   list.querySelectorAll(".atask-done").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
+  list.querySelectorAll(".atask-wf").forEach(b => b.onclick = () => {
+    if (typeof wfOpenStopById === "function") wfOpenStopById(b.dataset.wf);
+  });
   list.querySelectorAll(".atask-pass").forEach(b => b.onclick = () => cgPassSheet(b.dataset.cg));
   list.querySelectorAll(".atask-sendback").forEach(b => b.onclick = () => cgBackSheet(b.dataset.cg));
   list.querySelectorAll(".atask-view").forEach(b => b.onclick = () => cgOpenDetail(b.dataset.cg));
