@@ -70,6 +70,167 @@ function wfResetAll(){
 }
 
 /* ============================================================
+   TEMPLATES — starter blueprints, so a new admin never stares
+   at a blank canvas. Each make() returns FRESH objects in OUR
+   Blueprint schema (the exact shapes the builder saves and the
+   engine consumes) - a template seeds a new draft, it never
+   locks anything. Every one of these must pass wfValidate with
+   zero errors; tests/workflow-templates.test.mjs holds them
+   to it.
+   ============================================================ */
+function wfTplRole(id, label, role, x, y, extra){
+  return { id, type: "role", position: { x, y }, config: Object.assign({
+    label, role, assigneeId: null, assignmentType: "role",
+    outputs: [], requiresOutput: true, instructions: "", dueAfter: null }, extra || {}) };
+}
+function wfTplEdge(from, to, fromHandle){
+  const e = { id: from + "~" + (fromHandle || "out") + "~" + to, from, to };
+  if (fromHandle) e.fromHandle = fromHandle;
+  return e;
+}
+
+/* (a) the acceptance sketch - the spec's target flow, identical node/edge
+   shapes to the handshake test: route into three lanes (or the else-arm),
+   fan out in parallel, vault, merge on a final review, notify */
+function wfTplAcceptance(){
+  const lane = v => ({ source: "task", path: "lane", op: "==", value: v });
+  return {
+    nodes: [
+      { id: "n_t", type: "trigger", position: { x: 340, y: 20 }, config: { label: "Start" } },
+      { id: "n_s1", type: "split", position: { x: 340, y: 160 }, config: { mode: "route", branches: [
+        { id: "bA", label: "Lane A", condition: lane("A") },
+        { id: "bB", label: "Lane B", condition: lane("B") },
+        { id: "bC", label: "Lane C", condition: lane("C") },
+        { id: "bE", label: "Else", isElse: true, condition: null }
+      ] } },
+      wfTplRole("n_r1", "Draft the piece", "designer", 180, 320),
+      { id: "n_s2", type: "split", position: { x: 180, y: 480 }, config: { mode: "parallel", branches: [
+        { id: "p1", label: "Visual", condition: null },
+        { id: "p2", label: "Copy", condition: null }
+      ] } },
+      wfTplRole("n_r2a", "Visual pass", "designer", 60, 640),
+      wfTplRole("n_r2b", "Copy pass", "copywriter", 320, 640),
+      { id: "n_v1", type: "vault", position: { x: 180, y: 800 }, config: { vaultName: "Lane assets", storeWhat: "the finished pieces", visibility: "team" } },
+      wfTplRole("n_r3", "Generalist draft", "designer", 580, 320),
+      wfTplRole("n_r4", "Generalist polish", "designer", 580, 480),
+      { id: "n_v2", type: "vault", position: { x: 580, y: 640 }, config: { vaultName: "Else assets", storeWhat: "the fallback piece", visibility: "team" } },
+      wfTplRole("n_rf", "Final review", "lead", 340, 960),
+      { id: "n_a1", type: "action", position: { x: 340, y: 1110 }, config: { actionType: "notify", params: { message: "Track finished" } } }
+    ],
+    edges: [
+      wfTplEdge("n_t", "n_s1"),
+      wfTplEdge("n_s1", "n_r1", "bA"), wfTplEdge("n_s1", "n_r1", "bB"), wfTplEdge("n_s1", "n_r1", "bC"),
+      wfTplEdge("n_s1", "n_r3", "bE"),
+      wfTplEdge("n_r1", "n_s2"),
+      wfTplEdge("n_s2", "n_r2a", "p1"), wfTplEdge("n_s2", "n_r2b", "p2"),
+      wfTplEdge("n_r2a", "n_v1"), wfTplEdge("n_r2b", "n_v1"),
+      wfTplEdge("n_v1", "n_rf"),
+      wfTplEdge("n_r3", "n_r4"), wfTplEdge("n_r4", "n_v2"), wfTplEdge("n_v2", "n_rf"),
+      wfTplEdge("n_rf", "n_a1")
+    ]
+  };
+}
+
+/* (b) the everyday one: a maker, a manager gate, and a reject that loops
+   the work back for rework until it passes */
+function wfTplApproval(){
+  return {
+    nodes: [
+      { id: "t", type: "trigger", position: { x: 300, y: 20 }, config: { label: "Start" } },
+      wfTplRole("r_draft", "Write the draft", "copywriter", 300, 170),
+      wfTplRole("r_review", "Manager approval", "manager", 300, 340, {
+        outputs: [{ key: "approved", type: "boolean", label: "Approve this?" }]
+      }),
+      { id: "g", type: "logic", position: { x: 300, y: 510 }, config: {
+        condition: { source: "nodeOutput", nodeId: "r_review", path: "approved", op: "==", value: true }
+      } },
+      { id: "a_pub", type: "action", position: { x: 180, y: 670 }, config: { actionType: "notify", params: { message: "Approved — publish it" } } }
+    ],
+    edges: [
+      wfTplEdge("t", "r_draft"),
+      wfTplEdge("r_draft", "r_review"),
+      wfTplEdge("r_review", "g"),
+      wfTplEdge("g", "a_pub", "true"),
+      wfTplEdge("g", "r_draft", "false")
+    ]
+  };
+}
+
+/* (c) a small studio staple: one brief fans into design + copy in
+   parallel, both land in a vault (the two lines in ARE the merge),
+   QA signs off, done */
+function wfTplStudio(){
+  return {
+    nodes: [
+      { id: "t", type: "trigger", position: { x: 300, y: 20 }, config: { label: "Start" } },
+      wfTplRole("r_brief", "Shape the brief", "lead", 300, 170),
+      { id: "sp", type: "split", position: { x: 300, y: 330 }, config: { mode: "parallel", branches: [
+        { id: "d", label: "Design", condition: null },
+        { id: "c", label: "Copy", condition: null }
+      ] } },
+      wfTplRole("r_design", "Design it", "designer", 160, 490),
+      wfTplRole("r_copy", "Write it", "copywriter", 440, 490),
+      { id: "v1", type: "vault", position: { x: 300, y: 650 }, config: { vaultName: "Deliverables", storeWhat: "the finished design and copy", visibility: "team" } },
+      wfTplRole("r_qa", "QA sign-off", "lead", 300, 800),
+      { id: "a1", type: "action", position: { x: 300, y: 950 }, config: { actionType: "notify", params: { message: "Ready for the client" } } }
+    ],
+    edges: [
+      wfTplEdge("t", "r_brief"),
+      wfTplEdge("r_brief", "sp"),
+      wfTplEdge("sp", "r_design", "d"), wfTplEdge("sp", "r_copy", "c"),
+      wfTplEdge("r_design", "v1"), wfTplEdge("r_copy", "v1"),
+      wfTplEdge("v1", "r_qa"),
+      wfTplEdge("r_qa", "a1")
+    ]
+  };
+}
+
+const WF_TEMPLATES = [
+  { key: "acceptance", name: "Acceptance sketch",
+    tagline: "Route into three lanes or an else-arm, fan out in parallel, vault the work, merge on a final review, notify",
+    make: wfTplAcceptance },
+  { key: "approval", name: "Draft → approval → publish",
+    tagline: "One maker, one manager gate — a reject loops it back for rework until it passes",
+    make: wfTplApproval },
+  { key: "studio", name: "Brief → design + copy → QA",
+    tagline: "A brief fans into parallel design and copy, both land in a vault, QA signs off",
+    make: wfTplStudio }
+];
+
+function wfNewBlueprintSheet(){
+  openSheet(`
+    <h2>New blueprint</h2>
+    <p class="hint">Start from a template — it seeds the canvas and stays fully editable — or draw from scratch.</p>
+    <button type="button" class="wf-card" data-tpl="">
+      <span class="wf-card-main">
+        <p class="wf-card-name">Blank canvas</p>
+        <p class="wf-card-meta">Just the Trigger. Draw the rest.</p>
+      </span>
+    </button>
+    ${WF_TEMPLATES.map(t => `
+      <button type="button" class="wf-card" data-tpl="${esc(t.key)}">
+        <span class="wf-card-main">
+          <p class="wf-card-name">${esc(t.name)}</p>
+          <p class="wf-card-meta">${esc(t.tagline)} · ${t.make().nodes.length} blocks</p>
+        </span>
+      </button>`).join("")}
+  `, () => {
+    $("sheetBody").querySelectorAll("[data-tpl]").forEach(b => b.onclick = () => {
+      closeSheet();
+      const tpl = WF_TEMPLATES.find(t => t.key === b.dataset.tpl);
+      if (!tpl){ wfOpenBuilder(null); return; }
+      const g = tpl.make();
+      // a NEW draft seeded from the template: fresh doc id on first save,
+      // status draft, everything editable - and dirty, because nothing
+      // has been persisted yet
+      wfOpenBuilder({ docId: null, name: tpl.name, version: 1, status: "draft",
+        createdAt: null, nodes: g.nodes, edges: g.edges });
+      wfMarkDirty();
+    });
+  });
+}
+
+/* ============================================================
    PAGE ENTRY
    ============================================================ */
 function enterWorkflowPage(){
@@ -144,7 +305,7 @@ async function wfRenderBlueprints(){
         </div>`).join("")
       : `<div class="fpage-panel"><div class="empty">No blueprints yet. Start one and drag the six blocks into a track.</div></div>`}
     </div>`;
-  $("wfNew").onclick = () => wfOpenBuilder(null);
+  $("wfNew").onclick = () => wfNewBlueprintSheet();
   host.querySelectorAll("[data-open]").forEach(c => c.onclick = () => {
     const r = rows.find(x => x.docId === c.dataset.open);
     if (r) wfOpenBuilder(r);
