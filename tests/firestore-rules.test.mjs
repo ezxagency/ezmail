@@ -1,4 +1,4 @@
-/* Emulator test matrix for ../firestore.rules - 100 allow/deny assertions
+/* Emulator test matrix for ../firestore.rules - 105 allow/deny assertions
    across five actors: admin, assigner (worker role + special email),
    worker, pending stranger, an unverified fresh signup, and the
    unauthenticated client-link holder.
@@ -39,6 +39,7 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "campaigns/c2"), { title: "T2", memberUids: ["worker2"], status: "active", cur: 0, stages: [], history: [], updatedAt: 1 });
   await setDoc(doc(db, "campaignTemplates/t1"), { name: "Tpl", stages: [] });
   await setDoc(doc(db, "blueprints/bp1"), { orgId: "ez-agency", ownerId: "admin1", name: "Track", version: 1, status: "published", nodes: [], edges: [], createdAt: 1, updatedAt: 1 });
+  await setDoc(doc(db, "blueprints/bp1/versions/1"), { version: 1, name: "Track", nodes: [], edges: [], publishedAt: 1, publishedBy: "admin1" });
   await setDoc(doc(db, "runs/run1"), { id: "run1", blueprintId: "bp1", blueprintSnapshot: { nodes: [], edges: [] }, taskId: null, task: { title: "Banner" }, orgId: "ez-agency", status: "running", activeNodeIds: ["n1"], hops: 2, startedAt: 1, completedAt: null, nodeRunIds: ["run1:t:1", "run1:n1:1"] });
   await setDoc(doc(db, "nodeRuns/run1:n1:1"), { id: "run1:n1:1", seq: 1, runId: "run1", nodeId: "n1", nodeType: "role", status: "in_progress", assigneeId: "worker1", arrivedAt: 1, completedAt: null, output: {}, inputs: {} });
   await setDoc(doc(db, "notifications/n1"), { toUid: "worker1", fromUid: "worker2", kind: "handoff", status: "pending", store: "abc", task: "Copy", text: "@W1 take it", read: false, createdAt: 1 });
@@ -94,6 +95,11 @@ await T("admin: blueprint create+update+delete", assertSucceeds((async () => {
 })()));
 await T("stranger(pending): read blueprints DENIED", assertFails(getDocs(collection(stranger, "blueprints"))));
 await T("anon: read blueprint DENIED", assertFails(getDoc(doc(anon, "blueprints/bp1"))));
+await T("worker: read a blueprint version (history is team-readable)", assertSucceeds(getDoc(doc(worker, "blueprints/bp1/versions/1"))));
+await T("worker: write a blueprint version DENIED", assertFails(setDoc(doc(worker, "blueprints/bp1/versions/9"), { version: 9, nodes: [], edges: [] })));
+await T("admin: record v2 at publish", assertSucceeds(setDoc(doc(admin, "blueprints/bp1/versions/2"), { version: 2, name: "Track", nodes: [], edges: [], publishedAt: 9, publishedBy: "admin1" })));
+await T("worker: v1 still intact and readable after v2 landed", assertSucceeds(getDoc(doc(worker, "blueprints/bp1/versions/1"))));
+await T("admin: rewriting a past version DENIED (write-once, immutable)", assertFails(updateDoc(doc(admin, "blueprints/bp1/versions/1"), { nodes: [{ hacked: true }] })));
 
 // ================= WORKFLOW RUNS + NODERUNS =================
 await T("worker: read a run", assertSucceeds(getDoc(doc(worker, "runs/run1"))));

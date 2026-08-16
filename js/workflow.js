@@ -324,8 +324,12 @@ function wfOpenBuilder(bpDoc){
   wfNodes = new Map(); wfDf2Our = new Map(); wfOur2Df = new Map();
   wfErrList = []; wfIsDirty = false;
   wfCurrent = bpDoc
-    ? { docId: bpDoc.docId, name: bpDoc.name || "Untitled workflow", version: Number(bpDoc.version) || 1, status: bpDoc.status || "draft", createdAt: bpDoc.createdAt || null }
-    : { docId: null, name: "Untitled workflow", version: 1, status: "draft", createdAt: null };
+    ? { docId: bpDoc.docId, name: bpDoc.name || "Untitled workflow", version: Number(bpDoc.version) || 1, status: bpDoc.status || "draft", createdAt: bpDoc.createdAt || null,
+        // pre-history blueprints have no counter: a live published doc IS
+        // its own latest published version; a draft has published nothing
+        lastPublishedVersion: bpDoc.lastPublishedVersion !== undefined ? bpDoc.lastPublishedVersion
+          : (bpDoc.status === "published" ? Number(bpDoc.version) || 1 : 0) }
+    : { docId: null, name: "Untitled workflow", version: 1, status: "draft", createdAt: null, lastPublishedVersion: 0 };
 
   // sign-out must dismantle the canvas: the next admin on this device
   // should never land in the previous session's half-edited blueprint
@@ -341,6 +345,7 @@ function wfOpenBuilder(bpDoc){
       <div class="wf-bar-name"><input type="text" id="wfName" maxlength="80" value="${esc(wfCurrent.name)}" aria-label="Blueprint name"></div>
       <span class="wf-status ${wfCurrent.status === "published" ? "is-published" : "is-draft"}" id="wfStatusChip">${wfCurrent.status === "published" ? "Published" : "Draft"}</span>
       <div class="fpage-bar-acts">
+        <button class="btn btn-ghost btn-sm" id="wfHistory">History</button>
         <button class="btn btn-sm" id="wfSave">Save draft</button>
         <button class="btn btn-go btn-sm" id="wfPublish">Publish</button>
       </div>
@@ -381,6 +386,7 @@ function wfOpenBuilder(bpDoc){
   $("wfName").oninput = e => { wfCurrent.name = e.target.value; wfMarkDirty(); };
   $("wfSave").onclick = () => wfSaveDraft();
   $("wfPublish").onclick = () => wfPublish();
+  $("wfHistory").onclick = () => wfVersionHistorySheet();
   $("wfZoomIn").onclick = () => wfEditor.zoom_in();
   $("wfZoomOut").onclick = () => wfEditor.zoom_out();
   $("wfZoomReset").onclick = () => wfEditor.zoom_reset();
@@ -682,6 +688,7 @@ async function wfSaveDraft(){
   btn.disabled = true;
   try {
     const docData = wfBlueprintObj("draft", wfCurrent.version);
+    docData.lastPublishedVersion = wfCurrent.lastPublishedVersion || 0;
     if (!wfCurrent.docId) wfCurrent.docId = db.collection("blueprints").doc().id;
     await db.collection("blueprints").doc(wfCurrent.docId).set(docData);
     wfCurrent.createdAt = docData.createdAt;
@@ -695,30 +702,176 @@ async function wfSaveDraft(){
   btn.disabled = false;
 }
 
+/* The whole publish, decided as data before anything is written - pure,
+   so tests can hold every branch of the versioning story to account.
+   Returns {errs} when the wfValidate gate fails (nothing may be written),
+   else { newVer, main, versionWrites }. Version history never matters to
+   runs in flight: a run executes its own frozen blueprintSnapshot and
+   reads neither the live blueprint nor this subcollection. */
+function wfPublishPlan(fetched, docData){
+  const errs = wfValidate(Object.assign({ id: "publish-probe" }, docData));
+  if (errs.length) return { errs };
+  const lastPub = fetched && fetched.lastPublishedVersion !== undefined
+    ? Number(fetched.lastPublishedVersion) || 0
+    : (fetched && fetched.status === "published" ? Number(fetched.version) || 1 : 0);
+  const newVer = lastPub + 1;
+  const versionWrites = [];
+  // belt-and-braces for blueprints published before version history
+  // existed: their live published content has no copy in versions/ yet,
+  // so preserve the OUTGOING version before it is overwritten. Publishes
+  // made after this feature already recorded their own copy (see below),
+  // which onlyIfMissing leaves untouched - past versions never mutate.
+  if (fetched && fetched.status === "published"){
+    const outVer = Number(fetched.version) || 1;
+    versionWrites.push({ id: String(outVer), onlyIfMissing: true, data: {
+      version: outVer, name: fetched.name || "", nodes: fetched.nodes || [], edges: fetched.edges || [],
+      publishedAt: fetched.updatedAt || 0, publishedBy: fetched.ownerId || "" } });
+  }
+  // every publish records itself: v1 on the first publish, vN forever after
+  versionWrites.push({ id: String(newVer), data: {
+    version: newVer, name: docData.name, nodes: docData.nodes, edges: docData.edges,
+    publishedAt: docData.updatedAt, publishedBy: docData.ownerId } });
+  return { errs: [], newVer, versionWrites,
+    main: Object.assign({}, docData, { version: newVer, status: "published", lastPublishedVersion: newVer }) };
+}
+
 async function wfPublish(){
-  const probe = wfBlueprintObj("draft", wfCurrent.version);
-  const errs = wfValidate({ id: wfCurrent.docId || "new", ...probe });
-  if (errs.length){
-    wfMarkErrors(errs);
-    toast(errs.length === 1 ? "One thing to fix before publishing" : errs.length + " things to fix before publishing");
+  const probe = wfBlueprintObj("published", wfCurrent.version);
+  let fetched = null;
+  if (wfCurrent.docId){
+    // the OUTGOING content lives in Firestore, not on this canvas - fetch
+    // it so the plan can preserve what's about to be overwritten
+    try {
+      const s = await db.collection("blueprints").doc(wfCurrent.docId).get();
+      if (s.exists) fetched = s.data();
+    } catch (e) {
+      console.error(e);
+      toast("Publish failed — check the connection");
+      return;
+    }
+  }
+  const plan = wfPublishPlan(fetched, probe);
+  if (plan.errs.length){
+    wfMarkErrors(plan.errs);
+    toast(plan.errs.length === 1 ? "One thing to fix before publishing" : plan.errs.length + " things to fix before publishing");
     return;
   }
   const btn = $("wfPublish");
   btn.disabled = true;
   try {
-    const ver = wfCurrent.status === "published" ? wfCurrent.version + 1 : wfCurrent.version;
-    const docData = wfBlueprintObj("published", ver);
     if (!wfCurrent.docId) wfCurrent.docId = db.collection("blueprints").doc().id;
-    await db.collection("blueprints").doc(wfCurrent.docId).set(docData);
-    wfCurrent.createdAt = docData.createdAt;
-    wfCurrent.status = "published"; wfCurrent.version = ver;
+    const ref = db.collection("blueprints").doc(wfCurrent.docId);
+    const batch = db.batch();
+    for (const vw of plan.versionWrites){
+      const vRef = ref.collection("versions").doc(vw.id);
+      if (vw.onlyIfMissing && (await vRef.get()).exists) continue;
+      batch.set(vRef, vw.data);
+    }
+    batch.set(ref, plan.main);
+    await batch.commit();
+    wfCurrent.createdAt = plan.main.createdAt;
+    wfCurrent.status = "published";
+    wfCurrent.version = plan.newVer;
+    wfCurrent.lastPublishedVersion = plan.newVer;
     wfIsDirty = false; wfSyncSaveBtn(); wfSyncStatusChip();
-    toast("Published · v" + ver);
+    toast("Published · v" + plan.newVer);
   } catch (e) {
     console.error(e);
     toast("Publish failed — check the connection");
   }
   btn.disabled = false;
+}
+
+/* ============================================================
+   VERSION HISTORY — every publish preserved immutably under
+   blueprints/{id}/versions/{n}. Viewing is read-only; restore
+   only SEEDS a new draft from a past version's nodes/edges.
+   In-flight runs stay untouched throughout: they read their own
+   blueprintSnapshot, never the live blueprint or this history.
+   ============================================================ */
+async function wfVersionHistorySheet(){
+  if (!wfCurrent || !wfCurrent.docId){
+    toast("History starts at the first publish");
+    return;
+  }
+  let rows = [];
+  try {
+    const snap = await db.collection("blueprints").doc(wfCurrent.docId).collection("versions").get();
+    snap.forEach(d => rows.push(d.data()));
+  } catch (e) {
+    console.error(e);
+    toast("Couldn't load history");
+    return;
+  }
+  rows.sort((a, b) => (Number(b.version) || 0) - (Number(a.version) || 0));
+  await wfLoadDirectory();
+  openSheet(`
+    <h2>Version history</h2>
+    <p class="hint">Every publish is preserved here, immutably. Runs in flight never read these — each run carries its own frozen copy of the track.</p>
+    ${rows.length ? rows.map(v => `
+      <button type="button" class="wf-card" data-v="${Number(v.version) || 0}">
+        <span class="wf-card-main">
+          <p class="wf-card-name">v${Number(v.version) || 0}${Number(v.version) === wfCurrent.lastPublishedVersion ? " · current" : ""}</p>
+          <p class="wf-card-meta">${esc(v.name || "")} · ${v.publishedAt ? dayStamp(v.publishedAt) + " " + clock(v.publishedAt) : "—"} · by ${esc(wfDirName(v.publishedBy) || "admin")}</p>
+        </span>
+      </button>`).join("")
+    : `<p class="hint">No published versions yet — the first publish records v1.</p>`}
+  `, () => {
+    $("sheetBody").querySelectorAll("[data-v]").forEach(b => b.onclick = () => {
+      const v = rows.find(x => (Number(x.version) || 0) === Number(b.dataset.v));
+      if (v) wfVersionViewSheet(v);
+    });
+  });
+}
+
+function wfVersionViewSheet(v){
+  const nodes = v.nodes || [], edges = v.edges || [];
+  const nameOf = id => {
+    const n = nodes.find(x => x.id === id);
+    if (!n) return id;
+    const c = n.config || {};
+    return c.label || c.vaultName || (WF_TYPES[n.type] ? WF_TYPES[n.type].name : n.type);
+  };
+  openSheet(`
+    <h2>v${Number(v.version) || 0} · read-only</h2>
+    <p class="hint">${esc(v.name || "")}${v.publishedAt ? " · published " + dayStamp(v.publishedAt) + " " + clock(v.publishedAt) : ""}. Looking, not touching — restore to edit a copy.</p>
+    <p class="fpage-section-title">Blocks (${nodes.length})</p>
+    <div class="wf-vv">
+      ${nodes.map(n => `
+        <div class="wf-vv-row">
+          <span class="wf-vv-dot wf-${esc(n.type)}"></span>
+          <span class="wf-vv-name">${esc(nameOf(n.id))}</span>
+          <small>${esc(WF_TYPES[n.type] ? WF_TYPES[n.type].name : n.type)}</small>
+        </div>`).join("")}
+    </div>
+    <p class="fpage-section-title">Lines (${edges.length})</p>
+    <div class="wf-vv">
+      ${edges.map(e => `
+        <div class="wf-vv-row is-edge">
+          <span class="wf-vv-name">${esc(nameOf(e.from))} → ${esc(nameOf(e.to))}${e.fromHandle ? ` <small>via ${esc(e.fromHandle)}</small>` : ""}</span>
+        </div>`).join("")}
+    </div>
+    <button class="btn btn-go" id="wfvRestore">Restore this version as a new draft</button>
+    <button class="btn btn-ghost btn-sm" id="wfvBack" style="margin-top:10px">Back to history</button>
+  `, () => {
+    $("wfvBack").onclick = () => wfVersionHistorySheet();
+    $("wfvRestore").onclick = () => {
+      closeSheet();
+      wfOpenBuilder(wfRestoreDraftDoc(wfCurrent, v));
+      wfMarkDirty();
+      toast("v" + (Number(v.version) || 0) + " loaded as a fresh draft — publishing makes it v" + ((wfCurrent.lastPublishedVersion || 0) + 1));
+    };
+  });
+}
+
+/* restore never mutates the past: DEEP COPIES of the version's nodes and
+   edges seed a draft on the SAME blueprint id; the publish counter rides
+   along untouched, so the next publish becomes the next version */
+function wfRestoreDraftDoc(current, v){
+  return { docId: current.docId, name: current.name, version: current.version,
+    status: "draft", createdAt: current.createdAt,
+    lastPublishedVersion: current.lastPublishedVersion,
+    nodes: wfClone2(v.nodes || []), edges: wfClone2(v.edges || []) };
 }
 
 function wfSyncStatusChip(){

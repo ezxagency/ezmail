@@ -114,6 +114,14 @@ service cloud.firestore {
     match /blueprints/{id} {
       allow read: if request.auth != null && isTeam();
       allow create, update, delete: if request.auth != null && isAdmin();
+      // Immutable publish history: each publish records its version here
+      // once, and nothing may ever rewrite or delete a past version - not
+      // even an admin. Restore only COPIES a version into a new draft.
+      match /versions/{ver} {
+        allow read: if request.auth != null && isTeam();
+        allow create: if request.auth != null && isAdmin();
+        allow update, delete: if false;
+      }
     }
     // Workflow runs: one real task riding a FROZEN copy of a blueprint.
     // Only admins start or kill runs. Any team member may advance one, but
