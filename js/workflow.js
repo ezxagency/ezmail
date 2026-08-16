@@ -1397,15 +1397,29 @@ function wfSheetAction(oid){
       <label class="fld"><span>Message</span><input type="text" id="wfcP1" maxlength="200" value="${esc(params.message || "")}" placeholder="e.g. Campaign assets are ready"></label>`;
     if (actionType === "email") return `
       <label class="fld"><span>To (email)</span><input type="text" id="wfcP1" maxlength="120" value="${esc(params.to || "")}" placeholder="client@example.com"></label>
-      <label class="fld"><span>Subject</span><input type="text" id="wfcP2" maxlength="150" value="${esc(params.subject || "")}" placeholder="Subject line"></label>`;
+      <label class="fld"><span>Subject</span><input type="text" id="wfcP2" maxlength="150" value="${esc(params.subject || "")}" placeholder="Subject line"></label>
+      <label class="fld"><span>Message (optional)</span><textarea id="wfcP3" maxlength="600" placeholder="Included in the email body">${esc(params.message || "")}</textarea></label>
+      <p class="hint">Sends through the app's mail pathway — EmailJS if configured, else the Firestore mail queue. Without EmailJS keys, rules only let an admin's advance queue mail to other people.</p>`;
     if (actionType === "webhook") return `
-      <label class="fld"><span>Webhook URL</span><input type="text" id="wfcP1" maxlength="300" value="${esc(params.url || "")}" placeholder="https://…"></label>`;
+      <label class="fld"><span>Webhook URL</span><input type="text" id="wfcP1" maxlength="300" value="${esc(params.url || "")}" placeholder="https://…"></label>
+      <div class="chips" id="wfcP2">
+        <button type="button" class="chip" data-v="off" aria-pressed="${params.enabled ? "false" : "true"}">Off — safe while building</button>
+        <button type="button" class="chip" data-v="on" aria-pressed="${params.enabled ? "true" : "false"}">On — fires for real</button>
+      </div>
+      <p class="hint">POSTs the run's context as JSON to this URL when the task lands here. Off by default, so a half-built track can never ping the outside world by accident.</p>`;
     return `<p class="hint">Marks the run's task complete. Nothing to configure.</p>`;
+  };
+  const wireParams = () => {
+    const box = $("wfcP2");
+    if (actionType === "webhook" && box) wireChipsIn(box, () => {});
   };
   const readParams = () => {
     if (actionType === "notify") return { message: $("wfcP1").value.trim() };
-    if (actionType === "email") return { to: $("wfcP1").value.trim(), subject: $("wfcP2").value.trim() };
-    if (actionType === "webhook") return { url: $("wfcP1").value.trim() };
+    if (actionType === "email") return { to: $("wfcP1").value.trim(), subject: $("wfcP2").value.trim(), message: $("wfcP3").value.trim() };
+    if (actionType === "webhook"){
+      const on = $("wfcP2").querySelector('.chip[aria-pressed="true"]');
+      return { url: $("wfcP1").value.trim(), enabled: !!(on && on.dataset.v === "on") };
+    }
     return {};
   };
 
@@ -1420,9 +1434,11 @@ function wfSheetAction(oid){
     <button class="btn btn-go" id="wfcSave">Done</button>
   `, () => {
     wfWaitForWire();
+    wireParams();
     wireChipsIn($("wfcAType"), v => {
       actionType = v;
       $("wfcParams").innerHTML = paramsHTML();
+      wireParams();
     });
     $("wfcSave").onclick = () => {
       c.actionType = actionType;
@@ -1550,35 +1566,135 @@ async function wfAdvanceTx(runId, nodeRunId, output){
   return result;
 }
 
-/* ---------- effects: after commit, at-most-once ---------- */
+/* ---------- effects: after commit, at-most-once, never lost silently ----------
+   The engine still just RETURNS effects; this glue executes them. Every
+   effect that belongs to a nodeRun gets its outcome stamped there as
+   dispatch[type] = { state: "dispatched"|"failed"|"skipped", reason?, at }
+   - the runs-board timeline renders these, so a failed send is VISIBLE,
+   not swallowed. A retry (crash between commit and stamp, transaction
+   rerun) checks the stamp first, so nothing double-sends. */
 async function wfDispatchEffects(state, effects){
-  const now = Date.now();
   for (const ef of (effects || [])){
     const nr = ef.nodeRunId ? state.nodeRuns.find(x => x.id === ef.nodeRunId) : null;
-    if (nr && nr.dispatched) continue;   // a retry already delivered this one
+    // at-most-once: the old boolean stamp and the new per-effect map both count
+    if (nr && (nr.dispatched || (nr.dispatch && nr.dispatch[ef.type]))) continue;
+    let outcome = null;   // null = nothing worth stamping (no-op effect kinds)
     try {
-      if (ef.type === "role-activated" && ef.assigneeId){
-        await db.collection("notifications").add({
-          toUid: ef.assigneeId, kind: "workflow", read: false, createdAt: now,
-          text: "A task stopped at you: " + ((state.run.task && state.run.task.title) || "a workflow run")
-        });
-      } else if (ef.type === "action" && ef.actionType === "notify"){
-        await db.collection("notifications").add({
-          toRole: "admin", kind: "workflow", read: false, createdAt: now,
-          text: (ef.params && ef.params.message) || "A workflow action fired"
-        });
-      } else if (ef.type === "run-completed" || ef.type === "run-failed"){
-        await db.collection("notifications").add({
-          toRole: "admin", kind: "workflow", read: false, createdAt: now,
-          text: (ef.type === "run-completed" ? "Run finished: " : "Run FAILED (loop cap): ")
-            + ((state.run.task && state.run.task.title) || state.run.id)
-        });
-      }
-      // email/webhook actions: recorded on the nodeRun, not sent - a
-      // static site has no sender to speak for; honest over silent
-      if (nr) await db.collection("nodeRuns").doc(nr.id).update({ dispatched: true });
-    } catch (e) { console.error(e); }
+      outcome = await wfExecEffect(ef, state);
+    } catch (e) {
+      console.error(e);
+      outcome = { state: "failed", reason: String((e && e.message) || e).slice(0, 140) };
+    }
+    if (nr && outcome){
+      try {
+        const stamp = Object.assign({ at: Date.now() }, outcome);
+        await db.collection("nodeRuns").doc(nr.id).update({ ["dispatch." + ef.type]: stamp });
+        nr.dispatch = nr.dispatch || {};
+        nr.dispatch[ef.type] = stamp;
+      } catch (e) { console.error(e); }
+    }
   }
+}
+
+/* one effect → one outcome. Throws are caught by the caller and become
+   "failed" stamps; returning null means there is nothing to record. */
+async function wfExecEffect(ef, state){
+  const now = Date.now();
+  const run = state.run;
+  const taskTitle = (run.task && run.task.title) || "a workflow run";
+
+  if (ef.type === "role-activated"){
+    if (!ef.assigneeId) return null;   // role-based stops surface via the open pool
+    await db.collection("notifications").add({
+      toUid: ef.assigneeId, kind: "workflow", read: false, createdAt: now,
+      text: "A task stopped at you: " + taskTitle
+    });
+    return { state: "dispatched" };
+  }
+  if (ef.type === "vault") return { state: "dispatched", reason: "stamped into the run record" };
+  if (ef.type === "run-completed" || ef.type === "run-failed"){
+    await db.collection("notifications").add({
+      toRole: "admin", kind: "workflow", read: false, createdAt: now,
+      text: (ef.type === "run-completed" ? "Run finished: " : "Run FAILED (loop cap): ") + taskTitle
+    });
+    return null;   // run-level, no nodeRun to stamp
+  }
+  if (ef.type !== "action") return null;
+
+  const p = ef.params || {};
+  if (ef.actionType === "notify"){
+    await db.collection("notifications").add({
+      toRole: "admin", kind: "workflow", read: false, createdAt: now,
+      text: p.message || ("A workflow action fired on: " + taskTitle)
+    });
+    return { state: "dispatched" };
+  }
+  if (ef.actionType === "complete"){
+    // there is no linked task doc to flip yet (runs carry taskId: null) -
+    // saying "skipped" is honest; saying "dispatched" would be a lie
+    return { state: "skipped", reason: "no linked task to mark complete" };
+  }
+  if (ef.actionType === "email"){
+    if (!p.to) return { state: "failed", reason: "no recipient configured on this Action" };
+    const subject = p.subject || ("Workflow update — " + taskTitle);
+    const r = await queueAppEmail(p.to, subject, wfActionEmailHTML(run, p));
+    return r.ok ? { state: "dispatched", reason: r.reason || "" }
+                : { state: "failed", reason: r.reason || "send failed" };
+  }
+  if (ef.actionType === "webhook"){
+    if (!p.enabled) return { state: "skipped", reason: "webhook is disabled — switch it on in the Action block" };
+    if (!p.url) return { state: "failed", reason: "no URL configured on this Action" };
+    try {
+      // POST-only, JSON-only: the action's params plus the run context
+      const res = await fetch(p.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "workflow-action",
+          runId: run.id, taskId: run.taskId || null, task: run.task || {},
+          blueprint: { name: (run.blueprintSnapshot || {}).name || "", version: (run.blueprintSnapshot || {}).version || 0 },
+          nodeId: ef.nodeId, nodeRunId: ef.nodeRunId, firedAt: now
+        })
+      });
+      if (res.ok) return { state: "dispatched", reason: "endpoint answered " + res.status };
+      return { state: "failed", reason: "endpoint answered " + res.status };
+    } catch (e) {
+      console.error(e);
+      return { state: "failed", reason: "couldn't reach the endpoint (network or CORS)" };
+    }
+  }
+  return { state: "skipped", reason: "unknown action type" };
+}
+
+/* the ACTION email body: the same inline-styled dialect email.js uses,
+   built from the action's params plus the run/task context */
+function wfActionEmailHTML(run, p){
+  const task = run.task || {};
+  const bp = run.blueprintSnapshot || {};
+  const line = (k, v) => `<tr>
+    <td style="padding:8px 10px;font:600 10px/1.4 -apple-system,'Segoe UI',Arial,sans-serif;letter-spacing:1px;color:#8a8578;text-transform:uppercase;border-bottom:1px solid #eee8db">${esc(k)}</td>
+    <td style="padding:8px 10px;font:13px/1.5 -apple-system,'Segoe UI',Arial,sans-serif;color:#2b2b28;border-bottom:1px solid #eee8db">${esc(String(v))}</td></tr>`;
+  const fields = Object.entries(task).filter(([k]) => k !== "title");
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#eeeae0">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eeeae0;padding:24px 12px"><tr><td align="center">
+    <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden">
+      <tr><td style="background:#161922;padding:26px 28px">
+        <div style="font:800 22px/1 -apple-system,'Segoe UI',Arial,sans-serif;color:#ffffff;letter-spacing:1px">EZ <span style="font-weight:300">CLOCK IN</span></div>
+        <div style="font:13px/1.6 -apple-system,'Segoe UI',Arial,sans-serif;color:#b9bcc4;margin-top:8px">Workflow update · ${esc(bp.name || "a track")} v${Number(bp.version) || 1}</div>
+      </td></tr>
+      <tr><td style="padding:26px 28px 8px">
+        <div style="font:700 19px/1.4 -apple-system,'Segoe UI',Arial,sans-serif;color:#161922">${esc(task.title || "A task moved")}</div>
+        ${p.message ? `<div style="font:14px/1.7 -apple-system,'Segoe UI',Arial,sans-serif;color:#2b2b28;margin-top:10px">${esc(p.message)}</div>` : ""}
+      </td></tr>
+      ${fields.length ? `<tr><td style="padding:10px 28px 22px">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${fields.map(([k, v]) => line(k, v)).join("")}</table>
+      </td></tr>` : `<tr><td style="padding:0 0 22px"></td></tr>`}
+      <tr><td style="padding:16px 28px;background:#f6f4ef">
+        <div style="font:11px/1.6 -apple-system,'Segoe UI',Arial,sans-serif;color:#8a8578">Sent automatically by an Ez Clock In workflow Action.</div>
+      </td></tr>
+    </table>
+  </td></tr></table>
+  </body></html>`;
 }
 
 /* ---------- my stops (and the open pool) ---------- */
@@ -1841,6 +1957,9 @@ async function wfOpenRunDetail(run){
           <p class="wf-tl-meta">${esc(word)}${who ? " · " + esc(who) : ""} · in ${clock(nr.arrivedAt)}${nr.completedAt ? " · out " + clock(nr.completedAt) : ""}</p>
           ${outs.length ? `<p class="wf-tl-outs">${outs.map(([k, v]) => `<span>${esc(k)}: ${esc(wfFmtOut(v))}</span>`).join("")}</p>` : ""}
           ${nr.output && nr.output.note ? `<p class="wf-tl-note">“${esc(nr.output.note)}”</p>` : ""}
+          ${nr.dispatch ? Object.entries(nr.dispatch).map(([k, d]) =>
+            `<p class="wf-tl-disp is-${esc(d.state)}">${esc(k)} ${esc(d.state)}${d.reason ? " — " + esc(d.reason) : ""}</p>`).join("")
+            : (nr.dispatched ? `<p class="wf-tl-disp is-dispatched">effect dispatched</p>` : "")}
         </div>
       </div>`;
   }).join("");

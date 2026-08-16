@@ -113,14 +113,13 @@ function verifyCodeEmailHTML(code){
   </body></html>`;
 }
 
-/* Same two transports as queueSummaryEmail, minus the delivery-state wait -
-   this fires during sign-up before the app has any UI to watch a promise
-   from, so it resolves the moment the send/queue call itself succeeds or
-   fails. A failed send isn't fatal: the verify screen's Resend covers it. */
-async function queueVerifyCodeEmail(to, code){
-  const subject = "Your Ez Clock In verification code";
-  const html = verifyCodeEmailHTML(code);
-
+/* The generic transport underneath every app email: EmailJS if the three
+   CONFIG keys are pasted in, else the Firestore mail queue for the
+   Trigger Email extension. No toasts here - callers own the storytelling
+   - and no throws: the answer is always { ok, reason }, so a caller can
+   record an HONEST failure instead of swallowing one. (The verify-code
+   sender below and the workflow ACTION blocks both ride this.) */
+async function queueAppEmail(to, subject, html){
   const ej = (typeof CONFIG !== "undefined" && CONFIG.emailjs) || {};
   if (ej.publicKey && ej.serviceId && ej.templateId){
     try {
@@ -134,15 +133,30 @@ async function queueVerifyCodeEmail(to, code){
           template_params: { to_email: to, subject, content: html }
         })
       });
-      return res.ok;
-    } catch (e) { console.error(e); return false; }
+      if (res.ok) return { ok: true, reason: "sent via EmailJS" };
+      return { ok: false, reason: "EmailJS rejected the request (" + res.status + ")" };
+    } catch (e) {
+      console.error(e);
+      return { ok: false, reason: "couldn't reach EmailJS (network?)" };
+    }
   }
-
-  if (!FB_READY || !db) return false;
+  if (!FB_READY || !db) return { ok: false, reason: "email isn't configured — no EmailJS keys and no Firebase" };
   try {
     await db.collection("mail").add({ to: [to], message: { subject, html } });
-    return true;
-  } catch (e) { console.error(e); return false; }
+    return { ok: true, reason: "queued for the Trigger Email extension" };
+  } catch (e) {
+    console.error(e);
+    return { ok: false, reason: e && e.code === "permission-denied"
+      ? "Firestore rules block this account from queueing mail to that address"
+      : "couldn't queue the email — " + ((e && e.message) || "unknown") };
+  }
+}
+
+/* Fires during sign-up, before the app has any UI to watch a promise
+   from - resolves the moment the send/queue call itself succeeds or
+   fails. A failed send isn't fatal: the verify screen's Resend covers it. */
+async function queueVerifyCodeEmail(to, code){
+  return (await queueAppEmail(to, "Your Ez Clock In verification code", verifyCodeEmailHTML(code))).ok;
 }
 
 /* Send the summary. Two transports, tried in order:

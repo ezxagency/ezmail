@@ -80,6 +80,12 @@
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:var(--wk-white-70);
 }
 .wf-tl-note{margin:6px 0 0;font-family:var(--wk);font-size:12px;font-style:italic;color:var(--wk-white-70)}
+/* effect outcomes, straight off the nodeRun's dispatch stamps - a failed
+   send is loud, a skipped one quiet, and neither ever disappears */
+.wf-tl-disp{margin:6px 0 0;font-family:var(--wk);font-size:11px;font-weight:600}
+.wf-tl-disp.is-dispatched{color:#7dfa86}
+.wf-tl-disp.is-failed{color:#ffb4ad}
+.wf-tl-disp.is-skipped{color:var(--wk-white-60)}
 /* dead branches read as dead - skipped stops recede instead of shouting */
 .wf-tl-row.is-skipped{opacity:.38}
 .wf-tl-row.is-skipped .wf-tl-dot{background:rgba(255,255,255,.25)}
