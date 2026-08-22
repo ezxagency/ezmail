@@ -245,7 +245,7 @@ if (!FB_READY){
         await auth.signOut().catch(() => {});
         $("loginErr").textContent = m === "INVITE_REQUIRED"
           ? "Creating an account needs an invite link — open the one your admin sent you, then sign in again from it."
-          : "That invite link was already used or revoked — ask your admin for a fresh one, then sign in again from it.";
+          : "That invite link was already used, revoked, or expired (links last 24 hours) — ask your admin for a fresh one, then sign in again from it.";
         $("loginErr").classList.remove("hidden");
         return;
       }

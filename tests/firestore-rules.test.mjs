@@ -1,4 +1,4 @@
-/* Emulator test matrix for ../firestore.rules - 118 allow/deny assertions
+/* Emulator test matrix for ../firestore.rules - 119 allow/deny assertions
    across five actors: admin, assigner (worker role + special email),
    worker, pending stranger, an unverified fresh signup, and the
    unauthenticated client-link holder.
@@ -48,9 +48,10 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "clientReviews/tok2"), { campaignId: "c1", title: "T", stage: "Copy", status: "approved", comment: "ok", decidedAt: 2, links: [] });
   await setDoc(doc(db, "directory/worker1"), { name: "W1", email: "w1@x.com", craft: "designer" });
   await setDoc(doc(db, "directory/worker2"), { name: "W2", email: "w2@x.com" });
-  await setDoc(doc(db, "invites/inv1"), { createdBy: "admin1", createdAt: 1, usedBy: null, usedAt: null });
-  await setDoc(doc(db, "invites/inv2"), { createdBy: "admin1", createdAt: 1, usedBy: "worker1", usedAt: 2 });
-  await setDoc(doc(db, "invites/inv4"), { createdBy: "admin1", createdAt: 1, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "invites/inv1"), { createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "invites/inv2"), { createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: "worker1", usedAt: 2 });
+  await setDoc(doc(db, "invites/inv4"), { createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "invites/inv5"), { createdBy: "admin1", createdAt: 1, expiresAt: 2, usedBy: null, usedAt: null });
 });
 
 const admin = env.authenticatedContext("admin1", { email: "ezagency2nd@gmail.com" }).firestore();
@@ -103,6 +104,7 @@ await T("new account burns its invite (usedBy = itself, once)", assertSucceeds(u
 await T("signup with a BURNED invite DENIED", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "pending", createdAt: 9, emailVerified: false, invite: "inv1", name: "NB2", phone: "" })));
 await T("signup with NO invite DENIED (the door is closed)", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "pending", createdAt: 9, emailVerified: false, name: "NB2", phone: "" })));
 await T("signup with someone else's spent invite DENIED", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "pending", createdAt: 9, emailVerified: false, invite: "inv2", name: "NB2", phone: "" })));
+await T("signup with an EXPIRED invite DENIED (links last 24h)", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "pending", createdAt: 9, emailVerified: false, invite: "inv5", name: "NB2", phone: "" })));
 await T("signup straight to role worker DENIED even with an invite", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "worker", createdAt: 9, emailVerified: true, invite: "inv4", name: "NB2", phone: "" })));
 await T("burning an invite in someone ELSE's name DENIED", assertFails(updateDoc(doc(newbie2, "invites/inv4"), { usedBy: "worker1", usedAt: 9 })));
 

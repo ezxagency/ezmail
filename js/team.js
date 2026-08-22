@@ -19,26 +19,41 @@ async function teamInviteSheet(){
     snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
   } catch (e) { console.error(e); }
   rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const now = Date.now();
   const linkFor = id => location.origin + location.pathname + "?invite=" + id;
+  const mint = async () => {
+    const ref = db.collection("invites").doc();
+    await ref.set({ createdBy: (auth.currentUser && auth.currentUser.uid) || "",
+      createdAt: Date.now(), expiresAt: Date.now() + 24 * 3600000, usedBy: null, usedAt: null });
+    return ref.id;
+  };
   openSheet(`
     <h2>Invite someone</h2>
-    <p class="hint">Only a person holding an invite link can create an account. Each link works exactly once — they sign up with their name, email and phone, verify their email, and land below for your approval.</p>
+    <p class="hint">Only a person holding an invite link can create an account. Each link works exactly once and lasts 24 hours — they sign up with their name, email and phone, verify their email, and land below for your approval.</p>
     <button class="btn btn-go" id="invNew">Create a new invite link</button>
-    ${rows.length ? `<p class="fpage-section-title" style="margin:18px 0 10px">Open invites (${rows.length})</p>` + rows.map(r => `
-      <div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">
-        <input type="text" readonly value="${esc(linkFor(r.id))}" style="flex:1;min-width:0;padding:11px 12px;font-size:13px">
-        <button type="button" class="btn btn-ghost btn-sm" style="width:auto;flex:none" data-copy="${esc(r.id)}">Copy</button>
-        <button type="button" class="assign-del" style="flex:none" data-revoke="${esc(r.id)}" aria-label="Revoke invite" title="Revoke invite">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
-      </div>`).join("") : ""}
+    ${rows.length ? `<p class="fpage-section-title" style="margin:18px 0 10px">Open invites (${rows.length})</p>` + rows.map(r => {
+      const expired = !r.expiresAt || r.expiresAt <= now;
+      return `
+      <div style="margin:0 0 12px${expired ? ";opacity:.55" : ""}">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" readonly value="${esc(linkFor(r.id))}" style="flex:1;min-width:0;padding:11px 12px;font-size:13px">
+          <button type="button" class="btn btn-ghost btn-sm" style="width:auto;flex:none" data-copy="${esc(r.id)}" ${expired ? "disabled" : ""}>Copy</button>
+          <button type="button" class="icon-btn" style="flex:none;width:34px;height:34px" data-renew="${esc(r.id)}" aria-label="Replace with a fresh link" title="Replace with a fresh 24-hour link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M3.5 8a9 9 0 1 1-1 5.5"/><path d="M3 3v5h5"/></svg>
+          </button>
+          <button type="button" class="assign-del" style="flex:none" data-revoke="${esc(r.id)}" aria-label="Revoke invite" title="Revoke invite">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <p class="hint" style="margin:5px 0 0;font-size:11.5px">${expired ? "expired — replace it with ↻ or revoke it" : "expires in " + humanDur(r.expiresAt - now)}</p>
+      </div>`;
+    }).join("") : ""}
   `, () => {
     $("invNew").onclick = async () => {
       $("invNew").disabled = true;
       try {
-        const ref = db.collection("invites").doc();
-        await ref.set({ createdBy: (auth.currentUser && auth.currentUser.uid) || "", createdAt: Date.now(), usedBy: null, usedAt: null });
-        const copied = await copyText(linkFor(ref.id));
+        const id = await mint();
+        const copied = await copyText(linkFor(id));
         toast(copied ? "Invite created — link copied" : "Invite created");
         teamInviteSheet();
       } catch (e) {
@@ -49,6 +64,22 @@ async function teamInviteSheet(){
     };
     $("sheetBody").querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
       toast(await copyText(linkFor(b.dataset.copy)) ? "Link copied" : "Copy failed");
+    });
+    // ↻ = same slot, fresh key: the old link dies and a new 24-hour one is
+    // minted and copied in its place
+    $("sheetBody").querySelectorAll("[data-renew]").forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try {
+        await db.collection("invites").doc(b.dataset.renew).delete();
+        const id = await mint();
+        const copied = await copyText(linkFor(id));
+        toast(copied ? "Fresh link minted — copied" : "Fresh link minted");
+        teamInviteSheet();
+      } catch (e) {
+        console.error(e);
+        toast("Couldn't replace it");
+        teamInviteSheet();
+      }
     });
     $("sheetBody").querySelectorAll("[data-revoke]").forEach(b => b.onclick = async () => {
       try {

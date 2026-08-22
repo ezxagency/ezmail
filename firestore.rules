@@ -27,7 +27,10 @@ service cloud.firestore {
         && ((request.resource.data.role == 'pending'
              && request.resource.data.invite is string
              && exists(/databases/$(database)/documents/invites/$(request.resource.data.invite))
-             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.usedBy == null)
+             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.usedBy == null
+             // links go stale on their own: 24 hours from minting
+             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.expiresAt is int
+             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.expiresAt > request.time.toMillis())
             || (request.resource.data.role == 'admin' && isDesignatedAdminEmail()));
       allow update: if request.auth != null && (
         isAdmin() ||
