@@ -26,9 +26,9 @@ const CONFIG = {
   // it to your domain in EmailJS > Account > Security. Left empty, the
   // app falls back to the Firestore mail queue (Trigger Email extension).
   emailjs: {
-    publicKey: "",
+    publicKey: "cHZEZK4xgAEoqgjrH",
     serviceId: "service_saa4x2s",
-    templateId: ""
+    templateId: "template_17hytyr"
   }
 };
 
