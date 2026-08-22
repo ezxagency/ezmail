@@ -27,7 +27,7 @@ const CONFIG = {
   // app falls back to the Firestore mail queue (Trigger Email extension).
   emailjs: {
     publicKey: "",
-    serviceId: "",
+    serviceId: "service_saa4x2s",
     templateId: ""
   }
 };
