@@ -1,4 +1,4 @@
-/* Emulator test matrix for ../firestore.rules - 106 allow/deny assertions
+/* Emulator test matrix for ../firestore.rules - 118 allow/deny assertions
    across five actors: admin, assigner (worker role + special email),
    worker, pending stranger, an unverified fresh signup, and the
    unauthenticated client-link holder.
@@ -48,9 +48,14 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "clientReviews/tok2"), { campaignId: "c1", title: "T", stage: "Copy", status: "approved", comment: "ok", decidedAt: 2, links: [] });
   await setDoc(doc(db, "directory/worker1"), { name: "W1", email: "w1@x.com", craft: "designer" });
   await setDoc(doc(db, "directory/worker2"), { name: "W2", email: "w2@x.com" });
+  await setDoc(doc(db, "invites/inv1"), { createdBy: "admin1", createdAt: 1, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "invites/inv2"), { createdBy: "admin1", createdAt: 1, usedBy: "worker1", usedAt: 2 });
+  await setDoc(doc(db, "invites/inv4"), { createdBy: "admin1", createdAt: 1, usedBy: null, usedAt: null });
 });
 
 const admin = env.authenticatedContext("admin1", { email: "ezagency2nd@gmail.com" }).firestore();
+const newbie = env.authenticatedContext("newbie1", { email: "nb@x.com" }).firestore();
+const newbie2 = env.authenticatedContext("newbie2", { email: "nb2@x.com" }).firestore();
 const assigner = env.authenticatedContext("assigner1", { email: "prashuchiha34@gmail.com" }).firestore();
 const worker = env.authenticatedContext("worker1", { email: "w1@x.com" }).firestore();
 const anon = env.unauthenticatedContext().firestore();
@@ -82,6 +87,24 @@ await T("worker: write other's directory DENIED", assertFails(setDoc(doc(worker,
 await T("worker: read other's appState DENIED", assertFails(getDoc(doc(worker, "appState/worker2"))));
 await T("worker: mail to self", assertSucceeds(addDoc(collection(worker, "mail"), { to: ["w1@x.com"], message: { subject: "s", html: "h" }, summary: { requestedBy: "w1@x.com" } })));
 await T("worker: mail to other DENIED", assertFails(addDoc(collection(worker, "mail"), { to: ["boss@x.com"], summary: { requestedBy: "w1@x.com" } })));
+
+// ================= INVITE-ONLY SIGNUP =================
+await T("anon: GET an invite by token (the link is the capability)", assertSucceeds(getDoc(doc(anon, "invites/inv1"))));
+await T("anon: LIST invites DENIED (no token harvesting)", assertFails(getDocs(collection(anon, "invites"))));
+await T("stranger(pending): LIST invites DENIED", assertFails(getDocs(collection(stranger, "invites"))));
+await T("worker: create an invite DENIED (admin hands out the keys)", assertFails(setDoc(doc(worker, "invites/evil"), { createdBy: "worker1", createdAt: 9, usedBy: null, usedAt: null })));
+await T("admin: create + list-unused + delete invites", assertSucceeds((async () => {
+  await setDoc(doc(admin, "invites/inv3"), { createdBy: "admin1", createdAt: 9, usedBy: null, usedAt: null });
+  await getDocs(query(collection(admin, "invites"), where("usedBy", "==", null)));
+  await deleteDoc(doc(admin, "invites/inv3"));
+})()));
+await T("new account WITH a live invite: users doc created", assertSucceeds(setDoc(doc(newbie, "users/newbie1"), { email: "nb@x.com", role: "pending", createdAt: 9, emailVerified: false, verifyCode: "111111", verifyCodeAt: 9, invite: "inv1", name: "NB", phone: "980" })));
+await T("new account burns its invite (usedBy = itself, once)", assertSucceeds(updateDoc(doc(newbie, "invites/inv1"), { usedBy: "newbie1", usedAt: 9, usedEmail: "nb@x.com", usedName: "NB" })));
+await T("signup with a BURNED invite DENIED", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "pending", createdAt: 9, emailVerified: false, invite: "inv1", name: "NB2", phone: "" })));
+await T("signup with NO invite DENIED (the door is closed)", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "pending", createdAt: 9, emailVerified: false, name: "NB2", phone: "" })));
+await T("signup with someone else's spent invite DENIED", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "pending", createdAt: 9, emailVerified: false, invite: "inv2", name: "NB2", phone: "" })));
+await T("signup straight to role worker DENIED even with an invite", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "worker", createdAt: 9, emailVerified: true, invite: "inv4", name: "NB2", phone: "" })));
+await T("burning an invite in someone ELSE's name DENIED", assertFails(updateDoc(doc(newbie2, "invites/inv4"), { usedBy: "worker1", usedAt: 9 })));
 
 // ================= WORKFLOW BLUEPRINTS =================
 await T("worker: read blueprints (runs board shows the track)", assertSucceeds(getDocs(query(collection(worker, "blueprints"), where("orgId", "==", "ez-agency")))));

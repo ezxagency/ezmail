@@ -20,8 +20,14 @@ service cloud.firestore {
     }
     match /users/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      // signup is INVITE-ONLY: a pending account can only be born naming a
+      // live, unused invite doc. Anyone can still create a Firebase Auth
+      // login, but without the link it can never become a member here.
       allow create: if request.auth != null && request.auth.uid == uid
-        && (request.resource.data.role == 'pending'
+        && ((request.resource.data.role == 'pending'
+             && request.resource.data.invite is string
+             && exists(/databases/$(database)/documents/invites/$(request.resource.data.invite))
+             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.usedBy == null)
             || (request.resource.data.role == 'admin' && isDesignatedAdminEmail()));
       allow update: if request.auth != null && (
         isAdmin() ||
@@ -149,6 +155,21 @@ service cloud.firestore {
     match /nodeRuns/{id} {
       allow read, create, update: if request.auth != null && isTeam();
       allow delete: if request.auth != null && isAdmin();
+    }
+    // Invite links: the doc id IS the capability (same pattern as
+    // clientReviews below) - an unguessable token in a link the admin
+    // hands out. The users create rule above is what makes signup closed;
+    // this collection is the ledger. The new account burns its invite
+    // exactly once, about itself - never anyone else's, never twice.
+    match /invites/{token} {
+      allow get: if true;
+      allow list: if request.auth != null && isAdmin();
+      allow create, delete: if request.auth != null && isAdmin();
+      allow update: if request.auth != null
+        && resource.data.usedBy == null
+        && request.resource.data.usedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['usedBy', 'usedAt', 'usedEmail', 'usedName']);
     }
     // Client review links: the doc id IS the capability - an unguessable
     // token carried in a link, opened with no login. Anyone holding it may

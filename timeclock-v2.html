@@ -19,22 +19,22 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=126">
-<link rel="stylesheet" href="css/dashboard.css?v=126">
-<link rel="stylesheet" href="css/drawer.css?v=126">
-<link rel="stylesheet" href="css/pages.css?v=126">
-<link rel="stylesheet" href="css/sheets.css?v=126">
-<link rel="stylesheet" href="css/tables.css?v=126">
-<link rel="stylesheet" href="css/responsive.css?v=126">
-<link rel="stylesheet" href="css/pomodoro.css?v=126">
-<link rel="stylesheet" href="css/personal.css?v=126">
-<link rel="stylesheet" href="css/campaigns.css?v=126">
-<link rel="stylesheet" href="css/assign.css?v=126">
+<link rel="stylesheet" href="css/base.css?v=127">
+<link rel="stylesheet" href="css/dashboard.css?v=127">
+<link rel="stylesheet" href="css/drawer.css?v=127">
+<link rel="stylesheet" href="css/pages.css?v=127">
+<link rel="stylesheet" href="css/sheets.css?v=127">
+<link rel="stylesheet" href="css/tables.css?v=127">
+<link rel="stylesheet" href="css/responsive.css?v=127">
+<link rel="stylesheet" href="css/pomodoro.css?v=127">
+<link rel="stylesheet" href="css/personal.css?v=127">
+<link rel="stylesheet" href="css/campaigns.css?v=127">
+<link rel="stylesheet" href="css/assign.css?v=127">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.60/dist/drawflow.min.css">
-<link rel="stylesheet" href="css/workflow.css?v=126">
-<link rel="stylesheet" href="css/login.css?v=126">
+<link rel="stylesheet" href="css/workflow.css?v=127">
+<link rel="stylesheet" href="css/login.css?v=127">
 <!-- last on purpose: the premium layer standardizes motion over everything -->
-<link rel="stylesheet" href="css/premium.css?v=126">
+<link rel="stylesheet" href="css/premium.css?v=127">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -67,6 +67,14 @@
 
       <label class="sc-fld hidden" id="confirmWrap"><span>Confirm password</span>
         <div class="sc-input-wrap"><input type="password" id="loginPass2" autocomplete="new-password"></div>
+      </label>
+
+      <label class="sc-fld hidden" id="signupNameWrap"><span>Your name</span>
+        <div class="sc-input-wrap"><input type="text" id="signupName" autocomplete="name" maxlength="60" placeholder="First Last"></div>
+      </label>
+
+      <label class="sc-fld hidden" id="signupPhoneWrap"><span>Phone (optional)</span>
+        <div class="sc-input-wrap"><input type="tel" id="signupPhone" autocomplete="tel" maxlength="24" placeholder="+977 98…"></div>
       </label>
 
       <label class="sc-check"><input type="checkbox" id="keepSignedIn" checked><span class="sc-check-box"></span>Keep me signed in</label>
@@ -565,6 +573,7 @@
     <div class="admin-page-inner">
       <div class="admin-page-head">
         <h1 class="admin-page-title">Team</h1>
+        <button type="button" class="btn btn-go btn-sm" id="teamInviteBtn" style="width:auto;flex:none">Invite someone</button>
         <button type="button" class="page-back" id="teamPageClose">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
           Back
@@ -605,20 +614,20 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=126"></script>
-<script src="js/render.js?v=126"></script>
-<script src="js/ui.js?v=126"></script>
-<script src="js/shift.js?v=126"></script>
-<script src="js/email.js?v=126"></script>
-<script src="js/nav.js?v=126"></script>
-<script src="js/boot.js?v=126"></script>
-<script src="js/team.js?v=126"></script>
-<script src="js/assign.js?v=126"></script>
-<script src="js/notify.js?v=126"></script>
-<script src="js/campaigns.js?v=126"></script>
-<script src="js/auth.js?v=126"></script>
-<script src="js/personal.js?v=126"></script>
-<script src="js/pomodoro.js?v=126"></script>
-<script src="js/workflow-engine.js?v=126"></script>
-<script src="js/workflow.js?v=126"></script>
-<script src="js/premium.js?v=126"></script>
+<script src="js/config.js?v=127"></script>
+<script src="js/render.js?v=127"></script>
+<script src="js/ui.js?v=127"></script>
+<script src="js/shift.js?v=127"></script>
+<script src="js/email.js?v=127"></script>
+<script src="js/nav.js?v=127"></script>
+<script src="js/boot.js?v=127"></script>
+<script src="js/team.js?v=127"></script>
+<script src="js/assign.js?v=127"></script>
+<script src="js/notify.js?v=127"></script>
+<script src="js/campaigns.js?v=127"></script>
+<script src="js/auth.js?v=127"></script>
+<script src="js/personal.js?v=127"></script>
+<script src="js/pomodoro.js?v=127"></script>
+<script src="js/workflow-engine.js?v=127"></script>
+<script src="js/workflow.js?v=127"></script>
+<script src="js/premium.js?v=127"></script>

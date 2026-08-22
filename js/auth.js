@@ -1,5 +1,26 @@
 const genVerifyCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
+/* ---------- invite-only signup ----------
+   The token rides the link (?invite=...) and localStorage, so a refresh
+   mid-signup doesn't lose it. firestore.rules enforces the gate for
+   real: a pending users doc can only be created naming a live, unused
+   invite - without the link, an auth login can exist but can never
+   become a member. */
+let inviteToken = null;
+try {
+  const q = new URLSearchParams(location.search).get("invite");
+  if (q){ inviteToken = q; localStorage.setItem("ez-invite", q); }
+  else inviteToken = localStorage.getItem("ez-invite") || null;
+} catch (e) {}
+let signupInfo = { name: "", phone: "" };   // typed on the signup form, read at doc-create
+
+function notifyAdminsNewSignup(name, email){
+  db.collection("notifications").add({
+    toRole: "admin", kind: "signup", read: false, createdAt: Date.now(),
+    msg: (name || email || "Someone") + " verified their email — approve them in Team (role, schedule, pay)"
+  }).catch(e => console.error(e));
+}
+
 async function resolveRole(user){
   const ref = db.collection("users").doc(user.uid);
   let doc = await ref.get();
@@ -7,16 +28,42 @@ async function resolveRole(user){
   if (!doc.exists) {
     // new signups wait for admin approval; designated admin emails skip it
     const role = shouldBeAdmin ? "admin" : "pending";
+    // fail with words, not a permission error - the rules would refuse
+    // an inviteless create anyway
+    if (role === "pending" && !inviteToken) throw new Error("INVITE_REQUIRED");
     // Google already proved they own the address; a password signup could
     // have typed anyone's email into that form, so that one earns its own
     // proof before admin approval even gets a look at it
     const isPasswordAcct = user.providerData.some(p => p.providerId === "password");
     const base = { email: user.email, role, createdAt: Date.now(), emailVerified: !isPasswordAcct };
+    if (role === "pending"){
+      base.invite = inviteToken;
+      base.name = signupInfo.name || user.displayName || "";
+      base.phone = signupInfo.phone || "";
+    }
     if (isPasswordAcct){
       base.verifyCode = genVerifyCode();
       base.verifyCodeAt = Date.now();
     }
-    await ref.set(base);
+    try {
+      await ref.set(base);
+    } catch (err) {
+      // the one way this create fails with rules deployed: the invite was
+      // already burned or revoked
+      throw new Error(err && err.code === "permission-denied" ? "INVITE_USED" : (err && err.message) || "create-failed");
+    }
+    if (role === "pending"){
+      // one link, one account: burn the invite and forget the token
+      db.collection("invites").doc(base.invite).update({
+        usedBy: user.uid, usedAt: Date.now(),
+        usedEmail: user.email || "", usedName: base.name || ""
+      }).catch(e => console.error(e));
+      try { localStorage.removeItem("ez-invite"); } catch (e) {}
+      inviteToken = null;
+      // Google accounts skip the verify screen, so their "new member" bell
+      // rings now; password accounts ring it after the code checks out
+      if (!isPasswordAcct) notifyAdminsNewSignup(base.name, user.email);
+    }
     if (isPasswordAcct) queueVerifyCodeEmail(user.email, base.verifyCode).catch(e => console.error(e));
     doc = await ref.get();
   } else if (shouldBeAdmin && doc.data().role !== "admin") {
@@ -98,7 +145,11 @@ function openVerifyScreen(user, info){
       } else {
         await ref.update({ emailVerified: true });
         toast("Email verified");
-        if (d.role === "pending") screen("pending");
+        if (d.role === "pending"){
+          // the proof is in: NOW the admin's bell rings about a real person
+          notifyAdminsNewSignup(d.name || "", user.email);
+          screen("pending");
+        }
         else enterFullApp(user, d.role);
         return;
       }
@@ -187,6 +238,17 @@ if (!FB_READY){
       else { enterFullApp(user, info.role); }
     } catch (e) {
       console.error(e);
+      const m = String((e && e.message) || "");
+      if (m === "INVITE_REQUIRED" || m === "INVITE_USED"){
+        // the auth login exists but membership was refused - sign it out so
+        // they can come back through a working link and try again
+        await auth.signOut().catch(() => {});
+        $("loginErr").textContent = m === "INVITE_REQUIRED"
+          ? "Creating an account needs an invite link — open the one your admin sent you, then sign in again from it."
+          : "That invite link was already used or revoked — ask your admin for a fresh one, then sign in again from it.";
+        $("loginErr").classList.remove("hidden");
+        return;
+      }
       $("loginErr").textContent = "Signed in, but couldn't load your account. Check Firestore rules.";
       $("loginErr").classList.remove("hidden");
     }
@@ -197,13 +259,19 @@ if (!FB_READY){
     loginMode = mode;
     const isSignup = mode === "signup";
     $("confirmWrap").classList.toggle("hidden", !isSignup);
+    $("signupNameWrap").classList.toggle("hidden", !isSignup);
+    $("signupPhoneWrap").classList.toggle("hidden", !isSignup);
     $("loginBtnText").textContent = isSignup ? "Create account" : "Sign in";
-    $("loginHint").textContent = isSignup ? "Set up your login — you'll use this every time." : "Sign in to clock in and out.";
+    $("loginHint").textContent = isSignup
+      ? (inviteToken ? "You're invited — set up your login." : "Creating an account needs an invite link from your admin.")
+      : "Sign in to clock in and out.";
     $("switchHint").textContent = isSignup ? "Already have an account?" : "New here?";
     $("modeToggle").textContent = isSignup ? "Sign in" : "Create an account";
     $("loginErr").classList.add("hidden");
   }
   $("modeToggle").onclick = () => setLoginMode(loginMode === "signin" ? "signup" : "signin");
+  // arriving through an invite link lands straight on the signup form
+  if (inviteToken) setLoginMode("signup");
 
   const AUTH_ERRORS = {
     "auth/email-already-in-use": "That email already has an account — sign in instead.",
@@ -227,8 +295,12 @@ if (!FB_READY){
     try {
       await auth.setPersistence(persistence());
       if (loginMode === "signup") {
+        if (!inviteToken) throw new Error("Creating an account needs an invite link — open the one your admin sent you.");
+        const nm = $("signupName").value.trim();
+        if (!nm) throw new Error("Enter your name.");
         if (pass.length < 6) throw new Error("Password must be at least 6 characters.");
         if (pass !== $("loginPass2").value) throw new Error("Passwords don't match.");
+        signupInfo = { name: nm, phone: $("signupPhone").value.trim() };
         await auth.createUserWithEmailAndPassword(email, pass);
       } else {
         await auth.signInWithEmailAndPassword(email, pass);

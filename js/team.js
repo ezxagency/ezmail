@@ -8,6 +8,107 @@ function screen(show){
   $("appScreen").classList.toggle("hidden", show !== "app");
 }
 
+/* ---------- invite links: the only door into signup ----------
+   The doc id is the capability (same shape as clientReviews). One link,
+   one account: signup burns the invite, and any link that shouldn't be
+   out there gets revoked here. */
+async function teamInviteSheet(){
+  let rows = [];
+  try {
+    const snap = await db.collection("invites").where("usedBy", "==", null).get();
+    snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+  } catch (e) { console.error(e); }
+  rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const linkFor = id => location.origin + location.pathname + "?invite=" + id;
+  openSheet(`
+    <h2>Invite someone</h2>
+    <p class="hint">Only a person holding an invite link can create an account. Each link works exactly once — they sign up with their name, email and phone, verify their email, and land below for your approval.</p>
+    <button class="btn btn-go" id="invNew">Create a new invite link</button>
+    ${rows.length ? `<p class="fpage-section-title" style="margin:18px 0 10px">Open invites (${rows.length})</p>` + rows.map(r => `
+      <div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">
+        <input type="text" readonly value="${esc(linkFor(r.id))}" style="flex:1;min-width:0;padding:11px 12px;font-size:13px">
+        <button type="button" class="btn btn-ghost btn-sm" style="width:auto;flex:none" data-copy="${esc(r.id)}">Copy</button>
+        <button type="button" class="assign-del" style="flex:none" data-revoke="${esc(r.id)}" aria-label="Revoke invite" title="Revoke invite">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>`).join("") : ""}
+  `, () => {
+    $("invNew").onclick = async () => {
+      $("invNew").disabled = true;
+      try {
+        const ref = db.collection("invites").doc();
+        await ref.set({ createdBy: (auth.currentUser && auth.currentUser.uid) || "", createdAt: Date.now(), usedBy: null, usedAt: null });
+        const copied = await copyText(linkFor(ref.id));
+        toast(copied ? "Invite created — link copied" : "Invite created");
+        teamInviteSheet();
+      } catch (e) {
+        console.error(e);
+        toast("Couldn't create the invite — deploy the updated Firestore rules first");
+        $("invNew").disabled = false;
+      }
+    };
+    $("sheetBody").querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
+      toast(await copyText(linkFor(b.dataset.copy)) ? "Link copied" : "Copy failed");
+    });
+    $("sheetBody").querySelectorAll("[data-revoke]").forEach(b => b.onclick = async () => {
+      try {
+        await db.collection("invites").doc(b.dataset.revoke).delete();
+        toast("Invite revoked");
+        teamInviteSheet();
+      } catch (e) { console.error(e); toast("Couldn't revoke"); }
+    });
+  });
+}
+(() => { const b = $("teamInviteBtn"); if (b) b.onclick = () => teamInviteSheet(); })();
+
+/* Approval is where the new member gets their shape: the role/craft is
+   what @role workflow stops and mentions read; schedule and pay rate are
+   the admin's records (users docs are readable only by the person and
+   admins, so the pay rate stays between them). */
+function approvePendingSheet(uid, data){
+  openSheet(`
+    <h2>Approve ${esc(data.name || data.email || "this account")}</h2>
+    <p class="hint">${esc(data.email || "")}${data.phone ? " · " + esc(data.phone) : ""} — set what they do. The role powers "anyone with a role" workflow stops.</p>
+    <label class="fld"><span>Role / craft</span>
+      <input type="text" id="apCraft" maxlength="30" placeholder="e.g. designer, copywriter, lead" value="${esc(data.craft || "")}"></label>
+    <label class="fld"><span>Schedule (optional)</span>
+      <input type="text" id="apSched" maxlength="80" placeholder="e.g. Mon–Fri · 10:00–18:00" value="${esc(data.schedule || "")}"></label>
+    <label class="fld"><span>Pay rate (optional)</span>
+      <input type="number" id="apPay" min="0" step="0.01" placeholder="per hour" value="${data.payRate == null ? "" : esc(String(data.payRate))}"></label>
+    <button class="btn btn-go" id="apGo">Approve</button>
+  `, () => {
+    $("apGo").onclick = async () => {
+      const btn = $("apGo");
+      btn.disabled = true;
+      const craft = $("apCraft").value.trim();
+      const sched = $("apSched").value.trim();
+      const pay = $("apPay").value;
+      try {
+        const patch = { role: "worker" };
+        if (craft) patch.craft = craft;
+        if (sched) patch.schedule = sched;
+        if (pay !== "" && !Number.isNaN(Number(pay))) patch.payRate = Number(pay);
+        await db.collection("users").doc(uid).update(patch);
+        // the directory is what @role matching and mentions actually read
+        await db.collection("directory").doc(uid).set(
+          Object.assign({ name: data.name || (data.email ? data.email.split("@")[0] : "") }, craft ? { craft } : {}),
+          { merge: true }).catch(e => console.error(e));
+        db.collection("notifications").add({
+          toUid: uid, kind: "approved", read: false, createdAt: Date.now(),
+          msg: "You're approved — welcome aboard" + (craft ? " as " + craft : "")
+        }).catch(e => console.error(e));
+        closeSheet();
+        toast((data.email || "Account") + " approved");
+        loadTeamPending();
+      } catch (e) {
+        console.error(e);
+        toast("Couldn't approve — check Firestore rules");
+        btn.disabled = false;
+      }
+    };
+  });
+}
+
 async function loadTeamPending(){
   const pending = $("teamPending");
   if (!pending) return;
@@ -25,20 +126,19 @@ async function loadTeamPending(){
       const data = doc.data();
       const li = document.createElement("li");
       li.innerHTML = `
-        <div><div class="h-c">${esc(data.email || "Unknown")}</div><div class="h-d">Waiting for approval</div></div>
+        <div><div class="h-c">${esc(data.name || data.email || "Unknown")}</div>
+        <div class="h-d">${esc(data.email || "")}${data.phone ? " · " + esc(data.phone) : ""}${data.emailVerified === false ? " · email not verified yet" : ""} · waiting for approval</div></div>
         <div class="row-acts">
-          <button class="btn btn-go btn-sm" style="width:auto" id="approve-${doc.id}">Approve</button>
+          <button class="btn btn-go btn-sm" style="width:auto" id="approve-${doc.id}">Approve…</button>
           <button type="button" class="assign-del" id="reject-${doc.id}" aria-label="Reject and delete" title="Reject and delete">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
           </button>
         </div>
       `;
       pending.append(li);
-      $("approve-" + doc.id).onclick = async (e) => {
+      $("approve-" + doc.id).onclick = (e) => {
         e.stopPropagation();
-        await db.collection("users").doc(doc.id).update({ role: "worker" });
-        toast(data.email + " approved");
-        loadTeamPending();
+        approvePendingSheet(doc.id, data);
       };
       $("reject-" + doc.id).onclick = (e) => {
         e.stopPropagation();
