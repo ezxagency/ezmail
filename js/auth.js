@@ -301,7 +301,21 @@ if (!FB_READY){
         if (pass.length < 6) throw new Error("Password must be at least 6 characters.");
         if (pass !== $("loginPass2").value) throw new Error("Passwords don't match.");
         signupInfo = { name: nm, phone: $("signupPhone").value.trim() };
-        await auth.createUserWithEmailAndPassword(email, pass);
+        try {
+          await auth.createUserWithEmailAndPassword(email, pass);
+        } catch (err) {
+          // the half-made-account trap: an earlier attempt created the
+          // LOGIN but membership never followed (no invite, rules not yet
+          // deployed...). If the password matches, signing in finishes
+          // what signup started - resolveRole builds the membership with
+          // the invite riding this page. A wrong password surfaces as its
+          // own error, same as a plain sign-in.
+          if (err && err.code === "auth/email-already-in-use"){
+            await auth.signInWithEmailAndPassword(email, pass);
+          } else {
+            throw err;
+          }
+        }
       } else {
         await auth.signInWithEmailAndPassword(email, pass);
       }
