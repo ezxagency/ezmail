@@ -311,7 +311,16 @@ if (!FB_READY){
           // the invite riding this page. A wrong password surfaces as its
           // own error, same as a plain sign-in.
           if (err && err.code === "auth/email-already-in-use"){
-            await auth.signInWithEmailAndPassword(email, pass);
+            try {
+              await auth.signInWithEmailAndPassword(email, pass);
+            } catch (err2) {
+              // the login from that earlier attempt has a DIFFERENT
+              // password - "wrong email or password" in a signup form
+              // reads as nonsense, so say what actually happened
+              if (err2 && (err2.code === "auth/wrong-password" || err2.code === "auth/invalid-credential"))
+                throw new Error("This email started an account before and has a password from that attempt — type that first password, or tap Forgot? to reset it, then create the account again from this link.");
+              throw err2;
+            }
           } else {
             throw err;
           }
