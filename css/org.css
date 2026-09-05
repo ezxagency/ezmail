@@ -1,0 +1,104 @@
+/* ============================================================
+   ORGANIZATION — the tenancy screen. Borrows the page shell from
+   pages.css and the sheet from sheets.css; only the roster, the
+   role rows and the permission grid live here.
+   ============================================================ */
+
+.org-sec { margin-bottom: 26px; }
+.org-sec-head {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 0 12px; flex-wrap: wrap;
+}
+.org-sec-head h2 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+.org-sec-head h3 {
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  margin: 0; opacity: .62; font-weight: 700;
+}
+.org-sec-head .org-btn-sm { margin-left: auto; }
+
+.org-badge {
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16); opacity: .78;
+}
+.org-count {
+  display: inline-block; margin-left: 8px; font-size: 11px;
+  opacity: .5; letter-spacing: 0;
+}
+.org-note { font-size: 13.5px; line-height: 1.55; opacity: .62; margin: 0 0 14px; }
+
+/* ---- rows: roles and people share one shape ---- */
+.org-list { display: flex; flex-direction: column; gap: 8px; }
+.org-row {
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  padding: 14px 16px; text-align: left;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px; color: inherit; font: inherit;
+}
+button.org-row { cursor: pointer; }
+button.org-row:disabled { cursor: default; opacity: .72; }
+button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
+.org-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.org-row-main b { font-size: 15px; font-weight: 600; }
+.org-row-main small { font-size: 12.5px; opacity: .58; }
+.org-row-go { font-size: 12px; opacity: .7; flex: none; }
+.org-row-lock { font-size: 11px; opacity: .38; flex: none; letter-spacing: .06em; text-transform: uppercase; }
+
+/* ---- empty state ---- */
+.org-empty {
+  max-width: 460px; display: flex; flex-direction: column; gap: 14px;
+  padding: 26px 0;
+}
+.org-empty h2 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+.org-empty p { font-size: 14.5px; line-height: 1.6; opacity: .66; margin: 0; }
+
+/* ---- fields + buttons ---- */
+.org-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.org-field span { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .55; }
+.org-field input {
+  font: inherit; font-size: 15px; padding: 12px 14px; color: inherit;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.13); border-radius: 10px;
+}
+.org-field input:focus-visible { outline: 2px solid rgba(255,255,255,.4); outline-offset: 1px; }
+
+.org-btn {
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  padding: 12px 18px; border-radius: 10px; color: inherit;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.18);
+}
+.org-btn:hover:not(:disabled) { background: rgba(255,255,255,.15); }
+.org-btn:disabled { opacity: .5; cursor: default; }
+.org-btn-sm { padding: 7px 13px; font-size: 12.5px; }
+.org-btn-danger { background: rgba(226,90,70,.14); border-color: rgba(226,90,70,.36); }
+.org-btn-danger:hover:not(:disabled) { background: rgba(226,90,70,.22); }
+.org-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+
+/* ---- the permission grid ---- */
+.org-perms { display: flex; flex-direction: column; gap: 16px; margin-top: 14px; }
+.org-perm-group {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 16px; border-radius: 12px;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08);
+}
+.org-perm-group h4 {
+  font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+  margin: 0 0 4px; opacity: .55; font-weight: 700;
+}
+.org-perm {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.055);
+}
+.org-perm:last-child { border-bottom: none; }
+.org-perm span { font-size: 14px; flex: 1; min-width: 0; }
+/* the global select in sheets.css is built for a ~56px-tall control and
+   pins its chevron at y=22px; this one is half that height, so the arrow
+   has to move with it or it floats below the text it belongs to */
+.org-perm .org-scope {
+  flex: none; width: 140px; font-size: 13.5px;
+  padding: 9px 30px 9px 12px; border-radius: 9px; min-height: 0;
+  background-position: calc(100% - 18px) 16px, calc(100% - 13px) 16px;
+}

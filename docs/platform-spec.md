@@ -1,10 +1,14 @@
 # Platform Spec — the base model
 
 Status: **phase 1 in progress.** Landed so far: the permission grammar
-(`js/permissions.js`, 26 assertions) and the tenancy rules for
-`orgs/{orgId}` with its members and roles (26 assertions). Both are
-additive — nothing in the running app reads either yet. Phases 2–5
-remain spec only.
+and its catalog (`js/permissions.js`, 29 assertions); the tenancy rules
+for `orgs/{orgId}` with members, roles and the `memberOf` pointer (32
+assertions); and the Organization page (`js/org.js`) where an owner
+creates the org and edits roles. All additive — no existing page reads
+an org, so an agency that never opens the screen behaves exactly as
+before. Still open in phase 1: `orgId` on existing documents, and
+custom claims (which need the server from phase 3). Phases 2–5 remain
+spec only.
 This is the source of truth for turning EZ Clock In from one agency's tool
 into a base model any organization can configure. Re-read it fully before
 touching platform work in any session.

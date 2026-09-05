@@ -6,7 +6,7 @@
 import { strict as assert } from "node:assert";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { PERM_SCOPES, permParse, permGrantScope, permDistance, permCan } = require("../js/permissions.js");
+const { PERM_SCOPES, PERM_CATALOG, permParse, permGrantScope, permDistance, permCan } = require("../js/permissions.js");
 
 let pass = 0, fail = 0;
 const T = (name, fn) => {
@@ -100,6 +100,27 @@ T("an owner's *:*:org stops dead at the tenant boundary", () => {
 });
 T("a caller with no org reaches nothing", () => {
   assert.ok(!permCan(["*:*:org"], "item", "read", { uid: "u1", doc: { orgId: "orgA" } }));
+});
+
+/* ---------- the catalog and the grammar must agree ---------- */
+T("every catalog pair forms a permission the grammar parses", () => {
+  PERM_CATALOG.forEach(g => g.actions.forEach(a => {
+    PERM_SCOPES.forEach(scope => {
+      const row = g.resource + ":" + a.action + ":" + scope;
+      assert.ok(permParse(row), "grammar rejects a row the roles screen offers: " + row);
+    });
+  }));
+});
+T("every catalog pair is actually checkable end to end", () => {
+  PERM_CATALOG.forEach(g => g.actions.forEach(a => {
+    const grant = [g.resource + ":" + a.action + ":org"];
+    assert.ok(permCan(grant, g.resource, a.action, { uid: "u1", orgId: "orgA" }),
+      "a granted catalog pair denies: " + g.resource + ":" + a.action);
+  }));
+});
+T("catalog resources are unique", () => {
+  const seen = PERM_CATALOG.map(g => g.resource);
+  assert.equal(seen.length, new Set(seen).size);
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

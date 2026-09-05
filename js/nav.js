@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", team: "teamScreen", workflow: "workflowScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", team: "teamScreen", workflow: "workflowScreen", org: "orgScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -98,6 +98,7 @@ document.addEventListener("keydown", e => {
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (r === "team" && !isAdmin) return;
+  if (r === "org" && !isAdmin) return;
   if (r === "history" && isAdmin) return;
   go(r);
 });
@@ -107,7 +108,7 @@ function applyRoute(){
   // role guards: a deep link to a page you can't use lands on the dashboard.
   // History is personal, so it's everyone's page EXCEPT admin's - their own
   // record lives inside Team's History section instead.
-  if ((r === "team" && !isAdmin) || (r === "history" && isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
+  if ((r === "team" && !isAdmin) || (r === "org" && !isAdmin) || (r === "history" && isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
     a.classList.toggle("active", (a.dataset.route || "") === r));
@@ -117,6 +118,7 @@ function applyRoute(){
   else if (r === "campaigns") enterCampaignsPage();
   else if (r === "team") loadTeamScreen();
   else if (r === "workflow") enterWorkflowPage();
+  else if (r === "org") enterOrgPage();
 }
 window.addEventListener("hashchange", applyRoute);
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(""));

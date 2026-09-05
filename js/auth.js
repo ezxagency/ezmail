@@ -87,6 +87,9 @@ function enterFullApp(user, role){
   isAdmin = role === "admin";
   canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
   $("drawerTeam").classList.toggle("hidden", !isAdmin);
+  // Organization is admin-only for the same reason Team is: it decides
+  // who may do what, and the router guards the route to match
+  $("drawerOrg").classList.toggle("hidden", !isAdmin);
   // admin's own record lives inside Team's History section now - a
   // separate personal-history page is only useful to everyone else
   $("drawerHistory").classList.toggle("hidden", isAdmin);
@@ -205,6 +208,7 @@ if (!FB_READY){
       $("cardAssignBtn").classList.add("hidden");
       $("teamPanelAssignBtn").classList.add("hidden");
       $("drawerTeam").classList.add("hidden");
+      $("drawerOrg").classList.add("hidden");
       $("drawerHistory").classList.remove("hidden");   // visible-by-default; only admin hides it
       closeDrawer();
       // a sheet open at forced sign-out (token revoked, account disabled)

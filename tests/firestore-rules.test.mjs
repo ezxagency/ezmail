@@ -258,6 +258,20 @@ await T("create an org naming self", assertSucceeds(setDoc(doc(newbie, "orgs/org
 await T("create an org with no createdAt DENIED", assertFails(setDoc(doc(newbie, "orgs/orgG"), { name: "G", ownerUid: "newbie1" })));
 await T("anonymous: read an org DENIED", assertFails(getDoc(doc(anon, "orgs/orgA"))));
 
+// memberOf is the pointer a client reads to FIND its tenant, since orgs
+// are not enumerable. It authorizes nothing - but it is still nobody
+// else's business which org a colleague belongs to.
+await T("memberOf: write my own pointer", assertSucceeds(setDoc(doc(worker, "memberOf/worker1"), { orgId: "orgA", at: 1 })));
+await T("memberOf: read my own pointer", assertSucceeds(getDoc(doc(worker, "memberOf/worker1"))));
+await T("memberOf: read SOMEONE ELSE's pointer DENIED", assertFails(getDoc(doc(worker, "memberOf/worker2"))));
+await T("memberOf: write SOMEONE ELSE's pointer DENIED", assertFails(setDoc(doc(worker, "memberOf/worker2"), { orgId: "orgA", at: 1 })));
+await T("memberOf: anonymous read DENIED", assertFails(getDoc(doc(anon, "memberOf/worker1"))));
+// pointing at an org you do not belong to buys nothing - the org refuses you
+await T("memberOf: a forged pointer still cannot open the org", assertFails((async () => {
+  await setDoc(doc(worker, "memberOf/worker1"), { orgId: "orgB", at: 1 });
+  return getDoc(doc(worker, "orgs/orgB"));
+})()));
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 await env.cleanup();
 process.exit(fail ? 1 : 0);

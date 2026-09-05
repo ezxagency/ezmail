@@ -46,6 +46,16 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/orgs/$(orgId)).data.ownerUid == request.auth.uid;
     }
 
+    // Which org a person belongs to, kept somewhere they can read it
+    // WITHOUT already knowing the answer - orgs are not enumerable, so a
+    // signed-in client needs one pointer about itself to find its tenant.
+    // Self-asserted on purpose, and it authorizes nothing: the org's own
+    // members doc is what proves membership, so a pointer naming an org
+    // you do not belong to simply gets you refused by that org.
+    match /memberOf/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
     match /orgs/{orgId} {
       allow get: if isOrgMember(orgId);
       // never enumerable, not even by a member: a tenant list is a

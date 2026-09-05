@@ -28,12 +28,14 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   pomodoro.css      focus mode, the 12 theme veils, settings controls
   personal.css      Personal mode's private task list
   campaigns.css     campaigns baton-pass pipeline page + its sheets
+  org.css           the Organization page: roster rows + the permission grid
   login.css         Shift Card login screen (legacy palette)
   premium.css       motion/gesture polish layer, loaded last on purpose
 
 js/   classic scripts sharing one global scope; loaded in order
   config.js         CONFIG, Firebase init, Firestore-backed Store, state, utils
   permissions.js    resource:action:scope grammar - pure, no DOM, no Firestore
+  org.js            the Organization page: tenancy, the roster, the roles editor
   render.js         dashboard render loop, rings, per-second tick
   ui.js             sheet + toast + chip primitives
   shift.js          clock-in/switch/pause/out flows, reports, Excel export
@@ -102,8 +104,8 @@ slip before it ships rather than after.
 ```
 cd tests
 npm ci               # once
-npm test             # 97 assertions, pure node, seconds
-npm run test:rules   # 145 rules assertions (needs Java + firebase-tools)
+npm test             # 100 assertions, pure node, seconds
+npm run test:rules   # 151 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 

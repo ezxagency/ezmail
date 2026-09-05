@@ -101,8 +101,48 @@ function permCan(permissions, resource, action, ctx){
   return permRank(granted) >= permRank(need);
 }
 
+/* ============================================================
+   THE CATALOG — every (resource, action) an org can grant, in the
+   words an admin uses rather than the words the database uses. It
+   lives here, beside the grammar, because a roles screen offering a
+   pair the grammar never checks is a switch wired to nothing: the
+   test suite asserts the two agree, so that stays impossible.
+   ============================================================ */
+const PERM_CATALOG = [
+  { resource: "item", label: "Work", actions: [
+    { action: "create", label: "Create work" },
+    { action: "read",   label: "See work" },
+    { action: "update", label: "Change work" },
+    { action: "delete", label: "Delete work" }
+  ]},
+  { resource: "itemType", label: "Work types", actions: [
+    { action: "read",   label: "See types" },
+    { action: "update", label: "Design types" }
+  ]},
+  { resource: "workflow", label: "Workflows", actions: [
+    { action: "read",    label: "See workflows" },
+    { action: "update",  label: "Draw workflows" },
+    { action: "publish", label: "Publish workflows" }
+  ]},
+  { resource: "automation", label: "Automations", actions: [
+    { action: "read",   label: "See automations" },
+    { action: "update", label: "Build automations" }
+  ]},
+  { resource: "member", label: "People", actions: [
+    { action: "read",   label: "See the roster" },
+    { action: "invite", label: "Invite people" }
+  ]},
+  { resource: "role", label: "Roles", actions: [
+    { action: "read",   label: "See roles" },
+    { action: "update", label: "Change roles" }
+  ]},
+  { resource: "report", label: "Reports", actions: [
+    { action: "read", label: "See reports" }
+  ]}
+];
+
 /* Node test hook — the browser never defines `module`, so this block is
    invisible there; tests/permissions.test.mjs requires this file. */
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { PERM_SCOPES, permParse, permGrantScope, permDistance, permCan };
+  module.exports = { PERM_SCOPES, PERM_CATALOG, permParse, permGrantScope, permDistance, permCan };
 }
