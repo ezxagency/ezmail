@@ -58,16 +58,18 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 71 assertions, pure node, seconds
-npm run test:rules   # 119 rules assertions (needs Java + firebase-tools)
+npm test        # 97 assertions, pure node, seconds
+npm run test:rules   # 145 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
 `npm test` covers the workflow engine, effects, templates, versioning, the
-builder handshake, and the repo guards. `test:rules` runs the full
-allow/deny matrix against the Firestore emulator across six actor types:
-admin, assigner, worker, pending stranger, unverified signup, and the
-unauthenticated client-link holder. All 190 pass as of this writing — a
+builder handshake, the permission grammar, and the repo guards.
+`test:rules` runs the full allow/deny matrix against the Firestore
+emulator across six actor types — admin, assigner, worker, pending
+stranger, unverified signup, and the unauthenticated client-link holder —
+plus the tenancy matrix, where the property under test is that no role
+reaches through an org boundary. All 242 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys

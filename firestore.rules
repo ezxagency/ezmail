@@ -18,6 +18,68 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'worker'];
     }
+    /* ---- Tenancy (docs/platform-spec.md, phase 1) ----
+       An org is a tenant. Membership is a DOCUMENT, not an email in a
+       list: orgs/{orgId}/members/{uid} both proves you belong and names
+       the role you hold, so adding someone becomes a write instead of a
+       deploy - which is the whole reason ADMIN_EMAILS above cannot come
+       along to a product. Everything an org owns hangs beneath it, and
+       that is what lets one shape - "are you a member of THIS org" -
+       guard the entire tree.
+       This block is ADDITIVE on purpose: these collections are new and
+       nothing reads them yet, so today's app cannot notice them and the
+       live agency keeps working while the model is built beside it. */
+    function isOrgMember(orgId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+    function orgRoleId(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.roleId;
+    }
+    function isOrgOwner(orgId) {
+      return isOrgMember(orgId) && orgRoleId(orgId) == 'owner';
+    }
+    // whoever the org doc names as its founder. The one identity allowed
+    // to seat itself - and only while no roster exists to say otherwise.
+    function isOrgFounder(orgId) {
+      return request.auth != null
+        && get(/databases/$(database)/documents/orgs/$(orgId)).data.ownerUid == request.auth.uid;
+    }
+
+    match /orgs/{orgId} {
+      allow get: if isOrgMember(orgId);
+      // never enumerable, not even by a member: a tenant list is a
+      // customer list, and the doc id is the only way in
+      allow list: if false;
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt is int;
+      // ownerUid is frozen: the founding seat below trusts it, so an
+      // owner who could move it could hand that key to anyone
+      allow update: if isOrgOwner(orgId)
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      // deleting a tenant is not a client action at any role
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isOrgMember(orgId);
+        // the founding seat: a new org has no roster, so nobody could
+        // write one. The founder may seat THEMSELVES as owner, once -
+        // never anyone else, and never at any other role.
+        allow create: if isOrgOwner(orgId)
+          || (isOrgFounder(orgId) && uid == request.auth.uid
+              && request.resource.data.roleId == 'owner');
+        allow update, delete: if isOrgOwner(orgId);
+      }
+
+      match /roles/{roleId} {
+        // every member reads the roles - the UI needs the permission
+        // rows to know which buttons exist - but only an owner shapes them
+        allow read: if isOrgMember(orgId);
+        allow create, update, delete: if isOrgOwner(orgId);
+      }
+    }
+
     match /users/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
       // signup is INVITE-ONLY: a pending account can only be born naming a

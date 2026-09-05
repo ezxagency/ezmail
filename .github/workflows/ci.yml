@@ -23,6 +23,8 @@ jobs:
       # GitHub UI without anyone opening the log.
       - name: Repo guards (cp rule, ?v= rule, admin/rules email sync)
         run: node tests/repo-guards.test.mjs
+      - name: Permissions grammar
+        run: node tests/permissions.test.mjs
       - name: Workflow engine
         run: node tests/workflow-engine.test.mjs
       - name: Workflow effects

@@ -52,6 +52,18 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "invites/inv2"), { createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: "worker1", usedAt: 2 });
   await setDoc(doc(db, "invites/inv4"), { createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null });
   await setDoc(doc(db, "invites/inv5"), { createdBy: "admin1", createdAt: 1, expiresAt: 2, usedBy: null, usedAt: null });
+  // ---- tenancy (phase 1): two orgs that must never see each other, plus
+  // two founded-but-unseated orgs for the founding-seat case ----
+  await setDoc(doc(db, "orgs/orgA"), { name: "Org A", ownerUid: "admin1", createdAt: 1 });
+  await setDoc(doc(db, "orgs/orgA/members/admin1"), { roleId: "owner", joinedAt: 1 });
+  await setDoc(doc(db, "orgs/orgA/members/worker1"), { roleId: "staff", joinedAt: 1 });
+  await setDoc(doc(db, "orgs/orgA/roles/owner"), { name: "Owner", permissions: ["*:*:org"] });
+  await setDoc(doc(db, "orgs/orgA/roles/staff"), { name: "Staff", permissions: ["item:update:assigned"] });
+  await setDoc(doc(db, "orgs/orgB"), { name: "Org B", ownerUid: "worker2", createdAt: 1 });
+  await setDoc(doc(db, "orgs/orgB/members/worker2"), { roleId: "owner", joinedAt: 1 });
+  await setDoc(doc(db, "orgs/orgB/roles/owner"), { name: "Owner", permissions: ["*:*:org"] });
+  await setDoc(doc(db, "orgs/orgC"), { name: "Org C", ownerUid: "newbie1", createdAt: 1 });
+  await setDoc(doc(db, "orgs/orgF"), { name: "Org F", ownerUid: "newbie2", createdAt: 1 });
 });
 
 const admin = env.authenticatedContext("admin1", { email: "ezagency2nd@gmail.com" }).firestore();
@@ -213,6 +225,38 @@ await T("unverified: mark self verified after entering the right code", assertSu
 await T("unverified: reuse the verify path once already verified DENIED", assertFails(updateDoc(doc(unverified, "users/unverified1"), { verifyCode: "999999" })));
 await T("worker: touch verify fields on a legacy doc with no such field DENIED", assertFails(updateDoc(doc(worker, "users/worker1"), { verifyCode: "000000" })));
 await T("worker: touch ANOTHER user's verify fields DENIED", assertFails(updateDoc(doc(worker, "users/unverified1"), { emailVerified: true })));
+
+// ================= TENANCY (phase 1) =================
+// The one property the whole product rests on: an org is a wall, and no
+// role - not even an owner holding *:*:org - reaches through it.
+await T("member: read own org", assertSucceeds(getDoc(doc(worker, "orgs/orgA"))));
+await T("member: read ANOTHER org DENIED", assertFails(getDoc(doc(worker, "orgs/orgB"))));
+await T("member: read another org's roster DENIED", assertFails(getDoc(doc(worker, "orgs/orgB/members/worker2"))));
+await T("member: read another org's roles DENIED", assertFails(getDoc(doc(worker, "orgs/orgB/roles/owner"))));
+await T("owner of A: read org B DENIED", assertFails(getDoc(doc(admin, "orgs/orgB"))));
+await T("owner of A: write into org B DENIED", assertFails(setDoc(doc(admin, "orgs/orgB/roles/evil"), { name: "E", permissions: ["*:*:org"] })));
+await T("stranger to the org: read it DENIED", assertFails(getDoc(doc(stranger, "orgs/orgA"))));
+await T("orgs are never enumerable", assertFails(getDocs(collection(admin, "orgs"))));
+
+await T("member: read own org's roles", assertSucceeds(getDoc(doc(worker, "orgs/orgA/roles/staff"))));
+await T("member: read own org's roster", assertSucceeds(getDoc(doc(worker, "orgs/orgA/members/admin1"))));
+await T("owner: shape a role", assertSucceeds(setDoc(doc(admin, "orgs/orgA/roles/editor"), { name: "Editor", permissions: ["item:update:org"] })));
+await T("non-owner member: shape a role DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/roles/evil"), { name: "Evil", permissions: ["*:*:org"] })));
+await T("non-owner member: seat someone DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/members/stranger1"), { roleId: "staff", joinedAt: 9 })));
+await T("non-owner member: promote SELF to owner DENIED", assertFails(updateDoc(doc(worker, "orgs/orgA/members/worker1"), { roleId: "owner" })));
+await T("owner: seat a member", assertSucceeds(setDoc(doc(admin, "orgs/orgA/members/worker2"), { roleId: "staff", joinedAt: 9 })));
+await T("owner: move ownerUid DENIED", assertFails(updateDoc(doc(admin, "orgs/orgA"), { ownerUid: "worker1" })));
+await T("owner: rename the org", assertSucceeds(updateDoc(doc(admin, "orgs/orgA"), { name: "Org A renamed" })));
+await T("owner: delete the org DENIED", assertFails(deleteDoc(doc(admin, "orgs/orgA"))));
+
+await T("founder: seat SELF as owner (the founding seat)", assertSucceeds(setDoc(doc(newbie, "orgs/orgC/members/newbie1"), { roleId: "owner", joinedAt: 9 })));
+await T("founder: seat self at a LESSER role DENIED", assertFails(setDoc(doc(newbie2, "orgs/orgF/members/newbie2"), { roleId: "staff", joinedAt: 9 })));
+await T("founder: seat SOMEONE ELSE DENIED", assertFails(setDoc(doc(newbie2, "orgs/orgF/members/worker1"), { roleId: "owner", joinedAt: 9 })));
+await T("non-founder: seat self into an unseated org DENIED", assertFails(setDoc(doc(newbie2, "orgs/orgC/members/newbie2"), { roleId: "owner", joinedAt: 9 })));
+await T("create an org naming SOMEONE ELSE as owner DENIED", assertFails(setDoc(doc(newbie, "orgs/orgD"), { name: "D", ownerUid: "admin1", createdAt: 1 })));
+await T("create an org naming self", assertSucceeds(setDoc(doc(newbie, "orgs/orgE"), { name: "E", ownerUid: "newbie1", createdAt: 1 })));
+await T("create an org with no createdAt DENIED", assertFails(setDoc(doc(newbie, "orgs/orgG"), { name: "G", ownerUid: "newbie1" })));
+await T("anonymous: read an org DENIED", assertFails(getDoc(doc(anon, "orgs/orgA"))));
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 await env.cleanup();

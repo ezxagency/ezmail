@@ -1,6 +1,10 @@
 # Platform Spec — the base model
 
-Status: **spec only — no platform code written yet.**
+Status: **phase 1 in progress.** Landed so far: the permission grammar
+(`js/permissions.js`, 26 assertions) and the tenancy rules for
+`orgs/{orgId}` with its members and roles (26 assertions). Both are
+additive — nothing in the running app reads either yet. Phases 2–5
+remain spec only.
 This is the source of truth for turning EZ Clock In from one agency's tool
 into a base model any organization can configure. Re-read it fully before
 touching platform work in any session.

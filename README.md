@@ -33,6 +33,7 @@ css/  loaded in order; the order IS the cascade, never shuffle it
 
 js/   classic scripts sharing one global scope; loaded in order
   config.js         CONFIG, Firebase init, Firestore-backed Store, state, utils
+  permissions.js    resource:action:scope grammar - pure, no DOM, no Firestore
   render.js         dashboard render loop, rings, per-second tick
   ui.js             sheet + toast + chip primitives
   shift.js          clock-in/switch/pause/out flows, reports, Excel export
@@ -101,8 +102,8 @@ slip before it ships rather than after.
 ```
 cd tests
 npm ci               # once
-npm test             # 71 assertions, pure node, seconds
-npm run test:rules   # 119 rules assertions (needs Java + firebase-tools)
+npm test             # 97 assertions, pure node, seconds
+npm run test:rules   # 145 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
