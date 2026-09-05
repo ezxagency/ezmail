@@ -70,7 +70,12 @@ async function enterWorkPage(){
     box.innerHTML = '<p class="org-note">You are not in an organization yet.</p>';
     return;
   }
-  wkTypes = await itemTypesLoad();
+  try { wkTypes = await itemTypesLoad(); }
+  catch (e) {
+    console.error(e);
+    box.innerHTML = '<p class="org-note">Could not load work types. Check your connection and try again.</p>';
+    return;
+  }
   if (!wkTypes.length) {
     box.innerHTML = '<div class="org-empty"><h2>No work types yet</h2>' +
       '<p>A work type describes a kind of work — its fields and the stages it moves through. ' +

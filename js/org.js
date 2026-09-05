@@ -48,23 +48,34 @@ const ORG_SEED_ROLES = [
 async function orgLoad(){
   const uid = orgUid();
   if (!uid) return null;
-  const ptr = await db.collection("memberOf").doc(uid).get();
+  // A denied or offline read must answer "no org", never throw. Callers
+  // treat null as "cannot proceed", which is the safe direction - and a
+  // rejection here would otherwise escape into whichever page asked,
+  // leaving it stuck on its loading line with nothing to show for it.
+  // The window this closes is real: Pages ships new JS the instant main
+  // moves, while the rules that JS needs are still deploying behind it.
+  let ptr;
+  try { ptr = await db.collection("memberOf").doc(uid).get(); }
+  catch (e) { console.error(e); return null; }
   const orgId = ptr.exists ? ptr.data().orgId : null;
   if (!orgId) return null;
 
-  const orgDoc = await db.collection("orgs").doc(orgId).get();
+  let orgDoc;
+  try { orgDoc = await db.collection("orgs").doc(orgId).get(); }
+  catch (e) { console.error(e); return null; }
   // the pointer outlived the membership (removed from the org, or it was
   // never real): treat it as no org rather than an error the user can't act on
   if (!orgDoc.exists) return null;
 
-  const [memSnap, roleSnap, typeSnap, dirRows] = await Promise.all([
+  let memSnap, roleSnap, typeSnap, dirRows;
+  try { [memSnap, roleSnap, typeSnap, dirRows] = await Promise.all([
     db.collection("orgs").doc(orgId).collection("members").get(),
     db.collection("orgs").doc(orgId).collection("roles").get(),
     db.collection("orgs").doc(orgId).collection("itemTypes").get(),
     // the roster stores uids; names live in the directory every signed-in
     // account may already read, so being polite costs no new permission
     loadDirectory()
-  ]);
+  ]); } catch (e) { console.error(e); return null; }
   const dir = {};
   (dirRows || []).forEach(r => { dir[r.uid] = r; });
   const members = memSnap.docs.map(d => Object.assign({ uid: d.id }, d.data()));
