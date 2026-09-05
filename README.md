@@ -12,7 +12,7 @@ Pages).
 
 ```
 index.html          app shell: login, dashboard, drawer, feature pages
-timeclock-v2.html   synced copy of index.html (keep identical)
+timeclock-v2.html   redirect stub for the legacy URL — never copy index.html over it
 reset-password.html standalone password-reset landing page
 client-review.html  unauthenticated public page for a client to review a campaign link
 
@@ -84,8 +84,10 @@ themselves) from the Team page, and keep the raw Excel exports.
 
 ## Conventions
 
-- Every `css/`/`js/` reference in the HTML carries the same `?v=N`;
-  bump N on any css/js change so fresh HTML never pairs with a stale cache.
-- `timeclock-v2.html` is a byte-for-byte copy of `index.html` — re-copy it
-  after editing (`cp index.html timeclock-v2.html`).
+- Every `css/`/`js/` reference in the HTML carries the same `?v=N` so fresh
+  HTML never pairs with a stale cache. After any css/js change run
+  `node tools/bump-version.mjs` (auto-increments every tag in one shot;
+  pass a number to set it exactly). Never edit `?v=` by hand.
+- `timeclock-v2.html` is a redirect stub for the legacy URL. It is NOT a
+  copy of `index.html` any more — never copy over it.
 - No bundler, no framework, no npm: edit, refresh, push.
