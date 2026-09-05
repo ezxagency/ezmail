@@ -189,11 +189,14 @@ function orgRender(){
       (owner ? '' : '<p class="org-note">Only an owner can change roles.</p>') +
     '</section>' +
     '<section class="org-sec">' +
-      '<div class="org-sec-head"><h3>People<span class="org-count">' + (orgS.members || []).length + '</span></h3></div>' +
+      '<div class="org-sec-head"><h3>People<span class="org-count">' + (orgS.members || []).length + '</span></h3>' +
+        (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgInviteBtn">Invite</button>' : '') +
+      '</div>' +
       '<div class="org-list">' + membersHtml + '</div>' +
     '</section>';
 
   if (owner && $("orgAddRole")) $("orgAddRole").onclick = () => orgRoleSheet(null);
+  if (owner && $("orgInviteBtn")) $("orgInviteBtn").onclick = () => orgInviteSheet();
   $("orgBody").querySelectorAll(".org-role").forEach(b => {
     if (b.disabled) return;
     b.onclick = () => orgRoleSheet((orgS.roles || []).find(r => r.id === b.dataset.role) || null);
@@ -282,4 +285,148 @@ async function orgDeleteRole(role){
     toast("Role deleted.");
     enterOrgPage();
   } catch (e) { console.error(e); toast("Could not delete the role."); }
+}
+
+/* ============================================================
+   INVITATIONS — an owner offers a seat; the holder of the link
+   takes it. The token is the capability, exactly as invites/ and
+   clientReviews/ already work in this app.
+
+   The link carries the org id as well as the token, because the
+   invite lives UNDER the org (orgs/{orgId}/invites/{token}) and a
+   client that is not a member yet cannot go looking for which org
+   a bare token belongs to - orgs are not enumerable on purpose.
+   ============================================================ */
+
+// the same shelf life invites/ already uses: a link nobody took in a
+// day is far more likely forgotten in a chat than still wanted
+const ORG_INVITE_TTL = 24 * 3600000;
+
+const orgInviteLink = (orgId, token) =>
+  location.origin + location.pathname + "?org=" + encodeURIComponent(orgId) + "&join=" + encodeURIComponent(token);
+
+const orgInviteLeft = inv => {
+  const ms = (inv.expiresAt || 0) - Date.now();
+  if (ms <= 0) return "expired";
+  const h = Math.floor(ms / 3600000);
+  return h >= 1 ? h + "h left" : Math.max(1, Math.round(ms / 60000)) + "m left";
+};
+
+async function orgInviteSheet(){
+  if (!orgIsOwner()) return;
+  const roles = (orgS.roles || []).filter(r => r.id !== "owner");
+  if (!roles.length) { toast("Create a role first — an invitation has to offer one."); return; }
+
+  let pending = [];
+  try {
+    const snap = await db.collection("orgs").doc(orgS.orgId).collection("invites")
+      .where("usedBy", "==", null).get();
+    pending = snap.docs.map(d => Object.assign({ token: d.id }, d.data()));
+  } catch (e) { console.error(e); }
+
+  const roleOpts = roles.map(r =>
+    '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>').join("");
+  const pendingHtml = pending.length
+    ? pending.map(inv =>
+        '<div class="org-row"><span class="org-row-main">' +
+          '<b>' + esc(orgRoleName(inv.roleId)) + '</b>' +
+          '<small>' + esc(orgInviteLeft(inv)) + '</small></span>' +
+        '<button type="button" class="org-btn org-btn-sm" data-copy="' + esc(inv.token) + '">Copy</button>' +
+        '<button type="button" class="org-btn org-btn-sm org-btn-danger" data-revoke="' + esc(inv.token) + '">Revoke</button>' +
+        '</div>').join("")
+    : '<p class="org-note">No open invitations.</p>';
+
+  openSheet(
+    '<h3 class="sheet-title">Invite someone</h3>' +
+    '<p class="org-note">A link that seats whoever opens it, once, at the role you pick. It stops working after 24 hours.</p>' +
+    '<label class="org-field"><span>Role they join as</span>' +
+      '<select id="orgInviteRole">' + roleOpts + '</select></label>' +
+    '<div class="org-actions"><button type="button" class="org-btn" id="orgInviteMint">Create invitation link</button></div>' +
+    '<div class="org-sec-head" style="margin-top:22px"><h3>Open invitations</h3></div>' +
+    '<div class="org-list" id="orgInviteList">' + pendingHtml + '</div>',
+    () => {
+      $("orgInviteMint").onclick = orgMintInvite;
+      $("orgInviteList").querySelectorAll("[data-copy]").forEach(b =>
+        b.onclick = () => orgCopyInvite(b.dataset.copy));
+      $("orgInviteList").querySelectorAll("[data-revoke]").forEach(b =>
+        b.onclick = () => orgRevokeInvite(b.dataset.revoke));
+    }
+  );
+}
+
+async function orgCopyInvite(token){
+  const ok = await copyText(orgInviteLink(orgS.orgId, token));
+  toast(ok ? "Invitation link copied." : "Could not copy the link.");
+}
+
+async function orgMintInvite(){
+  const roleId = $("orgInviteRole").value;
+  const btn = $("orgInviteMint");
+  btn.disabled = true; btn.textContent = "Creating…";
+  try {
+    const ref = db.collection("orgs").doc(orgS.orgId).collection("invites").doc();
+    await ref.set({
+      roleId, createdBy: orgUid(), createdAt: Date.now(),
+      expiresAt: Date.now() + ORG_INVITE_TTL, usedBy: null, usedAt: null
+    });
+    await orgCopyInvite(ref.id);
+    orgInviteSheet();   // reopen so the new link shows in the list
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false; btn.textContent = "Create invitation link";
+    toast("Could not create the invitation.");
+  }
+}
+
+async function orgRevokeInvite(token){
+  try {
+    await db.collection("orgs").doc(orgS.orgId).collection("invites").doc(token).delete();
+    toast("Invitation revoked.");
+    orgInviteSheet();
+  } catch (e) { console.error(e); toast("Could not revoke the invitation."); }
+}
+
+/* ---------- taking a seat ----------
+   Runs once at boot for everyone, because a person clicking an invite
+   link lands on the dashboard, not on this page. Silent unless the URL
+   actually carries an invitation. */
+async function orgTryJoin(){
+  const q = new URLSearchParams(location.search);
+  const token = q.get("join"), orgId = q.get("org");
+  if (!token || !orgId) return;
+  // the params are spent whatever happens next: leaving them in the URL
+  // means a refresh re-runs a join that already succeeded or already failed
+  const clean = location.origin + location.pathname + location.hash;
+  history.replaceState(null, "", clean);
+
+  const uid = orgUid();
+  if (!uid) return;
+  try {
+    const ptr = await db.collection("memberOf").doc(uid).get();
+    if (ptr.exists && ptr.data().orgId && ptr.data().orgId !== orgId) {
+      toast("You already belong to an organization.");
+      return;
+    }
+    const invRef = db.collection("orgs").doc(orgId).collection("invites").doc(token);
+    const inv = await invRef.get();
+    if (!inv.exists) { toast("That invitation link is not valid."); return; }
+    const d = inv.data();
+    if (d.usedBy) { toast("That invitation has already been used."); return; }
+    if ((d.expiresAt || 0) <= Date.now()) { toast("That invitation has expired."); return; }
+
+    // the seat NAMES the token - that is what the rules check, and it is
+    // why a holder cannot claim a role the invitation never offered
+    await db.collection("orgs").doc(orgId).collection("members").doc(uid).set({
+      roleId: d.roleId, invite: token, joinedAt: Date.now()
+    });
+    // burn it, then point ourselves at the org. If burning fails the seat
+    // still stands - a taken seat with a live token is untidy, not unsafe,
+    // since the rules refuse a second seat for the same person anyway.
+    try { await invRef.update({ usedBy: uid, usedAt: Date.now() }); } catch (e) { console.error(e); }
+    await db.collection("memberOf").doc(uid).set({ orgId, at: Date.now() });
+    toast("You have joined the organization.");
+  } catch (e) {
+    console.error(e);
+    toast("Could not accept that invitation.");
+  }
 }

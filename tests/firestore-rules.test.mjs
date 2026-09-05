@@ -64,6 +64,12 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "orgs/orgB/roles/owner"), { name: "Owner", permissions: ["*:*:org"] });
   await setDoc(doc(db, "orgs/orgC"), { name: "Org C", ownerUid: "newbie1", createdAt: 1 });
   await setDoc(doc(db, "orgs/orgF"), { name: "Org F", ownerUid: "newbie2", createdAt: 1 });
+  const LIVE = 9999999999999;
+  await setDoc(doc(db, "orgs/orgA/invites/oinv1"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: LIVE, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "orgs/orgA/invites/oinvUsed"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: LIVE, usedBy: "worker2", usedAt: 2 });
+  await setDoc(doc(db, "orgs/orgA/invites/oinvOld"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: 2, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "orgs/orgB/invites/oinvB"), { roleId: "staff", createdBy: "worker2", createdAt: 1, expiresAt: LIVE, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "orgs/orgA/invites/oinvBurn"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: LIVE, usedBy: null, usedAt: null });
 });
 
 const admin = env.authenticatedContext("admin1", { email: "ezagency2nd@gmail.com" }).firestore();
@@ -267,6 +273,41 @@ await T("memberOf: read SOMEONE ELSE's pointer DENIED", assertFails(getDoc(doc(w
 await T("memberOf: write SOMEONE ELSE's pointer DENIED", assertFails(setDoc(doc(worker, "memberOf/worker2"), { orgId: "orgA", at: 1 })));
 await T("memberOf: anonymous read DENIED", assertFails(getDoc(doc(anon, "memberOf/worker1"))));
 // pointing at an org you do not belong to buys nothing - the org refuses you
+// ---- org invites: the token is the capability, and the seat names it ----
+const seat = (roleId, invite) => ({ roleId, invite, joinedAt: 9 });
+
+await T("invite: any signed-in holder may read what it offers", assertSucceeds(getDoc(doc(stranger, "orgs/orgA/invites/oinv1"))));
+await T("invite: a non-owner lists them DENIED", assertFails(getDocs(collection(stranger, "orgs/orgA/invites"))));
+await T("invite: an owner lists them (one membership check, any count)", assertSucceeds(getDocs(collection(admin, "orgs/orgA/invites"))));
+await T("invite: a non-owner mints one DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/invites/evil1"), { roleId: "staff", createdBy: "worker1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null })));
+await T("invite: an owner of A mints into B DENIED", assertFails(setDoc(doc(admin, "orgs/orgB/invites/evil2"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null })));
+await T("invite: an owner mints one", assertSucceeds(setDoc(doc(admin, "orgs/orgA/invites/oinvNew"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null })));
+await T("invite: minting one already marked used DENIED", assertFails(setDoc(doc(admin, "orgs/orgA/invites/evil3"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: "admin1", usedAt: 1 })));
+
+// every way of NOT getting a seat, before the one way that works
+await T("seat: with no invite named DENIED", assertFails(setDoc(doc(stranger, "orgs/orgA/members/stranger1"), { roleId: "staff", joinedAt: 9 })));
+await T("seat: naming a USED invite DENIED", assertFails(setDoc(doc(stranger, "orgs/orgA/members/stranger1"), seat("staff", "oinvUsed"))));
+await T("seat: naming an EXPIRED invite DENIED", assertFails(setDoc(doc(stranger, "orgs/orgA/members/stranger1"), seat("staff", "oinvOld"))));
+await T("seat: another org token DENIED (wrong path, no such doc)", assertFails(setDoc(doc(stranger, "orgs/orgA/members/stranger1"), seat("staff", "oinvB"))));
+await T("seat: naming an invite that does not exist DENIED", assertFails(setDoc(doc(stranger, "orgs/orgA/members/stranger1"), seat("staff", "nope"))));
+await T("seat: claiming a HIGHER role than the invite grants DENIED", assertFails(setDoc(doc(stranger, "orgs/orgA/members/stranger1"), seat("owner", "oinv1"))));
+await T("seat: using a live invite to seat SOMEONE ELSE DENIED", assertFails(setDoc(doc(stranger, "orgs/orgA/members/unverified1"), seat("staff", "oinv1"))));
+
+// burning: the holder stamps themselves on it, once, and nothing else
+await T("burn: stamp SOMEONE ELSE onto an invite DENIED", assertFails(updateDoc(doc(stranger, "orgs/orgA/invites/oinvBurn"), { usedBy: "worker1", usedAt: 9 })));
+await T("burn: move the org while burning DENIED", assertFails(updateDoc(doc(stranger, "orgs/orgA/invites/oinvBurn"), { usedBy: "stranger1", usedAt: 9, orgId: "orgB" })));
+await T("burn: raise the role while burning DENIED", assertFails(updateDoc(doc(stranger, "orgs/orgA/invites/oinvBurn"), { usedBy: "stranger1", usedAt: 9, roleId: "owner" })));
+await T("burn: an already-burned invite DENIED", assertFails(updateDoc(doc(stranger, "orgs/orgA/invites/oinvUsed"), { usedBy: "stranger1", usedAt: 9 })));
+
+// and now the one path that works, end to end
+await T("seat: a live invite seats the holder at the role it grants", assertSucceeds(setDoc(doc(stranger, "orgs/orgA/members/stranger1"), seat("staff", "oinv1"))));
+await T("burn: the holder stamps themselves on it", assertSucceeds(updateDoc(doc(stranger, "orgs/orgA/invites/oinv1"), { usedBy: "stranger1", usedAt: 9 })));
+await T("seated member: now reads the org", assertSucceeds(getDoc(doc(stranger, "orgs/orgA"))));
+await T("seated member: still cannot shape roles", assertFails(setDoc(doc(stranger, "orgs/orgA/roles/evil"), { name: "Evil", permissions: ["*:*:org"] })));
+await T("seated member: still cannot read org B", assertFails(getDoc(doc(stranger, "orgs/orgB"))));
+await T("invite: an owner revokes one", assertSucceeds(deleteDoc(doc(admin, "orgs/orgA/invites/oinvNew"))));
+await T("invite: a member revokes one DENIED", assertFails(deleteDoc(doc(worker, "orgs/orgA/invites/oinvBurn"))));
+
 await T("memberOf: a forged pointer still cannot open the org", assertFails((async () => {
   await setDoc(doc(worker, "memberOf/worker1"), { orgId: "orgB", at: 1 });
   return getDoc(doc(worker, "orgs/orgB"));

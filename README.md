@@ -105,7 +105,7 @@ slip before it ships rather than after.
 cd tests
 npm ci               # once
 npm test             # 100 assertions, pure node, seconds
-npm run test:rules   # 151 rules assertions (needs Java + firebase-tools)
+npm run test:rules   # 176 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 

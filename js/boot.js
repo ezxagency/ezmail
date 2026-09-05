@@ -52,6 +52,7 @@ async function startWorkerApp(){
   syncDirectory();   // keep this account's name findable for @mentions
   backfillDirectory();   // admin only: seed the directory with the whole team
   applyRoute();   // honor a deep link (#/history etc.) present at sign-in
+  orgTryJoin();   // and an ?org=&join= invitation, which lands on the dashboard
 
   const timer = setInterval(tick, 1000);
   onSessionEnd(() => clearInterval(timer));

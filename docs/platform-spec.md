@@ -4,7 +4,10 @@ Status: **phase 1 in progress.** Landed so far: the permission grammar
 and its catalog (`js/permissions.js`, 29 assertions); the tenancy rules
 for `orgs/{orgId}` with members, roles and the `memberOf` pointer (32
 assertions); and the Organization page (`js/org.js`) where an owner
-creates the org and edits roles. All additive — no existing page reads
+creates the org, edits roles, and invites people into it — invitations
+live at `orgs/{orgId}/invites/{token}` so the tenant comes from the path
+rather than a field, which is what keeps listing them to a single
+membership check. All additive — no existing page reads
 an org, so an agency that never opens the screen behaves exactly as
 before. Still open in phase 1: `orgId` on existing documents, and
 custom claims (which need the server from phase 3). Phases 2–5 remain
