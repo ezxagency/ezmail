@@ -10,8 +10,18 @@ rather than a field, which is what keeps listing them to a single
 membership check. All additive — no existing page reads
 an org, so an agency that never opens the screen behaves exactly as
 before. Still open in phase 1: `orgId` on existing documents, and
-custom claims (which need the server from phase 3). Phases 2–5 remain
-spec only.
+custom claims (which need the server from phase 3).
+
+**Phase 2 in progress.** `js/items.js` holds the pure core — the eleven
+field types, validation, facet derivation, and `itemCommit()`, the one
+place an Item changes (43 assertions). It never writes: it returns the
+next Item and the events the change produced, which is what lets the
+same decision run client-side today and server-side in phase 3.
+Authorization arrives as an injected `allow` callback rather than a
+global, so the file stays standalone under Node. Still to come in phase
+2: Firestore persistence behind `commit()`, the ItemType builder UI, and
+collapsing assignments/campaigns onto the Item. Phases 3–5 remain spec
+only.
 This is the source of truth for turning EZ Clock In from one agency's tool
 into a base model any organization can configure. Re-read it fully before
 touching platform work in any session.

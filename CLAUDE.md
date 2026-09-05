@@ -58,7 +58,7 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 100 assertions, pure node, seconds
+npm test        # 143 assertions, pure node, seconds
 npm run test:rules   # 176 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -69,7 +69,7 @@ builder handshake, the permission grammar, and the repo guards.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 276 pass as of this writing — a
+reaches through an org boundary. All 319 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys
