@@ -58,18 +58,23 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 146 assertions, pure node, seconds
+npm test        # 156 assertions, node + jsdom, seconds
 npm run test:rules   # 195 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
 `npm test` covers the workflow engine, effects, templates, versioning, the
-builder handshake, the permission grammar, and the repo guards.
+builder handshake, the permission grammar, the item engine, the repo
+guards, and — in jsdom, with the real files loaded into one shared global
+scope exactly as `index.html` arranges them — the generated UI. That last
+suite exists because the pure ones prove what the engine DECIDES and
+cannot prove that a control the app draws is a control the app can read
+back; that round trip only exists in a document.
 `test:rules` runs the full allow/deny matrix against the Firestore
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 341 pass as of this writing — a
+reaches through an org boundary. All 351 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys
