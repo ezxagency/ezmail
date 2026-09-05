@@ -1,0 +1,13 @@
+{
+  "name": "functions",
+  "description": "EZ Clock In server side — Cloud Functions (2nd gen). Plain CommonJS, no build step, same principle as the rest of the repo.",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.4.0"
+  }
+}
