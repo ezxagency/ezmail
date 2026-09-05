@@ -1,0 +1,74 @@
+# Replaces the copy-paste step: edit firestore.rules, push, and the rules
+# ship themselves. Nothing deploys until the 119-assertion suite passes
+# against the edited rules, so a bad rule can't reach the live database.
+name: Deploy Firestore rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firestore.indexes.json
+      - .github/workflows/deploy-rules.yml
+  workflow_dispatch:  # lets you re-deploy by hand from the Actions tab
+
+env:
+  FIREBASE_PROJECT: ez-agency-timeclock
+
+jobs:
+  deploy:
+    name: Verify, then deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install test deps
+        working-directory: tests
+        run: npm ci
+      - name: Install firebase-tools
+        run: npm i -g firebase-tools
+
+      # The gate. Rules that fail their own test matrix never ship.
+      - name: Verify rules against the emulator
+        working-directory: tests
+        run: firebase emulators:exec --only firestore --project demo-ez "node firestore-rules.test.mjs"
+
+      # Until the secret exists this reports "skipped" rather than failing,
+      # so the workflow isn't a permanent red X while it's being set up.
+      - name: Check for credentials
+        id: creds
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$SA" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT is not set - rules verified but NOT deployed. Add the secret in Settings > Secrets and variables > Actions."
+          fi
+
+      - name: Write credentials to disk
+        if: steps.creds.outputs.present == 'true'
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: Deploy rules + indexes
+        if: steps.creds.outputs.present == 'true'
+        run: firebase deploy --only firestore --project "$FIREBASE_PROJECT" --non-interactive
+
+      # Credentials never outlive the job, even if a later step fails.
+      - name: Shred credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

@@ -1,0 +1,63 @@
+# Runs the suites that already lived in tests/ but had nothing running them.
+# Nothing here is new policy: the guards enforce README > "Conventions",
+# and the rest are the project's own tests.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Pure node - no emulator, no browser. Finishes in seconds.
+  unit:
+    name: Unit tests + repo guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Each suite is its own step so a red X names the failure in the
+      # GitHub UI without anyone opening the log.
+      - name: Repo guards (cp rule, ?v= rule, admin/rules email sync)
+        run: node tests/repo-guards.test.mjs
+      - name: Workflow engine
+        run: node tests/workflow-engine.test.mjs
+      - name: Workflow effects
+        run: node tests/workflow-effects.test.mjs
+      - name: Workflow templates
+        run: node tests/workflow-templates.test.mjs
+      - name: Workflow versions
+        run: node tests/workflow-versions.test.mjs
+      - name: Workflow builder handshake
+        run: node tests/workflow-builder-handshake.test.mjs
+
+  # The 119 allow/deny assertions in tests/firestore-rules.test.mjs. Needs
+  # Java for the emulator jar, which is why this never ran by hand.
+  rules:
+    name: Firestore rules (emulator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install test deps
+        working-directory: tests
+        run: npm ci
+      - name: Install firebase-tools
+        run: npm i -g firebase-tools
+
+      # cwd must be tests/ - the suite reads ../firestore.rules
+      - name: 119 allow/deny assertions
+        working-directory: tests
+        run: firebase emulators:exec --only firestore --project demo-ez "node firestore-rules.test.mjs"

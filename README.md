@@ -88,4 +88,38 @@ themselves) from the Team page, and keep the raw Excel exports.
   bump N on any css/js change so fresh HTML never pairs with a stale cache.
 - `timeclock-v2.html` is a byte-for-byte copy of `index.html` — re-copy it
   after editing (`cp index.html timeclock-v2.html`).
+- `ADMIN_EMAILS`/`ASSIGNER_EMAILS` in `js/config.js` must match
+  `isDesignatedAdminEmail()`/`isAssignerEmail()` in `firestore.rules` —
+  the first gates the buttons, the second gates the database.
 - No bundler, no framework, no npm: edit, refresh, push.
+
+All four are enforced by `tests/repo-guards.test.mjs`, so CI catches a
+slip before it ships rather than after.
+
+## Tests
+
+```
+cd tests
+npm ci               # once
+npm test             # 71 assertions, pure node, seconds
+npm run test:rules   # 119 rules assertions (needs Java + firebase-tools)
+npm run test:all     # both
+```
+
+CI runs all of it on every push (`.github/workflows/ci.yml`).
+
+## Deploying
+
+The app itself needs no deploy step — GitHub Pages serves the repo, so a
+push to `main` is the release.
+
+Firestore **rules and indexes** deploy themselves:
+`.github/workflows/deploy-rules.yml` ships them on any push to `main` that
+touches `firestore.rules` or `firestore.indexes.json`, and only after the
+119-assertion suite passes against the edited rules. It needs a
+`FIREBASE_SERVICE_ACCOUNT` secret (Settings → Secrets and variables →
+Actions); without it the workflow verifies the rules and skips the deploy
+with a warning instead of failing.
+
+Don't paste rules into the Firebase console by hand — the console and the
+repo drift the moment you do, and the repo is the copy that gets tested.

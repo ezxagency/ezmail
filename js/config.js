@@ -50,9 +50,11 @@ const firebaseConfig = {
 // downgrades it back to "worker" on its next login, same way.
 const ADMIN_EMAILS = ["ezagency2nd@gmail.com"].map(e => e.toLowerCase());
 // Can assign tasks (bottom-nav shortcut) without full admin access -
-// no team roster, no approvals, no export, no remove-member. Keep this
-// list and the matching Firestore rules (isAssignerEmail()) in sync by
-// hand for now - same manual-sync tradeoff as ADMIN_EMAILS already has.
+// no team roster, no approvals, no export, no remove-member. This list and
+// isAssignerEmail() in firestore.rules must agree: this one hides buttons,
+// that one is what Firestore actually enforces. Editing only this file
+// leaves the access intact at the database. tests/repo-guards.test.mjs
+// fails the build if the two drift - same for ADMIN_EMAILS above.
 const ASSIGNER_EMAILS = ["prashuchiha34@gmail.com"].map(e => e.toLowerCase());
 
 const FB_READY = !firebaseConfig.apiKey.includes("PASTE");
