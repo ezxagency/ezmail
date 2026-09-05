@@ -102,3 +102,24 @@ button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
   padding: 9px 30px 9px 12px; border-radius: 9px; min-height: 0;
   background-position: calc(100% - 18px) 16px, calc(100% - 13px) 16px;
 }
+
+/* ---- the work-type builder's field rows ---- */
+.org-fieldrow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 12px 14px; border-radius: 12px;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08);
+}
+/* the label is the row's subject, so it takes the space; everything else
+   sizes to its content and wraps beneath on a narrow screen */
+.org-fieldrow .oft-label { flex: 1 1 160px; min-width: 0; }
+.org-fieldrow input[type=text], .org-fieldrow select {
+  font-size: 14px; padding: 9px 12px; border-radius: 9px; width: auto; min-height: 0;
+}
+.org-fieldrow select { padding-right: 30px; background-position: calc(100% - 18px) 16px, calc(100% - 13px) 16px; }
+.org-fieldrow .oft-options { flex: 1 1 100%; }
+.org-fieldrow .oft-req {
+  display: flex; align-items: center; gap: 6px; font-size: 13px; opacity: .72; flex: none;
+}
+.org-fieldrow .oft-req input { width: auto; margin: 0; }
+.org-fieldrow .oft-del { flex: none; }

@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", team: "teamScreen", workflow: "workflowScreen", org: "orgScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", team: "teamScreen", workflow: "workflowScreen", work: "workScreen", org: "orgScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -118,6 +118,7 @@ function applyRoute(){
   else if (r === "campaigns") enterCampaignsPage();
   else if (r === "team") loadTeamScreen();
   else if (r === "workflow") enterWorkflowPage();
+  else if (r === "work") enterWorkPage();
   else if (r === "org") enterOrgPage();
 }
 window.addEventListener("hashchange", applyRoute);

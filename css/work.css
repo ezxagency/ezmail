@@ -1,0 +1,49 @@
+/* ============================================================
+   WORK — the runtime page. Rows and buttons come from org.css;
+   only the type tabs, the status controls and the generated form's
+   own quirks live here.
+   ============================================================ */
+
+.wk-tabs {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; margin-bottom: 16px;
+}
+.wk-tab {
+  font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+  padding: 8px 14px; border-radius: 999px; color: inherit;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.12);
+}
+.wk-tab:hover { background: rgba(255,255,255,.09); }
+.wk-tab.on { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3); }
+.wk-tabs .wk-new { margin-left: auto; }
+
+/* the status a row is at, readable without opening it */
+.wk-pill {
+  flex: none; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16); opacity: .8;
+}
+
+/* ---- the generated form ---- */
+.wk-check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.wk-check input { width: auto; margin: 0; }
+.wk-multi { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+
+.wk-statuses { display: flex; flex-wrap: wrap; gap: 8px; }
+.wk-status {
+  font: inherit; font-size: 13px; cursor: pointer;
+  padding: 9px 14px; border-radius: 10px; color: inherit;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.13);
+}
+.wk-status:hover { background: rgba(255,255,255,.1); }
+/* the status it is AT reads as a statement, not an offer */
+.wk-status.on { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.4); cursor: default; }
+
+.wk-errs {
+  margin-top: 14px; padding: 12px 14px; border-radius: 10px;
+  background: rgba(226,90,70,.12); border: 1px solid rgba(226,90,70,.3);
+}
+.wk-errs p { margin: 0 0 4px; font-size: 13.5px; }
+.wk-errs p:last-child { margin-bottom: 0; }

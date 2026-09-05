@@ -29,6 +29,7 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   personal.css      Personal mode's private task list
   campaigns.css     campaigns baton-pass pipeline page + its sheets
   org.css           the Organization page: roster rows + the permission grid
+  work.css          the Work page: type tabs, status controls, generated form
   login.css         Shift Card login screen (legacy palette)
   premium.css       motion/gesture polish layer, loaded last on purpose
 
@@ -37,6 +38,7 @@ js/   classic scripts sharing one global scope; loaded in order
   permissions.js    resource:action:scope grammar - pure, no DOM, no Firestore
   item-engine.js    the universal work object: types, values, facets, commit()
   items.js          its Firestore glue - deliberately dumb, decides nothing
+  work.js           the Work page: every control generated from the ItemType
   org.js            the Organization page: tenancy, the roster, the roles editor
   render.js         dashboard render loop, rings, per-second tick
   ui.js             sheet + toast + chip primitives
@@ -106,7 +108,7 @@ slip before it ships rather than after.
 ```
 cd tests
 npm ci               # once
-npm test             # 143 assertions, pure node, seconds
+npm test             # 146 assertions, pure node, seconds
 npm run test:rules   # 195 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```

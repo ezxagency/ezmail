@@ -255,5 +255,91 @@ T("commit never writes: it returns events rather than emitting them", () => {
   assert.equal(typeof r.item, "object");
 });
 
+/* ---------- end to end: the spec's own worked example ----------
+   docs/platform-spec.md ships a "restaurant" pack whose Shift Swap type
+   is meant to prove the model fits an industry nobody wrote code for.
+   This builds exactly that type - the shape the Organization page's
+   builder produces - and runs one real request through its whole life.
+   If this passes, "a custom type runs end to end" is true of the engine. */
+const SHIFT_SWAP = {
+  id: "shiftswap",
+  name: "Shift Swap",
+  fields: [
+    { key: "requestedBy", label: "Requested by", type: "user",     required: true },
+    { key: "shiftDate",   label: "Shift date",   type: "date",     required: true },
+    { key: "coverBy",     label: "Covered by",   type: "user",     required: false },
+    { key: "reason",      label: "Reason",       type: "longtext", required: false },
+    { key: "urgent",      label: "Urgent",       type: "checkbox", required: false }
+  ],
+  statuses: [{ key: "open", label: "Open" }, { key: "claimed", label: "Claimed" },
+             { key: "approved", label: "Approved" }, { key: "denied", label: "Denied" }]
+};
+
+T("e2e: a shift swap is requested, claimed, approved - and never needed code", () => {
+  const lead = { uid: "lead1", orgId: "orgR" };
+  const staff = { uid: "staff1", orgId: "orgR" };
+
+  // 1. staff files the request. The first status is where new work starts.
+  const made = itemCommit({ type: SHIFT_SWAP, item: null, actor: staff, allow: YES, now: 100, id: "sw1",
+    intent: { kind: "create", title: "Friday night", fields: { requestedBy: "staff1", shiftDate: "2026-09-11", urgent: true } } });
+  assert.ok(made.ok, JSON.stringify(made.details));
+  assert.equal(made.item.status, "open");
+  assert.equal(made.events[0].verb, "item.created");
+
+  // the facets a manager would filter on exist without any index being
+  // declared for a type that did not exist an hour ago
+  assert.ok(made.item.facets.includes("type:shiftswap"));
+  assert.ok(made.item.facets.includes("status:open"));
+  assert.ok(made.item.facets.includes("urgent:true"));
+  assert.ok(made.item.facets.includes("requestedBy:staff1"));
+  // a date is a range, so it is a real field and never a facet row
+  assert.ok(!made.item.facets.some(f => f.startsWith("shiftDate:")));
+
+  // 2. a shift lead claims it
+  const claimed = itemCommit({ type: SHIFT_SWAP, item: made.item, actor: lead, allow: YES, now: 200,
+    intent: { kind: "update", fields: { coverBy: "lead1" } } });
+  assert.ok(claimed.ok);
+  assert.deepEqual(Object.keys(claimed.events[0].data.changed), ["coverBy"]);
+
+  const moved = itemCommit({ type: SHIFT_SWAP, item: claimed.item, actor: lead, allow: YES, now: 300,
+    intent: { kind: "set_status", status: "claimed" } });
+  assert.ok(moved.item.facets.includes("status:claimed"));
+  assert.ok(!moved.item.facets.includes("status:open"));
+
+  // 3. it lands on the lead's queue, then a manager approves it
+  const assigned = itemCommit({ type: SHIFT_SWAP, item: moved.item, actor: lead, allow: YES, now: 400,
+    intent: { kind: "assign", assigneeIds: ["lead1"] } });
+  assert.ok(assigned.item.facets.includes("assignee:lead1"));
+
+  const done = itemCommit({ type: SHIFT_SWAP, item: assigned.item, actor: lead, allow: YES, now: 500,
+    intent: { kind: "set_status", status: "approved" } });
+  assert.equal(done.item.status, "approved");
+  assert.equal(done.item.updatedAt, 500);
+
+  // the whole story is readable from the events alone, which is what the
+  // audit trail and every future automation actually read
+  const story = [made, claimed, moved, assigned, done].flatMap(r => r.events).map(e => e.verb);
+  assert.deepEqual(story, ["item.created", "item.updated", "item.status_changed", "item.assigned", "item.status_changed"]);
+});
+
+T("e2e: the same type refuses a request missing a required field", () => {
+  const r = itemCommit({ type: SHIFT_SWAP, item: null, actor: { uid: "staff1", orgId: "orgR" }, allow: YES, now: 100,
+    intent: { kind: "create", title: "Friday", fields: { requestedBy: "staff1" } } });
+  assert.equal(r.error, "invalid");
+  assert.ok(r.details.some(d => d.key === "shiftDate"));
+});
+
+T("e2e: a role that may only touch its own work cannot move a colleague's", () => {
+  const mine = itemCommit({ type: SHIFT_SWAP, item: null, actor: { uid: "staff1", orgId: "orgR" }, allow: YES, now: 100, id: "sw2",
+    intent: { kind: "create", title: "Mine", fields: { requestedBy: "staff1", shiftDate: "2026-09-11" } } }).item;
+  // permissions.js decides this; the engine only asks. "own" reaches a
+  // document you created and stops there.
+  const ownOnly = (resource, action, ctx) =>
+    !ctx.doc || ctx.doc.createdBy === "staff2";
+  const r = itemCommit({ type: SHIFT_SWAP, item: mine, actor: { uid: "staff2", orgId: "orgR" }, allow: ownOnly, now: 200,
+    intent: { kind: "set_status", status: "approved" } });
+  assert.equal(r.error, "denied");
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

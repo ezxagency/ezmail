@@ -23,8 +23,14 @@ loads what the decision needs, calls the engine, and writes back what
 comes out, so phase 3 changes only the middle of `itemSave()`. The
 collections (`itemTypes`, `items`, `events`) live under the org, with
 the log append-only against everyone including owners (19 assertions).
-Still to come in phase 2: the ItemType builder UI, and collapsing
-assignments/campaigns onto the Item. Phases 3–5 remain spec
+The ItemType builder lives on the Organization
+page and the Work page (`js/work.js`) generates every control from the
+type — there is no hand-written form for any industry anywhere, which is
+the test of ground rule 1. An end-to-end test runs this document's own
+restaurant example through the engine: requested, claimed, assigned,
+approved, with the facets a manager would filter on appearing without any
+index being declared for a type that did not exist an hour earlier. Still
+to come in phase 2: collapsing assignments and campaigns onto the Item. Phases 3–5 remain spec
 only.
 This is the source of truth for turning EZ Clock In from one agency's tool
 into a base model any organization can configure. Re-read it fully before
