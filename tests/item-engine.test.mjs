@@ -1,13 +1,13 @@
-/* Unit tests for ../js/items.js - pure, so no emulator, no DOM, no
+/* Unit tests for ../js/item-engine.js - pure, so no emulator, no DOM, no
    Firebase: plain node.
-     node tests/items.test.mjs
+     node tests/item-engine.test.mjs
    Same runner shape as the other suites: PASS/FAIL lines, exit 1 on any
    failure. */
 import { strict as assert } from "node:assert";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { ITEM_FIELD_TYPES, ITEM_TYPE_KEYS, itemSlug, itemCoerce, itemIsEmpty,
-        itemValidate, itemFacets, itemCommit } = require("../js/items.js");
+        itemValidate, itemFacets, itemCommit } = require("../js/item-engine.js");
 
 let pass = 0, fail = 0;
 const T = (name, fn) => {

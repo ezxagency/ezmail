@@ -70,6 +70,11 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "orgs/orgA/invites/oinvOld"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: 2, usedBy: null, usedAt: null });
   await setDoc(doc(db, "orgs/orgB/invites/oinvB"), { roleId: "staff", createdBy: "worker2", createdAt: 1, expiresAt: LIVE, usedBy: null, usedAt: null });
   await setDoc(doc(db, "orgs/orgA/invites/oinvBurn"), { roleId: "staff", createdBy: "admin1", createdAt: 1, expiresAt: LIVE, usedBy: null, usedAt: null });
+  // ---- the work model (phase 2) ----
+  await setDoc(doc(db, "orgs/orgA/itemTypes/task"), { name: "Task", fields: [], statuses: [{ key: "open" }] });
+  await setDoc(doc(db, "orgs/orgA/items/it1"), { id: "it1", orgId: "orgA", typeId: "task", title: "A", status: "open", fields: {}, facets: ["type:task", "status:open"], assigneeIds: [], createdBy: "worker1", createdAt: 1, updatedAt: 1 });
+  await setDoc(doc(db, "orgs/orgA/events/ev1"), { orgId: "orgA", actorId: "worker1", at: 1, verb: "item.created", subject: { kind: "item", id: "it1" }, data: {} });
+  await setDoc(doc(db, "orgs/orgB/items/it2"), { id: "it2", orgId: "orgB", typeId: "task", title: "B", status: "open", fields: {}, facets: [], assigneeIds: [], createdBy: "worker2", createdAt: 1, updatedAt: 1 });
 });
 
 const admin = env.authenticatedContext("admin1", { email: "ezagency2nd@gmail.com" }).firestore();
@@ -307,6 +312,33 @@ await T("seated member: still cannot shape roles", assertFails(setDoc(doc(strang
 await T("seated member: still cannot read org B", assertFails(getDoc(doc(stranger, "orgs/orgB"))));
 await T("invite: an owner revokes one", assertSucceeds(deleteDoc(doc(admin, "orgs/orgA/invites/oinvNew"))));
 await T("invite: a member revokes one DENIED", assertFails(deleteDoc(doc(worker, "orgs/orgA/invites/oinvBurn"))));
+
+// ---- the work model: tenancy is the path, and the log is append-only ----
+const newItem = over => Object.assign({ id: "x", orgId: "orgA", typeId: "task", title: "T", status: "open", fields: {}, facets: ["type:task"], assigneeIds: [], createdBy: "worker1", createdAt: 1, updatedAt: 1 }, over);
+const newEvent = over => Object.assign({ orgId: "orgA", actorId: "worker1", at: 1, verb: "item.updated", subject: { kind: "item", id: "it1" }, data: {} }, over);
+
+await T("items: a member reads one", assertSucceeds(getDoc(doc(worker, "orgs/orgA/items/it1"))));
+await T("items: a member lists them (one membership check, any count)", assertSucceeds(getDocs(collection(worker, "orgs/orgA/items"))));
+await T("items: a member writes one", assertSucceeds(setDoc(doc(worker, "orgs/orgA/items/it9"), newItem({ id: "it9" }))));
+await T("items: a NON-member reads one DENIED", assertFails(getDoc(doc(unverified, "orgs/orgA/items/it1"))));
+await T("items: a member of A reads B DENIED", assertFails(getDoc(doc(worker, "orgs/orgB/items/it2"))));
+await T("items: a member of A lists B DENIED", assertFails(getDocs(collection(worker, "orgs/orgB/items"))));
+await T("items: a member of A writes into B DENIED", assertFails(setDoc(doc(worker, "orgs/orgB/items/evil"), newItem({ orgId: "orgB" }))));
+await T("items: anonymous reads one DENIED", assertFails(getDoc(doc(anon, "orgs/orgA/items/it1"))));
+
+await T("itemTypes: a member reads the schema", assertSucceeds(getDoc(doc(worker, "orgs/orgA/itemTypes/task"))));
+await T("itemTypes: a non-owner designs one DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/itemTypes/evil"), { name: "E", fields: [], statuses: [] })));
+await T("itemTypes: an owner designs one", assertSucceeds(setDoc(doc(admin, "orgs/orgA/itemTypes/brief"), { name: "Brief", fields: [], statuses: [{ key: "open" }] })));
+
+await T("events: a member appends one in their own name", assertSucceeds(addDoc(collection(worker, "orgs/orgA/events"), newEvent())));
+await T("events: appending in SOMEONE ELSE's name DENIED", assertFails(addDoc(collection(worker, "orgs/orgA/events"), newEvent({ actorId: "admin1" }))));
+await T("events: an event with no verb DENIED", assertFails(addDoc(collection(worker, "orgs/orgA/events"), { orgId: "orgA", actorId: "worker1", at: 1 })));
+await T("events: a member reads the log", assertSucceeds(getDocs(collection(worker, "orgs/orgA/events"))));
+await T("events: a NON-member reads the log DENIED", assertFails(getDocs(collection(unverified, "orgs/orgA/events"))));
+// the property the audit trail rests on: history is not editable by anyone
+await T("events: a member rewrites history DENIED", assertFails(updateDoc(doc(worker, "orgs/orgA/events/ev1"), { verb: "item.deleted" })));
+await T("events: an OWNER rewrites history DENIED", assertFails(updateDoc(doc(admin, "orgs/orgA/events/ev1"), { verb: "item.deleted" })));
+await T("events: an OWNER deletes history DENIED", assertFails(deleteDoc(doc(admin, "orgs/orgA/events/ev1"))));
 
 await T("memberOf: a forged pointer still cannot open the org", assertFails((async () => {
   await setDoc(doc(worker, "memberOf/worker1"), { orgId: "orgB", at: 1 });

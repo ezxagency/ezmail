@@ -26,7 +26,7 @@ jobs:
       - name: Permissions grammar
         run: node tests/permissions.test.mjs
       - name: Items (types, facets, the chokepoint)
-        run: node tests/items.test.mjs
+        run: node tests/item-engine.test.mjs
       - name: Workflow engine
         run: node tests/workflow-engine.test.mjs
       - name: Workflow effects

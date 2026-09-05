@@ -18,9 +18,13 @@ place an Item changes (43 assertions). It never writes: it returns the
 next Item and the events the change produced, which is what lets the
 same decision run client-side today and server-side in phase 3.
 Authorization arrives as an injected `allow` callback rather than a
-global, so the file stays standalone under Node. Still to come in phase
-2: Firestore persistence behind `commit()`, the ItemType builder UI, and
-collapsing assignments/campaigns onto the Item. Phases 3–5 remain spec
+global, so the file stays standalone under Node. `js/items.js` is its Firestore glue and decides nothing — it
+loads what the decision needs, calls the engine, and writes back what
+comes out, so phase 3 changes only the middle of `itemSave()`. The
+collections (`itemTypes`, `items`, `events`) live under the org, with
+the log append-only against everyone including owners (19 assertions).
+Still to come in phase 2: the ItemType builder UI, and collapsing
+assignments/campaigns onto the Item. Phases 3–5 remain spec
 only.
 This is the source of truth for turning EZ Clock In from one agency's tool
 into a base model any organization can configure. Re-read it fully before
@@ -71,8 +75,17 @@ Six objects. Everything else is derived.
 
 ### 1. Item — the universal unit of work
 
+Every collection an org owns lives **under** the org, so tenancy is
+structural rather than a field each query has to remember: a query cannot
+cross tenants, and listing costs one membership check at any row count.
+(This spec's first draft put Items at the top level keyed by an `orgId`
+field. Building `invites` that way proved it wrong — per-row membership
+checks blow Firestore's ten-read query cap — so the paths moved. The
+`orgId` field stays on the document as a second check the engine can
+make, never as the only one.)
+
 ```js
-items/{id} = {
+orgs/{orgId}/items/{id} = {
   orgId,                 // tenant. On EVERY document, no exceptions.
   typeId,                // → itemTypes/{id}: fields, statuses, workflow
   title,
@@ -135,7 +148,7 @@ An Item points at its run through `workflowRunId`; the run keeps its frozen
 ### 5. Event — the spine
 
 ```js
-events/{id} = {
+orgs/{orgId}/events/{id} = {
   orgId, actorId, at,
   verb,                  // "item.created" | "item.status_changed" | ...
   subject: { kind, id }, // { kind: "item", id } | { kind: "shift", id }

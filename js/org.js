@@ -72,6 +72,17 @@ async function orgLoad(){
   return { orgId, org: orgDoc.data(), members, roles, dir, myRoleId: me ? me.roleId : null };
 }
 
+/* The org context, loaded once and reused. The Organization PAGE is not
+   the only thing that needs to know which tenant we are in - js/items.js
+   needs it on every write - so the lookup lives here, cached, rather than
+   being re-derived by whoever asks. Returns null when this account is in
+   no org, which callers must treat as "cannot proceed", never as "allow". */
+async function orgEnsure(){
+  if (orgS) return orgS;
+  orgS = await orgLoad();
+  return orgS;
+}
+
 /* ---------- page entry ---------- */
 
 function enterOrgPage(){

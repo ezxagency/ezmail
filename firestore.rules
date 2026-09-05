@@ -113,6 +113,49 @@ service cloud.firestore {
       // ten-read query cap at the fifth invite. It also deletes a check
       // entirely - nothing needs to ask whether a token points at this
       // org, because a token that did not could not be at this path.
+      // ---- the work model (docs/platform-spec.md, phase 2) ----
+      // Everything an org owns lives UNDER it, so tenancy is structural
+      // rather than a field someone has to remember to filter on: a query
+      // literally cannot cross tenants, and listing costs ONE membership
+      // check no matter how many rows come back. The invites collection
+      // above learned this the expensive way.
+
+      // The schema an org designs for itself: which fields a kind of work
+      // has, which statuses it moves through, which blueprint it rides.
+      match /itemTypes/{typeId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update, delete: if isOrgOwner(orgId);
+      }
+
+      // The work itself.
+      // KNOWINGLY PERMISSIVE, AND TIME-BOXED: any member may write any
+      // item here, because the decision about what a person MAY change
+      // lives in js/item-engine.js, and a rule is not a place that can
+      // run it - rules allow one return statement and ten document reads.
+      // Phase 3 moves itemCommit() into a callable and narrows this to
+      // the server, at which point the client loses write access here
+      // entirely. Until then this is the same trusted-team tradeoff
+      // nodeRuns and campaigns already document, with one real
+      // difference: every change now leaves an event beside it, so what
+      // is not yet PREVENTABLE is at least ATTRIBUTABLE.
+      match /items/{itemId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update, delete: if isOrgMember(orgId);
+      }
+
+      // The log. Append-only, forever - not even an owner rewrites what
+      // happened, which is the entire reason it can be trusted as an
+      // audit trail and as the trigger surface automations read.
+      // An actor may only write events in their own name.
+      match /events/{eventId} {
+        allow read: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId)
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.at is int
+          && request.resource.data.verb is string;
+        allow update, delete: if false;
+      }
+
       match /invites/{token} {
         // the holder has to see what a link offers before accepting it,
         // and they are not a member yet - so this one is open to any
