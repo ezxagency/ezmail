@@ -1,10 +1,15 @@
 /* ============================================================
-   PHASE 0 — the server exists, and does nothing.
-   Two no-op functions whose only job is to prove the deploy
-   target, the Firestore trigger plumbing, and the scheduler all
-   work before any real logic rides them. Phase 1 (dueAfter
-   enforcement, effect dispatch) builds on exactly these two
-   entry points — debug from their structured logs, not prints.
+   PHASE 0 — the server side, growing one honest step at a time.
+
+   Session 1 proved the deploy target with two no-ops. Session 2
+   (this one) moves the DISPATCH DECISION server-side: the
+   onNodeRunWritten trigger now recognizes the effects a created
+   nodeRun implies, claims each in the dispatchLog ledger, and
+   runs a handler — email/webhook still stubs that log what they
+   would send. The whole path sits behind the serverDispatch
+   flag on blueprints/config, default OFF, so deploying this
+   changes nothing until the flag flips. lib/dispatch.js holds
+   the logic; this file only wires triggers.
 
    REGION is pinned to the Firestore database's own location: a
    2nd-gen Firestore trigger must live where the database lives,
@@ -19,19 +24,26 @@ const { setGlobalOptions } = require("firebase-functions/v2");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const dispatch = require("./lib/dispatch");
 
 const REGION = "us-central1";          // Firestore is nam5 — triggers must live with the data
 const SWEEP_TZ = "America/Denver";     // the org's clock, not the server's
 
 setGlobalOptions({ region: REGION, maxInstances: 10 });
+initializeApp();
 
-/* Fires on every create/update/delete of a nodeRun. Deliberately blind:
-   it reads nothing and writes nothing — the event payload alone tells us
-   the id and what kind of write happened. Phase 1 turns this into the
-   server-side effect dispatcher. */
+/* Fires on every create/update/delete of a nodeRun. Only CREATES can
+   carry effects (non-role nodes resolve inside the client's reconcile
+   transaction, so their final state is born, not updated into) — updates
+   include our own dispatch.* stamps, and acting on them would be the
+   trigger feeding itself. retry:true because the ledger in lib/dispatch
+   is what makes redelivery safe: a throw means "an effect failed and
+   retrying might help", everything else is swallowed deliberately. */
 exports.onNodeRunWritten = onDocumentWritten(
-  { document: "nodeRuns/{nodeRunId}", maxInstances: 10 },
-  (event) => {
+  { document: "nodeRuns/{nodeRunId}", maxInstances: 10, retry: true },
+  async (event) => {
     const before = event.data && event.data.before && event.data.before.exists;
     const after = event.data && event.data.after && event.data.after.exists;
     const changeType = !before ? "create" : !after ? "delete" : "update";
@@ -39,6 +51,17 @@ exports.onNodeRunWritten = onDocumentWritten(
       nodeRunId: event.params.nodeRunId,
       changeType,
     });
+    if (changeType !== "create") return;
+
+    const nodeRun = event.data.after.data();
+    if (!dispatch.mayHaveEffects(nodeRun)) return;
+
+    const db = getFirestore();
+    if (!(await dispatch.readDispatchFlag(db))){
+      logger.info("dispatch: flag off — client owns dispatch", { nodeRunId: nodeRun.id });
+      return;
+    }
+    await dispatch.dispatchForCreate(db, nodeRun);
   }
 );
 

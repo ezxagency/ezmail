@@ -1900,11 +1900,35 @@ async function wfOpenStopById(nodeRunId){
    - the runs-board timeline renders these, so a failed send is VISIBLE,
    not swallowed. A retry (crash between commit and stamp, transaction
    rerun) checks the stamp first, so nothing double-sends. */
+
+/* The single switch for the server-dispatch handover: blueprints/config
+   { serverDispatch: true } means the Functions trigger owns every effect
+   that stamps a nodeRun, and this client path must stand down for those
+   or the two would double-send. Absent doc, false, or an unreadable read
+   all mean OFF - fail OPEN, because a transient read error silently
+   killing every effect would be the exact bug this migration exists to
+   fix. The doc rides in blueprints (team-readable under current rules,
+   invisible to the list's orgId query); the trigger reads the same doc. */
+async function wfServerDispatchOn(){
+  try {
+    const s = await db.collection("blueprints").doc("config").get();
+    return !!(s.exists && s.data().serverDispatch === true);
+  } catch (e) { return false; }
+}
+
 async function wfDispatchEffects(state, effects){
+  let serverOwns = null;   // asked once per call, and only if a stampable effect shows up
   for (const ef of (effects || [])){
     const nr = ef.nodeRunId ? state.nodeRuns.find(x => x.id === ef.nodeRunId) : null;
     // at-most-once: the old boolean stamp and the new per-effect map both count
     if (nr && (nr.dispatched || (nr.dispatch && nr.dispatch[ef.type]))) continue;
+    // only nodeRun-stamped effects hand over; run-level ones (run-completed /
+    // run-failed) have no nodeRunId, so the trigger can't see them yet and
+    // they stay client-side until a runs trigger exists
+    if (nr){
+      if (serverOwns === null) serverOwns = await wfServerDispatchOn();
+      if (serverOwns) continue;
+    }
     let outcome = null;   // null = nothing worth stamping (no-op effect kinds)
     try {
       outcome = await wfExecEffect(ef, state);
