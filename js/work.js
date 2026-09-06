@@ -62,6 +62,11 @@ const wkStatusLabel = (type, key) => {
 /* ---------- page ---------- */
 
 async function enterWorkPage(){
+  // automation without a server: whatever is overdue gets chased the
+  // moment somebody looks. Deliberately not awaited - the page must not
+  // wait on it, and it is refused harmlessly for anyone whose role may
+  // not update work across the org.
+  itemsChaseOverdue().catch(e => console.warn(e));
   const box = $("workBody");
   if (!box) return;
   box.innerHTML = '<p class="org-note">Loading…</p>';
@@ -126,11 +131,16 @@ function wkPaintList(){
     box.innerHTML = '<p class="org-note">Nothing here yet.</p>';
     return;
   }
+  const now = Date.now();
   box.innerHTML = wkRows.map(it => {
     const who = (it.assigneeIds || []).map(orgPersonName).join(", ");
+    // the deadline is copied onto the Item when its stop activates, so a
+    // list of fifty says what is late without reading fifty runs
+    const l = hoLate(it.dueAt, now);
     return '<button type="button" class="org-row wk-row" data-id="' + esc(it.id) + '">' +
       '<span class="org-row-main"><b>' + esc(it.title) + '</b><small>' +
         esc(wkStatusLabel(type, it.status)) + (who ? " · " + esc(who) : "") + '</small></span>' +
+      (l.late ? '<span class="wk-late">' + esc(wkLateLabel(l)) + '</span>' : "") +
       '<span class="wk-pill">' + esc(wkStatusLabel(type, it.status)) + '</span>' +
       '</button>';
   }).join("");
@@ -202,6 +212,15 @@ function wkItemSheet(item){
   );
 }
 
+/* "2 days late" beats a timestamp: nobody converts epoch milliseconds
+   into a feeling about whether to chase somebody. */
+function wkLateLabel(l){
+  const days = Math.floor(l.msLate / HO_DAY);
+  if (days >= 1) return days + (days === 1 ? " day late" : " days late");
+  const hours = Math.floor(l.msLate / 3600000);
+  return hours >= 1 ? hours + (hours === 1 ? " hour late" : " hours late") : "just late";
+}
+
 /* ---------- the handoff, as the person sees it ----------
    Whose turn it is, one control if it is yours, and where the work has
    already been. Loaded after the sheet is open rather than before it,
@@ -226,6 +245,13 @@ async function wkPaintHandoff(item, type){
     return (n && n.config && n.config.label) || nr.nodeId;
   };
 
+  const due = hoDue(h.blueprint, h.nodeRuns, Date.now());
+  const dueLine = due.due
+    ? '<div class="wk-due' + (due.late ? " late" : "") + '">' +
+        esc(due.late ? wkLateLabel(due) : "Due " +
+          new Date(due.dueAt).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })) +
+      '</div>'
+    : "";
   const head = h.run.status === "completed"
     ? '<div class="wk-baton done"><b>Finished</b><small>It reached the end of its handoff.</small></div>'
     : stalled
@@ -251,7 +277,7 @@ async function wkPaintHandoff(item, type){
         '</div>').join("") + '</div>'
     : "";
 
-  box.innerHTML = head + trailHtml +
+  box.innerHTML = head + dueLine + trailHtml +
     ((mine || (owner && stops.length && !stalled))
       ? '<div class="org-actions"><button type="button" class="org-btn" id="wkAdvance">' +
         (mine ? "Mark this done" : "Move it on (override)") + '</button></div>'

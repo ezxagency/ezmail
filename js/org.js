@@ -307,7 +307,8 @@ function orgRender(){
                   return '<div class="org-chips org-stages">' + (t.track || []).map((st, i) =>
                     '<span class="org-chip' + (gapAt.has(i) ? " gap" : "") + '">' +
                       esc(st.label || ("Stop " + (i + 1))) +
-                      '<i>' + esc(st.roleId === HO_ANY ? "anyone" : orgRoleName(st.roleId)) + '</i></span>').join("") +
+                      '<i>' + esc(st.roleId === HO_ANY ? "anyone" : orgRoleName(st.roleId)) + '</i>' +
+                      (st.dueAfter ? '<u>' + Math.round(st.dueAfter / HO_DAY) + 'd</u>' : "") + '</span>').join("") +
                     '</div>' +
                     (gaps.length
                       ? '<p class="org-warn">Work will stop at ' +
@@ -1013,6 +1014,8 @@ function orgTrackRender(type){
             statuses.map(x => '<option value="' + esc(x.key) + '"' +
               (x.key === st.status ? " selected" : "") + '>Set to ' + esc(x.label) + '</option>').join("") +
           '</select>' +
+          '<input class="otk-days" type="number" min="1" max="365" placeholder="Days" value="' +
+            esc(st.dueAfter ? String(Math.round(st.dueAfter / HO_DAY)) : "") + '">' +
         '</div>' +
         (gapAt.has(i) ? '<p class="org-warn">Nobody is ' +
           esc(st.roleId === HO_ANY ? "in this organization" : orgRoleName(st.roleId)) +
@@ -1023,7 +1026,7 @@ function orgTrackRender(type){
 
   openSheet(
     '<h3 class="sheet-title">Handoff for ' + esc(type.name || type.id) + '</h3>' +
-    '<p class="org-note">Work starts at the first stop and moves down as each one is finished. Whoever holds a stop is the person it is assigned to — so "assigned to me" comes to mean "my turn".</p>' +
+    '<p class="org-note">Work starts at the first stop and moves down as each one is finished. Give a stop a number of days and late work gets chased — when somebody opens the app, not overnight. Whoever holds a stop is the person it is assigned to — so "assigned to me" comes to mean "my turn".</p>' +
     (gapAt.size ? '<p class="org-warn">Stops marked below have nobody in their role. You can still save this — work simply waits there until somebody is.</p>' : "") +
     '<div class="org-stops">' + rows + '</div>' +
     '<button type="button" class="org-btn org-btn-sm" id="otkAdd" style="margin-top:10px">Add a stop</button>' +
@@ -1036,10 +1039,14 @@ function orgTrackRender(type){
       const read = () => {
         $("sheetBody").querySelectorAll(".org-stop").forEach(row => {
           const i = +row.dataset.i;
+          const days = parseFloat(row.querySelector(".otk-days").value);
           orgTrackDraft[i] = {
             label: row.querySelector(".otk-label").value.trim(),
             roleId: row.querySelector(".otk-role").value,
-            status: row.querySelector(".otk-status").value
+            status: row.querySelector(".otk-status").value,
+            // days in the box, milliseconds in the model: the engine's
+            // clock is in ms and a unit converted at the edge cannot drift
+            dueAfter: (days > 0 ? days * HO_DAY : null)
           };
         });
       };

@@ -407,6 +407,33 @@ T("the type shows its track, and offers to set one up when it has none", () => {
   assert.match(doc.querySelector(".org-track").textContent, /Set up handoff/);
 });
 
+T("a stop can be given days, and the type shows the budget", () => {
+  run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", dir: {}, automations: [],
+    members: [{ uid: "u1", roleId: "manager" }],
+    roles: [{ id: "manager", name: "Manager" }],
+    types: [{ id: "sponsor", name: "Sponsorship", fields: [],
+      statuses: [{ key: "agreed", label: "Agreed" }],
+      track: [{ label: "Agree", roleId: "manager", dueAfter: 2 * 86400000 }] }] };
+    orgRender();`);
+  assert.match(doc.querySelector(".org-typefold .org-chip u").textContent, /2d/);
+});
+
+T("the editor shows days back, and reads them as milliseconds", () => {
+  // days in the box, milliseconds in the model - converting at the edge
+  // is what stops the two drifting
+  run(`orgTrackSheet(orgS.types[0]);`);
+  assert.equal(doc.querySelector(".otk-days").value, "2");
+  doc.querySelector(".otk-days").value = "5";
+  doc.getElementById("otkSave").onclick();          // reads the rows, then validates
+  assert.equal(run("orgTrackDraft[0].dueAfter"), 5 * 86400000);
+});
+
+T("a nonsense budget is refused with a reason", () => {
+  run(`orgTrackDraft = [{ label: "X", roleId: "manager", dueAfter: 0 }];`);
+  const errs = run(`JSON.stringify(hoTrackErrors(orgTrackDraft, ["manager"], ["agreed"]))`);
+  assert.match(errs, /number of days above zero/);
+});
+
 T("a stop nobody holds is marked, and named underneath", () => {
   // the cause, found from configuration - before any work has been
   // created, let alone got stuck

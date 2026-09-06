@@ -276,6 +276,9 @@ async function itemsSyncFromRun(item, type, blueprint, run, nodeRuns){
   if (!s || !item) return;
   const holders = hoHolders(blueprint, nodeRuns, s.members || []);
   const status = hoStatus(blueprint, nodeRuns);
+  // the active stop's deadline is copied onto the Item, so a list of
+  // fifty can show what is late without reading fifty runs
+  const due = hoDue(blueprint, nodeRuns, Date.now()).dueAt;
   let cur = item;
 
   try {
@@ -288,11 +291,71 @@ async function itemsSyncFromRun(item, type, blueprint, run, nodeRuns){
       const r = await itemSave(type, cur, { kind: "set_status", status });
       if (r.ok && r.item) cur = r.item;
     }
+    if ((cur.dueAt || null) !== (due || null)) {
+      // a new stop means a new clock: the chase stamp from the last one
+      // must not silence the next
+      const r = await itemSave(type, cur, { kind: "update", dueAt: due, nudgedAt: null });
+      if (r.ok && r.item) cur = r.item;
+    }
     const now = (cur.assigneeIds || []).slice().sort().join(",");
     if (holders.slice().sort().join(",") !== now) {
       await itemSave(type, cur, { kind: "assign", assigneeIds: holders });
     }
   } catch (e) { console.warn("Could not sync the item to its run:", e); }
+}
+
+/* Chase what is late.
+
+   This is automation without a server, and the trade is stated rather
+   than hidden: it runs when somebody opens the app, not at 3am. For a
+   team that opens it most days the difference is hours. What a scheduled
+   server would buy is the unattended overnight run and nothing else.
+
+   Only somebody who may update work across the org runs it, because
+   stamping the chase onto a piece of work is a write - and a staff member
+   who may only touch their own assigned work cannot stamp anybody
+   else's. The permission grammar already answers that question, so it is
+   asked rather than guessed at.
+
+   Fire-and-forget: nothing about opening a page should fail because a
+   chase could not be delivered. */
+async function itemsChaseOverdue(){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+  const role = (s.roles || []).find(r => r.id === s.myRoleId);
+  if (!role || permGrantScope(role.permissions || [], "item", "update") !== "org")
+    return { ok: false, error: "not-mine-to-chase" };
+
+  const now = Date.now();
+  let snap;
+  try {
+    snap = await itemsCol(s.orgId).where("dueAt", "<", now).get();
+  } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
+
+  const late = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+    .filter(it => hoNeedsNudge(it, now));
+  if (!late.length) return { ok: true, chased: 0 };
+
+  const me = auth.currentUser ? auth.currentUser.uid : null;
+  try {
+    const batch = db.batch();
+    late.forEach(it => {
+      const days = Math.floor((now - it.dueAt) / HO_DAY);
+      const text = (it.title || "Some work") + " is " +
+        (days >= 1 ? days + (days === 1 ? " day" : " days") + " late" : "past its due time") + ".";
+      // whoever holds it hears, and so does whoever is doing the chasing -
+      // being late is a fact the person responsible for the pipeline needs
+      // as much as the person holding the baton
+      const targets = [...new Set((it.assigneeIds || []).concat(me ? [me] : []))];
+      targets.forEach(uid => batch.set(db.collection("notifications").doc(), {
+        toUid: uid, fromUid: me, kind: "overdue", read: false, createdAt: now,
+        text, store: "", task: it.title || ""
+      }));
+      batch.update(itemsCol(s.orgId).doc(it.id), { nudgedAt: now });
+    });
+    await batch.commit();
+  } catch (e) { console.warn("Could not chase late work:", e); return { ok: false, error: "write-failed" }; }
+  return { ok: true, chased: late.length };
 }
 
 /* ---------- template packs ---------- */

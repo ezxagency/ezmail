@@ -241,6 +241,9 @@ function itemCommit(args){
       if (next.title !== item.title) changed.title = { from: item.title, to: next.title };
     }
     if (intent.dueAt !== undefined) next.dueAt = intent.dueAt;
+    // when the deadline moves, the chase stamp moves with it: a stamp
+    // from the last stop must not silence the chase for the next one
+    if (intent.nudgedAt !== undefined) next.nudgedAt = intent.nudgedAt;
     Object.keys(intent.fields || {}).forEach(key => {
       const f = itemFieldDef(type, key);
       if (!f) return;                 // a value for a field the type dropped is ignored, not an error

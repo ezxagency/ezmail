@@ -28,6 +28,11 @@
 
 const HO_MAX_STOPS = 12;          // a straight line longer than this is a diagram
 const HO_ANY = "__any__";         // a stop open to everyone in the org
+const HO_DAY = 86400000;
+// how often a late piece of work may be chased. Being nagged about the
+// same thing every time somebody opens the app is how a chase becomes
+// something people learn to ignore.
+const HO_NUDGE_EVERY = HO_DAY;
 
 /* ---------- building a track ---------- */
 
@@ -51,6 +56,11 @@ function hoTrackErrors(track, roleIds, statusKeys){
     // does not exist - that is a stop which silently changes nothing
     if (s && s.status && !statuses.has(s.status))
       out.push({ at: i, message: '"' + s.status + '" is not a status this kind of work has.' });
+    // a budget of zero or nonsense would make work late the instant it
+    // arrived, which reads as a bug rather than as a deadline
+    if (s && s.dueAfter !== undefined && s.dueAfter !== null && s.dueAfter !== "" &&
+        (typeof s.dueAfter !== "number" || !(s.dueAfter > 0)))
+      out.push({ at: i, message: "A time budget has to be a number of days above zero." });
   });
   return out;
 }
@@ -126,6 +136,48 @@ function hoTrackGaps(track, members){
       out.push({ at: i, label: s.label, roleId: s.roleId });
   });
   return out;
+}
+
+/* ---------- late ----------
+   Two different things wear the name "time-based", and only one of them
+   needs a server.
+
+   Firing while nobody is there - "at 3am, chase anything untouched for
+   three days" - needs something awake to check, and a browser is not.
+
+   KNOWING SOMETHING IS LATE is arithmetic against a deadline the engine
+   already records, done whenever anyone looks. That needs nothing. The
+   engine has been computing nr.dueAt from a stop's budget since the
+   handoff engine was written and showing it to nobody. */
+
+function hoLate(dueAt, now){
+  if (!dueAt) return { due: false, late: false, msLate: 0 };
+  const by = (now || 0) - dueAt;
+  return { due: true, late: by > 0, msLate: by > 0 ? by : 0, msLeft: by > 0 ? 0 : -by };
+}
+
+/* When the work travelling this run is next due. Several stops can be
+   active at once, and the EARLIEST wins: work is late the moment its
+   soonest obligation passes, not its most forgiving one. */
+function hoDue(blueprint, nodeRuns, now){
+  let dueAt = null;
+  hoActiveStops(nodeRuns).forEach(nr => {
+    if (nr.dueAt && (dueAt === null || nr.dueAt < dueAt)) dueAt = nr.dueAt;
+  });
+  return Object.assign({ dueAt }, hoLate(dueAt, now));
+}
+
+/* Should this late work be chased right now?
+
+   Idempotence is the whole point. Anyone opening the app runs this, so
+   without a stamp the same overdue job would be chased once per person
+   per page load - which is not a chase, it is noise, and noise is how a
+   chase becomes something people mute. */
+function hoNeedsNudge(item, now, everyMs){
+  if (!item || !item.dueAt) return false;
+  if (!hoLate(item.dueAt, now).late) return false;
+  const gap = everyMs || HO_NUDGE_EVERY;
+  return !item.nudgedAt || (now - item.nudgedAt) >= gap;
 }
 
 /* ---------- reading a running one ---------- */
@@ -236,6 +288,7 @@ function hoTrail(blueprint, nodeRuns){
 }
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { HO_MAX_STOPS, HO_ANY, hoTrackErrors, hoTrackGaps, hoBuildBlueprint,
+  module.exports = { HO_MAX_STOPS, HO_ANY, HO_DAY, HO_NUDGE_EVERY,
+    hoLate, hoDue, hoNeedsNudge, hoTrackErrors, hoTrackGaps, hoBuildBlueprint,
     hoActiveStops, hoHolders, hoStatus, hoMayAdvance, hoStalled, hoTrail };
 }

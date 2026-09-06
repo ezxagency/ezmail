@@ -264,3 +264,42 @@ from how this spec proposed it.
   workflows because role stops need people and a pack lands before anyone
   is seated. That condition is now met rather than ignored — an unheld
   stop is a warning on the screen, not a broken import.
+
+
+---
+
+## Time: two things wearing one name
+
+"Time-based" was used loosely in this repo, including by me, and only
+half of it ever needed a server.
+
+**Firing while nobody is there** — *"at 3am, chase anything untouched for
+three days"* — needs something awake to check. A browser is not. That half
+genuinely waits on the Cloud Function, and therefore on billing.
+
+**Knowing something is late** is arithmetic against a deadline, done
+whenever anyone looks. It needs nothing. The engine has recorded
+`nr.dueAt` from a stop's budget since the workflow engine was written,
+with a comment saying being late is a fact for a person to see — and it
+was shown to nobody. The sixth written-never-read of the same session.
+
+What shipped:
+
+- A stop can carry a budget in days. The engine's clock is milliseconds;
+  the conversion happens at the edge, in the editor, so the two cannot drift.
+- The deadline is copied onto the Item when its stop activates, which is
+  what lets a list of fifty show what is late without reading fifty runs.
+- Late work is chased when somebody opens the Work page — a real
+  notification to whoever holds it and to whoever is chasing.
+
+That last one is automation without a server, and the trade is stated
+rather than hidden. It runs when a person shows up. For a team that opens
+the app most days the difference from an overnight job is hours.
+
+Two things make it a chase rather than noise. `nudgedAt` on the Item caps
+it at one chase a day, because otherwise the same overdue job would be
+chased once per person per page load. And only somebody whose role may
+update work **across the org** runs it, because stamping the chase is a
+write and a staff member who may only touch their own assigned work
+cannot stamp anybody else's — the permission grammar already answers that,
+so it is asked rather than guessed at.

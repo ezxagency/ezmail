@@ -180,6 +180,55 @@ T("no track, no gaps - and no crash", () => {
   assert.deepEqual(H.hoTrackGaps([{ label: "x" }], MEMBERS), []);
 });
 
+/* ---------- late ---------- */
+const DAY = H.HO_DAY;
+T("no deadline, nothing to be late for", () => {
+  assert.deepEqual(plain(H.hoLate(null, 100)), { due: false, late: false, msLate: 0 });
+});
+T("before the deadline it is due, not late", () => {
+  const r = H.hoLate(1000, 400);
+  assert.equal(r.due, true); assert.equal(r.late, false); assert.equal(r.msLeft, 600);
+});
+T("after it, late by exactly the overrun", () => {
+  const r = H.hoLate(1000, 1600);
+  assert.equal(r.late, true); assert.equal(r.msLate, 600);
+});
+T("a track with a budget makes the stop due", () => {
+  const budgeted = H.hoBuildBlueprint(TYPE, [{ label: "Agree", roleId: "manager", dueAfter: 2 * DAY }], { now: 0 });
+  const st = WF.wfStartRun({ blueprint: budgeted, runId: "r9", taskId: "i9", task: {}, orgId: "o1", now: 0 });
+  const d = H.hoDue(budgeted, st.nodeRuns, DAY);
+  assert.equal(d.dueAt, 2 * DAY);
+  assert.equal(d.late, false);
+  assert.equal(H.hoDue(budgeted, st.nodeRuns, 3 * DAY).late, true);
+});
+T("a stop with no budget is never late", () => {
+  assert.equal(H.hoDue(bp, start().nodeRuns, 9e12).due, false);
+});
+T("a budget has to be a number of days above zero", () => {
+  assert.match(errs([{ label: "X", roleId: "staff", dueAfter: 0 }]), /number of days above zero/);
+  assert.match(errs([{ label: "X", roleId: "staff", dueAfter: "soon" }]), /number of days above zero/);
+  assert.equal(H.hoTrackErrors([{ label: "X", roleId: "staff", dueAfter: DAY }], ROLES, STATUSES).length, 0);
+  assert.equal(H.hoTrackErrors([{ label: "X", roleId: "staff" }], ROLES, STATUSES).length, 0);
+});
+
+/* ---------- chasing it, without chasing it to death ---------- */
+T("late work with no deadline is not chased", () => {
+  assert.equal(H.hoNeedsNudge({ dueAt: null }, 9e12), false);
+});
+T("work that is merely due is not chased", () => {
+  assert.equal(H.hoNeedsNudge({ dueAt: 1000 }, 500), false);
+});
+T("late work never chased before is chased", () => {
+  assert.equal(H.hoNeedsNudge({ dueAt: 1000 }, 2000), true);
+});
+T("...and not again until the gap has passed", () => {
+  // anyone opening the app runs this, so without the stamp the same job
+  // would be chased once per person per page load
+  const now = 10 * DAY;
+  assert.equal(H.hoNeedsNudge({ dueAt: 1000, nudgedAt: now - 1000 }, now), false);
+  assert.equal(H.hoNeedsNudge({ dueAt: 1000, nudgedAt: now - DAY }, now), true);
+});
+
 /* ---------- the trail ---------- */
 T("the trail records where it has been, oldest first", () => {
   const st = finish(finish(start(), 2), 3);

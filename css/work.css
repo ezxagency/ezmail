@@ -78,3 +78,18 @@
 .wk-leg-main { display: flex; flex-direction: column; min-width: 0; }
 .wk-leg-main b { font-size: 13.5px; font-weight: 600; }
 .wk-leg-main small { font-size: 11.5px; opacity: .5; }
+
+/* ---- late ---- */
+/* the only thing on a row allowed to shout, because it is the only thing
+   asking somebody to do something about it */
+.wk-late {
+  flex: none; font-size: 11px; font-weight: 700;
+  letter-spacing: .04em; padding: 3px 8px; border-radius: 999px;
+  color: #e8a06a;
+  background: rgba(208,138,78,.14);
+  border: 1px solid rgba(208,138,78,.32);
+}
+.wk-due {
+  font-size: 12.5px; opacity: .6; margin: -6px 0 14px;
+}
+.wk-due.late { color: #d9a273; opacity: 1; font-weight: 600; }
