@@ -106,6 +106,28 @@ function hoBuildBlueprint(type, track, opts){
   };
 }
 
+/* Stops nobody can act on, found from the TRACK rather than from any
+   running work.
+
+   hoStalled() below answers "this job is stuck" once a job already is.
+   This answers "this track will stick" before anything has been created,
+   costs no reads at all, and covers work that does not exist yet - because
+   in a straight line there is exactly one way to stall, and it is a stop
+   whose role has nobody in it.
+
+   Finding the cause beats finding each casualty. */
+function hoTrackGaps(track, members){
+  const roster = members || [];
+  const out = [];
+  (track || []).forEach((s, i) => {
+    if (!s || !s.roleId) return;
+    if (s.roleId === HO_ANY) { if (!roster.length) out.push({ at: i, label: s.label, roleId: s.roleId }); return; }
+    if (!roster.some(m => m && m.roleId === s.roleId))
+      out.push({ at: i, label: s.label, roleId: s.roleId });
+  });
+  return out;
+}
+
 /* ---------- reading a running one ---------- */
 
 /* The stops a run is actually waiting at. Everything else in nodeRuns is
@@ -209,6 +231,6 @@ function hoTrail(blueprint, nodeRuns){
 }
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { HO_MAX_STOPS, HO_ANY, hoTrackErrors, hoBuildBlueprint,
+  module.exports = { HO_MAX_STOPS, HO_ANY, hoTrackErrors, hoTrackGaps, hoBuildBlueprint,
     hoActiveStops, hoHolders, hoStatus, hoMayAdvance, hoStalled, hoTrail };
 }

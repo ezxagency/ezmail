@@ -345,6 +345,10 @@ async function itemsApplyPack(packKey){
     Object.assign({}, t.doc, { updatedAt: at })));
   plan.automations.forEach(a => batch.set(org.collection("automations").doc(a.id),
     Object.assign({}, a.doc, { updatedAt: at })));
+  // the compiled tracks. Derived from the types the plan is CREATING, so
+  // a pack applied twice writes no second copy of them either.
+  (plan.blueprints || []).forEach(b => batch.set(org.collection("blueprints").doc(b.id),
+    Object.assign({}, b.doc, { orgId: s.orgId, updatedAt: at })));
   try { await batch.commit(); }
   catch (e) { console.error(e); return { ok: false, error: "write-failed" }; }
 
@@ -352,7 +356,8 @@ async function itemsApplyPack(packKey){
   itemsAutomationsCache = null;
   orgInvalidate();
   return { ok: true, created: {
-    roles: plan.roles.length, itemTypes: plan.itemTypes.length, automations: plan.automations.length
+    roles: plan.roles.length, itemTypes: plan.itemTypes.length,
+    automations: plan.automations.length, blueprints: (plan.blueprints || []).length
   }, skipped: plan.skipped.length };
 }
 

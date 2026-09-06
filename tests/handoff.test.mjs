@@ -152,6 +152,34 @@ T("a finished run is not stalled - it is finished", () => {
   assert.equal(H.hoStalled(bp, finish(finish(start(), 2), 3).nodeRuns, []), null);
 });
 
+/* ---------- the gap, found before anything gets stuck ---------- */
+T("a stop whose role has nobody is a gap", () => {
+  const gaps = H.hoTrackGaps(TRACK, [{ uid: "u2", roleId: "staff" }]);
+  assert.deepEqual(plain(gaps), [{ at: 0, label: "Agree terms", roleId: "manager" }]);
+});
+T("a fully staffed track has no gaps", () => {
+  assert.deepEqual(H.hoTrackGaps(TRACK, MEMBERS), []);
+});
+T("every empty stop is named, not just the first", () => {
+  assert.equal(H.hoTrackGaps(TRACK, []).length, 2);
+});
+T('"anyone" needs somebody to be the anyone', () => {
+  const t = [{ label: "Do it", roleId: H.HO_ANY }];
+  assert.equal(H.hoTrackGaps(t, []).length, 1);
+  assert.equal(H.hoTrackGaps(t, MEMBERS).length, 0);
+});
+T("it finds the cause where hoStalled finds the casualty", () => {
+  // the same fault, seen from configuration rather than from a stuck job -
+  // and this one is visible before any work has been created at all
+  const thin = [{ uid: "u2", roleId: "staff" }];
+  assert.equal(H.hoTrackGaps(TRACK, thin)[0].label, "Agree terms");
+  assert.equal(H.hoStalled(bp, start().nodeRuns, thin).label, "Agree terms");
+});
+T("no track, no gaps - and no crash", () => {
+  assert.deepEqual(H.hoTrackGaps(null, MEMBERS), []);
+  assert.deepEqual(H.hoTrackGaps([{ label: "x" }], MEMBERS), []);
+});
+
 /* ---------- the trail ---------- */
 T("the trail records where it has been, oldest first", () => {
   const st = finish(finish(start(), 2), 3);

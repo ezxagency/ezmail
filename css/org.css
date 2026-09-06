@@ -261,3 +261,16 @@ button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
 .org-stop-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .org-stop .otk-label { width: 100%; }
 .org-stop .otk-del { flex: none; margin-top: 3px; }
+
+/* ---- a stop nobody holds ---- */
+/* warning, not error: an owner may draw the track before seating anyone,
+   and the honest thing is to say what will happen, not to refuse */
+.org-warn {
+  margin: 8px 0 0; font-size: 12.5px; line-height: 1.5;
+  color: #d9a273;
+}
+.org-chip.gap {
+  border-color: rgba(208,138,78,.45);
+  background: rgba(208,138,78,.1);
+}
+.org-stop.gap { border-color: rgba(208,138,78,.4); }

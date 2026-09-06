@@ -237,8 +237,21 @@ the server.
 - **Backwards.** Open question 2 — a reviewer sending work back. The engine's
   LOGIC nodes can express it; a straight track cannot draw it.
 - **Starting a run any other way** than creating the work.
-- **A stuck run is only visible on the work itself.** The spec wanted stalled
-  runs surfaced on the Organization page, where somebody would notice without
-  opening anything. That is the most valuable of these four.
-- **Packs ship no tracks yet.** Every pack could now carry one, which would
-  make a template arrive as a working pipeline rather than a set of stages.
+**Since shipped.** Two of the four are done, and the first differently
+from how this spec proposed it.
+
+- **Stuck work is visible — from the CAUSE, not the casualty.** The spec
+  wanted stalled runs surfaced on the Organization page, which means
+  reading every run and all its stops on every page load. But in a
+  straight line there is exactly one way to stall: a stop whose role is
+  empty. `hoTrackGaps()` finds that from the track alone — no reads, and
+  it fires before any work has been created, let alone got stuck. The
+  empty stop is marked on the type and named underneath: *"Work will stop
+  at Agree the terms — nobody is Manager."* `hoStalled()` remains for the
+  running job. Finding the cause beats finding each casualty.
+- **Six packs ship a track**, compiled to a real blueprint at apply time,
+  so a template now arrives as a working pipeline rather than a set of
+  stages. This reverses a phase 5 decision on purpose: packs kept out of
+  workflows because role stops need people and a pack lands before anyone
+  is seated. That condition is now met rather than ignored — an unheld
+  stop is a warning on the screen, not a broken import.

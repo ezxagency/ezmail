@@ -125,12 +125,15 @@ than a promise.
 Two deliberate deviations from the sketch below, both kept because the
 alternative was worse:
 
-- **Packs ship statuses, not workflow graphs.** A blueprint's ROLE stops
-  need people, and a pack lands before anyone is seated - so a shipped
-  workflow would arrive as a draft that cannot be published, on a page
-  the org has not opened yet. Statuses plus rules carry the same shape
-  and work on day one. The pack format has room for `workflows` when
-  role binding can survive an empty roster.
+- **Packs shipped statuses, not workflow graphs** — and this has since
+  been REVERSED, deliberately. The original reasoning held: a blueprint's
+  role stops need people, and a pack lands before anybody is seated, so a
+  shipped workflow would have arrived unpublishable. What changed is that
+  role binding now survives an empty roster: `hoTrackGaps()` turns "a stop
+  nobody holds" into a warning on the screen instead of a broken import.
+  Six packs now ship a handoff track (`docs/handoff-spec.md`), compiled to
+  a real blueprint at apply time. The condition this deviation named was
+  met rather than ignored.
 - **No pack defines an owner role.** Whoever created the org holds it
   already, and a template quietly redefining who owns the place is the
   worst surprise available. A test enforces it.

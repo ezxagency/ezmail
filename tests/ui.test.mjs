@@ -407,6 +407,39 @@ T("the type shows its track, and offers to set one up when it has none", () => {
   assert.match(doc.querySelector(".org-track").textContent, /Set up handoff/);
 });
 
+T("a stop nobody holds is marked, and named underneath", () => {
+  // the cause, found from configuration - before any work has been
+  // created, let alone got stuck
+  run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", dir: {}, automations: [],
+    members: [{ uid: "u2", roleId: "staff" }],
+    roles: [{ id: "manager", name: "Manager" }, { id: "staff", name: "Staff" }],
+    types: [{ id: "sponsor", name: "Sponsorship", fields: [],
+      statuses: [{ key: "agreed", label: "Agreed" }],
+      track: [{ label: "Agree the terms", roleId: "manager", status: "agreed" },
+              { label: "Deliver it", roleId: "staff" }] }] };
+    orgRender();`);
+  const body = doc.querySelector(".org-typefold");
+  assert.equal(body.querySelectorAll(".org-chip.gap").length, 1, "the empty stop is not marked");
+  assert.match(body.querySelector(".org-warn").textContent, /Work will stop at Agree the terms/);
+  assert.match(body.querySelector(".org-warn").textContent, /nobody is Manager/);
+});
+
+T("seat somebody in the role and the warning goes", () => {
+  run(`orgS.members.push({ uid: "u1", roleId: "manager" }); orgRender();`);
+  assert.equal(doc.querySelector(".org-typefold .org-warn"), null);
+  assert.equal(doc.querySelectorAll(".org-typefold .org-chip.gap").length, 0);
+});
+
+T("the editor warns too, and still lets it be saved", () => {
+  // a warning, not a refusal: an owner may draw the track before seating
+  // anyone, and the honest thing is to say what will happen
+  run(`orgS.members = [{ uid: "u2", roleId: "staff" }];
+       orgTrackSheet(orgS.types[0]);`);
+  assert.equal(doc.querySelectorAll("#sheetBody .org-stop.gap").length, 1);
+  assert.match(doc.getElementById("sheetBody").textContent, /You can still save this/);
+  assert.ok(doc.getElementById("otkSave"), "saving must still be offered");
+});
+
 T("a staff member is not offered the handoff editor", () => {
   run(`orgS.myRoleId = "staff"; orgRender();`);
   assert.equal(doc.querySelector(".org-track"), null);

@@ -27,6 +27,9 @@ globalThis.ITEM_EVENT_VERBS = IE.ITEM_EVENT_VERBS;
 globalThis.permParse = PM.permParse;
 globalThis.PERM_CATALOG = PM.PERM_CATALOG;
 globalThis.AUTO_ACTION_KINDS = AU.AUTO_ACTION_KINDS;
+const HO = require("../js/handoff.js");
+globalThis.hoBuildBlueprint = HO.hoBuildBlueprint;
+globalThis.HO_ANY = HO.HO_ANY;
 const P = require("../js/packs.js");
 
 let pass = 0, fail = 0;
@@ -186,6 +189,68 @@ T("reports every problem, not just the first", () => {
   assert.ok(P.packValidate(p).errors.length >= 2);
 });
 
+/* ---------- the tracks packs ship ----------
+   A pack that ships a pipeline has to ship one that RUNS, against the
+   same engine and the same roles it creates itself. */
+T("every track a pack ships compiles to a blueprint the engine accepts", () => {
+  const { wfValidate } = require("../js/workflow-engine.js");
+  P.PACKS.forEach(pack => {
+    const plan = P.packPlan(pack, {});
+    plan.blueprints.forEach(b => {
+      const errs = wfValidate(b.doc);
+      assert.equal(errs.length, 0, pack.key + "/" + b.id + ": " + JSON.stringify(errs));
+    });
+  });
+});
+T("a track only names roles its own pack creates", () => {
+  P.PACKS.forEach(pack => {
+    const roles = new Set(pack.roles.map(r => r.id));
+    (pack.itemTypes || []).forEach(t => (t.track || []).forEach(st =>
+      assert.ok(roles.has(st.roleId),
+        pack.key + "/" + t.id + ' has a stop held by "' + st.roleId + '", which it does not create')));
+  });
+});
+T("a track only sets statuses its own type has", () => {
+  P.PACKS.forEach(pack => (pack.itemTypes || []).forEach(t => {
+    const keys = new Set((t.statuses || []).map(s => s.key));
+    (t.track || []).forEach(st => { if (st.status)
+      assert.ok(keys.has(st.status), pack.key + "/" + t.id + ' sets "' + st.status + '", which it does not have'); });
+  }));
+});
+T("a tracked type is planned with its track and its blueprint", () => {
+  const plan = P.packPlan(P.packByKey("content"), {});
+  const video = plan.itemTypes.find(t => t.id === "video");
+  assert.ok((video.doc.track || []).length, "the track did not survive the plan");
+  assert.equal(video.doc.workflowId, "pk_content_bp_video");
+  assert.ok(plan.blueprints.some(b => b.id === "pk_content_bp_video"));
+});
+T("a type with no track names no blueprint", () => {
+  // not everything is a pipeline, and saying so is the honest answer
+  const plan = P.packPlan(P.packByKey("clinic"), {});
+  plan.itemTypes.forEach(t => { if (!t.doc.track) assert.equal(t.doc.workflowId, null); });
+  assert.equal(plan.blueprints.length, 0);
+});
+T("applying a pack twice writes no second blueprint", () => {
+  const pack = P.packByKey("content");
+  const first = P.packPlan(pack, {});
+  const second = P.packPlan(pack, { typeIds: first.itemTypes.map(t => t.id) });
+  assert.equal(second.blueprints.length, 0);
+});
+
+/* ...and the validator refuses a track that would not work ---------- */
+T("refuses a stop held by a role the pack does not create", () => {
+  rejects(p => { p.itemTypes[0].track = [{ label: "X", roleId: "cfo" }]; },
+    'held by "cfo", which the pack does not create');
+});
+T("refuses a stop setting a status the type does not have", () => {
+  rejects(p => { p.itemTypes[0].track = [{ label: "X", roleId: "staff", status: "archived" }]; },
+    'sets status "archived"');
+});
+T("refuses a nameless stop, and one nobody holds", () => {
+  rejects(p => { p.itemTypes[0].track = [{ label: "", roleId: "staff" }]; }, "needs a name");
+  rejects(p => { p.itemTypes[0].track = [{ label: "X", roleId: "" }]; }, "has nobody holding it");
+});
+
 /* ---------- the plan ---------- */
 T("a plan on an empty org creates everything", () => {
   const pack = P.packByKey("restaurant");
@@ -239,10 +304,15 @@ T("two packs cannot collide on an automation id", () => {
   const all = P.PACKS.flatMap(p => P.packPlan(p, {}).automations.map(a => a.id));
   assert.equal(new Set(all).size, all.length);
 });
-T("new item types arrive with no workflow attached", () => {
-  // packs ship statuses, not workflow graphs — an org draws its own
+T("a tracked type arrives already attached to its blueprint", () => {
+  /* This asserted the opposite until handoff shipped, and the reversal is
+     deliberate rather than a drift. Phase 5 kept workflows out of packs
+     because a blueprint's role stops need people, and a pack lands before
+     anybody is seated - so it would have arrived unpublishable. Roles and
+     seating now exist, and a track that names a role nobody holds is a
+     warning on the screen instead of a broken import. */
   P.packPlan(P.packByKey("agency"), {}).itemTypes.forEach(t =>
-    assert.equal(t.doc.workflowId, null));
+    assert.equal(t.doc.workflowId, t.doc.track ? "pk_agency_bp_" + t.id : null));
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

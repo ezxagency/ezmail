@@ -689,14 +689,14 @@
      it evaluates conditions with wfEvalCondition, and in this app the
      script order IS the dependency graph -->
 <script src="js/automation.js?v=162"></script>
+<!-- work that moves person to person: a linear track compiled into a real
+     blueprint the engine above runs. BEFORE packs, because a pack ships
+     tracks and compiles them with this -->
+<script src="js/handoff.js?v=162"></script>
 <!-- an industry as a JSON file. LAST of the pure modules on purpose:
      it validates packs against the field types, the permission grammar
      and the action kinds the three files above define -->
 <script src="js/packs.js?v=162"></script>
-<!-- work that moves person to person: turns a linear track into a real
-     blueprint the workflow engine runs. AFTER that engine, because it
-     validates against it -->
-<script src="js/handoff.js?v=162"></script>
 <script src="js/workflow.js?v=162"></script>
 <script src="js/org.js?v=162"></script>
 <script src="js/work.js?v=162"></script>

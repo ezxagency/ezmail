@@ -39,6 +39,11 @@ const PACK_PERMS = {
    and a one-letter helper here would silently redefine it. */
 const pkRole = (id, name, bundle) => ({ id, name, permissions: PACK_PERMS[bundle] });
 const pkStatus = (...names) => names.map(n => ({ key: n.toLowerCase().replace(/[^a-z0-9]+/g, "-"), label: n }));
+/* A stop on a handoff track: what happens, who holds it, and the status
+   it means. Not every kind of work is a pipeline - a supply request is
+   one person's job - so only the packs where a baton is genuinely the
+   point carry one. */
+const pkStop = (label, roleId, status) => ({ label, roleId, status });
 const pkField = (key, label, type, opts) => Object.assign({ key, label, type, required: false, options: [] }, opts || {});
 
 const PACKS = [
@@ -48,6 +53,8 @@ const PACKS = [
     roles: [pkRole("manager", "Manager", "manager"), pkRole("lead", "Shift lead", "lead"), pkRole("staff", "Staff", "staff")],
     itemTypes: [
       { id: "shiftswap", name: "Shift swap", statuses: pkStatus("Open", "Claimed", "Approved", "Denied"),
+        track: [pkStop("Somebody takes it", "staff", "claimed"),
+                pkStop("Manager approves", "manager", "approved")],
         fields: [pkField("shiftDate", "Shift date", "date", { required: true }),
                  pkField("shift", "Which shift", "select", { options: ["Morning", "Evening", "Late"] }),
                  pkField("coveredBy", "Covered by", "user"),
@@ -71,6 +78,9 @@ const PACKS = [
     roles: [pkRole("manager", "Account lead", "manager"), pkRole("lead", "Senior", "lead"), pkRole("staff", "Maker", "staff")],
     itemTypes: [
       { id: "brief", name: "Brief", statuses: pkStatus("New", "In progress", "Internal review", "With client", "Done"),
+        track: [pkStop("Do the work", "staff", "in-progress"),
+                pkStop("Senior reviews it", "lead", "internal-review"),
+                pkStop("Send it to the client", "manager", "with-client")],
         fields: [pkField("client", "Client", "text", { required: true }),
                  pkField("service", "Work", "select", { options: ["Copy", "Design", "Build", "Ads", "Email"] }),
                  pkField("due", "Due", "date"),
@@ -113,6 +123,8 @@ const PACKS = [
                  pkField("trade", "Trade", "select", { options: ["Electrical", "Plumbing", "Carpentry", "Groundworks", "Finishing"] }),
                  pkField("scheduled", "Scheduled", "date"), pkField("detail", "Scope", "longtext")] },
       { id: "snag", name: "Snag", statuses: pkStatus("Raised", "Fixed", "Signed off"),
+        track: [pkStop("Fix it", "staff", "fixed"),
+                pkStop("Foreman signs it off", "lead", "signed-off")],
         fields: [pkField("site", "Site", "text", { required: true }), pkField("photo", "Photo", "file"),
                  pkField("detail", "What is wrong", "longtext")] }
     ],
@@ -146,10 +158,17 @@ const PACKS = [
     roles: [pkRole("manager", "Producer", "manager"), pkRole("lead", "Editor", "lead"), pkRole("staff", "Contributor", "staff")],
     itemTypes: [
       { id: "video", name: "Video", statuses: pkStatus("Idea", "Scripting", "Filming", "Editing", "Scheduled", "Published"),
+        track: [pkStop("Write the script", "staff", "scripting"),
+                pkStop("Film it", "staff", "filming"),
+                pkStop("Edit it", "lead", "editing"),
+                pkStop("Schedule it", "manager", "scheduled")],
         fields: [pkField("hook", "Hook", "text"), pkField("publishOn", "Publish on", "date"),
                  pkField("thumbnail", "Thumbnail", "file"), pkField("script", "Script", "longtext"),
                  pkField("link", "Working file", "url")] },
       { id: "sponsor", name: "Sponsorship", statuses: pkStatus("Talking", "Agreed", "Delivered", "Paid"),
+        track: [pkStop("Agree the terms", "manager", "agreed"),
+                pkStop("Deliver it", "lead", "delivered"),
+                pkStop("Chase the payment", "manager", "paid")],
         fields: [pkField("brand", "Brand", "text", { required: true }), pkField("fee", "Fee", "money"),
                  pkField("deliverBy", "Deliver by", "date")] }
     ],
@@ -168,6 +187,8 @@ const PACKS = [
     roles: [pkRole("manager", "Property manager", "manager"), pkRole("lead", "Coordinator", "lead"), pkRole("staff", "Contractor", "staff")],
     itemTypes: [
       { id: "workorder", name: "Work order", statuses: pkStatus("Raised", "Assigned", "Scheduled", "Complete"),
+        track: [pkStop("Schedule it", "lead", "scheduled"),
+                pkStop("Do the work", "staff", "complete")],
         fields: [pkField("building", "Building", "text", { required: true }), pkField("unit", "Unit", "text"),
                  pkField("trade", "Trade", "select", { options: ["Plumbing", "Electrical", "Heating", "General", "Grounds"] }),
                  pkField("emergency", "Emergency", "checkbox"), pkField("detail", "Detail", "longtext")] }
@@ -271,6 +292,19 @@ function packValidate(pack){
       seenStatus.add(s.key);
     });
     statusesByType[t.id] = seenStatus;
+    /* A track is validated against the SAME pack that ships it: a stop
+       naming a role the pack does not create, or a status the type does
+       not have, is a pipeline that stalls or silently does nothing on the
+       first day somebody uses it. Both are exactly the class of failure
+       packValidate exists to make impossible. */
+    (t.track || []).forEach((st, i) => {
+      const w2 = w + " track stop " + (i + 1);
+      if (!st || !(st.label || "").trim()) bad(w2, "needs a name");
+      if (!st || !st.roleId) bad(w2, "has nobody holding it");
+      else if (!roleIds.has(st.roleId)) bad(w2, 'is held by "' + st.roleId + '", which the pack does not create');
+      if (st && st.status && !seenStatus.has(st.status))
+        bad(w2, 'sets status "' + st.status + '", which ' + t.id + " does not have");
+    });
     const seenField = new Set();
     (t.fields || []).forEach(f => {
       if (!f || !f.key) return bad(w, "a field is missing its key");
@@ -350,7 +384,11 @@ function packPlan(pack, existing){
       name: t.name, icon: null, color: null,
       fields: JSON.parse(JSON.stringify(t.fields || [])),
       statuses: JSON.parse(JSON.stringify(t.statuses || [])),
-      workflowId: null
+      // the track is the source; the blueprint compiled from it is written
+      // beside the type and named here, so the work starts travelling the
+      // moment somebody creates any
+      track: t.track ? JSON.parse(JSON.stringify(t.track)) : null,
+      workflowId: t.track ? packDocId(pack.key, "bp", t.id) : null
     }});
   });
 
@@ -363,6 +401,16 @@ function packPlan(pack, existing){
       conditions: JSON.parse(JSON.stringify(a.conditions || [])),
       actions: JSON.parse(JSON.stringify(a.actions || []))
     }});
+  });
+
+  // one blueprint per tracked type, compiled by the same function the
+  // track editor uses - two generators would be two things to keep in step
+  plan.blueprints = [];
+  plan.itemTypes.forEach(t => {
+    const src = (pack.itemTypes || []).find(x => x.id === t.id);
+    if (!src || !src.track) return;
+    const id = packDocId(pack.key, "bp", t.id);
+    plan.blueprints.push({ id, doc: hoBuildBlueprint(src, src.track, { id, version: pack.version || 1 }) });
   });
 
   return plan;

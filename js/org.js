@@ -299,10 +299,24 @@ function orgRender(){
               : '<p class="org-note">Nothing happens by itself when one of these changes.</p>') +
             '<p class="org-sub">Handoff</p>' +
             ((t.track || []).length
-              ? '<div class="org-chips org-stages">' + (t.track || []).map((st, i) =>
-                  '<span class="org-chip">' + esc(st.label || ("Stop " + (i + 1))) +
-                    '<i>' + esc(st.roleId === HO_ANY ? "anyone" : orgRoleName(st.roleId)) + '</i></span>').join("") +
-                '</div>'
+              ? (function(){
+                  // a stop nobody holds is where work will silently stop, so
+                  // it is marked on the track itself and named underneath
+                  const gaps = hoTrackGaps(t.track, orgS.members || []);
+                  const gapAt = new Set(gaps.map(g => g.at));
+                  return '<div class="org-chips org-stages">' + (t.track || []).map((st, i) =>
+                    '<span class="org-chip' + (gapAt.has(i) ? " gap" : "") + '">' +
+                      esc(st.label || ("Stop " + (i + 1))) +
+                      '<i>' + esc(st.roleId === HO_ANY ? "anyone" : orgRoleName(st.roleId)) + '</i></span>').join("") +
+                    '</div>' +
+                    (gaps.length
+                      ? '<p class="org-warn">Work will stop at ' +
+                          esc(gaps.map(g => g.label || ("stop " + (g.at + 1))).join(", ")) +
+                          ' — nobody is ' +
+                          esc([...new Set(gaps.map(g => g.roleId === HO_ANY ? "in this organization" : orgRoleName(g.roleId)))].join(" or ")) +
+                          '.</p>'
+                      : "");
+                })()
               : '<p class="org-note">No handoff. Work of this kind sits where it is until somebody moves it by hand.</p>') +
             (owner ? '<div class="org-actions">' +
               '<button type="button" class="org-btn org-btn-sm org-track" data-track="' + esc(t.id) + '">' +
@@ -980,8 +994,9 @@ function orgTrackSheet(type){
 function orgTrackRender(type){
   const roles = (orgS.roles || []);
   const statuses = (type.statuses || []);
+  const gapAt = new Set(hoTrackGaps(orgTrackDraft, orgS.members || []).map(g => g.at));
   const rows = orgTrackDraft.map((st, i) =>
-    '<div class="org-stop" data-i="' + i + '">' +
+    '<div class="org-stop' + (gapAt.has(i) ? " gap" : "") + '" data-i="' + i + '">' +
       '<span class="org-stop-n">' + (i + 1) + '</span>' +
       '<div class="org-stop-body">' +
         '<input class="otk-label" type="text" maxlength="40" placeholder="What happens here" value="' +
@@ -999,6 +1014,9 @@ function orgTrackRender(type){
               (x.key === st.status ? " selected" : "") + '>Set to ' + esc(x.label) + '</option>').join("") +
           '</select>' +
         '</div>' +
+        (gapAt.has(i) ? '<p class="org-warn">Nobody is ' +
+          esc(st.roleId === HO_ANY ? "in this organization" : orgRoleName(st.roleId)) +
+          ', so work would stop here.</p>' : "") +
       '</div>' +
       '<button type="button" class="org-btn org-btn-sm org-btn-danger otk-del" aria-label="Remove stop">Remove</button>' +
     '</div>').join("");
@@ -1006,6 +1024,7 @@ function orgTrackRender(type){
   openSheet(
     '<h3 class="sheet-title">Handoff for ' + esc(type.name || type.id) + '</h3>' +
     '<p class="org-note">Work starts at the first stop and moves down as each one is finished. Whoever holds a stop is the person it is assigned to — so "assigned to me" comes to mean "my turn".</p>' +
+    (gapAt.size ? '<p class="org-warn">Stops marked below have nobody in their role. You can still save this — work simply waits there until somebody is.</p>' : "") +
     '<div class="org-stops">' + rows + '</div>' +
     '<button type="button" class="org-btn org-btn-sm" id="otkAdd" style="margin-top:10px">Add a stop</button>' +
     '<div id="otkErr"></div>' +
