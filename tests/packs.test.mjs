@@ -46,6 +46,24 @@ P.PACKS.forEach(pack => {
     assert.ok(r.ok, r.errors.join(" | "));
   });
 });
+T("no two packs define the same kind of work", () => {
+  // packForType() infers a type's origin from its id, so a shared id
+  // would make that inference ambiguous and group somebody's work wrong
+  const seen = {};
+  P.PACKS.forEach(p => (p.itemTypes || []).forEach(t => (seen[t.id] = seen[t.id] || []).push(p.key)));
+  const shared = Object.entries(seen).filter(([, v]) => v.length > 1);
+  assert.equal(shared.length, 0, "shared type ids: " + JSON.stringify(shared));
+});
+T("every pack's own types trace back to it", () => {
+  P.PACKS.forEach(p => (p.itemTypes || []).forEach(t =>
+    assert.equal((P.packForType({ id: t.id }) || {}).key, p.key)));
+});
+T("a hand-made type belongs to no pack", () => {
+  // ids created in the app are "t" + random, which no pack can collide with
+  assert.equal(P.packForType({ id: "t8f3k2" }), null);
+  assert.equal(P.packForType({ id: "" }), null);
+  assert.equal(P.packForType(null), null);
+});
 T("pack keys are unique", () => {
   const keys = P.PACKS.map(p => p.key);
   assert.equal(new Set(keys).size, keys.length);

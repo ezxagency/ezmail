@@ -193,6 +193,22 @@ const PACKS = [
 
 const packByKey = key => PACKS.find(p => p.key === key) || null;
 
+/* Which pack a kind of work came from, inferred from its id rather than
+   recorded on the document.
+
+   That is deliberate. A stored packKey would have to survive every edit
+   path - and itemTypeSave() replaces the document, so the first rename
+   would silently drop it and the grouping would rot without anyone
+   noticing. Inference cannot rot: no two packs define the same type id
+   (tests/packs.test.mjs holds that), and a hand-made type is named
+   "t<random>", which no pack can ever collide with. It also means an org
+   that applied a pack before this existed groups correctly today, with
+   no migration and no backfill. */
+function packForType(type){
+  if (!type || !type.id) return null;
+  return PACKS.find(p => (p.itemTypes || []).some(t => t.id === type.id)) || null;
+}
+
 /* ------------------------------------------------------------------
    VALIDATION. A pack is only a real answer to "a new industry ships
    with no code change" if a broken one cannot ship. This runs against
@@ -353,5 +369,5 @@ function packPlan(pack, existing){
 }
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { PACKS, PACK_PERMS, packByKey, packDocId, packPlan, packValidate };
+  module.exports = { PACKS, PACK_PERMS, packByKey, packForType, packDocId, packPlan, packValidate };
 }

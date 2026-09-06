@@ -336,6 +336,32 @@ T("a staff member can open a type but is offered no edit", () => {
   assert.equal(doc.querySelector(".org-typefold .org-type"), null);
 });
 
+T("types are grouped by the template they came from", () => {
+  // Sponsorship and Video are one industry's answer; Brief is another's.
+  // A flat list says the opposite of that.
+  run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", members: [], dir: {},
+    roles: [], automations: [],
+    types: [{ id: "video", name: "Video", fields: [], statuses: [{key:"a",label:"A"},{key:"b",label:"B"}] },
+            { id: "brief", name: "Brief", fields: [], statuses: [{key:"a",label:"A"},{key:"b",label:"B"}] },
+            { id: "sponsor", name: "Sponsorship", fields: [], statuses: [{key:"a",label:"A"},{key:"b",label:"B"}] },
+            { id: "t9zz", name: "Something I made", fields: [], statuses: [{key:"a",label:"A"},{key:"b",label:"B"}] }] };
+    orgRender();`);
+  const heads = [...doc.querySelectorAll(".org-group-head")].map(h => h.textContent);
+  assert.deepEqual(plain(heads), ["Agency or studio", "Content or channel", "Your own"]);
+  // and the right types sit under the right heading
+  const groups = [...doc.querySelectorAll(".org-group")].map(g =>
+    [...g.querySelectorAll(".org-typefold b")].map(b => b.textContent));
+  assert.deepEqual(plain(groups), [["Brief"], ["Sponsorship", "Video"], ["Something I made"]]);
+});
+
+T("one group is not a grouping", () => {
+  // a lone heading over the only list on screen labels what you can see
+  run(`orgS.types = [{ id: "brief", name: "Brief", fields: [], statuses: [{key:"a",label:"A"},{key:"b",label:"B"}] }];
+       orgRender();`);
+  assert.equal(doc.querySelector(".org-group-head"), null);
+  assert.equal(doc.querySelectorAll(".org-typefold").length, 1);
+});
+
 T("dropping the org cache drops the directory cache with it", () => {
   // the directory is read per-organization now, so a cached roster from
   // one tenant must never survive into another

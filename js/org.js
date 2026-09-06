@@ -264,8 +264,12 @@ function orgRender(){
   const typeChip = f => '<span class="org-chip">' + esc(f.label || f.key) +
     '<i>' + esc(f.type) + '</i>' + (f.required ? '<u>required</u>' : '') + '</span>';
 
-  const typesHtml = (orgS.types || []).length
-    ? (orgS.types || []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(t => {
+  /* Grouped by where they came from. Applying two templates leaves a flat
+     list in which Sponsorship and Video look unrelated to each other and
+     related to Brief, which is exactly backwards - they are one industry's
+     answer, and Brief is another's. The grouping is inferred, so it is
+     right for orgs that applied a pack before this existed. */
+  const typeCard = t => {
         const fields = t.fields || [], st = t.statuses || [];
         const summary = fields.length + (fields.length === 1 ? " field" : " fields") +
           " · " + st.length + (st.length === 1 ? " stage" : " stages");
@@ -297,7 +301,30 @@ function orgRender(){
               'data-type="' + esc(t.id) + '">Edit this type</button></div>' : '') +
           '</div>' +
         '</details>';
-      }).join("")
+  };
+
+  const typeGroups = [];
+  (orgS.types || []).forEach(t => {
+    const p = packForType(t);
+    const key = p ? p.key : "";
+    let g = typeGroups.find(x => x.key === key);
+    // "Your own" last, because it is the pile everything else is not
+    if (!g) { g = { key, name: p ? p.name : "Your own", sort: p ? p.name : "\uffff", types: [] }; typeGroups.push(g); }
+    g.types.push(t);
+  });
+  typeGroups.sort((a, b) => a.sort.localeCompare(b.sort));
+  typeGroups.forEach(g => g.types.sort((a, b) => (a.name || "").localeCompare(b.name || "")));
+
+  const typesHtml = (orgS.types || []).length
+    // one group is not a grouping - a lone heading over the only list on
+    // screen is a label telling you what you are already looking at
+    ? (typeGroups.length > 1
+        ? typeGroups.map(g =>
+            '<div class="org-group">' +
+              '<p class="org-group-head">' + esc(g.name) + '</p>' +
+              '<div class="org-list">' + g.types.map(typeCard).join("") + '</div>' +
+            '</div>').join("")
+        : '<div class="org-list">' + typeGroups[0].types.map(typeCard).join("") + '</div>')
     : '<p class="org-note">No work types yet.' + (owner ? ' Start from a template below, or create one to describe the work your team actually does.' : '') + '</p>';
 
   const autoHtml = (orgS.automations || []).length
@@ -340,7 +367,7 @@ function orgRender(){
         (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgPackBtn">Templates</button>' +
                  '<button type="button" class="org-btn org-btn-sm" id="orgAddType">New type</button>' : '') +
       '</div>' +
-      '<div class="org-list">' + typesHtml + '</div>' +
+      typesHtml +
       '<p class="org-note">A work type is what makes this fit your business: the fields your work actually has, and the stages it moves through.</p>' +
     '</section>' +
     '<section class="org-sec">' +
