@@ -19,7 +19,13 @@ one, so you don't have to remember them.
    `isDesignatedAdminEmail()` / `isAssignerEmail()` in `firestore.rules`.**
    See "Two gates" below for why this one matters most.
 4. **No bundler, no framework, no npm at runtime.** Edit, refresh, push.
-   The `tests/` directory is the only place with dependencies.
+   `tests/` and `functions/` are the only places with dependencies, and
+   `functions/` is server code that never ships to a browser.
+5. **`functions/shared/*.js` are byte-for-byte copies of `js/*.js`.**
+   Cloud Functions deploys only its own directory, so the pure engine is
+   copied in beside it. After editing either: `cp js/<f> functions/shared/`.
+   A drifted copy means the client and the server enforce different
+   rules — and the client is the one you can see.
 
 ## Two gates, one truth
 
@@ -58,7 +64,7 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 156 assertions, node + jsdom, seconds
+npm test        # 158 assertions, node + jsdom, seconds
 npm run test:rules   # 195 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -74,7 +80,7 @@ back; that round trip only exists in a document.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 351 pass as of this writing — a
+reaches through an org boundary. All 353 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys

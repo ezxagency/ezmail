@@ -30,8 +30,24 @@ the test of ground rule 1. An end-to-end test runs this document's own
 restaurant example through the engine: requested, claimed, assigned,
 approved, with the facets a manager would filter on appearing without any
 index being declared for a type that did not exist an hour earlier. Still
-to come in phase 2: collapsing assignments and campaigns onto the Item. Phases 3–5 remain spec
-only.
+to come in phase 2: collapsing assignments and campaigns onto the Item. **Phase 3 written, not yet deployable.** `functions/index.js` is the
+`commitItem` callable: it runs the same engine the browser runs — the
+copies under `functions/shared/` are byte-identical, and a repo guard
+fails the build if they drift — inside a Firestore transaction, so two
+people finishing the same item cannot both win. Two things a caller
+cannot assert reach it: **who it is** (the verified auth uid) and **which
+org it is in** (read from the membership document). `CONFIG.serverCommit`
+is the switch, and it stays `false` until the function is live.
+
+**Cloud Functions requires the Firebase Blaze plan**, which this project
+is not on — it uses EmailJS precisely to avoid it. Phase 3 therefore ends
+in two steps that need a billing account:
+
+1. Deploy the function, flip `CONFIG.serverCommit` to `true`, verify.
+2. Only then narrow the `items` rule to reject client writes. Doing that
+   first breaks every write; doing it never leaves the door open.
+
+Phases 4–5 remain spec only.
 This is the source of truth for turning EZ Clock In from one agency's tool
 into a base model any organization can configure. Re-read it fully before
 touching platform work in any session.
