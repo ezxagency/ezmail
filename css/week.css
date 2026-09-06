@@ -1,0 +1,52 @@
+/* ============================================================
+   THE WEEK ROW — hours, seven days, streak. .ui-next only.
+   Measured off the Figma frame (142:1102): 52px day columns,
+   a 64px band, the streak as a pill on the right.
+   ============================================================ */
+#weekRow{display:none}
+.ui-next #weekRow{
+  display:flex;align-items:flex-end;gap:clamp(16px,3vw,64px);
+  margin-top:16px;
+  font-family:var(--wk);
+}
+
+.wrow-total{display:flex;flex-direction:column;gap:2px;flex:none}
+.wrow-cap{
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--wk-white-60);
+}
+.wrow-total b{
+  font-size:clamp(20px,1.7vw,28px);font-weight:700;letter-spacing:.02em;
+  color:var(--wk-white);font-variant-numeric:tabular-nums;
+}
+
+.wrow-bars{display:flex;align-items:flex-end;gap:clamp(6px,.7vw,11px);flex:none}
+.wrow-day{display:flex;flex-direction:column;align-items:center;gap:7px}
+.wrow-bar{
+  display:block;width:clamp(28px,3vw,52px);border-radius:5px;
+  background:rgba(255,255,255,.30);
+  transition:height .3s var(--pz-ease);
+}
+.wrow-day em{
+  font-style:normal;font-size:10px;letter-spacing:.1em;
+  color:var(--wk-white-60);text-transform:uppercase;
+}
+/* today is the bright one; a day still to come is barely there */
+.wrow-day.is-today .wrow-bar{background:var(--wk-white);box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.wrow-day.is-today em{color:var(--wk-white);font-weight:700}
+.wrow-day.is-empty .wrow-bar{background:rgba(255,255,255,.16)}
+.wrow-day.is-future .wrow-bar{background:rgba(255,255,255,.10)}
+.wrow-day.is-future em{opacity:.45}
+
+.wrow-streak{
+  display:flex;align-items:center;gap:8px;flex:none;
+  margin-left:auto;
+  padding:9px 16px;border-radius:999px;
+  background:rgba(255,255,255,.10);
+  font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--wk-white);
+}
+.wrow-streak svg{width:15px;height:15px;color:#ff9d4d}
+.wrow-streak.is-none{display:none}
+
+/* the bars are the first thing to go when the header runs out of room */
+@media (max-width:1099px){ .ui-next .wrow-bars{display:none} }

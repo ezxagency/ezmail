@@ -31,6 +31,7 @@ function render(){
 
   renderDock();
   renderPunches();
+  if (uiNextOn()) wrRefresh();
   updateDrawerIdentity();
   refreshOpenPage();
   tick();
@@ -140,6 +141,9 @@ function updateRingProgress(ringId, elapsedMs, cycleMs){
 function tick(){
   const bar = $("shiftbar");
   updateMissionTick();
+  // the week row carries the open shift's hours, so it has to move with
+  // them - once a minute, which is the only rate at which it changes
+  if (uiNextOn()) wrTick();
   pomoTick();
   if (S.status === "IDLE"){
     setRingTime("shiftClock", 0);

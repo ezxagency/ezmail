@@ -116,7 +116,7 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 449 assertions, node + jsdom, seconds
+npm test        # 462 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -149,7 +149,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 708 pass as of this writing — a
+reaches through an org boundary. All 721 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -183,6 +183,14 @@ workflow stop routes to its stop, and work whose type was deleted offers
 nothing and says why. `dkPick()` is the pure half, and it exists because
 finishing the front card removes it from the snapshot — what shows next
 has to be the work that took its place, not card one.
+
+Third piece: the **week row** under the wordmark. `js/week.js` derives
+this week's hours, seven day bars and the clock-in streak from
+`S.history` — the closed shifts already sitting in `appState/{uid}` — so
+it costs no read, no query and no index. The open shift is added live,
+because a row that ignored the hours you are working right now would be
+wrong all day and right only after clock-out. `wr` prefix, not `wk`:
+`js/work.js` already owns `wk` in the one shared scope.
 
 The rings are deliberately NOT affected. They keep their fixed 8h lap
 because they answer "how long have you been at it", not "how much of
