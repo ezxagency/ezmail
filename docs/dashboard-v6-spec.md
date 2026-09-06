@@ -307,14 +307,62 @@ second kind of work.
 type was deleted, so there is no track to move along and no status to
 take. Saying so is the whole content of that card.
 
-**OPEN 4** — the Campaigns page is live and Ez Agency has real
-campaigns in it right now. Retiring the page does not delete the data,
-but it does make it unreachable. Migrate existing campaigns into tracked
-work, or keep the page read-only while nothing new is created there?
+**Decided: cut, not migrate.** No conversion of existing campaigns into
+tracked work. Two things that decision does NOT mean, and both matter:
 
-**OPEN 5** — the rail's fourth item. The Figma names it "Camps", which
-was Campaigns; the instruction was to call it **Links**. With Campaigns
-gone, Links has to point at something. Unresolved.
+1. **Nothing is deleted.** "Cut" is a decision about where effort goes,
+   not an instruction to destroy data. The `campaigns` collection, its
+   documents and its rules stay exactly where they are. The page stops
+   being reachable; the rows keep existing, and a future session with a
+   reason can still read them.
+2. **The cut follows the replacement — it does not lead it.** Hiding
+   Campaigns today would take the baton page away from a team whose
+   replacement is not built yet, mid-flight, for no gain. So the page is
+   hidden **under `ui-next` only**: the new dashboard has no Campaigns,
+   the classic one keeps it, and the last of it goes when the flag does.
+   That is the same discipline the whole redesign runs on and it costs
+   nothing to honour here.
+
+## 12b. Links — the rail's fourth seat
+
+The slot that was Campaigns becomes **Links**: where an organization
+connects the outside tools its work already leans on. Proposed here
+rather than instructed, so treat this section as a proposal.
+
+**Why it belongs in this app at all.** Every card in the deck carries
+attachments, and those attachments are mostly other people's tools — a
+Figma file, a Google Doc, a Notion page. Today a pasted URL is a string.
+Links is what turns it into a thing with a name and an icon, and later
+into a thing that can act.
+
+`orgs/{orgId}/connections/{id}` — org-scoped like everything else, so
+one company's connections cannot be seen by another.
+
+**Three phases, deliberately in this order, because the value arrives
+before the risk does.**
+
+1. **Recognition.** A connection maps a domain to a name and an icon:
+   `figma.com` → Figma, `docs.google.com` → Google Docs. No credentials,
+   no network, no secrets. It makes every attachment row in the deck
+   read properly and is worth shipping on its own.
+2. **Notifying out.** A connection holds a webhook — Slack, Discord, a
+   WhatsApp bridge — and work arriving at somebody's stop can announce
+   itself where that team actually looks. The app already notifies
+   in-app and by email; this is the same event reaching one more place.
+   A webhook URL IS a credential, so it goes in behind the same rule
+   as §3 below.
+3. **AI and apps that act.** A connection to a model or a service that
+   an automation rule can call — summarise this brief, draft this copy.
+   Last, because it is the only one that needs secrets held properly.
+
+**The constraint that decides the order.** A customer's API key or
+webhook URL must never sit in a document every member of the org can
+read, and must never reach the browser. Firestore rules cannot hide a
+field from a reader who is allowed the document. So anything holding a
+credential is written through a Cloud Function and read only by one —
+the client sees that a connection EXISTS and what it is called, never
+what it holds. Phase 1 needs none of that, which is exactly why it is
+phase 1.
 
 ## 13. Measurements
 

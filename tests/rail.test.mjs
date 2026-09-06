@@ -143,5 +143,25 @@ T("syncing before the drawer exists is quiet, not a crash", () => {
   assert.equal(bare.window.document.querySelectorAll(".rail-item").length, 0);
 });
 
+/* ---- pages the new dashboard retires ----
+   docs/dashboard-v6-spec.md §12a. The cut is scoped to the flag: taking
+   the baton page from a team whose replacement is not built would cost
+   them work and buy nothing, so classic keeps it. */
+T("Campaigns is retired under ui-next and kept under classic", () => {
+  run(`document.body.classList.add("ui-next")`);
+  assert.equal(run(`routeRetired("campaigns")`), true);
+  run(`document.body.classList.remove("ui-next")`);
+  assert.equal(run(`routeRetired("campaigns")`), false,
+    "the classic dashboard lost its Campaigns page");
+});
+
+T("nothing else is retired by accident", () => {
+  run(`document.body.classList.add("ui-next")`);
+  ["", "mission", "history", "team", "workflow", "work", "org"].forEach(r =>
+    assert.equal(run(`routeRetired(${JSON.stringify(r)})`), false, r + " was retired"));
+  assert.equal(run(`routeRetired(null)`), false);
+  run(`document.body.classList.remove("ui-next")`);
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -115,6 +115,8 @@ function applyRoute(){
       // a member has no business on Ez Agency's own pages, and the rules
       // would refuse the reads anyway - bounce before the errors
       || ((r === "campaigns" || r === "workflow") && isMember)
+      // a deep link to a page this dashboard no longer has
+      || routeRetired(r)
       || (r === "history" && isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>

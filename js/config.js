@@ -238,3 +238,14 @@ function applyUiFlag(){
   return !!on;
 }
 applyUiFlag();
+
+/* Pages the new dashboard does not have.
+   docs/dashboard-v6-spec.md §12a: the whole app is one chain of stages,
+   so Campaigns - the older, pre-tenancy version of that same idea - is
+   retired into it. The cut is scoped to the flag ON PURPOSE: taking the
+   baton page away from a team whose replacement is not built yet would
+   cost them work and buy nothing. Classic keeps it until the flag goes.
+   Nothing is deleted. The collection, its documents and its rules are
+   untouched; only the way in is closed. */
+const UI_NEXT_RETIRED = ["campaigns"];
+const routeRetired = r => uiNextOn() && UI_NEXT_RETIRED.indexOf(r || "") >= 0;

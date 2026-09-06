@@ -120,7 +120,9 @@ function enterFullApp(user, role){
   $("drawerOrg").classList.toggle("hidden", !(isAdmin || isMember));
   // Campaigns and Workflows are Ez Agency's own pre-tenancy tools, and
   // read data the rules refuse a member. Hidden, not shown-and-broken.
-  $("drawerCampaigns").classList.toggle("hidden", isMember);
+  // ...and retired outright under the new dashboard, where a task moving
+  // along its work type's track IS the campaign - see routeRetired()
+  $("drawerCampaigns").classList.toggle("hidden", isMember || routeRetired("campaigns"));
   $("drawerWorkflow").classList.toggle("hidden", isMember);
   // admin's own record lives inside Team's History section now - a
   // separate personal-history page is only useful to everyone else
