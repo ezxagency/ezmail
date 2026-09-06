@@ -93,6 +93,13 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "orgs/orgA/members/worker1"), { uid: "worker1", roleId: "staff", joinedAt: 1 });
   await setDoc(doc(db, "orgs/orgA/roles/owner"), { name: "Owner", permissions: ["*:*:org"] });
   await setDoc(doc(db, "orgs/orgA/roles/staff"), { name: "Staff", permissions: ["item:update:assigned"] });
+  // a role that is NOT the owner and is trusted with exactly one field of
+  // a seat - the scheduled shift length. Everything below tests that the
+  // "one field" half is real and not just intended.
+  await setDoc(doc(db, "orgs/orgA/roles/manager"),
+    { name: "Manager", permissions: ["item:read:org", "member:read:org", "member:hours:org"] });
+  await setDoc(doc(db, "users/mgr1"), { email: "mgr@x.com", role: "worker" });
+  await setDoc(doc(db, "orgs/orgA/members/mgr1"), { uid: "mgr1", roleId: "manager", joinedAt: 1 });
   await setDoc(doc(db, "orgs/orgB"), { name: "Org B", ownerUid: "worker2", createdAt: 1 });
   await setDoc(doc(db, "orgs/orgB/members/worker2"), { uid: "worker2", roleId: "owner", joinedAt: 1 });
   await setDoc(doc(db, "orgs/orgB/roles/owner"), { name: "Owner", permissions: ["*:*:org"] });
@@ -116,6 +123,7 @@ const newbie = env.authenticatedContext("newbie1", { email: "nb@x.com" }).firest
 const newbie2 = env.authenticatedContext("newbie2", { email: "nb2@x.com" }).firestore();
 const assigner = env.authenticatedContext("assigner1", { email: "prashuchiha34@gmail.com" }).firestore();
 const worker = env.authenticatedContext("worker1", { email: "w1@x.com" }).firestore();
+const manager = env.authenticatedContext("mgr1", { email: "mgr@x.com" }).firestore();
 const anon = env.unauthenticatedContext().firestore();
 const stranger = env.authenticatedContext("stranger1", { email: "stranger@evil.com" }).firestore();
 const unverified = env.authenticatedContext("unverified1", { email: "new@x.com" }).firestore();
@@ -383,6 +391,34 @@ await T("non-owner member: shape a role DENIED", assertFails(setDoc(doc(worker, 
 await T("non-owner member: seat someone DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/members/stranger1"), { roleId: "staff", joinedAt: 9 })));
 await T("non-owner member: promote SELF to owner DENIED", assertFails(updateDoc(doc(worker, "orgs/orgA/members/worker1"), { roleId: "owner" })));
 await T("owner: seat a member", assertSucceeds(setDoc(doc(admin, "orgs/orgA/members/worker2"), { roleId: "staff", joinedAt: 9 })));
+
+/* ---- scheduled hours: one delegated field on a seat ----
+   The grant is member:hours at org scope. What makes delegating it safe is
+   not the grant but the FIELD PIN beside it: without that, the update that
+   sets somebody's hours is the same update that could set their roleId,
+   and "can set hours" would quietly mean "can promote themselves". */
+await T("owner: set someone's shift hours",
+  assertSucceeds(updateDoc(doc(admin, "orgs/orgA/members/worker1"), { shiftMinutes: 360 })));
+await T("manager with member:hours: set someone's shift hours",
+  assertSucceeds(updateDoc(doc(manager, "orgs/orgA/members/worker1"), { shiftMinutes: 420 })));
+await T("manager: clear the hours back to unset",
+  assertSucceeds(updateDoc(doc(manager, "orgs/orgA/members/worker1"), { shiftMinutes: 0 })));
+await T("manager: ride the same write into a role change DENIED",
+  assertFails(updateDoc(doc(manager, "orgs/orgA/members/worker1"), { shiftMinutes: 360, roleId: "owner" })));
+await T("manager: change a role on its own DENIED",
+  assertFails(updateDoc(doc(manager, "orgs/orgA/members/worker1"), { roleId: "owner" })));
+await T("manager: promote SELF DENIED",
+  assertFails(updateDoc(doc(manager, "orgs/orgA/members/mgr1"), { roleId: "owner" })));
+await T("staff without the grant: set their own hours DENIED",
+  assertFails(updateDoc(doc(worker, "orgs/orgA/members/worker1"), { shiftMinutes: 60 })));
+await T("owner: a day longer than a day DENIED",
+  assertFails(updateDoc(doc(admin, "orgs/orgA/members/worker1"), { shiftMinutes: 2000 })));
+await T("manager: hours that are not a whole number of minutes DENIED",
+  assertFails(updateDoc(doc(manager, "orgs/orgA/members/worker1"), { shiftMinutes: 90.5 })));
+await T("manager: negative hours DENIED",
+  assertFails(updateDoc(doc(manager, "orgs/orgA/members/worker1"), { shiftMinutes: -60 })));
+await T("manager of one org: set hours in ANOTHER org DENIED",
+  assertFails(updateDoc(doc(manager, "orgs/orgB/members/worker2"), { shiftMinutes: 360 })));
 await T("owner: move ownerUid DENIED", assertFails(updateDoc(doc(admin, "orgs/orgA"), { ownerUid: "worker1" })));
 await T("owner: rename the org", assertSucceeds(updateDoc(doc(admin, "orgs/orgA"), { name: "Org A renamed" })));
 await T("owner: delete the org DENIED", assertFails(deleteDoc(doc(admin, "orgs/orgA"))));

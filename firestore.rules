@@ -79,6 +79,37 @@ service cloud.firestore {
     function isOrgOwner(orgId) {
       return isOrgMember(orgId) && orgRoleId(orgId) == 'owner';
     }
+    /* ---- one delegated field on a seat ----
+       An owner may change a seat outright. Everybody else who is allowed
+       near it is allowed near ONE FIELD of it: shiftMinutes, the scheduled
+       length of that person's shift, which draws the bar under their
+       clocks. The grant is a role permission (member:hours at org scope,
+       which the seeded Manager carries), and the field pin below is what
+       makes delegating it safe - without it, the same update() that sets
+       somebody's hours could set their roleId, and "can set hours" would
+       quietly mean "can promote themselves".
+       The role document is checked for existence first: an org whose role
+       write failed must fall back to owner-only, not error out. */
+    function orgRolePerms(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/roles/$(orgRoleId(orgId)))
+               .data.get('permissions', []);
+    }
+    function orgMaySetHours(orgId) {
+      return isOrgMember(orgId)
+        && exists(/databases/$(database)/documents/orgs/$(orgId)/roles/$(orgRoleId(orgId)))
+        && orgRolePerms(orgId).hasAny(
+             ['member:hours:org', 'member:*:org', '*:hours:org', '*:*:org']);
+    }
+    function onlyShiftMinutesChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shiftMinutes']);
+    }
+    // a length nobody could work is not a schedule, it is a broken bar
+    function validShiftMinutes() {
+      return !('shiftMinutes' in request.resource.data)
+        || (request.resource.data.shiftMinutes is int
+            && request.resource.data.shiftMinutes >= 0
+            && request.resource.data.shiftMinutes <= 1440);
+    }
     // whoever the org doc names as its founder. The one identity allowed
     // to seat itself - and only while no roster exists to say otherwise.
     function isOrgFounder(orgId) {
@@ -143,7 +174,7 @@ service cloud.firestore {
         //    already uses. The token must still be unburned, unexpired,
         //    point at THIS org, and grant exactly the role being claimed,
         //    so a holder cannot upgrade themselves on the way in.
-        allow create: if isOrgOwner(orgId)
+        allow create: if validShiftMinutes() && (isOrgOwner(orgId)
           || (isOrgFounder(orgId) && uid == request.auth.uid
               && request.resource.data.roleId == 'owner')
           || (request.auth != null && uid == request.auth.uid
@@ -152,8 +183,11 @@ service cloud.firestore {
               && get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(request.resource.data.invite)).data.roleId == request.resource.data.roleId
               && get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(request.resource.data.invite)).data.usedBy == null
               && get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(request.resource.data.invite)).data.expiresAt is int
-              && get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(request.resource.data.invite)).data.expiresAt > request.time.toMillis());
-        allow update, delete: if isOrgOwner(orgId);
+              && get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(request.resource.data.invite)).data.expiresAt > request.time.toMillis()));
+        allow update: if validShiftMinutes()
+          && (isOrgOwner(orgId)
+              || (orgMaySetHours(orgId) && onlyShiftMinutesChanged()));
+        allow delete: if isOrgOwner(orgId);
       }
 
       match /roles/{roleId} {

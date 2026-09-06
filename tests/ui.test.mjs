@@ -40,6 +40,7 @@ const dom = new JSDOM(`<!doctype html><html><body>
   <div id="toast"></div>
   <div id="orgBody"></div>
   <div id="workBody"></div>
+  <div id="shiftbar" class="shiftbar"></div>
 </body></html>`, { runScripts: "outside-only", url: "https://ezclockn.com/" });
 
 const ctx = dom.getInternalVMContext();
@@ -51,7 +52,7 @@ ctx.firebase = {
 ctx.console = console;
 
 // load order IS the dependency graph, exactly as index.html declares it
-["js/config.js", "js/permissions.js", "js/item-engine.js", "js/ui.js",
+["js/config.js", "js/permissions.js", "js/item-engine.js", "js/ui.js", "js/scrubber.js",
  "js/migrate.js", "js/items.js", "js/workflow-engine.js", "js/automation.js",
  // org.js calls dirInvalidate() from here: the harness only proves
  // anything if it carries the same shared scope the browser builds
@@ -586,6 +587,67 @@ T("the Organization page offers templates to an owner and not to anyone else", (
   assert.ok(doc.querySelector("#orgPackBtn"), "no way in for an owner");
   run(`orgS.myRoleId = "staff"; orgRender();`);
   assert.equal(doc.querySelector("#orgPackBtn"), null);
+});
+
+/* ---------- the scrubber, drawn into an actual document ----------
+   sbPlan's arithmetic is proved in tests/scrubber.test.mjs. What only a
+   document can prove is the other half: that the numbers reach the bar,
+   and that a screen which does not YET know somebody's hours does not
+   tell them their hours are unset. */
+const sbHost = () => doc.getElementById("shiftbar");
+const sbDraw = () => { run(`sbRender($("shiftbar"))`); return sbHost().innerHTML; };
+
+T("the bar draws a segment per block, a playhead and a legend", () => {
+  run(`
+    orgS.members = [{ uid: "u1", roleId: "owner", shiftMinutes: 360 }];
+    var t0 = Date.now() - 3 * 3600000;
+    S.status = "ACTIVE";
+    S.shift = { client: "Store", startedAt: t0,
+      segs: [{ task: "Copy", startedAt: t0, endedAt: t0 + 3600000 },
+             { task: "Copy", startedAt: t0 + 2 * 3600000, endedAt: null }],
+      breaks: [{ reason: "Lunch", startedAt: t0 + 3600000, endedAt: t0 + 2 * 3600000 }] };
+  `);
+  const html = sbDraw();
+  assert.equal((html.match(/class="sb-seg sb-work"/g) || []).length, 2);
+  assert.equal((html.match(/class="sb-seg sb-break"/g) || []).length, 1);
+  assert.ok(html.includes("sb-play"), "no playhead");
+  assert.ok(html.includes("Remaining"), "no remaining key in the legend");
+  assert.ok(/6h\s*shift/i.test(html), "the header never named the scheduled length");
+});
+
+T("running over the schedule is marked, not clipped", () => {
+  run(`
+    orgS.members = [{ uid: "u1", roleId: "owner", shiftMinutes: 60 }];
+    var t0 = Date.now() - 2 * 3600000;
+    S.status = "ACTIVE";
+    S.shift = { client: "Store", startedAt: t0,
+      segs: [{ task: "Copy", startedAt: t0, endedAt: null }], breaks: [] };
+  `);
+  const html = sbDraw();
+  assert.ok(html.includes("sb-target"), "nothing marks where the schedule ended");
+  assert.ok(/over/.test(html), "the overtime is not stated");
+});
+
+/* The failure this app has paid for most often: a screen confidently
+   saying something it is not in a position to know. */
+T("an unloaded roster says nothing about hours; an empty one says so", () => {
+  run(`orgS = null; S.status = "IDLE"; S.shift = null;`);
+  const unknown = sbDraw();
+  assert.ok(!unknown.includes("No shift length set"),
+    "told somebody their hours are unset before the roster had loaded");
+
+  run(`
+    orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner",
+      members: [{ uid: "u1", roleId: "owner" }], roles: [], types: [], dir: {} };
+  `);
+  assert.ok(sbDraw().includes("No shift length set"),
+    "a genuinely unset schedule went unmentioned");
+});
+
+T("hours outside a day are not treated as a schedule", () => {
+  run(`orgS.members = [{ uid: "u1", roleId: "owner", shiftMinutes: 5000 }];`);
+  assert.ok(sbDraw().includes("No shift length set"),
+    "a nonsense shiftMinutes was drawn as a real target");
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

@@ -37,6 +37,40 @@ const orgUid = () => (auth.currentUser ? auth.currentUser.uid : null);
 const orgIsOwner = () => !!orgS && orgS.myRoleId === "owner";
 const orgNewId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
+/* ---------- scheduled hours ----------
+   How long one person's shift is meant to be, in minutes, on their own
+   seat: orgs/{orgId}/members/{uid}.shiftMinutes. It drives the scrubber
+   under the clocks and NOTHING else - the rings keep their fixed 8h lap,
+   deliberately, because they answer "how long have you been at it", not
+   "how much of your day is left".
+   Three answers, not two: null means the roster has not loaded yet, and a
+   screen that cannot yet know must not tell somebody their hours are
+   unset. 0 means genuinely unset. */
+const SHIFT_MINUTES_MAX = 24 * 60;
+function orgMemberShiftMinutes(m){
+  const n = m && m.shiftMinutes;
+  return (typeof n === "number" && n > 0 && n <= SHIFT_MINUTES_MAX) ? Math.round(n) : 0;
+}
+function orgMyShiftMinutes(){
+  if (!orgS || !orgUid()) return null;
+  const me = (orgS.members || []).find(m => m.uid === orgUid());
+  return me ? orgMemberShiftMinutes(me) : 0;
+}
+/* An owner always may. Anyone else needs member:hours at org scope, which
+   is a grant an owner hands to a role on the Roles screen - the seeded
+   Manager carries it. The rules enforce the same thing AND pin the write
+   to this one field, so a role granted it cannot ride the same update to
+   change somebody's roleId. */
+function orgMaySetHours(){
+  if (!orgS) return false;
+  if (orgIsOwner()) return true;
+  const role = (orgS.roles || []).find(r => r.id === orgS.myRoleId);
+  return !!role && permCan(role.permissions || [], "member", "hours",
+    { uid: orgUid(), orgId: orgS.orgId });
+}
+const orgHoursLabel = mins => !mins ? "Not set"
+  : (mins % 60 === 0 ? (mins / 60) + "h" : Math.floor(mins / 60) + "h " + (mins % 60) + "m");
+
 /* Roles a brand-new org starts with. Not a template pack (those come in
    phase 5) - just enough that the first admin sees the grammar working
    on real rows instead of an empty screen they have to imagine. */
@@ -44,7 +78,8 @@ const ORG_SEED_ROLES = [
   { id: "owner",   name: "Owner",   permissions: ["*:*:org"] },
   { id: "manager", name: "Manager", permissions: [
       "item:create:org", "item:read:org", "item:update:org", "item:delete:org",
-      "member:read:org", "member:invite:org", "workflow:read:org", "report:read:org"] },
+      "member:read:org", "member:invite:org", "member:hours:org",
+      "workflow:read:org", "report:read:org"] },
   { id: "staff",   name: "Staff",   permissions: [
       "item:create:org", "item:read:org", "item:update:assigned", "workflow:read:org"] }
 ];
@@ -1221,6 +1256,11 @@ function orgMemberSheet(m){
     ? '<div class="org-fact"><span>' + esc(label) + '</span><b>' + esc(value) + '</b></div>' : "";
 
   const canEdit = owner && !ownerSeat && roles.length > 0;
+  // hours are not a role change, so they are not gated like one: a manager
+  // granted member:hours sets them, and the owner's own seat has them too
+  const mayHours = orgMaySetHours();
+  const minsNow = orgMemberShiftMinutes(m);
+  const hoursNow = minsNow ? Math.round((minsNow / 60) * 100) / 100 : 0;
 
   openSheet(
     '<div class="org-person">' +
@@ -1233,9 +1273,19 @@ function orgMemberSheet(m){
     '<div class="org-facts">' +
       fact("Role", orgRoleName(m.roleId)) +
       fact("Joined", joined) +
+      fact("Hours per shift", orgHoursLabel(orgMemberShiftMinutes(m))) +
       fact("Craft", person.craft) +
       fact("This is you", isSelf ? "Yes" : "") +
     '</div>' +
+    (mayHours
+      ? '<label class="org-field"><span>Hours per shift</span>' +
+          '<input type="number" id="omHours" min="0" max="24" step="0.25" inputmode="decimal"' +
+          ' value="' + (hoursNow ? esc(String(hoursNow)) : "") + '" placeholder="e.g. 6"></label>' +
+        '<p class="org-note">How long their shift is meant to run. It sets the length of the bar under their clocks and nothing else — the rings keep their own 8-hour lap. Leave it empty for no set length.</p>' +
+        '<div class="org-actions">' +
+          '<button type="button" class="org-btn" id="omHoursSave">Save hours</button>' +
+        '</div>'
+      : "") +
     (canEdit
       ? '<label class="org-field"><span>Role</span><select id="omRole">' +
           roles.map(r => '<option value="' + esc(r.id) + '"' +
@@ -1252,8 +1302,41 @@ function orgMemberSheet(m){
           : "Create a role first — there is nothing to move anyone to.") + '</p>'),
     () => {
       if ($("omSave")) $("omSave").onclick = () => orgMemberSaveRole(m);
+      if ($("omHoursSave")) $("omHoursSave").onclick = () => orgMemberSaveHours(m);
       if ($("omRemove")) $("omRemove").onclick = () => orgMemberRemove(m, $("omRemove"));
     });
+}
+
+/* Hours are one integer on the seat, and the write is deliberately narrow:
+   firestore.rules lets a non-owner change THIS FIELD AND NO OTHER, so an
+   update() carrying anything else would be refused outright rather than
+   quietly letting a manager edit a role. */
+async function orgMemberSaveHours(m){
+  const el = $("omHours");
+  if (!el) return;
+  const raw = el.value.trim();
+  const hours = raw === "" ? 0 : Number(raw);
+  if (!isFinite(hours) || hours < 0 || hours > 24){
+    toast("Hours must be between 0 and 24.");
+    return;
+  }
+  const mins = Math.round(hours * 60);
+  if (mins === orgMemberShiftMinutes(m)) { closeSheet(); return; }
+  const who = orgPersonName(m.uid);
+  const btn = $("omHoursSave");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    await db.collection("orgs").doc(orgS.orgId).collection("members").doc(m.uid)
+      .update({ shiftMinutes: mins });
+    orgInvalidate();
+    closeSheet();
+    toast(mins ? who + "'s shift is " + orgHoursLabel(mins) + "." : who + " has no set shift length.");
+    enterOrgPage();
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false; btn.textContent = "Save hours";
+    toast("Could not set their hours — your role may not allow it.");
+  }
 }
 
 async function orgMemberSaveRole(m){

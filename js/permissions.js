@@ -130,7 +130,13 @@ const PERM_CATALOG = [
   ]},
   { resource: "member", label: "People", actions: [
     { action: "read",   label: "See the roster" },
-    { action: "invite", label: "Invite people" }
+    { action: "invite", label: "Invite people" },
+    /* Narrow on purpose. It authorizes ONE field on a seat - the
+       scheduled length of that person's shift - and firestore.rules
+       pins the write to that field, so it can never be ridden into a
+       role change. A broader "member:update" would have been the same
+       switch wired to the whole seat. */
+    { action: "hours",  label: "Set working hours" }
   ]},
   { resource: "role", label: "Roles", actions: [
     { action: "read",   label: "See roles" },

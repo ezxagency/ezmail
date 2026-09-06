@@ -146,7 +146,7 @@ function tick(){
     setRingTime("taskClock", 0);
     updateRingProgress("shiftRing", 0, SHIFT_CYCLE_MS);
     updateRingProgress("taskRing", 0, TASK_CYCLE_MS);
-    bar.innerHTML = "";
+    if (uiNextOn()) sbRender(bar); else bar.innerHTML = "";
     return;
   }
 
@@ -159,7 +159,11 @@ function tick(){
   updateRingProgress("shiftRing", shiftMs, SHIFT_CYCLE_MS);
   updateRingProgress("taskRing", taskMs, TASK_CYCLE_MS);
 
-  if (S.status === "ACTIVE"){
+  // The scrubber says everything this line used to say and more, so under
+  // the new dashboard it replaces it outright rather than sitting beside it.
+  if (uiNextOn()){
+    sbRender(bar);
+  } else if (S.status === "ACTIVE"){
     // the task ring above already shows this exact elapsed time - this bar
     // used to repeat it as "Task 46s" text underneath, which was redundant
     bar.innerHTML = "";

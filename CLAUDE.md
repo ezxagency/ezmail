@@ -116,8 +116,8 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 418 assertions, node + jsdom, seconds
-npm run test:rules   # 248 rules assertions (needs Java + firebase-tools)
+npm test        # 433 assertions, node + jsdom, seconds
+npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
@@ -149,8 +149,34 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 666 pass as of this writing — a
+reaches through an org boundary. All 692 pass as of this writing — a
 failure is a real regression, not a flake.
+
+## The redesign lives behind a flag
+
+The new staff dashboard (Figma `142:1102`) is being built BESIDE the live
+one, not on top of it. `?ui=next` turns it on for one browser and
+remembers the choice; `?ui=classic` turns it off. The query may sit
+before the hash (`?ui=next#/`) or inside the route (`#/?ui=next`).
+`applyUiFlag()` in `js/config.js` puts a `ui-next` class on `<body>`, and
+every new piece hangs off that class — so a team mid-shift keeps the
+screen they know until the whole thing is ready.
+
+First piece landed: the **shift scrubber**, the bar under the clocks.
+`js/scrubber.js` splits in half on purpose — `sbPlan()` is pure and
+tested under Node, `sbRender()` is the only part that touches the
+document. It spans the SCHEDULED shift, which is
+`orgs/{orgId}/members/{uid}.shiftMinutes`, set on a person's seat by an
+owner or by any role holding `member:hours` (the seeded Manager has it).
+`firestore.rules` pins that delegated write to that one field: without
+the pin, the update that sets somebody's hours is the same update that
+sets their `roleId`, and the rules suite proves it by failing four
+assertions the moment the pin comes out.
+
+The rings are deliberately NOT affected. They keep their fixed 8h lap
+because they answer "how long have you been at it", not "how much of
+your day is left" — two different questions, and one of them is the
+bar's.
 
 ## Deploys
 

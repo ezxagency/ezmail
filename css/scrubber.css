@@ -1,0 +1,75 @@
+/* ============================================================
+   SHIFT SCRUBBER — the read-only bar under the clocks.
+   Measured off the Figma frame (142:1102): 34px track, 26px
+   segments inset 4px, a 12px playhead, 10px legend swatches.
+   Only mounts under .ui-next; the classic dashboard keeps the
+   one-line text readout it has always had.
+   ============================================================ */
+.ui-next .shiftbar{
+  display:block;
+  width:100%;
+  font-family:var(--wk);
+}
+
+.sb-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  margin-bottom:10px;
+}
+.sb-title{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--wk-white-60);
+}
+.sb-prog{font-size:13px;color:var(--wk-white-60);letter-spacing:.02em}
+.sb-prog b{color:var(--wk-white);font-weight:700;letter-spacing:.04em}
+.sb-prog i{font-style:normal;opacity:.5;padding:0 3px}
+.sb-prog-idle{font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.sb-over{font-style:normal;color:var(--wk-green);margin-left:8px;font-weight:700}
+
+/* the track. Remaining time IS the track showing through, so an
+   unstarted shift and a finished one differ only by what covers it */
+.sb-bar{
+  position:relative;
+  height:34px;
+  border-radius:9px;
+  background:rgba(255,255,255,.14);
+  overflow:hidden;
+}
+.sb-bar-empty{background:rgba(255,255,255,.08)}
+
+.sb-seg{position:absolute;top:4px;height:26px;border-radius:5px}
+.sb-work{background:rgba(255,255,255,.92)}
+.sb-break{background:#0c0d11}
+/* a hole neither a segment nor a break claimed. It should look wrong,
+   because it is - see the header comment in js/scrubber.js */
+.sb-gap{background:repeating-linear-gradient(135deg,rgba(255,255,255,.22) 0 4px,transparent 4px 8px)}
+
+/* where the schedule ended, once somebody has run past it */
+.sb-target{position:absolute;top:0;width:2px;height:100%;background:rgba(255,255,255,.55)}
+
+.sb-play{
+  position:absolute;top:11px;width:12px;height:12px;margin-left:-6px;
+  border-radius:50%;background:var(--wk-green);
+  box-shadow:0 0 0 3px rgba(0,174,11,.28), 0 2px 6px rgba(0,0,0,.5);
+}
+
+.sb-foot{
+  position:relative;
+  margin-top:10px;height:16px;
+  font-size:11px;letter-spacing:.08em;color:var(--wk-white-60);
+}
+.sb-t{position:absolute;top:0;white-space:nowrap}
+.sb-t-start{left:0}
+.sb-t-end{right:0;left:auto}
+/* rides the playhead, so it reads as that dot's own label */
+.sb-t-live{transform:translateX(-50%);color:var(--wk-green);font-weight:700}
+.sb-note{position:absolute;left:0;top:0;color:var(--wk-white-60)}
+
+.sb-legend{position:absolute;right:0;top:0;display:flex;gap:16px}
+.sb-key{display:flex;align-items:center;gap:6px;letter-spacing:.06em}
+.sb-key i{width:10px;height:10px;border-radius:3px;display:block}
+.sb-key i.sb-work{background:rgba(255,255,255,.92)}
+.sb-key i.sb-break{background:#0c0d11;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+.sb-key i.sb-rest{background:rgba(255,255,255,.22)}
+
+/* the legend is the first thing worth dropping when the column narrows */
+@media (max-width:1279px){ .sb-legend{display:none} }

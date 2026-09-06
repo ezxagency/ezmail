@@ -200,3 +200,31 @@ function taskTally(sh, now = Date.now()){
 }
 const taskLabel = t => (t.store||"").toUpperCase() + " " + t.task.toUpperCase() + " WORK";
 
+
+/* ============================================================
+   THE REDESIGN FLAG
+   The new dashboard is built beside the live one, not on top of
+   it: ?ui=next turns it on for this browser and remembers the
+   choice, ?ui=classic turns it back off. Nothing about the flag
+   is per-account or server-side - it is a way to LOOK at the new
+   screen without shipping it to a team mid-shift.
+   The query can sit before the hash (?ui=next#/) or inside the
+   route (#/?ui=next); both are what a person actually pastes.
+   ============================================================ */
+const UI_NEXT_KEY = "ezUiNext";
+function uiNextAsked(){
+  const q = (location.search || "") + (location.hash || "");
+  if (/[?&]ui=next(\b|$)/.test(q)) return true;
+  if (/[?&]ui=classic(\b|$)/.test(q)) return false;
+  return null;   // not asked for either way - fall back to what was remembered
+}
+function uiNextOn(){ return document.body.classList.contains("ui-next"); }
+function applyUiFlag(){
+  const asked = uiNextAsked();
+  if (asked !== null) { try { localStorage.setItem(UI_NEXT_KEY, asked ? "1" : "0"); } catch (e) {} }
+  let on = asked;
+  if (on === null) { try { on = localStorage.getItem(UI_NEXT_KEY) === "1"; } catch (e) { on = false; } }
+  document.body.classList.toggle("ui-next", !!on);
+  return !!on;
+}
+applyUiFlag();
