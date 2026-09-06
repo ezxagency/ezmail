@@ -104,6 +104,25 @@ segments, not all of them.
 
 With no paused tasks the row is not drawn. It is not a permanent button.
 
+## 4a. The card's two buttons, and the pair that changes
+
+The footer holds two buttons, and the LEFT one swaps once the work is
+running:
+
+| Card state | Left button | Right button |
+|---|---|---|
+| not started | **Start task** | **Done** |
+| running (this task holds the clock) | **Send back** | **Done** |
+
+That is what makes Send back reachable without a third button: you start
+the work, read it, find the copy wrong, and send it back to whoever had
+it before you. It is deliberately not offered before starting — sending
+work back you have not opened is a guess.
+
+A card whose task is PAUSED (started, then another task started over it)
+shows **Start task** again, because pressing it is how you come back to
+it — the same act the paused row under the dock performs.
+
 ## 5. Done
 
 `Done` on a card does what finishing already does — routes by what the
@@ -137,7 +156,10 @@ The sign-in page asks, before anything else, whether this is for
 things:
 
 - **personal** — a plain clock. They set their own shift length. No
-  workflows, no automations, no org.
+  workflows, no automations, no org. They still get the deck: **they
+  assign work to themselves**, which is the whole product for a student
+  tracking their own assignments. So the right column is not empty for
+  them and is not hidden — it is a deck they fill.
 - **team** — they name their organization and its size, and pay for it.
   Their shift length is set by an owner, or by a role holding
   `member:hours` (§ CLAUDE.md). **An employee cannot set their own**,
@@ -176,6 +198,20 @@ they **send it back**, which returns the work to the previous person in
 the line. That already exists as the campaign's Send back. Letting
 whoever holds the work delete anything would make the trail editable by
 the last person to touch it, which is the opposite of what it is for.
+
+## 8a. Opening an attachment
+
+Clicking one opens it **inline, in place** — a preview over the deck,
+the way Arc or ClickUp does it — with an explicit "open in new tab"
+control inside that preview. Not a bare new-tab jump: the point of the
+chain is that the designer reads the copywriter's file without leaving
+the card that carries it.
+
+Inline preview is easy for an image and a PDF, and impossible for a
+Figma or Notion URL, which refuse to be framed. So a link whose target
+cannot be embedded shows what it is and opens in a new tab, and says
+that is what it will do rather than presenting a preview that will not
+come.
 
 ## 9. The checklist
 
@@ -218,8 +254,15 @@ The card: store pill, a green due pill or a red overdue one, title,
 who assigned it and when, then a scrolling body of blocks — Brief,
 checklist, Attached — and two buttons: **Start task** and **Done**.
 
-The counts above it stay as the three coloured pips the app already
-draws (`0 open`, `2 overdue`, `0 due today`), not a plain sentence.
+The counts above it follow the Figma: a sentence,
+`3 tasks · ● 1 overdue · 1 due today`, with the red dot on the overdue
+count only.
+
+**The empty deck is a card, not an absence.** With nothing assigned the
+stack holds one card reading "No tasks assigned" — so the column keeps
+its shape rather than collapsing. It still has to distinguish "nothing
+assigned" from "could not reach your organization", which is the
+distinction §1 of docs/lessons.md exists for.
 
 ## 13. Measurements
 
