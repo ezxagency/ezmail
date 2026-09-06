@@ -64,11 +64,26 @@ and a jsdom test proves it resolves quietly even when every database call
 fails. A missing mirror row is recoverable — the import picks it up. A
 composer that threw after assigning real work is not.
 
-What remains is switching READS over: the worker queue and the campaigns
-page rendering Items instead of their own collections. That is the step
-worth doing only once the mirrored data has been watched for a few days,
-because it is the first change whose failure a team notices on a working
-morning. **Phase 3 written, not yet deployable.** `functions/index.js` is the
+**The read cutover is built, behind `CONFIG.itemsRead`** (default
+`false`). The queue reads Items and adapts them back to the row shape it
+has always produced, so not one line of its rendering changes — only
+where the rows come from. Writes still go to `assignments`, and the
+mirror keeps the model current, so the flag is a switch rather than a
+one-way door.
+
+Two things made it safe rather than hopeful. Everything that happens
+after a snapshot lands — the toasts, the grouping, the receipt, the
+render — was extracted into `assignedRowsLanded()` and is now shared by
+both sources, so proving the ROWS are equivalent proves the SCREEN is.
+And a round-trip test names every field the queue reads and asserts it
+survives assignment → Item → row, so a field added to that screen later
+without being carried through the model fails in CI rather than
+disappearing off somebody's task list.
+
+Turning it on found three fields the model did not carry (`snote`,
+`fromEmail`, `groupSize`) and one that would have caused a write on every
+snapshot (`seenAt`, the receipt). All four are now part of the built-in
+task type, and an existing type gains them automatically. **Phase 3 written, not yet deployable.** `functions/index.js` is the
 `commitItem` callable: it runs the same engine the browser runs — the
 copies under `functions/shared/` are byte-identical, and a repo guard
 fails the build if they drift — inside a Firestore transaction, so two

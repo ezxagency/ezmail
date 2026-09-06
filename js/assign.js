@@ -508,14 +508,105 @@ async function cxSubmit(){
   }
 }
 
+/* The same watcher, sourced from Items.
+
+   One array-contains on "assignee:<uid>" and the rest filtered in
+   memory: a second array-contains is not allowed in one query, and
+   filtering a person's own open work client-side is a handful of rows,
+   not a scan. No composite index has to exist for this - which is the
+   entire reason facets are shaped the way they are.
+
+   The receipt is stamped in BOTH places. The assignment is still the
+   document Done writes to, and the Item is what this listener reads
+   back - so a stamp that landed on only one of them would leave every
+   row looking unseen forever, re-stamping on every snapshot. */
+function watchAssignedTasksFromItems(){
+  assignedTasksSeen = null;
+  let unsub = () => {};
+  orgEnsure().then(s => {
+    if (!s) { console.warn("itemsRead is on but this account is in no organization"); return; }
+    const uid = auth.currentUser.uid;
+    const items = db.collection("orgs").doc(s.orgId).collection("items");
+    unsub = items
+      .where("facets", "array-contains", "assignee:" + uid)
+      .onSnapshot(snap => {
+        const rows = [];
+        snap.forEach(doc => {
+          const item = Object.assign({ id: doc.id }, doc.data());
+          if (item.typeId !== MIGRATE_TASK_TYPE.id) return;   // campaigns have their own surface
+          if (item.status === "done") return;
+          rows.push(itemToQueueRow(item));
+        });
+        assignedRowsLanded(rows, unseen => {
+          // BOTH places. The assignment is still the document Done writes
+          // to; the Item is what this listener reads back. A stamp landing
+          // on only one leaves every row looking unseen forever, and the
+          // queue re-stamps them on every snapshot.
+          const at = Date.now();
+          const stamp = db.batch();
+          unseen.forEach(r => {
+            stamp.update(db.collection("assignments").doc(r.id), { seenAt: at });
+            stamp.update(items.doc(r.itemId), { "fields.seenAt": at });
+          });
+          stamp.commit().catch(e => console.error(e));
+        });
+      }, e => console.error(e));
+    onSessionEnd(() => unsub());
+  }).catch(e => console.error(e));
+  onSessionEnd(() => unsub());
+}
+
 /* ---------- worker: tasks assigned to me (v1) - live, not a one-time
    load, so a task assigned while you're already on the page shows up
    (and toasts) without needing a reload ---------- */
 let assignedTasksSeen = null; // null = first snapshot hasn't landed yet
 let assignedOpenRows = [];    // last snapshot, so "All done" knows the group's ids
+/* Everything that happens once a snapshot of MY open rows has landed,
+   whichever collection produced them. Extracted when the read cutover
+   gave this app a second source, because the alternative was two copies
+   of the toasts, the grouping and the receipt - and two copies drift.
+   What a person sees when work arrives is the app's behaviour, not the
+   storage's, so it lives in one place and both sources call it.
+
+   `stampSeen` is the one genuinely source-specific part: the receipt has
+   to land wherever that source will read it back from. */
+function assignedRowsLanded(rows, stampSeen){
+  rows.sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+  assignedOpenRows = rows;
+
+  // The receipt: the queue rendering on their screen is "seen". Stamped
+  // only on rows that lack it, so the write this triggers re-enters the
+  // listener exactly once and then goes quiet.
+  const unseen = rows.filter(r => !r.seenAt);
+  if (unseen.length) stampSeen(unseen);
+
+  const threads = groupAssignments(rows);
+
+  // one toast per thread, not per task - six tasks assigned in one go is
+  // one piece of news, not six
+  if (assignedTasksSeen) {
+    threads.forEach(t => {
+      const fresh = t.rows.filter(r => !assignedTasksSeen.has(r.id));
+      if (!fresh.length) return;
+      const from = t.rows[0].fromName || t.rows[0].fromEmail || "admin";
+      toast(fresh.length === 1
+        ? `New task from ${from}: ${fresh[0].store} · ${fresh[0].task}`
+        : `New from ${from}: ${fresh.length} tasks · ${threadStores(t).join(", ")}`);
+    });
+  }
+  assignedTasksSeen = new Set(rows.map(r => r.id));
+
+  renderAssignedQueue();
+}
+
 function watchAssignedTasks(){
   const box = $("assignedTasksSection"), list = $("assignedTasksList");
   if (!box || !auth.currentUser) return;
+  // THE READ CUTOVER. The Items path produces the same row shape this
+  // function has always produced, so everything downstream - grouping,
+  // the brief, the toasts, the receipt, Done - is untouched. Swapping
+  // the source is the whole change; the screen does not know.
+  if (CONFIG.itemsRead) return watchAssignedTasksFromItems();
   // Fresh subscription, fresh baseline - carrying the previous user's ids
   // over would make every one of this user's existing tasks look new and
   // fire a "New task from ..." toast for each on the first snapshot.
@@ -526,36 +617,11 @@ function watchAssignedTasks(){
     .onSnapshot(snap => {
       const rows = [];
       snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
-      rows.sort((a,b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
-      assignedOpenRows = rows;
-
-      // The receipt: the queue rendering on their screen is "seen". Stamped
-      // only on rows that lack it, so the write this triggers re-enters the
-      // listener exactly once and then goes quiet.
-      const unseen = rows.filter(r => !r.seenAt);
-      if (unseen.length){
+      assignedRowsLanded(rows, unseen => {
         const stamp = db.batch();
         unseen.forEach(r => stamp.update(db.collection("assignments").doc(r.id), { seenAt: Date.now() }));
         stamp.commit().catch(e => console.error(e));
-      }
-
-      const threads = groupAssignments(rows);
-
-      // one toast per thread, not per task - six tasks assigned in one go is
-      // one piece of news, not six
-      if (assignedTasksSeen) {
-        threads.forEach(t => {
-          const fresh = t.rows.filter(r => !assignedTasksSeen.has(r.id));
-          if (!fresh.length) return;
-          const from = t.rows[0].fromName || t.rows[0].fromEmail || "admin";
-          toast(fresh.length === 1
-            ? `New task from ${from}: ${fresh[0].store} · ${fresh[0].task}`
-            : `New from ${from}: ${fresh.length} tasks · ${threadStores(t).join(", ")}`);
-        });
-      }
-      assignedTasksSeen = new Set(rows.map(r => r.id));
-
-      renderAssignedQueue();
+      });
     }, e => console.error(e));
   onSessionEnd(() => {
     unsub(); assignedTasksSeen = null; assignedOpenRows = [];

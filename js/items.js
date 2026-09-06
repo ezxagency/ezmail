@@ -323,6 +323,14 @@ async function itemsEnsureTaskType(orgId, rows){
     if (!doc.exists) { await itemTypeSave(type); type.id = MIGRATE_TASK_TYPE.id; }
   }
   let grew = false;
+  // a type saved before a field existed must gain it, or the adapter
+  // reads a value the type never lets anyone write. Silent otherwise.
+  (MIGRATE_TASK_TYPE.fields || []).forEach(def => {
+    if (!(type.fields || []).some(f => f.key === def.key)) {
+      type.fields = (type.fields || []).concat(Object.assign({}, def));
+      grew = true;
+    }
+  });
   ["store", "task"].forEach(key => {
     const f = (type.fields || []).find(x => x.key === key);
     if (!f) return;

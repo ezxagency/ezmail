@@ -227,5 +227,73 @@ T("the baton passes down the generated track, and waits where it always waited",
   assert.ok(st.nodeRuns.some(nr => nr.nodeId === "done" && nr.status === "completed"));
 });
 
+/* ============================================================
+   ROUND TRIP — the gate on the read cutover.
+
+   Reading the queue from Items is only safe if an assignment can go
+   assignment -> Item -> queue row and come back the same. Every field
+   the queue rendering actually touches is listed here explicitly, so a
+   field added to that screen later without being carried through the
+   model fails HERE rather than by quietly vanishing off somebody's
+   task list on a working morning.
+   ============================================================ */
+const QUEUE_FIELDS = ["id", "store", "task", "note", "snote", "dueDate", "dueTime",
+                      "fromName", "fromEmail", "groupId", "groupSize", "seenAt", "done", "createdAt"];
+
+const roundTrip = (row, srcId) => {
+  const type = M.migrateTypeWithOptions(M.MIGRATE_TASK_TYPE, [row], ["store", "task"]);
+  const r = itemCommit({ type, item: null, actor: { uid: "a", orgId: "orgA" }, allow: () => true,
+    now: row.createdAt || 1, id: M.migrateItemId("assignment", srcId),
+    intent: M.migrateAssignmentIntent(row) });
+  if (!r.ok) throw new Error("the engine refused it: " + JSON.stringify(r.details));
+  const item = Object.assign({}, r.item, { importedFrom: M.migrateSource("assignment", srcId) });
+  return M.itemToQueueRow(item);
+};
+
+T("round trip: every field the queue reads survives assignment -> Item -> row", () => {
+  const back = roundTrip(ASSIGNMENT, "a1");
+  const expected = {
+    id: "a1", store: "Store Alpha", task: "Design", note: "Three banners, dark theme",
+    snote: null, dueDate: "2026-09-11", dueTime: "17:30", fromName: "Ada",
+    fromEmail: "a@b.c", groupId: "g1", groupSize: 3, seenAt: null, done: false, createdAt: 1000
+  };
+  QUEUE_FIELDS.forEach(k =>
+    assert.deepEqual(back[k], expected[k], "the queue would lose `" + k + "`: got " + JSON.stringify(back[k])));
+});
+
+T("round trip: the id that comes back is the ASSIGNMENT's, because writes still go there", () => {
+  const back = roundTrip(ASSIGNMENT, "a1");
+  assert.equal(back.id, "a1", "finishing this row would have finished the wrong document");
+  assert.equal(back.itemId, "im_assignment_a1");
+});
+
+T("round trip: a finished row comes back finished", () => {
+  assert.equal(roundTrip({ ...ASSIGNMENT, done: true }, "a2").done, true);
+});
+
+T("round trip: a row with no group, no due date and no brief survives being empty", () => {
+  const bare = { toUid: "w1", store: "S", task: "T", createdAt: 5 };
+  const back = roundTrip(bare, "a3");
+  assert.equal(back.groupId, null);
+  assert.equal(back.dueDate, null);
+  assert.equal(back.groupSize, null);
+  assert.equal(back.note, "");
+  assert.equal(back.id, "a3");
+});
+
+T("round trip: a seen receipt survives, or the queue re-stamps every row forever", () => {
+  assert.equal(roundTrip({ ...ASSIGNMENT, seenAt: 1700 }, "a5").seenAt, 1700);
+});
+
+T("round trip: a hand-off system note is not dropped", () => {
+  const back = roundTrip({ ...ASSIGNMENT, snote: "Accepted hand-off from W2" }, "a4");
+  assert.equal(back.snote, "Accepted hand-off from W2");
+});
+
+T("an Item that was never an assignment keeps its own id", () => {
+  const row = M.itemToQueueRow({ id: "native1", fields: {}, assigneeIds: ["w1"], status: "open" });
+  assert.equal(row.id, "native1");
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

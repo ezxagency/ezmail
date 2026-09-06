@@ -39,7 +39,18 @@ const MIGRATE_TASK_TYPE = {
     { key: "note",    label: "Brief",     type: "longtext", required: false, options: [] },
     { key: "dueDate", label: "Due",       type: "date",     required: false, options: [] },
     { key: "dueTime", label: "Due time",  type: "text",     required: false, options: [] },
-    { key: "from",    label: "Asked by",  type: "text",     required: false, options: [] }
+    { key: "from",    label: "Asked by",  type: "text",     required: false, options: [] },
+    // these three exist so the queue can be READ from an Item without
+    // losing anything it shows today. They are unglamorous - a system
+    // note, a contact, a count - but a field the UI reads and the model
+    // does not carry is exactly how a cutover quietly degrades a screen
+    // people rely on.
+    { key: "snote",     label: "System note", type: "text",   required: false, options: [] },
+    { key: "fromEmail", label: "Asked by (email)", type: "text", required: false, options: [] },
+    { key: "groupSize", label: "Tasks in this send", type: "number", required: false, options: [] },
+    // the receipt. It has to ride along or the queue, reading rows that
+    // never look seen, re-stamps every one of them on every snapshot.
+    { key: "seenAt",    label: "Seen at", type: "number", required: false, options: [] }
   ]
 };
 
@@ -77,7 +88,11 @@ function migrateAssignmentIntent(row){
       note: row.note || "",
       dueDate: row.dueDate || null,
       dueTime: row.dueTime || "",
-      from: row.fromName || ""
+      from: row.fromName || "",
+      snote: row.snote || "",
+      fromEmail: row.fromEmail || "",
+      groupSize: row.groupSize == null ? null : Number(row.groupSize),
+      seenAt: row.seenAt == null ? null : Number(row.seenAt)
     },
     // one send became many rows sharing a groupId; that is a parent in the
     // new model, and the tree is what keeps them together
@@ -224,7 +239,43 @@ function migrateCampaignBlueprint(campaign, opts){
   };
 }
 
+/* ---------- and back again ----------
+   The queue, the brief and the team log all render a row shape the
+   assignments collection has always produced. Reading from Items means
+   producing that same shape rather than rewriting four hundred lines of
+   rendering against a new one - so the cutover is a change of SOURCE,
+   not a change of screen.
+
+   The id it returns is the ASSIGNMENT's id, recovered from importedFrom,
+   because writes still go to that collection. A row that read from one
+   place and wrote to another under the wrong id would finish the wrong
+   task, which is the worst bug this cutover could have. */
+function itemToQueueRow(item){
+  const f = item.fields || {};
+  const src = String(item.importedFrom || "");
+  const sourceId = src.startsWith("assignment:") ? src.slice("assignment:".length) : null;
+  return {
+    id: sourceId || item.id,
+    itemId: item.id,
+    toUid: (item.assigneeIds || [])[0] || null,
+    store: f.store || "",
+    task: f.task || "",
+    note: f.note || "",
+    snote: f.snote || null,
+    dueDate: f.dueDate || null,
+    dueTime: f.dueTime || null,
+    fromName: f.from || "",
+    fromEmail: f.fromEmail || "",
+    groupId: item.parentId ? String(item.parentId).replace(/^im_group_/, "") : null,
+    groupSize: f.groupSize == null ? null : Number(f.groupSize),
+    seenAt: f.seenAt == null ? null : Number(f.seenAt),
+    done: item.status === "done",
+    createdAt: item.createdAt || null
+  };
+}
+
 if (typeof module !== "undefined" && module.exports){
+  module.exports.itemToQueueRow = itemToQueueRow;
   module.exports.migrateCampaignBlueprint = migrateCampaignBlueprint;
   module.exports.migrateStageBudget = migrateStageBudget;
   module.exports.migrateStageOwners = migrateStageOwners;
