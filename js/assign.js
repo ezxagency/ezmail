@@ -531,7 +531,10 @@ function watchAssignedTasksFromItems(){
       // and someone who does have work would believe it. The old path
       // has never stopped working, so use it.
       console.warn("itemsRead is on, but this account is in no organization - using the assignments path");
-      assignedEmptyReason = "no-org";
+      // orgLoad distinguishes "in no organization" from "could not reach
+      // it", and so must this: telling somebody they are in no org when
+      // the truth is a failed query sends them to the wrong person
+      assignedEmptyReason = (typeof orgWhyNone !== "undefined" && orgWhyNone === "error") ? "org-error" : "no-org";
       watchAssignedTasksFromAssignments();
       return;
     }
@@ -638,7 +641,10 @@ function watchAssignedTasks(){
 }
 
 function watchAssignedTasksFromAssignments(){
-  const box = $("assignedTasksSection");
+  const box = $("assignedTasksSection"), list = $("assignedTasksList");
+  // `list` is used by the session-end cleanup below, which threw a
+  // ReferenceError on every sign-out from this path - and took whatever
+  // cleanup came after it down with it
   if (!box || !auth.currentUser) return;
   // Fresh subscription, fresh baseline - carrying the previous user's ids
   // over would make every one of this user's existing tasks look new and
@@ -716,9 +722,13 @@ function renderAssignedList(rows){
         <span class="atask-empty-mark">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.2 2.2L15.5 9"/><rect x="4.5" y="4" width="15" height="17" rx="2.4"/><path d="M9 4V2.8h6V4"/></svg>
         </span>
-        <b>${assignedEmptyReason === "no-org" ? "You are not in an organization yet" : "No tasks assigned"}</b>
+        <b>${assignedEmptyReason === "no-org" ? "You are not in an organization yet"
+          : assignedEmptyReason === "org-error" ? "Could not reach your organization"
+          : "No tasks assigned"}</b>
         <span>${assignedEmptyReason === "no-org"
           ? "Work assigned to you cannot reach this list until an owner adds you to their organization."
+          : assignedEmptyReason === "org-error"
+          ? "Your work is there — this device could not load it. Check your connection and refresh."
           : "You're all caught up. New tasks from the admin land here."}</span>
       </li>`;
     return;

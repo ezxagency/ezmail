@@ -110,5 +110,36 @@ T("ASSIGNER_EMAILS matches isAssignerEmail() in firestore.rules", () => {
     "js/config.js and firestore.rules disagree on who may assign");
 });
 
+/* Every collection-group query needs a declared index, and Firestore will
+   not make one for you the way it does for ordinary single-field queries.
+   A missing one does not degrade - it THROWS, and the caller here turns
+   that into "you are in no organization", which is how somebody spent an
+   evening looking for a membership bug that was an index. */
+T("every collectionGroup query has an index declared for it", () => {
+  const idx = JSON.parse(readFileSync(join(root, "firestore.indexes.json"), "utf8"));
+  const declared = new Set();
+  (idx.fieldOverrides || []).forEach(f =>
+    (f.indexes || []).forEach(i => {
+      if (i.queryScope === "COLLECTION_GROUP") declared.add(f.collectionGroup + "." + f.fieldPath);
+    }));
+  (idx.indexes || []).forEach(i => {
+    if (i.queryScope !== "COLLECTION_GROUP") return;
+    (i.fields || []).forEach(f => declared.add(i.collectionGroup + "." + f.fieldPath));
+  });
+
+  const missing = [];
+  readdirSync(join(root, "js")).filter(f => f.endsWith(".js")).forEach(f => {
+    const src = readFileSync(join(root, "js", f), "utf8");
+    // collectionGroup("x") ... .where("y", ...)
+    const re = /collectionGroup\(\s*["'`]([A-Za-z0-9_]+)["'`]\s*\)([\s\S]{0,200}?)\.where\(\s*["'`]([A-Za-z0-9_.]+)["'`]/g;
+    let m2;
+    while ((m2 = re.exec(src))) {
+      const key = m2[1] + "." + m2[3];
+      if (!declared.has(key)) missing.push(f + ": " + key);
+    }
+  });
+  assert.deepEqual(missing, [], "collection-group queries with no declared index: " + missing.join(", "));
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
