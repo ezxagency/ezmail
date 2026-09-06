@@ -174,6 +174,20 @@ async function itemsFinishFromQueue(itemId, comment){
     type = Object.assign({ id: t.id }, t.data());
   } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
 
+  /* Work created before its type had a track - or before the pointer to
+     the run was persisted at all - is on a tracked type with no run. Left
+     alone it would be finished by status, jumping straight to the end and
+     skipping every stop. Start its run instead: the same self-healing the
+     org pointer and the directory already do, rather than a migration
+     nobody would remember to run. */
+  if (type.workflowId && !item.workflowRunId) {
+    const started = await itemsStartHandoff(item, type);
+    if (started) {
+      const d = await itemsCol(s.orgId).doc(itemId).get();
+      if (d.exists) item = Object.assign({ id: d.id }, d.data());
+    }
+  }
+
   if (item.workflowRunId) {
     const h = await itemsHandoffLoad(item);
     const uid = auth.currentUser ? auth.currentUser.uid : null;
@@ -188,8 +202,8 @@ async function itemsFinishFromQueue(itemId, comment){
     return { ok: false, error: "not-your-stop" };
   }
 
+  const done = itemDoneStatus(type);
   const statuses = (type.statuses || []).map(x => x.key);
-  const done = statuses.indexOf("done") >= 0 ? "done" : statuses[statuses.length - 1];
   if (!done) return { ok: false, error: "no-status" };
   if (item.status === done) return { ok: true, how: "already", status: done };
   const r = await itemSave(type, item, { kind: "set_status", status: done });

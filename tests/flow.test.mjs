@@ -242,5 +242,36 @@ await T("untracked work finishes by status, and says where it went", async () =>
   assert.equal((await get("orgs/" + ORG + "/items/" + r.item.id)).status, "done");
 });
 
+/* ---------- the two reasons it stayed on the dashboard ---------- */
+await T("work on a tracked type with no run is healed, not jumped to the end", async () => {
+  // exactly the shape of the item created before the run pointer persisted:
+  // tracked type, no workflowRunId. Finishing it used to skip every stop
+  // and set the last status.
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  await db.collection("orgs").doc(ORG).collection("items").doc("old1").set({
+    id: "old1", orgId: ORG, typeId: "video", title: "Video #23", status: "idea",
+    fields: {}, facets: ["type:video", "status:idea", "assignee:staff1"],
+    assigneeIds: ["staff1"], workflowRunId: null,
+    createdAt: 1, updatedAt: 1, createdBy: "owner1" });
+  const r = await runAsync(`return await itemsFinishFromQueue("old1", "");`);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(r.how, "advanced", "it finished by status instead of travelling its track");
+  const it = await get("orgs/" + ORG + "/items/old1");
+  assert.ok(it.workflowRunId, "it was not put on its track");
+  assert.notEqual(it.status, "published", "it jumped straight to the end");
+});
+
+await T("finished work leaves the queue, whatever the type calls finished", async () => {
+  // the other half: the queue dropped only status === "done", which no
+  // custom type has, so finished work sat on the dashboard forever
+  const type = { id: "sponsor", name: "Sponsorship",
+    statuses: [{ key: "talking", label: "Talking" }, { key: "paid", label: "Paid" }] };
+  assert.equal(run(`itemDoneStatus(${JSON.stringify(type)})`), "paid");
+  assert.equal(run(`itemDoneStatus({ statuses: [{ key: "open" }, { key: "done" }, { key: "archived" }] })`), "done");
+  assert.equal(run(`itemDoneStatus({ statuses: [] })`), null);
+  assert.equal(run(`itemDoneStatus(null)`), null);
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -296,6 +296,24 @@ function itemCommit(args){
   return { ok: true, item: next, events };
 }
 
+/* The status that means "finished" for a type.
+
+   A type owns its own vocabulary, so there is no universal "done": a
+   Sponsorship goes talking -> agreed -> delivered -> paid. The rule is
+   the literal "done" where a type has one (the migrated task type does),
+   and otherwise its LAST status, because a list of stages is written in
+   the order work moves through them.
+
+   It lives here, once, because two places need the same answer - the
+   thing that finishes work and the queue that decides whether finished
+   work should still be on your dashboard - and those two disagreeing is
+   how a job stays on a screen after you have closed it. */
+function itemDoneStatus(type){
+  const st = ((type && type.statuses) || []).map(x => x && x.key).filter(Boolean);
+  if (!st.length) return null;
+  return st.indexOf("done") >= 0 ? "done" : st[st.length - 1];
+}
+
 /* Who has just been handed this work, read from the events a commit
    produced rather than from anybody's memory of what they clicked.
 
@@ -325,6 +343,6 @@ function itemNewAssignees(events, item, actorUid){
    invisible there; tests/item-engine.test.mjs requires this file. */
 if (typeof module !== "undefined" && module.exports){
   module.exports = { ITEM_FIELD_TYPES, ITEM_TYPE_KEYS, ITEM_INTENTS, ITEM_EVENT_VERBS,
-    itemSlug, itemFieldDef, itemCoerce, itemIsEmpty, itemValidate, itemFacets, itemCommit,
+    itemSlug, itemFieldDef, itemCoerce, itemIsEmpty, itemValidate, itemFacets, itemCommit, itemDoneStatus,
     itemNewAssignees };
 }

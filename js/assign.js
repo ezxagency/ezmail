@@ -560,7 +560,10 @@ function watchAssignedTasksFromItems(){
              or a pack has created since. Work you were told about and
              cannot find is worse than work nobody mentioned. */
           if (item.typeId === MIGRATE_CAMPAIGN_TYPE.id) return;
-          if (item.status === "done") return;
+          // finished work leaves the queue, and "finished" is whatever
+          // the TYPE calls it - "done" only ever existed on the migrated
+          // task type, so a Sponsorship at "paid" sat here forever
+          if (item.status === (itemDoneStatus(typesById[item.typeId]) || "done")) return;
           rows.push(itemToQueueRow(item, typesById[item.typeId]));
         });
         assignedRowsLanded(rows, unseen => {
