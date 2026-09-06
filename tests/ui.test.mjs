@@ -199,5 +199,29 @@ T("a non-owner sees no editing controls, and cannot start an import", () => {
   assert.equal(body.querySelector("#orgImportTasks"), null);
 });
 
+/* ---------- the mirror's one promise ----------
+   js/items.js mirrors assignments into Items after the composer has
+   already committed and already told the person it worked. The whole
+   safety story is that it cannot turn that success into a failure, so
+   it is worth proving rather than trusting: the Firestore stub in this
+   harness throws on every call - the worst case - and the mirror still
+   has to resolve quietly. */
+const TA = async (name, fn) => {
+  try { await fn(); pass++; console.log("PASS  " + name); }
+  catch (e) { fail++; console.log("FAIL  " + name + "  →  " + String(e.message || e).split("\n")[0].slice(0, 170)); }
+};
+
+await TA("mirroring an assignment never throws, whatever the database does", async () => {
+  // an org IS present, so the mirror gets past its early return and
+  // reaches the database - which in this harness fails on contact
+  run(`orgS = { orgId: "orgA", myRoleId: "owner", roles: [{ id: "owner", permissions: ["*:*:org"] }], members: [], dir: {} };`);
+  await vm.runInContext(
+    `itemsMirrorAssignments([{ id: "a1", row: { store: "S", task: "T", toUid: "u2", createdAt: 1 } }])`, ctx);
+});
+
+await TA("mirroring a status change never throws either", async () => {
+  await vm.runInContext(`itemsMirrorAssignmentStatus("a1", true)`, ctx);
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

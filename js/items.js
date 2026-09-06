@@ -285,3 +285,118 @@ async function itemsImportChains(){
   }
   return { ok: true, created, skipped, refused, details };
 }
+
+/* ============================================================
+   MIRRORING — keeping the Item model current as work happens.
+
+   The one-time import brings history across; without this, that
+   history goes stale the moment somebody assigns anything new.
+   So the composer writes its rows as it always has AND mirrors
+   them here, using the same derived ids the import uses - which
+   is what makes the two agree instead of racing.
+
+   THE RULE THIS FILE OBEYS: mirroring must never break assigning.
+   By the time any of it runs the assignment has already committed
+   and the person has already been told it worked. A failure here
+   is this feature's problem, not theirs, so everything is wrapped
+   and nothing is re-thrown. A silently missing mirror row is
+   recoverable - the import will pick it up. A composer that threw
+   after successfully assigning work is not.
+
+   Reads still come from the old collections. This keeps the new
+   model TRUE so that switching reads over is later a decision
+   about the UI rather than a scramble to backfill.
+   ============================================================ */
+
+let itemsTaskTypeCache = null;   // per session; option growth invalidates it
+
+/* The task type, with its choice fields grown to fit whatever is being
+   mirrored. Only writes the type when a genuinely new store or task
+   appears, because the common case - work at a store seen a hundred
+   times before - should cost nothing. */
+async function itemsEnsureTaskType(orgId, rows){
+  let type = itemsTaskTypeCache;
+  if (!type) {
+    const doc = await typesCol(orgId).doc(MIGRATE_TASK_TYPE.id).get();
+    type = doc.exists ? Object.assign({ id: doc.id }, doc.data())
+                      : migrateTypeWithOptions(MIGRATE_TASK_TYPE, rows, ["store", "task"]);
+    if (!doc.exists) { await itemTypeSave(type); type.id = MIGRATE_TASK_TYPE.id; }
+  }
+  let grew = false;
+  ["store", "task"].forEach(key => {
+    const f = (type.fields || []).find(x => x.key === key);
+    if (!f) return;
+    rows.forEach(r => {
+      const v = (r[key] || "").trim();
+      if (v && !(f.options || []).some(o => o.toLowerCase() === v.toLowerCase())) {
+        f.options = (f.options || []).concat(v).sort((a, b) => a.localeCompare(b));
+        grew = true;
+      }
+    });
+  });
+  if (grew) await itemTypeSave(type);
+  itemsTaskTypeCache = type;
+  return type;
+}
+
+/* written: [{ id, row }] - the assignment ids just committed, with the
+   documents that were written to them. */
+async function itemsMirrorAssignments(written){
+  if (!written || !written.length) return;
+  try {
+    const s = await orgEnsure();
+    if (!s) return;                       // no org yet: nothing to mirror into
+    const uid = auth.currentUser && auth.currentUser.uid;
+    if (!uid) return;
+
+    const rows = written.map(w => w.row);
+    const type = await itemsEnsureTaskType(s.orgId, rows);
+    const perms = await itemActorPermissions();
+    const allow = (r, a, c) => permCan(perms, r, a, c);
+    const actor = { uid, orgId: s.orgId };
+
+    const batch = db.batch();
+    let n = 0;
+    written.forEach(w => {
+      const id = migrateItemId("assignment", w.id);
+      const decision = itemCommit({ type, item: null, intent: migrateAssignmentIntent(w.row),
+        actor, allow, now: w.row.createdAt || Date.now(), id });
+      if (!decision.ok) { console.warn("mirror refused", w.id, decision.error, decision.details); return; }
+      batch.set(itemsCol(s.orgId).doc(id), Object.assign({}, decision.item, { id, importedFrom: migrateSource("assignment", w.id) }));
+      decision.events.forEach(ev => batch.set(eventsCol(s.orgId).doc(), ev));
+      n++;
+    });
+    if (n) await batch.commit();
+  } catch (e) {
+    // deliberately swallowed - see the header
+    console.warn("Could not mirror assignments into Items:", e);
+  }
+}
+
+/* A row finishing (or being un-finished) moves its mirror's status, so
+   the two do not drift apart the first time somebody ticks something
+   off. Same swallow: the real row has already changed. */
+async function itemsMirrorAssignmentStatus(assignmentId, done){
+  try {
+    const s = await orgEnsure();
+    if (!s) return;
+    const uid = auth.currentUser && auth.currentUser.uid;
+    if (!uid) return;
+    const id = migrateItemId("assignment", assignmentId);
+    const ref = itemsCol(s.orgId).doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return;             // never mirrored; the import will catch it
+    const item = Object.assign({ id: snap.id }, snap.data());
+    const type = await itemsEnsureTaskType(s.orgId, []);
+    const perms = await itemActorPermissions();
+    const decision = itemCommit({ type, item, intent: { kind: "set_status", status: done ? "done" : "open" },
+      actor: { uid, orgId: s.orgId }, allow: (r, a, c) => permCan(perms, r, a, c), now: Date.now() });
+    if (!decision.ok || !decision.events.length) return;
+    const batch = db.batch();
+    batch.set(ref, Object.assign({}, decision.item, { id }));
+    decision.events.forEach(ev => batch.set(eventsCol(s.orgId).doc(), ev));
+    await batch.commit();
+  } catch (e) {
+    console.warn("Could not mirror a status change into Items:", e);
+  }
+}

@@ -50,9 +50,25 @@ approvals nobody gave into a log whose only value is that it never lies.
 Old work keeps the honest snapshot the import made of it; new work rides
 the track from its first stop.
 
-What remains in phase 2 is the UI cutover — the composer and the
-campaigns page reading Items — which should follow only once the
-imported data has been looked at. **Phase 3 written, not yet deployable.** `functions/index.js` is the
+The cutover has started from the WRITE side. The composer still writes
+its own rows exactly as before, and now mirrors each one into an Item
+under the same derived id the import uses — so the model stays true
+instead of going stale the moment somebody assigns anything new.
+Completions and undos mirror too, since a row brought back on one screen
+that stays finished on the other is a drift nobody would notice until
+they trusted the wrong one.
+
+The mirror is written so it cannot break assigning: it runs after the
+commit and after the person has been told it worked, it never re-throws,
+and a jsdom test proves it resolves quietly even when every database call
+fails. A missing mirror row is recoverable — the import picks it up. A
+composer that threw after assigning real work is not.
+
+What remains is switching READS over: the worker queue and the campaigns
+page rendering Items instead of their own collections. That is the step
+worth doing only once the mirrored data has been watched for a few days,
+because it is the first change whose failure a team notices on a working
+morning. **Phase 3 written, not yet deployable.** `functions/index.js` is the
 `commitItem` callable: it runs the same engine the browser runs — the
 copies under `functions/shared/` are byte-identical, and a repo guard
 fails the build if they drift — inside a Firestore transaction, so two

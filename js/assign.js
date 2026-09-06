@@ -440,6 +440,9 @@ async function cxSubmit(){
 
   try {
     const batch = db.batch();
+    // rows this send actually creates, kept so the Item model can mirror
+    // them under ids derived from the very documents written here
+    const written = [];
     if (state.edit){
       const p = state.who[0];
       const openRows = state.edit.rows.filter(r => !r.done);
@@ -457,7 +460,14 @@ async function cxSubmit(){
         };
         const old = oldByKey.get(pairKey(pr.store, pr.task));
         if (old){ oldByKey.delete(pairKey(pr.store, pr.task)); batch.update(col.doc(old.id), base); }
-        else batch.set(col.doc(), { ...base, createdAt, done: false, doneAt: null });
+        else {
+          // the ref is made first so its id can be kept: the Item model
+          // mirrors these rows under ids derived from exactly this one
+          const ref = col.doc();
+          const row = { ...base, createdAt, done: false, doneAt: null };
+          batch.set(ref, row);
+          written.push({ id: ref.id, row });
+        }
       });
       oldByKey.forEach(old => batch.delete(col.doc(old.id)));
       doneRows.forEach(r => batch.update(col.doc(r.id), { groupId, groupSize: total }));
@@ -467,16 +477,25 @@ async function cxSubmit(){
       const now = Date.now();
       state.who.forEach(p => {
         const groupId = pairs.length > 1 ? col.doc().id : null;
-        pairs.forEach(pr => batch.set(col.doc(), {
-          ...rowFor(p, pr.store, pr.task), createdAt: now, done: false, doneAt: null,
-          groupId, groupSize: pairs.length
-        }));
+        pairs.forEach(pr => {
+          const ref = col.doc();
+          const row = { ...rowFor(p, pr.store, pr.task), createdAt: now, done: false, doneAt: null,
+            groupId, groupSize: pairs.length };
+          batch.set(ref, row);
+          written.push({ id: ref.id, row });
+        });
       });
       await batch.commit();
       const n = state.who.length * pairs.length;
       const who = state.who.map(p => p.name).join(", ");
       toast(n === 1 ? `${state.tasks[0]} assigned to ${who}` : `${n} tasks assigned to ${who}`);
     }
+    // AFTER the commit and after the person has been told it worked. The
+    // mirror is this feature's problem, not theirs: it never throws, so a
+    // failure here can never turn a successful assignment into an error
+    // message. A missing mirror row is recoverable; a composer that threw
+    // after assigning real work is not.
+    itemsMirrorAssignments(written);
     closeComposer();
     if (isAdmin) loadTeamPane();
     // the log may be on screen behind the composer (Team page) - keep it honest
@@ -689,6 +708,10 @@ async function undoDone(ids){
     ids.forEach(id => batch.update(db.collection("assignments").doc(id),
       { done: false, doneAt: null }));
     await batch.commit();
+    // undo has to reach the mirror too, or a row brought back here stays
+    // finished over there - a drift that would be invisible until someone
+    // trusted the wrong screen
+    ids.forEach(id => itemsMirrorAssignmentStatus(id, false));
     toast(ids.length === 1 ? "Brought back" : `Brought all ${ids.length} back`);
   } catch (e) {
     console.error(e);
@@ -758,6 +781,9 @@ async function finishAssignment(id, row, comment){
     // way. Runs with or without a comment - a completion alone still rings
     // the admin's bell; a comment adds its text and tags its @mentions.
     dispatchMentionNotifications(comment, id, row).catch(e => console.error(e));
+    // same posture as the fan-out above and for the same reason: the task
+    // IS done, and the mirror keeping up is not the worker's problem
+    itemsMirrorAssignmentStatus(id, true);
     toast("Marked done", { label: "Undo", run: () => undoDone([id]) });
   } catch (e) {
     console.error(e);
