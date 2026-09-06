@@ -500,6 +500,11 @@ async function deleteAssignment(idsCsv){
     const batch = db.batch();
     ids.forEach(id => batch.delete(db.collection("assignments").doc(id)));
     await batch.commit();
+    /* "This removes it for them too" is what the confirm above promises,
+       and the worker's dashboard reads ITEMS - so deleting only the
+       assignment left the mirror on their queue forever while telling
+       the admin it was gone. */
+    itemsMirrorAssignmentsDelete(ids);
     assignRows = (assignRows || []).filter(r => !ids.includes(r.id));
     renderCompletionLog();
     loadTeamPane();

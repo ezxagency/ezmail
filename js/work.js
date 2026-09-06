@@ -88,19 +88,31 @@ async function enterWorkPage(){
     box.innerHTML = '<p class="org-note">Could not load work types. Check your connection and try again.</p>';
     return;
   }
-  if (!wkTypes.length) {
-    box.innerHTML = '<div class="org-empty"><h2>No work types yet</h2>' +
-      '<p>A work type describes a kind of work — its fields and the stages it moves through. ' +
-      'An owner creates the first one on the Organization page.</p></div>';
-    return;
-  }
   /* Work whose type was deleted is reachable from NO tab, because the
      tabs are the types. That is how work could be deleted from here and
      still be sitting on somebody's dashboard: it was never deleted, this
      page just had nowhere to draw it. Looked for once per visit; the tab
-     only exists when there is something in it. */
+     only exists when there is something in it.
+
+     BEFORE the "no work types yet" gate below, not after. Delete every
+     type and every remaining piece of work is an orphan - which is
+     exactly when this page bailed with "an owner creates the first one",
+     leaving the one screen that could clear them unreachable at the one
+     moment it was needed. */
   try { wkOrphans = (await itemsOrphans()).rows; }
   catch (e) { console.error(e); wkOrphans = []; }
+
+  if (!wkTypes.length) {
+    if (!wkOrphans.length) {
+      box.innerHTML = '<div class="org-empty"><h2>No work types yet</h2>' +
+        '<p>A work type describes a kind of work — its fields and the stages it moves through. ' +
+        'An owner creates the first one on the Organization page.</p></div>';
+      return;
+    }
+    wkTypeId = WK_ORPHAN;
+    await wkRender();
+    return;
+  }
 
   if (!wkTypeId || (wkTypeId !== WK_ORPHAN && !wkType(wkTypeId))) wkTypeId = wkTypes[0].id;
   if (wkTypeId === WK_ORPHAN && !wkOrphans.length) wkTypeId = wkTypes[0].id;
@@ -184,6 +196,10 @@ function wkPaintOrphans(){
   box.innerHTML =
     '<p class="org-note">These point at a work type that no longer exists. Nobody can open or finish them, ' +
     'and they stay on the dashboard of whoever holds them until they are cleared.</p>' +
+    (wkOrphans.length > 1
+      ? '<div class="org-actions"><button type="button" class="org-btn org-btn-danger" id="wkOrphanAll">' +
+        'Clear all ' + wkOrphans.length + '</button></div>'
+      : "") +
     wkOrphans.map(it => {
       const who = (it.assigneeIds || []).map(orgPersonName).join(", ");
       return '<div class="org-row wk-row wk-row-broken">' +
@@ -192,11 +208,27 @@ function wkPaintOrphans(){
         '<button type="button" class="org-btn org-btn-sm org-btn-danger wk-orphan-del" data-id="' + esc(it.id) + '">Delete</button>' +
         '</div>';
     }).join("");
+  if ($("wkOrphanAll")) $("wkOrphanAll").onclick = async () => {
+    const b = $("wkOrphanAll");
+    if (!confirm("Delete all " + wkOrphans.length + " of these?\n\nThey point at work types that no longer " +
+                 "exist, so nothing can be done with them. This can't be undone.")) return;
+    b.disabled = true; b.textContent = "Clearing…";
+    let gone = 0, stuck = 0;
+    // one at a time and through the chokepoint, so each leaves an event -
+    // a bulk delete that skipped the log would erase the only record that
+    // this work ever existed
+    for (const it of wkOrphans.slice()) {
+      const r = await itemsDeleteWork(it);
+      if (r.ok){ gone++; wkOrphans = wkOrphans.filter(x => x.id !== it.id); } else stuck++;
+    }
+    toast(stuck ? gone + " cleared, " + stuck + " could not be" : "All " + gone + " cleared");
+    await enterWorkPage();
+  };
   box.querySelectorAll(".wk-orphan-del").forEach(b => b.onclick = async () => {
     const it = wkOrphans.find(x => x.id === b.dataset.id);
     if (!it) return;
     b.disabled = true; b.textContent = "Deleting…";
-    const r = await itemsDeleteOrphan(it);
+    const r = await itemsDeleteWork(it);
     if (!r.ok){
       b.disabled = false; b.textContent = "Delete";
       toast(r.error === "denied" ? "Your role cannot delete work."
@@ -205,8 +237,7 @@ function wkPaintOrphans(){
     }
     wkOrphans = wkOrphans.filter(x => x.id !== it.id);
     toast("Cleared — it leaves every dashboard it was on");
-    if (!wkOrphans.length && wkTypes.length) wkTypeId = wkTypes[0].id;
-    wkRender();
+    await enterWorkPage();
   });
 }
 

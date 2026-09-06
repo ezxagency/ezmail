@@ -339,13 +339,52 @@ await T("work orphaned by a deleted type is findable again", async () => {
 
 await T("and the owner can actually clear it", async () => {
   const it = Object.assign({ id: "zombie1" }, await get("orgs/" + ORG + "/items/zombie1"));
-  const r = await runAsync(`return await itemsDeleteOrphan(${JSON.stringify(it)});`);
+  const r = await runAsync(`return await itemsDeleteWork(${JSON.stringify(it)});`);
   assert.ok(r.ok, JSON.stringify(r));
   assert.equal(await get("orgs/" + ORG + "/items/zombie1"), undefined, "it survived the delete");
   // and so leaves the holder's queue, which reads these same documents
   const mine = await db.collection("orgs/" + ORG + "/items")
     .where("facets", "array-contains", "assignee:staff1").get();
   assert.ok(mine.docs.every(d => d.id !== "zombie1"), "it is still on the holder's dashboard");
+});
+
+/* ---------- deleting an assignment has to delete its mirror ----------
+   The Team page's confirm says "This removes it for them too". It deleted
+   the assignment document; the worker's dashboard reads ITEMS. So every
+   deleted assignment left its mirror on their queue forever, and the
+   promise in the dialog is why nobody thought to check. */
+await T("an assignment deleted by the admin leaves the worker's queue", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  const aid = "asg_del_1";
+  await db.collection("assignments").doc(aid).set({
+    toUid: "staff1", toName: "Staff", store: "TEST STORE", task: "Task Review",
+    note: "please review", fromName: "Owner", createdAt: 1, done: false, doneAt: null });
+  await runAsync(`return await itemsMirrorAssignments([{ id: ${JSON.stringify(aid)},
+    row: ${JSON.stringify({ toUid: "staff1", toName: "Staff", store: "TEST STORE", task: "Task Review",
+      note: "please review", fromName: "Owner", createdAt: 1, done: false, doneAt: null })} }]);`);
+
+  const mirrorId = run(`migrateItemId("assignment", ${JSON.stringify(aid)})`);
+  await until(async () => await get("orgs/" + ORG + "/items/" + mirrorId), "the mirror to be written");
+  let mine = await db.collection("orgs/" + ORG + "/items")
+    .where("facets", "array-contains", "assignee:staff1").get();
+  assert.ok(mine.docs.some(d => d.id === mirrorId), "the mirror never reached their queue");
+
+  // the admin deletes it, exactly as the Team page does
+  await db.collection("assignments").doc(aid).delete();
+  await runAsync(`return await itemsMirrorAssignmentsDelete([${JSON.stringify(aid)}]);`);
+
+  assert.equal(await get("orgs/" + ORG + "/items/" + mirrorId), undefined, "the mirror survived");
+  mine = await db.collection("orgs/" + ORG + "/items")
+    .where("facets", "array-contains", "assignee:staff1").get();
+  assert.ok(mine.docs.every(d => d.id !== mirrorId),
+    "the admin was told it was removed for them too, and it was not");
+});
+
+await T("deleting a mirror that was never written is not an error", async () => {
+  // work assigned before the Item model existed has no mirror; a cleanup
+  // that threw on that would take the real deletion down with it
+  await runAsync(`return await itemsMirrorAssignmentsDelete(["never_mirrored_1", ""]);`);
 });
 
 await T("an orphan cannot be finished, so the queue must not offer to", async () => {

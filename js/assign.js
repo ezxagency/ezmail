@@ -469,9 +469,14 @@ async function cxSubmit(){
           written.push({ id: ref.id, row });
         }
       });
+      // lines the edit took OUT, whose mirrors must go with them
+      const dropped = [...oldByKey.values()].map(o => o.id);
       oldByKey.forEach(old => batch.delete(col.doc(old.id)));
       doneRows.forEach(r => batch.update(col.doc(r.id), { groupId, groupSize: total }));
       await batch.commit();
+      // a line removed from an assignment has to leave the assignee's
+      // dashboard too, and that dashboard reads Items
+      itemsMirrorAssignmentsDelete(dropped);
       toast("Assignment updated");
     } else {
       const now = Date.now();
@@ -1028,8 +1033,12 @@ async function deleteWorker(uid, name){
     const asg = await db.collection("assignments").where("toUid", "==", uid).get();
     if (!asg.empty){
       const batch = db.batch();
-      asg.forEach(doc => batch.delete(doc.ref));
+      const ids = [];
+      asg.forEach(doc => { ids.push(doc.id); batch.delete(doc.ref); });
       await batch.commit();
+      // "every trace of them" has to mean the mirrors as well, or their
+      // work outlives the account it belonged to
+      itemsMirrorAssignmentsDelete(ids);
     }
     toast(name + " deleted");
     closeSheet();

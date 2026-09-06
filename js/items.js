@@ -289,18 +289,57 @@ async function itemsOrphans(limit){
   } catch (e) { console.error(e); return { ok: false, error: "read-failed", rows: [] }; }
 }
 
-/* itemCommit refuses every intent when the type is missing - rightly, it
-   cannot validate a field it has no definition for. That refusal also
-   locked the ONLY action an orphan still needs. So deletion is handed a
-   ghost: a type with no fields and no statuses, which is a true
-   description of what is left and enough for the delete branch, which
-   only checks the permission and writes the event. Nothing else may be
-   done through it, because nothing else can be done honestly. */
-async function itemsDeleteOrphan(item){
+/* Delete one piece of work, whether or not its kind of work still exists.
+
+   itemCommit refuses every intent when the type is missing - rightly, it
+   cannot validate against a definition it does not have. That refusal
+   also locked the ONE action an orphan still needs, so when the type is
+   genuinely gone the delete branch is handed a ghost: no fields, no
+   statuses, which is a true description of what is left and all that
+   branch reads (it checks the permission and writes the event). The real
+   type is used whenever there is one, so an ordinary delete stays an
+   ordinary delete and the event names the right type. */
+async function itemsDeleteWork(item){
   if (!item || !item.id) return { ok: false, error: "no-item" };
-  const ghost = { id: item.typeId || "(none)", name: "Deleted work type", fields: [], statuses: [] };
-  const r = await itemSave(ghost, item, { kind: "delete" });
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+  let type = null;
+  if (item.typeId) {
+    try {
+      const t = await typesCol(s.orgId).doc(item.typeId).get();
+      if (t.exists) type = Object.assign({ id: t.id }, t.data());
+    } catch (e) { console.warn("Could not read the type while deleting:", e); }
+  }
+  const r = await itemSave(type ||
+    { id: item.typeId || "(none)", name: "Deleted work type", fields: [], statuses: [] },
+    item, { kind: "delete" });
   return r.ok ? { ok: true } : { ok: false, error: r.error || "failed" };
+}
+
+/* Deleting an assignment must delete its mirror.
+
+   The Team page's confirm says "This removes it for them too". It did
+   not: it deleted the assignment document, and the worker's dashboard
+   reads ITEMS. So every deleted assignment left its mirror behind, on
+   their queue, forever - and the promise in the dialog was the reason
+   nobody thought to look. Same swallow as the rest of the mirroring:
+   the real row is already gone. */
+async function itemsMirrorAssignmentsDelete(assignmentIds){
+  const ids = (assignmentIds || []).filter(Boolean);
+  if (!ids.length) return;
+  try {
+    const s = await orgEnsure();
+    if (!s) return;
+    for (const aid of ids) {
+      const ref = itemsCol(s.orgId).doc(migrateItemId("assignment", aid));
+      const snap = await ref.get();
+      if (!snap.exists) continue;        // never mirrored; nothing to clean up
+      const r = await itemsDeleteWork(Object.assign({ id: snap.id }, snap.data()));
+      if (!r.ok) console.warn("Could not delete the mirror of assignment " + aid + ":", r.error);
+    }
+  } catch (e) {
+    console.warn("Could not delete mirrored items:", e);
+  }
 }
 
 /* Delete every piece of work in this org, and the runs that carry it.
