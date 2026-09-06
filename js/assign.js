@@ -614,7 +614,9 @@ function watchAssignedTasksFromItems(){
       }, e => console.error(e));
     onSessionEnd(() => unsub());
   }).catch(e => console.error(e));
-  onSessionEnd(() => unsub());
+  // the deck's place is per-person: the Items path tears down here, and
+  // without this the next sign-in opens on the last person's card index
+  onSessionEnd(() => { unsub(); dkReset(); });
 }
 
 /* ---------- worker: tasks assigned to me (v1) - live, not a one-time
@@ -703,6 +705,7 @@ function watchAssignedTasksFromAssignments(){
     box.classList.add("hidden");
     $("appScreen").classList.remove("has-tasks");
     list.innerHTML = "";
+    dkReset();
   });
 }
 
@@ -734,7 +737,10 @@ function renderAssignedQueue(){
   app.classList.toggle("has-tasks", !isAdmin);
   if (count) count.textContent = rows.length ? rows.length + " open" : "";
   renderAssignedBrief(rows);
-  renderAssignedList(rows);
+  // Same rows, two shapes. The deck is the new dashboard's; the nested
+  // store list is the one every worker already knows, and ?ui=classic
+  // has to keep landing on it.
+  if (uiNextOn()) dkRender(rows); else renderAssignedList(rows);
 }
 
 /* ---------- the queue itself, nested by store ----------

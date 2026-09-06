@@ -116,7 +116,7 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 433 assertions, node + jsdom, seconds
+npm test        # 449 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -149,7 +149,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 692 pass as of this writing — a
+reaches through an org boundary. All 708 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -172,6 +172,17 @@ owner or by any role holding `member:hours` (the seeded Manager has it).
 the pin, the update that sets somebody's hours is the same update that
 sets their `roleId`, and the rules suite proves it by failing four
 assertions the moment the pin comes out.
+
+Second piece: the **assigned deck**. `js/deck.js` turns the same rows the
+queue has always produced into one card at a time — the wheel, the arrows
+or the arrow keys move one card per notch, and the next two peek behind.
+Four kinds of work wear the SAME card and only the action changes, which
+is the part `tests/deck.test.mjs` spends most of its assertions on: an
+assignment offers Done, a baton offers the campaign's own moves, a
+workflow stop routes to its stop, and work whose type was deleted offers
+nothing and says why. `dkPick()` is the pure half, and it exists because
+finishing the front card removes it from the snapshot — what shows next
+has to be the work that took its place, not card one.
 
 The rings are deliberately NOT affected. They keep their fixed 8h lap
 because they answer "how long have you been at it", not "how much of
