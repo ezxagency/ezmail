@@ -278,9 +278,35 @@ function itemCommit(args){
   return { ok: true, item: next, events };
 }
 
+/* Who has just been handed this work, read from the events a commit
+   produced rather than from anybody's memory of what they clicked.
+
+   Creating an item with people already on it and assigning them a minute
+   later are two different intents, and they mean exactly the same thing
+   to the person on the receiving end - so both count here. Only the
+   people who were NOT already on it: re-saving an item must not re-tell
+   everyone who was already assigned.
+
+   The actor is left out. Being notified about the thing you just did is
+   noise, and noise is how a useful notification becomes a muted one. */
+function itemNewAssignees(events, item, actorUid){
+  const out = [];
+  (events || []).forEach(e => {
+    if (!e) return;
+    if (e.verb === "item.created") ((item && item.assigneeIds) || []).forEach(u => out.push(u));
+    if (e.verb === "item.assigned") {
+      const was = (e.data && e.data.from) || [];
+      const now = (e.data && e.data.to) || [];
+      now.forEach(u => { if (was.indexOf(u) < 0) out.push(u); });
+    }
+  });
+  return [...new Set(out)].filter(u => u && u !== actorUid);
+}
+
 /* Node test hook — the browser never defines `module`, so this block is
    invisible there; tests/item-engine.test.mjs requires this file. */
 if (typeof module !== "undefined" && module.exports){
   module.exports = { ITEM_FIELD_TYPES, ITEM_TYPE_KEYS, ITEM_INTENTS, ITEM_EVENT_VERBS,
-    itemSlug, itemFieldDef, itemCoerce, itemIsEmpty, itemValidate, itemFacets, itemCommit };
+    itemSlug, itemFieldDef, itemCoerce, itemIsEmpty, itemValidate, itemFacets, itemCommit,
+    itemNewAssignees };
 }

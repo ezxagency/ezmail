@@ -81,6 +81,12 @@ async function itemSave(type, item, intent, opts){
     // fails is this feature's problem; the change they made already
     // landed and they have already been told so.
     itemsRunAutomations(decision.events, decision.item, (opts && opts.depth) || 0);
+    // Being handed work is news in its own right. It should not depend on
+    // somebody having written a rule about it - and it did not, on the
+    // Assign composer, which has always told people. The Work page not
+    // doing so made the same action mean two different things depending
+    // on which screen you did it from.
+    itemsNotifyAssigned(decision.events, decision.item);
     return decision;
   } catch (e) {
     console.error(e);
@@ -545,6 +551,27 @@ async function itemsRunAutomations(events, item, depth){
 /* Notifications go to the collection the app already uses, so an
    automation's message arrives in the same bell as everything else
    rather than inventing a second place people have to remember. */
+/* Tell whoever was just put on this piece of work. Fire-and-forget and
+   caught: the commit has already succeeded and the person has already
+   been told it worked, so a failure here must never turn that into an
+   error they see. */
+async function itemsNotifyAssigned(events, item){
+  const me = auth.currentUser ? auth.currentUser.uid : null;
+  const uids = itemNewAssignees(events, item, me);
+  if (!uids.length) return;
+  const at = Date.now();
+  const title = (item && item.title) || "some work";
+  try {
+    const batch = db.batch();
+    uids.forEach(uid => batch.set(db.collection("notifications").doc(), {
+      toUid: uid, fromUid: me, kind: "assigned", read: false, createdAt: at,
+      text: title + " was assigned to you.",
+      store: (item && item.fields && item.fields.store) || "", task: title
+    }));
+    await batch.commit();
+  } catch (e) { console.warn("Could not tell the new assignees:", e); }
+}
+
 async function itemsDeliverNotify(step, item){
   const from = auth.currentUser ? auth.currentUser.uid : null;
   const text = step.message || (item.title + " needs attention");

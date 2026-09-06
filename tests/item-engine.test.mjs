@@ -6,7 +6,7 @@
 import { strict as assert } from "node:assert";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { ITEM_FIELD_TYPES, ITEM_TYPE_KEYS, itemSlug, itemCoerce, itemIsEmpty,
+const { ITEM_FIELD_TYPES, ITEM_TYPE_KEYS, itemSlug, itemCoerce, itemIsEmpty, itemNewAssignees,
         itemValidate, itemFacets, itemCommit } = require("../js/item-engine.js");
 
 let pass = 0, fail = 0;
@@ -339,6 +339,38 @@ T("e2e: a role that may only touch its own work cannot move a colleague's", () =
   const r = itemCommit({ type: SHIFT_SWAP, item: mine, actor: { uid: "staff2", orgId: "orgR" }, allow: ownOnly, now: 200,
     intent: { kind: "set_status", status: "approved" } });
   assert.equal(r.error, "denied");
+});
+
+/* ---------- who was just handed this ----------
+   Creating an item with people on it and assigning them later are two
+   intents that mean the same thing to whoever receives the work. */
+T("creating with people on it tells them", () => {
+  assert.deepEqual(itemNewAssignees([{ verb: "item.created" }], { assigneeIds: ["u2", "u3"] }, "u1"),
+    ["u2", "u3"]);
+});
+T("the person doing it is never told", () => {
+  assert.deepEqual(itemNewAssignees([{ verb: "item.created" }], { assigneeIds: ["u1", "u2"] }, "u1"), ["u2"]);
+});
+T("assigning tells only the people who were not already on it", () => {
+  // re-saving must not re-tell everybody who was already assigned
+  assert.deepEqual(itemNewAssignees(
+    [{ verb: "item.assigned", data: { from: ["u2"], to: ["u2", "u4"] } }], {}, "u1"), ["u4"]);
+});
+T("removing somebody tells nobody", () => {
+  assert.deepEqual(itemNewAssignees(
+    [{ verb: "item.assigned", data: { from: ["u2", "u4"], to: ["u2"] } }], {}, "u1"), []);
+});
+T("an edit that touches nobody notifies nobody", () => {
+  assert.deepEqual(itemNewAssignees([{ verb: "item.updated" }], { assigneeIds: ["u2"] }, "u1"), []);
+});
+T("the same person twice is told once", () => {
+  assert.deepEqual(itemNewAssignees(
+    [{ verb: "item.created" }, { verb: "item.assigned", data: { from: [], to: ["u2"] } }],
+    { assigneeIds: ["u2"] }, "u1"), ["u2"]);
+});
+T("no events, no telling - and no crash", () => {
+  assert.deepEqual(itemNewAssignees(null, null, "u1"), []);
+  assert.deepEqual(itemNewAssignees([{ verb: "item.assigned" }], {}, "u1"), []);
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
