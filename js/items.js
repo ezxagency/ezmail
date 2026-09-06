@@ -172,7 +172,10 @@ async function itemsFinishFromQueue(itemId, comment){
     const t = await typesCol(s.orgId).doc(item.typeId).get();
     if (!t.exists) return { ok: false, error: "no-type" };
     type = Object.assign({ id: t.id }, t.data());
-  } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
+  } catch (e) {
+    console.error("itemsFinishFromQueue could not read the work:", e);
+    return { ok: false, error: "read-failed", detail: String((e && e.code) || (e && e.message) || e) };
+  }
 
   /* Work created before its type had a track - or before the pointer to
      the run was persisted at all - is on a tracked type with no run. Left
@@ -207,7 +210,10 @@ async function itemsFinishFromQueue(itemId, comment){
   if (!done) return { ok: false, error: "no-status" };
   if (item.status === done) return { ok: true, how: "already", status: done };
   const r = await itemSave(type, item, { kind: "set_status", status: done });
-  if (!r.ok) return { ok: false, error: r.error || "save-failed" };
+  if (!r.ok) {
+    console.error("itemsFinishFromQueue could not set the status:", r);
+    return { ok: false, error: r.error || "save-failed", detail: JSON.stringify(r.details || "") };
+  }
   const label = (type.statuses || []).find(x => x.key === done);
   return { ok: true, how: statuses.indexOf("done") >= 0 ? "done" : "moved",
            status: (label && label.label) || done };

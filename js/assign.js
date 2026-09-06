@@ -909,10 +909,18 @@ async function finishAssignment(id, row, comment){
     const r = await itemsFinishFromQueue(row.itemId, comment);
     if (!r.ok) {
       if (btn) btn.disabled = false;
+      /* Name the actual failure. "Check Firestore rules" was a guess
+         dressed as a diagnosis, and it sent somebody looking at rules
+         three times for three different causes, none of them rules. */
       toast(r.error === "not-your-stop" ? "This is with somebody else now."
         : r.error === "no-status" ? "This kind of work has no stage to finish at."
         : r.error === "gone" ? "That work is no longer there."
-        : "Couldn't update — check Firestore rules allow it");
+        : r.error === "no-org" ? "You are not in an organization."
+        : r.error === "no-type" ? "Its kind of work no longer exists."
+        : r.error === "denied" ? "Your role cannot change this work."
+        : r.error === "invalid" ? "It would not save — a required field is empty."
+        : r.error === "read-failed" ? "Could not load it: " + (r.detail || "unknown")
+        : "Could not finish it (" + (r.error || "unknown") + ")");
       return;
     }
     closeSheet();
