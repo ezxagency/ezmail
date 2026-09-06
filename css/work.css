@@ -103,3 +103,5 @@
   font-size:.72rem; font-weight:700; text-align:center;
 }
 .wk-row-broken{ border-color:rgba(255,138,128,.25); cursor:default; }
+.wk-cant{ border-left:2px solid rgba(255,138,128,.4); padding-left:.7rem; }
+.wk-cant b{ color:#ff8a80; }

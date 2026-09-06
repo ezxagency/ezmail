@@ -31,8 +31,31 @@ const itemNewId = () => Date.now().toString(36) + Math.random().toString(36).sli
 async function itemActorPermissions(){
   const s = await orgEnsure();
   if (!s || !s.myRoleId) return [];
+  /* An owner's authority is their SEAT, not a row that can go missing.
+     firestore.rules answers "is this the owner" from members/{uid}.roleId
+     alone and grants them everything on that basis. This looked up a
+     roles/owner DOCUMENT and returned [] when there wasn't one - an org
+     created before the seed roles, or one whose role write failed, left
+     its owner holding no permissions at all while the server still
+     trusted them with the whole tenant. Every button came back "your
+     role cannot", and no screen could explain it because the role the
+     message blamed did not exist. The two now answer alike. */
+  if (s.myRoleId === "owner") return ["*:*:org"];
   const role = (s.roles || []).find(r => r.id === s.myRoleId);
   return role ? (role.permissions || []) : [];
+}
+
+/* May I clear work I did not create and am not assigned to? The repair
+   tab asks BEFORE drawing its buttons, because offering an action that
+   can only be refused is how "your role cannot delete work" became the
+   answer to a question nobody had asked. Returns the role too, so the
+   refusal can name it instead of describing it. */
+async function itemsMayDeleteWork(){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, roleId: null, reason: "no-org" };
+  const perms = await itemActorPermissions();
+  const ok = permGrantScope(perms, "item", "delete") === "org";
+  return { ok, roleId: s.myRoleId || null, reason: ok ? null : "no-grant" };
 }
 
 /* THE CHOKEPOINT'S OUTER HALF.

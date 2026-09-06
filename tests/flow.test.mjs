@@ -387,6 +387,45 @@ await T("deleting a mirror that was never written is not an error", async () => 
   await runAsync(`return await itemsMirrorAssignmentsDelete(["never_mirrored_1", ""]);`);
 });
 
+/* ---------- an owner is a SEAT, not a row that can go missing ---------- */
+await T("an owner whose role document is gone still holds every permission", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  // an org created before the seed roles, or one whose role write failed:
+  // the seat still says owner and firestore.rules still grants them the
+  // whole tenant, but the client looked up a DOCUMENT and found none
+  await db.collection("orgs").doc(ORG).collection("roles").doc("owner").delete();
+  run(`orgInvalidate();`);
+  const perms = await runAsync(`return await itemActorPermissions();`);
+  assert.ok(perms.length, "the owner was silently left holding no permissions at all");
+  const may = await runAsync(`return await itemsMayDeleteWork();`);
+  assert.equal(may.ok, true, "the owner cannot clear work the server would let them clear");
+
+  await db.collection("orgs").doc(ORG).collection("items").doc("orphan_perm").set({
+    id: "orphan_perm", orgId: ORG, typeId: "gone", title: "Nike · Design", status: "open",
+    fields: {}, facets: ["assignee:staff1"], assigneeIds: ["staff1"],
+    createdAt: 1, updatedAt: 1, createdBy: "someone_else" });
+  const r = await runAsync(`return await itemsDeleteWork(${JSON.stringify({
+    id: "orphan_perm", orgId: ORG, typeId: "gone", title: "Nike · Design",
+    assigneeIds: ["staff1"], createdBy: "someone_else" })});`);
+  assert.ok(r.ok, "the owner was refused their own tenant's work: " + JSON.stringify(r));
+  // put it back for the suites after this one
+  await db.collection("orgs").doc(ORG).collection("roles").doc("owner")
+    .set({ name: "Owner", permissions: ["*:*:org"] });
+  run(`orgInvalidate();`);
+});
+
+await T("a role with no org-wide delete is told so BEFORE it presses anything", async () => {
+  // staff holds item:update:assigned and no delete at all - the tab must
+  // ask this before drawing a button whose only outcome is a refusal
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  const may = await runAsync(`return await itemsMayDeleteWork();`);
+  assert.equal(may.ok, false);
+  assert.equal(may.roleId, "staff", "the refusal cannot name the role it is about");
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+});
+
 await T("an orphan cannot be finished, so the queue must not offer to", async () => {
   // itemCommit refuses every intent with no type - which is right, and is
   // why the Done button on that row could only ever produce an error

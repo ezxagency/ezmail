@@ -189,14 +189,27 @@ function wkPaintList(){
    refuses) - so this offers none of those rather than four buttons that
    all fail differently. Who is still holding it is named, because that is
    whose dashboard it is stuck on. */
-function wkPaintOrphans(){
+async function wkPaintOrphans(){
   const box = $("wkList");
   if (!box) return;
   if (!wkOrphans.length){ box.innerHTML = '<p class="org-note">Nothing needs attention.</p>'; return; }
+
+  /* ASK FIRST. Clearing somebody else's work needs item:delete across the
+     org, and a row drawn with a Delete button for a role that has no such
+     grant is a button whose only possible outcome is a refusal. Naming
+     the role beats describing it: "your role cannot" sent somebody
+     looking at a role, when the role was never the problem. */
+  const may = await itemsMayDeleteWork();
+  if (!box.isConnected) return;
+
   box.innerHTML =
     '<p class="org-note">These point at a work type that no longer exists. Nobody can open or finish them, ' +
     'and they stay on the dashboard of whoever holds them until they are cleared.</p>' +
-    (wkOrphans.length > 1
+    (may.ok ? "" :
+      '<p class="org-note wk-cant">You are in this organization as <b>' + esc(may.roleId || "no role") +
+      '</b>, which cannot delete work it does not hold. An owner can clear these ' +
+      'from this same tab.</p>') +
+    (may.ok && wkOrphans.length > 1
       ? '<div class="org-actions"><button type="button" class="org-btn org-btn-danger" id="wkOrphanAll">' +
         'Clear all ' + wkOrphans.length + '</button></div>'
       : "") +
@@ -205,9 +218,12 @@ function wkPaintOrphans(){
       return '<div class="org-row wk-row wk-row-broken">' +
         '<span class="org-row-main"><b>' + esc(it.title || "(untitled)") + '</b><small>' +
           'was a ' + esc(it.typeId || "—") + (who ? " · still with " + esc(who) : " · with nobody") + '</small></span>' +
-        '<button type="button" class="org-btn org-btn-sm org-btn-danger wk-orphan-del" data-id="' + esc(it.id) + '">Delete</button>' +
+        (may.ok
+          ? '<button type="button" class="org-btn org-btn-sm org-btn-danger wk-orphan-del" data-id="' + esc(it.id) + '">Delete</button>'
+          : "") +
         '</div>';
     }).join("");
+  if (!may.ok) return;
   if ($("wkOrphanAll")) $("wkOrphanAll").onclick = async () => {
     const b = $("wkOrphanAll");
     if (!confirm("Delete all " + wkOrphans.length + " of these?\n\nThey point at work types that no longer " +
@@ -231,7 +247,11 @@ function wkPaintOrphans(){
     const r = await itemsDeleteWork(it);
     if (!r.ok){
       b.disabled = false; b.textContent = "Delete";
-      toast(r.error === "denied" ? "Your role cannot delete work."
+      // by here the grant was already checked, so a refusal means
+      // something else - say which, rather than blaming the role again
+      toast(r.error === "denied" ? "Refused: " + (may.roleId || "your role") + " may not delete this one."
+        : r.error === "wrong-tenant" ? "That work belongs to another organization."
+        : r.error === "no-org" ? "You are not in an organization."
         : "Could not delete it (" + (r.error || "unknown") + ")");
       return;
     }
