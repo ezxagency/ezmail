@@ -295,5 +295,22 @@ T("an Item that was never an assignment keeps its own id", () => {
   assert.equal(row.id, "native1");
 });
 
+/* ---------- the queue shows every kind of work ----------
+   The assigned list admitted only the migrated `task` type, which was
+   true while those were the only types that existed and silently hid
+   every type a customer or a pack has created since. */
+T("a custom type's row is titled by its Item title", () => {
+  // there is no `task` field on a Sponsorship - its name is the title
+  assert.equal(M.itemToQueueRow({ id: "i1", typeId: "sponsor", title: "Outreach to brands",
+    fields: {}, assigneeIds: ["u1"] }).task, "Outreach to brands");
+});
+T("a migrated task still uses its own field", () => {
+  assert.equal(M.itemToQueueRow({ id: "i2", typeId: "task", title: "ignored",
+    fields: { task: "Restock" }, assigneeIds: ["u1"] }).task, "Restock");
+});
+T("a row with neither a field nor a title is empty, not undefined", () => {
+  assert.equal(M.itemToQueueRow({ id: "i3", typeId: "x", fields: {}, assigneeIds: [] }).task, "");
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

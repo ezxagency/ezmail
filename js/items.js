@@ -349,7 +349,7 @@ async function itemsChaseOverdue(){
       const targets = [...new Set((it.assigneeIds || []).concat(me ? [me] : []))];
       targets.forEach(uid => batch.set(db.collection("notifications").doc(), {
         toUid: uid, fromUid: me, kind: "overdue", read: false, createdAt: now,
-        text, store: "", task: it.title || ""
+        msg: text, text, store: "", task: it.title || ""
       }));
       batch.update(itemsCol(s.orgId).doc(it.id), { nudgedAt: now });
     });
@@ -791,6 +791,7 @@ async function itemsNotifyAssigned(events, item){
     const batch = db.batch();
     uids.forEach(uid => batch.set(db.collection("notifications").doc(), {
       toUid: uid, fromUid: me, kind: "assigned", read: false, createdAt: at,
+      msg: title + " was assigned to you.",
       text: title + " was assigned to you.",
       store: (item && item.fields && item.fields.store) || "", task: title
     }));
@@ -802,7 +803,10 @@ async function itemsDeliverNotify(step, item){
   const from = auth.currentUser ? auth.currentUser.uid : null;
   const text = step.message || (item.title + " needs attention");
   const base = { fromUid: from, kind: "automation", read: false, createdAt: Date.now(),
-    text, store: (item.fields || {}).store || "", task: item.title || "" };
+    // `msg` is the headline the notification centre renders. Without it
+    // every one of these read "Someone finished ..." - which is not what
+    // happened, and was wrong for automations from the day they shipped.
+    msg: text, text, store: (item.fields || {}).store || "", task: item.title || "" };
 
   // A role is resolved to PEOPLE before anything is written. The bell
   // queries toUid, and firestore.rules only lets the addressee read it -

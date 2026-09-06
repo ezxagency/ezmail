@@ -259,7 +259,10 @@ function itemToQueueRow(item){
     itemId: item.id,
     toUid: (item.assigneeIds || [])[0] || null,
     store: f.store || "",
-    task: f.task || "",
+    // the migrated task type keeps its own `task` field; every other kind
+    // of work carries its name in the Item title, and a row with a blank
+    // title is a row nobody can act on
+    task: f.task || item.title || "",
     note: f.note || "",
     snote: f.snote || null,
     dueDate: f.dueDate || null,

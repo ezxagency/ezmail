@@ -542,7 +542,13 @@ function watchAssignedTasksFromItems(){
         const rows = [];
         snap.forEach(doc => {
           const item = Object.assign({ id: doc.id }, doc.data());
-          if (item.typeId !== MIGRATE_TASK_TYPE.id) return;   // campaigns have their own surface
+          /* Campaigns have their own page, so they stay out. EVERYTHING
+             ELSE belongs here - this used to admit only the migrated
+             `task` type, which was true while those were the only two
+             types that existed, and silently hid every type a customer
+             or a pack has created since. Work you were told about and
+             cannot find is worse than work nobody mentioned. */
+          if (item.typeId === MIGRATE_CAMPAIGN_TYPE.id) return;
           if (item.status === "done") return;
           rows.push(itemToQueueRow(item));
         });
