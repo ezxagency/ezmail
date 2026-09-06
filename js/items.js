@@ -145,3 +145,100 @@ async function itemsRecent(limit){
   const snap = await itemsCol(s.orgId).orderBy("updatedAt", "desc").limit(limit || 50).get();
   return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
 }
+
+/* ============================================================
+   IMPORT — today's collections, brought across as Items.
+
+   ADDITIVE AND ONE-WAY. Nothing is deleted, nothing is rewritten,
+   and neither the assign composer nor the campaigns page changes
+   behaviour: they keep reading their own collections exactly as
+   before. That ordering is the whole safety story - the data
+   moves first and gets proven, and only then does any UI switch
+   over. Doing both at once means a bug in either looks like a bug
+   in both, on a live team's working day.
+
+   SAFE TO RUN TWICE. Item ids are derived from the source
+   document (js/migrate.js), so a second run finds the same ids
+   already present and skips them. It never makes a second copy of
+   somebody's work, and it never overwrites edits made to an item
+   after it was imported.
+   ============================================================ */
+
+const IMPORT_BATCH = 400;   // Firestore caps a batch at 500; leave room for the events
+
+/* Which of these ids already exist, as one query rather than one read
+   per row - a per-row existence check on a few hundred rows is a few
+   hundred round trips and a bill to match. */
+async function itemsExistingIds(orgId, typeId){
+  const snap = await itemsCol(orgId).where("facets", "array-contains", "type:" + itemSlug(typeId)).limit(2000).get();
+  return new Set(snap.docs.map(d => d.id));
+}
+
+/* kind: "assignment" | "campaign".
+   Returns { created, skipped, refused, details } - refusals are counted
+   and reported rather than thrown, because one malformed row from years
+   ago must not stop the other three hundred from coming across. */
+async function itemsImport(kind){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+
+  const isTask = kind === "assignment";
+  const baseType = isTask ? MIGRATE_TASK_TYPE : MIGRATE_CAMPAIGN_TYPE;
+  const optionKeys = isTask ? ["store", "task"] : ["stage"];
+  const toIntent = isTask ? migrateAssignmentIntent : migrateCampaignIntent;
+
+  let rows;
+  try {
+    const snap = await db.collection(isTask ? "assignments" : "campaigns").get();
+    rows = snap.docs.map(d => Object.assign({ __id: d.id }, d.data()));
+  } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
+  if (!rows.length) return { ok: true, created: 0, skipped: 0, refused: 0, details: [] };
+
+  // The choice fields have to fit the data BEFORE any row is written, or
+  // the engine refuses every value it has never been told about. The
+  // type is grown from the rows themselves and saved first.
+  const optionRows = isTask ? rows : rows.map(c => ({ stage: ((c.stages || [])[c.cur] || {}).name || "" }));
+  const type = migrateTypeWithOptions(baseType, optionRows, optionKeys);
+  const saved = await itemTypeSave(type);
+  if (!saved.ok) return { ok: false, error: "type-failed" };
+  type.id = saved.id;
+
+  const already = await itemsExistingIds(s.orgId, type.id);
+  const actor = { uid: auth.currentUser.uid, orgId: s.orgId };
+  const perms = await itemActorPermissions();
+  const allow = (r, a, c) => permCan(perms, r, a, c);
+
+  let created = 0, skipped = 0, refused = 0;
+  const details = [];
+  let batch = db.batch(), inBatch = 0;
+
+  for (const row of rows) {
+    const id = migrateItemId(kind, row.__id);
+    if (already.has(id)) { skipped++; continue; }
+
+    const intent = toIntent(row);
+    const decision = itemCommit({ type, item: null, intent, actor, allow,
+      now: intent.createdAt || Date.now(), id });
+    if (!decision.ok) {
+      refused++;
+      if (details.length < 5) details.push(row.__id + ": " + decision.error);
+      continue;
+    }
+    // the source is recorded ON the item, so a row can always be traced
+    // back to the document it came from long after this run is forgotten
+    const doc = Object.assign({}, decision.item, { id, importedFrom: migrateSource(kind, row.__id) });
+    batch.set(itemsCol(s.orgId).doc(id), doc);
+    decision.events.forEach(ev => batch.set(eventsCol(s.orgId).doc(), ev));
+    created++;
+    inBatch++;
+
+    if (inBatch >= IMPORT_BATCH) {
+      try { await batch.commit(); } catch (e) { console.error(e); return { ok: false, error: "write-failed", created, skipped, refused }; }
+      batch = db.batch(); inBatch = 0;
+    }
+  }
+  if (inBatch) {
+    try { await batch.commit(); } catch (e) { console.error(e); return { ok: false, error: "write-failed", created, skipped, refused }; }
+  }
+  return { ok: true, created, skipped, refused, details };
+}

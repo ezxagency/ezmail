@@ -38,6 +38,7 @@ js/   classic scripts sharing one global scope; loaded in order
   permissions.js    resource:action:scope grammar - pure, no DOM, no Firestore
   item-engine.js    the universal work object: types, values, facets, commit()
   items.js          its Firestore glue - deliberately dumb, decides nothing
+  migrate.js        the shapes assignments and campaigns take as Items (pure)
   work.js           the Work page: every control generated from the ItemType
   org.js            the Organization page: tenancy, the roster, the roles editor
   render.js         dashboard render loop, rings, per-second tick
@@ -108,7 +109,7 @@ slip before it ships rather than after.
 ```
 cd tests
 npm ci               # once
-npm test             # 158 assertions, node + jsdom, seconds
+npm test             # 181 assertions, node + jsdom, seconds
 npm run test:rules   # 195 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```

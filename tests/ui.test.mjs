@@ -52,7 +52,7 @@ ctx.console = console;
 
 // load order IS the dependency graph, exactly as index.html declares it
 ["js/config.js", "js/permissions.js", "js/item-engine.js", "js/ui.js",
- "js/items.js", "js/org.js", "js/work.js"].forEach(f =>
+ "js/migrate.js", "js/items.js", "js/org.js", "js/work.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 
 const run = expr => vm.runInContext(expr, ctx);
@@ -182,12 +182,21 @@ T("the org page renders roles, types and people", () => {
     assert.ok(html.includes(word), "missing from the page: " + word));
 });
 
-T("a non-owner sees no editing controls", () => {
+T("an owner is offered the import, and it says nothing is deleted", () => {
+  run(`orgS.myRoleId = "owner"; orgRender();`);
+  const body = doc.getElementById("orgBody");
+  assert.ok(body.querySelector("#orgImportTasks"), "no task import");
+  assert.ok(body.querySelector("#orgImportCampaigns"), "no campaign import");
+  assert.ok(body.innerHTML.includes("Nothing is deleted"), "the promise is not on screen");
+});
+
+T("a non-owner sees no editing controls, and cannot start an import", () => {
   run(`orgS.myRoleId = "staff"; orgRender();`);
   const body = doc.getElementById("orgBody");
   assert.equal(body.querySelector("#orgAddType"), null);
   assert.equal(body.querySelector("#orgInviteBtn"), null);
   assert.equal(body.querySelector("#orgAddRole"), null);
+  assert.equal(body.querySelector("#orgImportTasks"), null);
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

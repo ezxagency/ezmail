@@ -238,6 +238,18 @@ function orgRender(){
       '<div class="org-list">' + typesHtml + '</div>' +
       '<p class="org-note">A work type is what makes this fit your business: the fields your work actually has, and the stages it moves through.</p>' +
     '</section>' +
+    (owner ? '<section class="org-sec">' +
+      '<div class="org-sec-head"><h3>Bring existing work across</h3></div>' +
+      '<div class="org-list">' +
+        '<button type="button" class="org-row" id="orgImportTasks"><span class="org-row-main">' +
+          '<b>Import assigned tasks</b><small>Copies every assignment into Work as a Task</small>' +
+        '</span><span class="org-row-go">Import</span></button>' +
+        '<button type="button" class="org-row" id="orgImportCampaigns"><span class="org-row-main">' +
+          '<b>Import campaigns</b><small>Copies every campaign into Work, at the stage it is on</small>' +
+        '</span><span class="org-row-go">Import</span></button>' +
+      '</div>' +
+      '<p class="org-note">Nothing is deleted or changed — the Assign composer and Campaigns page keep working exactly as they do now. Safe to run more than once: anything already brought across is skipped.</p>' +
+    '</section>' : '') +
     '<section class="org-sec">' +
       '<div class="org-sec-head"><h3>People<span class="org-count">' + (orgS.members || []).length + '</span></h3>' +
         (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgInviteBtn">Invite</button>' : '') +
@@ -248,6 +260,8 @@ function orgRender(){
   if (owner && $("orgAddRole")) $("orgAddRole").onclick = () => orgRoleSheet(null);
   if (owner && $("orgInviteBtn")) $("orgInviteBtn").onclick = () => orgInviteSheet();
   if (owner && $("orgAddType")) $("orgAddType").onclick = () => orgTypeSheet(null);
+  if (owner && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
+  if (owner && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
   $("orgBody").querySelectorAll(".org-type").forEach(b => {
     if (b.disabled) return;
     b.onclick = () => orgTypeSheet((orgS.types || []).find(t => t.id === b.dataset.type) || null);
@@ -484,6 +498,32 @@ async function orgTryJoin(){
     console.error(e);
     toast("Could not accept that invitation.");
   }
+}
+
+/* An import can take a while and must not be startable twice at once -
+   a second run mid-flight would read a half-written picture of what is
+   already there and duplicate the rest. The button disables itself and
+   says what it is doing. */
+async function orgRunImport(kind, btn){
+  const was = btn.querySelector(".org-row-go").textContent;
+  btn.disabled = true;
+  btn.querySelector(".org-row-go").textContent = "Working…";
+  const r = await itemsImport(kind);
+  btn.disabled = false;
+  btn.querySelector(".org-row-go").textContent = was;
+  if (!r.ok) {
+    toast(r.error === "read-failed" ? "Could not read the existing work."
+        : r.error === "type-failed" ? "Could not create the work type."
+        : "Could not finish the import.");
+    return;
+  }
+  const bits = [];
+  if (r.created) bits.push(r.created + " brought across");
+  if (r.skipped) bits.push(r.skipped + " already here");
+  if (r.refused) bits.push(r.refused + " skipped");
+  toast(bits.length ? bits.join(", ") + "." : "Nothing to bring across.");
+  if (r.refused && r.details && r.details.length) console.warn("Rows the import refused:", r.details);
+  enterOrgPage();
 }
 
 /* ============================================================

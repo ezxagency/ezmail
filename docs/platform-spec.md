@@ -29,8 +29,16 @@ type — there is no hand-written form for any industry anywhere, which is
 the test of ground rule 1. An end-to-end test runs this document's own
 restaurant example through the engine: requested, claimed, assigned,
 approved, with the facets a manager would filter on appearing without any
-index being declared for a type that did not exist an hour earlier. Still
-to come in phase 2: collapsing assignments and campaigns onto the Item. **Phase 3 written, not yet deployable.** `functions/index.js` is the
+index being declared for a type that did not exist an hour earlier. The collapse has begun at the data layer:
+`js/migrate.js` holds the built-in `task` and `campaign` types and the
+pure mappers that turn today's rows into intents (22 assertions), and an
+owner-only import on the Organization page brings them across. It is
+additive, one-way and safe to run twice — item ids are derived from the
+source document, so a second run skips what it already made. Nothing is
+deleted and neither the assign composer nor the campaigns page changes
+behaviour. What remains is the UI cutover, which should follow only once
+the imported data has been looked at, and the campaign chain becoming a
+real workflow run — that needs the engine additions named below. **Phase 3 written, not yet deployable.** `functions/index.js` is the
 `commitItem` callable: it runs the same engine the browser runs — the
 copies under `functions/shared/` are byte-identical, and a repo guard
 fails the build if they drift — inside a Firestore transaction, so two
