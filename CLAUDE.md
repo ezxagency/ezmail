@@ -97,8 +97,8 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 360 assertions, node + jsdom, seconds
-npm run test:rules   # 249 rules assertions (needs Java + firebase-tools)
+npm test        # 361 assertions, node + jsdom, seconds
+npm run test:rules   # 248 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
@@ -130,7 +130,7 @@ failure is a real regression, not a flake.
   what rule 2 is about.
 - **Firestore rules + indexes**: `.github/workflows/deploy-rules.yml` ships
   them on any push to `main` that touches `firestore.rules` or
-  `firestore.indexes.json` — but only after the 249-assertion suite passes
+  `firestore.indexes.json` — but only after the 248-assertion suite passes
   against the edited rules. Never paste rules into the Firebase console by
   hand; the console and the repo drift apart the moment you do, and the
   repo is the version that gets tested.

@@ -246,7 +246,7 @@ async function wkPaintHandoff(item, type){
           '<span class="wk-leg-dot"></span>' +
           '<span class="wk-leg-main"><b>' + esc(t.label) + '</b><small>' +
             esc(t.status === "completed"
-              ? (t.by ? "done by " + orgPersonName(t.by) : "done")
+              ? (t.by ? "done by " + orgPersonName(t.by) + (t.as === "override" ? " (as owner)" : "") : "done")
               : "here now") + '</small></span>' +
         '</div>').join("") + '</div>'
     : "";

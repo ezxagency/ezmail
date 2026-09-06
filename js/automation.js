@@ -29,7 +29,8 @@
       already holds returns zero events from itemCommit, so the
       commonest loop - two rules that keep answering each other -
       dies on its second lap without anyone noticing.
-   2. causationDepth is the guard of last resort, capped like the
+   2. the depth threaded through itemsRunAutomations -> autoPlan ->
+      itemSave is the guard of last resort, capped like the
       workflow engine's hop count. Past it the chain stops and
       says so rather than quietly continuing.
    ============================================================ */

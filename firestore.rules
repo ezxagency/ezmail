@@ -225,12 +225,11 @@ service cloud.firestore {
          is the same knowingly-permissive posture as `items` above, and
          narrows the same way when the server commit lands. The blast
          radius is one org: nothing here reaches past its own tenant. */
+      // A run carries its stops inside it: they are always read together,
+      // and a transaction can only hold a DOCUMENT, so stops in their own
+      // collection could never have been read inside the one protecting
+      // them. One document is what makes advancing genuinely atomic.
       match /runs/{runId} {
-        allow read: if isOrgMember(orgId);
-        allow create, update: if isOrgMember(orgId);
-        allow delete: if isOrgOwner(orgId);
-      }
-      match /nodeRuns/{nrId} {
         allow read: if isOrgMember(orgId);
         allow create, update: if isOrgMember(orgId);
         allow delete: if isOrgOwner(orgId);

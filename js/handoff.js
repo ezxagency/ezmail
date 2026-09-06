@@ -223,6 +223,11 @@ function hoTrail(blueprint, nodeRuns){
         role: cfg.role || null,
         status: nr.status,
         by: nr.completedBy || null,
+        // recorded separately from `by` on purpose: an owner unsticking
+        // somebody else's stop is a different fact from that person
+        // having done it, and a trail that blurred the two would be worth
+        // less than no trail
+        as: nr.completedAs || null,
         arrivedAt: nr.arrivedAt || null,
         completedAt: nr.completedAt || null,
         output: nr.output || {}

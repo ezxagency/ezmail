@@ -152,7 +152,6 @@ async function itemTypeSave(type){
    names a blueprint, and an Item points at the run it is travelling. */
 
 const runsCol  = orgId => db.collection("orgs").doc(orgId).collection("runs");
-const stopsCol = orgId => db.collection("orgs").doc(orgId).collection("nodeRuns");
 const bpCol    = orgId => db.collection("orgs").doc(orgId).collection("blueprints");
 
 async function itemsBlueprintFor(orgId, type){
@@ -182,10 +181,13 @@ async function itemsStartHandoff(item, type){
   } catch (e) { console.error("Blueprint would not start:", e); return null; }
 
   try {
-    const batch = db.batch();
-    batch.set(runsCol(s.orgId).doc(started.run.id), started.run);
-    started.nodeRuns.forEach(nr => batch.set(stopsCol(s.orgId).doc(nr.id), nr));
-    await batch.commit();
+    // the stops live ON the run. They are always read together, they
+    // belong to it, and - the reason this is not merely tidier - it is
+    // what lets the advance below be a real transaction: tx.get() takes a
+    // document, never a query, so stops in their own collection could
+    // only ever be read OUTSIDE the transaction protecting them.
+    await runsCol(s.orgId).doc(started.run.id)
+      .set(Object.assign({}, started.run, { nodeRuns: started.nodeRuns }));
   } catch (e) { console.error("Could not write the run:", e); return null; }
 
   await itemsSyncFromRun(item, type, bp, started.run, started.nodeRuns);
@@ -200,11 +202,11 @@ async function itemsHandoffLoad(item){
     const runDoc = await runsCol(s.orgId).doc(item.workflowRunId).get();
     if (!runDoc.exists) return null;
     const run = Object.assign({ id: runDoc.id }, runDoc.data());
-    const snap = await stopsCol(s.orgId).where("runId", "==", run.id).get();
-    const nodeRuns = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-    // the run carries its own frozen blueprint, so a track edited since
-    // cannot change the shape of work already travelling
-    return { run, nodeRuns, blueprint: run.blueprintSnapshot || null, members: s.members || [] };
+    // one read: the run carries its own stops, and its own frozen
+    // blueprint, so a track edited since cannot change the shape of work
+    // already travelling
+    return { run, nodeRuns: run.nodeRuns || [], blueprint: run.blueprintSnapshot || null,
+             members: s.members || [] };
   } catch (e) { console.error(e); return null; }
 }
 
@@ -226,8 +228,11 @@ async function itemsAdvanceHandoff(item, type, nodeRunId, output){
       if (!runDoc.exists) throw new Error("no-run");
       const run = Object.assign({ id: runDoc.id }, runDoc.data());
       const bp = run.blueprintSnapshot;
-      const snap = await stopsCol(s.orgId).where("runId", "==", run.id).get();
-      const nodeRuns = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+      // read inside the transaction, from the document the transaction
+      // actually holds. A query here would have been an ordinary read -
+      // outside the isolation, not re-run on retry - which is how two
+      // people finishing the same stop could both have won.
+      const nodeRuns = run.nodeRuns || [];
 
       const nr = nodeRuns.find(x => x.id === nodeRunId);
       if (!nr) throw new Error("no-stop");
@@ -238,14 +243,12 @@ async function itemsAdvanceHandoff(item, type, nodeRunId, output){
       const next = wfAdvance({ run, nodeRuns },
         { type: "complete", nodeRunId, output: output || {} }, { now: Date.now() });
 
-      tx.set(runRef, next.run);
-      next.nodeRuns.forEach(x => {
-        // who actually pressed it, which the engine does not record and
-        // the trail is far less useful without
-        const stamped = (x.id === nodeRunId) ? Object.assign({}, x, { completedBy: uid, completedAs: as }) : x;
-        tx.set(stopsCol(s.orgId).doc(x.id), stamped);
-      });
-      after = next;
+      // who actually pressed it, which the engine does not record and the
+      // trail is far less useful without
+      const stamped = next.nodeRuns.map(x => x.id === nodeRunId
+        ? Object.assign({}, x, { completedBy: uid, completedAs: as }) : x);
+      tx.set(runRef, Object.assign({}, next.run, { nodeRuns: stamped }));
+      after = { run: next.run, nodeRuns: stamped };
     });
   } catch (e) {
     const m = String((e && e.message) || "");

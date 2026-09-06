@@ -116,6 +116,15 @@ the first place.
 
 ### 5. Advancing is a client transaction. No Cloud Function.
 
+**A run carries its stops inside it.** Not a design flourish — a
+correctness requirement found by auditing the first build. `Transaction.get()`
+takes a *document*, never a query, so stops in their own collection could
+only ever be read OUTSIDE the transaction meant to protect them: two people
+finishing the same stop would both have read the same pre-state and both
+won. One document makes the read, the decision and the write genuinely
+atomic, and the second person is correctly told it has already moved on.
+
+
 `wfAdvance()` is pure and deterministic — its own docstring says it is
 built so the glue can run it inside a Firestore transaction and retry
 safely. So: read run + nodeRuns, advance, write, in one transaction.

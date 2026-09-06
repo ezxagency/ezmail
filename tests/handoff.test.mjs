@@ -188,6 +188,16 @@ T("the trail records where it has been, oldest first", () => {
   assert.deepEqual(plain(trail.map(t => t.status)), ["completed", "completed"]);
   assert.deepEqual(plain(trail.map(t => t.role)), ["manager", "staff"]);
 });
+T("the trail says when an owner unstuck it, not that the holder did", () => {
+  // an override and the holder acting are different facts, and a trail
+  // that blurred them would be worth less than no trail
+  const st = finish(start(), 2);
+  st.nodeRuns.find(n => n.nodeId === "s0").completedBy = "u9";
+  st.nodeRuns.find(n => n.nodeId === "s0").completedAs = "override";
+  const leg = H.hoTrail(bp, st.nodeRuns)[0];
+  assert.equal(leg.by, "u9");
+  assert.equal(leg.as, "override");
+});
 T("the trail shows the stop in progress as in progress", () => {
   const trail = H.hoTrail(bp, start().nodeRuns);
   assert.equal(trail.length, 1);
