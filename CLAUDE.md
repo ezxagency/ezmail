@@ -116,7 +116,7 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 472 assertions, node + jsdom, seconds
+npm test        # 483 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -149,7 +149,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 731 pass as of this writing — a
+reaches through an org boundary. All 742 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -199,6 +199,15 @@ person gets is still answered once, by the role gating in `js/auth.js`.
 That is also the answer to the comp's six icons against the app's eight
 routes: the rail carries whatever the drawer carries, so Work keeps a
 seat instead of quietly becoming unreachable.
+
+Fifth piece: the **ground and the chips**. The comp's background is the
+same marble under a heavy even veil rather than the classic left-to-right
+gradient, which exists to keep white text legible over the bright half of
+the photo — a problem the darker treatment does not have. And "pick up
+where you left off" (`js/hero.js`) names the last real work this person
+did, from `S.history`. Those chips are deliberately NOT buttons yet:
+what a tap should do is undecided, and something that looks pressable and
+does nothing is worse than something that plainly is not.
 
 The rings are deliberately NOT affected. They keep their fixed 8h lap
 because they answer "how long have you been at it", not "how much of

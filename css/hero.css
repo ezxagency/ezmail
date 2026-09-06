@@ -1,0 +1,48 @@
+/* ============================================================
+   THE HERO — the ground it stands on, and the chips under the
+   clock-in button. .ui-next only.
+   ============================================================ */
+
+/* The comp's ground: near-black with the marble showing through a heavy
+   even veil, rather than the classic dashboard's left-to-right gradient
+   (which exists to keep white text legible over the bright half of the
+   photo - a problem this darker treatment does not have). */
+@media (min-width:1024px){
+  .ui-next .app,
+  .ui-next .app.panes{
+    background-image:
+      linear-gradient(180deg, rgba(9,10,13,.90), rgba(9,10,13,.82) 42%, rgba(9,10,13,.88)),
+      url('../assets/bg-marble.webp');
+    background-size:cover;
+    background-position:center;
+  }
+}
+
+.pickup{margin-top:18px}
+.pu-cap{
+  margin:0 0 10px;text-align:center;
+  font-family:var(--wk);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--wk-white-60);
+}
+.pu-row{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+
+/* Plainly not a button: no hover, no press, no pointer. See the header
+   comment in js/hero.js - what a tap should do is not decided yet. */
+.pu-chip{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:9px 17px;border-radius:999px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.10);
+  font-family:var(--wk);font-size:12px;letter-spacing:.02em;
+  color:var(--wk-white-70);
+  cursor:default;
+}
+.pu-chip b{color:var(--wk-white);font-weight:600}
+.pu-chip em{font-style:normal;opacity:.4}
+.pu-chip i{font-style:normal}
+.pu-ico{display:flex;width:14px;height:14px;color:var(--wk-white-60)}
+.pu-ico svg{width:100%;height:100%}
+
+/* the dock is the shortest thing on a cramped window - the chips are the
+   first thing it can afford to drop */
+@media (min-width:1024px) and (max-height:820px){ .ui-next .pickup{display:none} }

@@ -65,6 +65,9 @@ function renderDock(){
     d.append(mk("Resume · " + (last ? last.task : "work"), "btn-go", resume, "clock"));
     d.append(mk("Clock out", "btn-ghost btn-sm", askWrapUp, "stop"));
   }
+  // inside the dock on purpose: its grid area is the only place on this
+  // layout that has room for them and is already planned for
+  if (uiNextOn()) hrRenderPickup(d);
 }
 
 /* One shift's punch card as a flat event list - shared by the dashboard
