@@ -131,6 +131,70 @@ async function itemTypeSave(type){
   return { ok: true, id };
 }
 
+/* ---------- template packs ---------- */
+
+/* Apply a pack (js/packs.js) to the current org: the roles, kinds of work
+   and rules an industry starts with, so nobody meets an empty screen and
+   has to invent a data model before they can log anything.
+
+   ADDITIVE AND IDEMPOTENT, and those two are the same property. The plan
+   skips anything already there by id, so applying a pack twice creates
+   nothing the second time, and a pack can be applied to an org that is
+   already running without touching what it built. Existing documents are
+   never overwritten - if an org already has a "manager", that is ITS
+   manager, permissions and all.
+
+   ONE BATCH, so a pack cannot half-land. Half a pack is worse than none:
+   rules pointing at types that do not exist, notifying roles nobody holds.
+   A pack is ~10 documents against a 500 limit, so this needs no chunking.
+
+   The validation is not belt-and-braces theatre - tests/packs.test.mjs
+   proves every pack in the repo is valid, but this file is also reachable
+   from a console, and a broken pack should fail before it writes, not
+   halfway through. */
+async function itemsApplyPack(packKey){
+  const pack = packByKey(packKey);
+  if (!pack) return { ok: false, error: "no-pack" };
+  const v = packValidate(pack);
+  if (!v.ok) { console.error("pack " + packKey + " is invalid", v.errors); return { ok: false, error: "invalid", details: v.errors }; }
+
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+  const org = db.collection("orgs").doc(s.orgId);
+
+  let roleSnap, typeSnap, autoSnap;
+  try {
+    [roleSnap, typeSnap, autoSnap] = await Promise.all([
+      org.collection("roles").get(), org.collection("itemTypes").get(), org.collection("automations").get()
+    ]);
+  } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
+
+  // read fresh rather than trusting the page cache: the decision to skip
+  // something is only as good as the list it was made against
+  const plan = packPlan(pack, {
+    roleIds: roleSnap.docs.map(d => d.id),
+    typeIds: typeSnap.docs.map(d => d.id),
+    automationIds: autoSnap.docs.map(d => d.id)
+  });
+
+  const at = Date.now();
+  const batch = db.batch();
+  plan.roles.forEach(r => batch.set(org.collection("roles").doc(r.id), r.doc));
+  plan.itemTypes.forEach(t => batch.set(org.collection("itemTypes").doc(t.id),
+    Object.assign({}, t.doc, { updatedAt: at })));
+  plan.automations.forEach(a => batch.set(org.collection("automations").doc(a.id),
+    Object.assign({}, a.doc, { updatedAt: at })));
+  try { await batch.commit(); }
+  catch (e) { console.error(e); return { ok: false, error: "write-failed" }; }
+
+  // both caches now describe an org that no longer exists
+  itemsAutomationsCache = null;
+  orgInvalidate();
+  return { ok: true, created: {
+    roles: plan.roles.length, itemTypes: plan.itemTypes.length, automations: plan.automations.length
+  }, skipped: plan.skipped.length };
+}
+
 /* One array-contains index serves every equality filter any customer
    ever invents - which is the whole reason facets exist. Ranges are not
    welcome here on purpose: they need real composite indexes, and those

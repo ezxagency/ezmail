@@ -39,6 +39,8 @@ jobs:
         run: node tests/migrate.test.mjs
       - name: Automations
         run: node tests/automation.test.mjs
+      - name: Template packs (every shipped pack is usable)
+        run: node tests/packs.test.mjs
       - name: Workflow engine
         run: node tests/workflow-engine.test.mjs
       - name: Workflow effects
@@ -52,7 +54,7 @@ jobs:
       - name: Generated UI (jsdom)
         run: node tests/ui.test.mjs
 
-  # The 119 allow/deny assertions in tests/firestore-rules.test.mjs. Needs
+  # The 204 allow/deny assertions in tests/firestore-rules.test.mjs. Needs
   # Java for the emulator jar, which is why this never ran by hand.
   rules:
     name: Firestore rules (emulator)
@@ -76,6 +78,6 @@ jobs:
         run: npm i -g firebase-tools
 
       # cwd must be tests/ - the suite reads ../firestore.rules
-      - name: 119 allow/deny assertions
+      - name: 204 allow/deny assertions
         working-directory: tests
         run: firebase emulators:exec --only firestore --project demo-ez "node firestore-rules.test.mjs"

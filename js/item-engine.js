@@ -83,6 +83,15 @@ const ITEM_FIELD_TYPES = {
 
 const ITEM_TYPE_KEYS = Object.keys(ITEM_FIELD_TYPES);
 
+/* Every verb this engine can put in the log. Written down rather than
+   left implicit at the five emit sites, because two other files have
+   to agree with it and neither can see those sites: the automation
+   builder offers these as triggers, and a template pack declares them.
+   A rule waiting on a verb nothing emits is silent, not broken - the
+   kind of failure you only notice weeks later. */
+const ITEM_EVENT_VERBS = ["item.created", "item.updated", "item.status_changed",
+                          "item.assigned", "item.deleted"];
+
 /* ---------- values ---------- */
 
 const itemFieldDef = (type, key) => (type.fields || []).find(f => f.key === key) || null;
@@ -272,6 +281,6 @@ function itemCommit(args){
 /* Node test hook — the browser never defines `module`, so this block is
    invisible there; tests/item-engine.test.mjs requires this file. */
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { ITEM_FIELD_TYPES, ITEM_TYPE_KEYS, ITEM_INTENTS,
+  module.exports = { ITEM_FIELD_TYPES, ITEM_TYPE_KEYS, ITEM_INTENTS, ITEM_EVENT_VERBS,
     itemSlug, itemFieldDef, itemCoerce, itemIsEmpty, itemValidate, itemFacets, itemCommit };
 }

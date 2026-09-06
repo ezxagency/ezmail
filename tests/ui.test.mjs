@@ -52,7 +52,8 @@ ctx.console = console;
 
 // load order IS the dependency graph, exactly as index.html declares it
 ["js/config.js", "js/permissions.js", "js/item-engine.js", "js/ui.js",
- "js/migrate.js", "js/items.js", "js/org.js", "js/work.js"].forEach(f =>
+ "js/migrate.js", "js/items.js", "js/workflow-engine.js", "js/automation.js",
+ "js/packs.js", "js/org.js", "js/work.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 
 const run = expr => vm.runInContext(expr, ctx);
@@ -221,6 +222,56 @@ await TA("mirroring an assignment never throws, whatever the database does", asy
 
 await TA("mirroring a status change never throws either", async () => {
   await vm.runInContext(`itemsMirrorAssignmentStatus("a1", true)`, ctx);
+});
+
+/* ---------- the template picker ----------
+   The picker is generated from PACKS, and every row has to carry the key
+   its own click handler reads back off the DOM. That round trip is the
+   whole reason this suite exists: a pack could be perfectly valid and
+   still be unreachable because the button forgot to say which one it is. */
+T("the picker draws a row per pack, each readable back", () => {
+  run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", members: [],
+        roles: [], types: [], automations: [], dir: {} };
+       orgPackSheet();`);
+  const rows = [...doc.querySelectorAll("#sheetBody .org-pack")];
+  assert.equal(rows.length, run("PACKS.length"));
+  const keys = rows.map(r => r.dataset.pack);
+  assert.deepEqual(plain(keys), plain(run("PACKS.map(p => p.key)")));
+  // every key the DOM hands back resolves to a real pack
+  keys.forEach(k => assert.ok(run(`!!packByKey(${JSON.stringify(k)})`), k + " does not resolve"));
+});
+
+T("each row says what it would actually add", () => {
+  const first = doc.querySelector("#sheetBody .org-pack");
+  const count = first.querySelector(".org-pack-count").textContent;
+  assert.match(count, /kinds? of work/);
+  assert.ok(!first.disabled, "an empty org should be able to add any pack");
+});
+
+T("a pack already applied is offered but marked, not silently missing", () => {
+  // the alternative - hiding it - leaves somebody hunting for a template
+  // they can see in the docs and not on the screen
+  run(`
+    var _p = packByKey("simple"), _plan = packPlan(_p, {});
+    orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", members: [], dir: {},
+      roles: _plan.roles.map(r => ({ id: r.id, name: r.doc.name, permissions: r.doc.permissions })),
+      types: _plan.itemTypes.map(t => ({ id: t.id, name: t.doc.name })),
+      automations: [] };
+    orgPackSheet();`);
+  const row = doc.querySelector('#sheetBody .org-pack[data-pack="simple"]');
+  assert.ok(row, "the applied pack vanished from the list");
+  assert.ok(row.disabled, "it should not offer to add it again");
+  assert.match(row.textContent, /Added/);
+  // and a different pack is still offered
+  assert.ok(!doc.querySelector('#sheetBody .org-pack[data-pack="clinic"]').disabled);
+});
+
+T("the Organization page offers templates to an owner and not to anyone else", () => {
+  run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", members: [],
+        roles: [], types: [], automations: [], dir: {} }; orgRender();`);
+  assert.ok(doc.querySelector("#orgPackBtn"), "no way in for an owner");
+  run(`orgS.myRoleId = "staff"; orgRender();`);
+  assert.equal(doc.querySelector("#orgPackBtn"), null);
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

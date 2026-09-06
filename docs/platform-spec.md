@@ -115,7 +115,25 @@ one is that a rule writing a value already set produces no event, so the
 commonest loop dies on its second lap; `causationDepth` is only the guard
 of last resort.
 
-Phase 5 remains spec only.
+**Phase 5 is built.** `js/packs.js` holds eight packs and the validator;
+`itemsApplyPack()` in `js/items.js` applies one in a single batch;
+the Organization page has the picker. `tests/packs.test.mjs` validates
+every shipped pack against the real engines and then proves the validator
+refuses bad ones, which is what makes "no code change" a property rather
+than a promise.
+
+Two deliberate deviations from the sketch below, both kept because the
+alternative was worse:
+
+- **Packs ship statuses, not workflow graphs.** A blueprint's ROLE stops
+  need people, and a pack lands before anyone is seated - so a shipped
+  workflow would arrive as a draft that cannot be published, on a page
+  the org has not opened yet. Statuses plus rules carry the same shape
+  and work on day one. The pack format has room for `workflows` when
+  role binding can survive an empty roster.
+- **No pack defines an owner role.** Whoever created the org holds it
+  already, and a template quietly redefining who owns the place is the
+  worst surprise available. A test enforces it.
 This is the source of truth for turning EZ Clock In from one agency's tool
 into a base model any organization can configure. Re-read it fully before
 touching platform work in any session.
@@ -317,51 +335,77 @@ live multi-tenant database is miserable.
 
 ## Template packs — how one model fits every industry
 
-A pack is one JSON file, versioned in the repo, importable into any org:
+A pack is data in `js/packs.js`, versioned in the repo, applicable to any
+org:
 
 ```js
 {
-  key: "restaurant", name: "Restaurant", version: 1,
-  itemTypes: [ ... ], roles: [ ... ], workflows: [ ... ], automations: [ ... ]
+  key: "restaurant", name: "Restaurant", version: 1, blurb: "...",
+  roles: [ { id, name, permissions[] } ],
+  itemTypes: [ { id, name, statuses[], fields[] } ],
+  automations: [ { name, trigger, conditions[], actions[] } ]
 }
 ```
 
-Onboarding becomes *"pick your pack."* Everything after is editing. A pack
-is content, not code: adding an industry touches no application source, and
-customers can build and share their own.
+Onboarding becomes *"pick your pack."* Everything after is editing: what a
+pack creates is an ordinary role, type or rule the moment it lands, and
+nothing downstream knows where it came from.
+
+**Applying is additive and idempotent, and those are the same property.**
+`packPlan(pack, existing)` skips anything already present by id, so a
+second application creates nothing and a pack can be applied to a running
+org without disturbing it. An org that already has a `manager` keeps ITS
+manager, permissions and all — a template must never quietly hand an
+existing role different powers. It lands in one batch, because half a pack
+(rules pointing at types that do not exist) is worse than none.
+
+**A broken pack cannot ship.** `packValidate()` runs against the real
+engines — the same `ITEM_FIELD_TYPES` the item engine enforces, the same
+grammar `permParse` reads, the same `AUTO_ACTION_KINDS` the planner runs —
+so a pack cannot be valid here and rejected there. It also catches the
+failure no type check would: a rule that is well-formed and can never
+fire, because it waits on a status its type never reaches. Silence is the
+worst bug an automation can have.
+
+**Security needs nothing new.** A pack writes only to `roles`,
+`itemTypes` and `automations`, all owner-only in `firestore.rules`
+already, so a non-owner applying one is refused by the database and not
+merely by a hidden button.
+
+Shipped: restaurant, agency, clinic, construction, retail, content,
+property, and `simple` — one kind of work and three stages, for whoever
+recognizes none of the others.
 
 ### Worked example — `restaurant`
 
-**ItemType "Shift Swap"**
+**ItemType "Shift swap"**
 | field | type | notes |
 |---|---|---|
-| `requestedBy` | user | required |
 | `shiftDate` | date | required |
-| `coverBy` | user | filled by whoever accepts |
+| `shift` | select | Morning / Evening / Late |
+| `coveredBy` | user | filled by whoever takes it |
 | `reason` | longtext | |
-| `managerNote` | text | |
 
 statuses: `open` → `claimed` → `approved` / `denied`
 
-**Workflow "Shift swap approval"**
-```
-TRIGGER
-  → ROLE   [any Shift Lead: claim the shift]   outputs { claimed: boolean }
-  → LOGIC  [claimed == true]
-      true  → ROLE [Manager: approve]  outputs { approved: boolean }
-                → LOGIC [approved == true]
-                    true  → ACTION [notify both parties, set status approved]
-                    false → ACTION [notify requester, set status denied]
-      false → ACTION [notify requester nobody claimed it]
-```
+There is no `requestedBy` field, deliberately: every Item already records
+`createdBy`, and a second copy of the same fact is a second thing that can
+be wrong.
 
-**Automation** — trigger `item.created` on type Shift Swap → action
-`notify` all members holding the Shift Lead role.
+**ItemType "Maintenance issue"** — `area` (select), `urgent` (checkbox),
+`detail` (longtext); `reported` → `in hand` → `fixed`.
 
-**Roles** — Owner, Manager, Shift Lead, Staff.
+**Automations**
+- `item.created` on Shift swap → notify the Shift lead role.
+- `item.created` on Maintenance issue, when `urgent` is true → notify the
+  Manager. The condition reads a field with the workflow gates' own
+  grammar; nothing new to learn and nothing new to get wrong.
+
+**Roles** — Manager, Shift lead, Staff. Not Owner: the org already has one.
 
 Nothing in that pack is restaurant *code*. Swap the nouns and it is a
-clinic's shift cover or an agency's brief reassignment.
+clinic's cover or an agency's brief reassignment — which is not a claim,
+it is `clinic` and `agency` in the same file.
 
 ## What is deliberately NOT an Item
 
@@ -431,8 +475,8 @@ must not survive into multi-tenant. It ends when `commit()` moves server-side.
 | 1 | **Tenancy** | `orgId` on every document; roles as data; custom claims; rules rewritten around the claim | Two orgs coexist and cannot see each other |
 | 2 | **The Item** | Item + ItemType + eleven field types + facets + `commit()` chokepoint; the three systems collapse | A custom type built in the UI runs end to end |
 | 3 | **Events + server** | Append-only log; `commit()` flips to a callable; client writes revoked in rules | Devtools cannot forge a transition |
-| 4 | **Automations** | Trigger/condition/action over the event log; causation depth cap | Restaurant pack's notify rule fires |
-| 5 | **Packs** | Pack format, importer, 15–20 packs, onboarding | New industry ships with no code change |
+| 4 | **Automations** | Trigger/condition/action over the event log; causation depth cap | Restaurant pack's notify rule fires ✅ |
+| 5 | **Packs** | Pack format, validator, importer, 8 packs, onboarding | New industry ships with no code change ✅ |
 
 Phases 1 and 2 are the bulk. After phase 3 the pace increases sharply,
 because 4 and 5 are configuration over machinery that already exists.

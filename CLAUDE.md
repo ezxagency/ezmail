@@ -47,6 +47,14 @@ that everything downstream assumes already exist. Same for `css/` — the
 order is the cascade. Never shuffle either. `premium.css` and `premium.js`
 load last on purpose: they standardize motion over everything before them.
 
+One consequence bites harder than it looks: **a `const` at the top of any
+`js/` file is a global**. A local-looking one-letter helper (`S`, `F`, `R`)
+silently collides with something already there — `S` is the live shift
+state — and the file that loses is whichever loads second. Prefix helpers
+that only serve one file (`pkField`, `orgTypeKeyFor`). The jsdom suite
+catches this, because it loads the real files into one scope the way the
+browser does.
+
 ## The shift invariant
 
 `S.shift` holds `segs` (task segments) and `breaks`. The invariant, stated
@@ -64,23 +72,30 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 235 assertions, node + jsdom, seconds
+npm test        # 277 assertions, node + jsdom, seconds
 npm run test:rules   # 204 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
 `npm test` covers the workflow engine, effects, templates, versioning, the
-builder handshake, the permission grammar, the item engine, the repo
-guards, and — in jsdom, with the real files loaded into one shared global
-scope exactly as `index.html` arranges them — the generated UI. That last
-suite exists because the pure ones prove what the engine DECIDES and
-cannot prove that a control the app draws is a control the app can read
-back; that round trip only exists in a document.
+builder handshake, the permission grammar, the item engine, automations,
+the template packs, the repo guards, and — in jsdom, with the real files
+loaded into one shared global scope exactly as `index.html` arranges
+them — the generated UI. That last suite exists because the pure ones
+prove what the engine DECIDES and cannot prove that a control the app
+draws is a control the app can read back; that round trip only exists in
+a document. It earns its keep: it is what caught `js/packs.js` declaring
+a helper called `S` on top of the live shift state.
+
+`packs.test.mjs` is the odd one out and worth understanding. It validates
+every pack in `js/packs.js` against the REAL engines, and then proves the
+validator actually refuses things — because a validator that always says
+yes would pass the first half and mean nothing.
 `test:rules` runs the full allow/deny matrix against the Firestore
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 439 pass as of this writing — a
+reaches through an org boundary. All 481 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys
@@ -90,7 +105,7 @@ failure is a real regression, not a flake.
   what rule 2 is about.
 - **Firestore rules + indexes**: `.github/workflows/deploy-rules.yml` ships
   them on any push to `main` that touches `firestore.rules` or
-  `firestore.indexes.json` — but only after the 119-assertion suite passes
+  `firestore.indexes.json` — but only after the 204-assertion suite passes
   against the edited rules. Never paste rules into the Firebase console by
   hand; the console and the repo drift apart the moment you do, and the
   repo is the version that gets tested.

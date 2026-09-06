@@ -15,6 +15,9 @@
   margin: 0; opacity: .62; font-weight: 700;
 }
 .org-sec-head .org-btn-sm { margin-left: auto; }
+/* the FIRST small button takes the slack; a second one sits beside it
+   rather than splitting the gap and landing in the middle of the row */
+.org-sec-head .org-btn-sm ~ .org-btn-sm { margin-left: 0; }
 
 .org-badge {
   font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
@@ -43,6 +46,9 @@ button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
 .org-row-main b { font-size: 15px; font-weight: 600; }
 .org-row-main small { font-size: 12.5px; opacity: .58; }
 .org-row-go { font-size: 12px; opacity: .7; flex: none; }
+/* the "3 kinds of work · 3 roles" line under a template's blurb - the
+   same size as the blurb, dimmer, so it reads as a footnote to it */
+.org-pack-count { opacity: .42 !important; margin-top: 2px; }
 .org-row-lock { font-size: 11px; opacity: .38; flex: none; letter-spacing: .06em; text-transform: uppercase; }
 
 /* ---- empty state ---- */

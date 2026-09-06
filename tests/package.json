@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "test": "node repo-guards.test.mjs && node permissions.test.mjs && node item-engine.test.mjs && node migrate.test.mjs && node automation.test.mjs && node workflow-engine.test.mjs && node workflow-effects.test.mjs && node workflow-templates.test.mjs && node workflow-versions.test.mjs && node workflow-builder-handshake.test.mjs && node ui.test.mjs",
+    "test": "node repo-guards.test.mjs && node permissions.test.mjs && node item-engine.test.mjs && node migrate.test.mjs && node automation.test.mjs && node packs.test.mjs && node workflow-engine.test.mjs && node workflow-effects.test.mjs && node workflow-templates.test.mjs && node workflow-versions.test.mjs && node workflow-builder-handshake.test.mjs && node ui.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-ez \"node firestore-rules.test.mjs\"",
     "test:all": "npm test && npm run test:rules"
   },

@@ -122,6 +122,13 @@ async function orgEnsure(){
   return orgS;
 }
 
+/* Drop the cache. Anything that changes the org's SHAPE - its roles,
+   its kinds of work - has to call this, or the running app keeps
+   answering from a picture of an org that no longer exists. It lives
+   here rather than being assigned across files because orgS is this
+   file's to own; js/items.js should not know the variable's name. */
+function orgInvalidate(){ orgS = null; }
+
 /* ---------- page entry ---------- */
 
 function enterOrgPage(){
@@ -233,7 +240,7 @@ function orgRender(){
           (owner ? '<span class="org-row-go">Edit</span>' : '') +
           '</button>';
       }).join("")
-    : '<p class="org-note">No work types yet.' + (owner ? ' Create one to describe the work your team actually does.' : '') + '</p>';
+    : '<p class="org-note">No work types yet.' + (owner ? ' Start from a template below, or create one to describe the work your team actually does.' : '') + '</p>';
 
   const autoHtml = (orgS.automations || []).length
     ? (orgS.automations || []).map(a =>
@@ -262,7 +269,8 @@ function orgRender(){
     '</section>' +
     '<section class="org-sec">' +
       '<div class="org-sec-head"><h3>Work types</h3>' +
-        (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgAddType">New type</button>' : '') +
+        (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgPackBtn">Templates</button>' +
+                 '<button type="button" class="org-btn org-btn-sm" id="orgAddType">New type</button>' : '') +
       '</div>' +
       '<div class="org-list">' + typesHtml + '</div>' +
       '<p class="org-note">A work type is what makes this fit your business: the fields your work actually has, and the stages it moves through.</p>' +
@@ -302,6 +310,7 @@ function orgRender(){
   if (owner && $("orgAddRole")) $("orgAddRole").onclick = () => orgRoleSheet(null);
   if (owner && $("orgInviteBtn")) $("orgInviteBtn").onclick = () => orgInviteSheet();
   if (owner && $("orgAddType")) $("orgAddType").onclick = () => orgTypeSheet(null);
+  if (owner && $("orgPackBtn")) $("orgPackBtn").onclick = () => orgPackSheet();
   if (owner && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
   if (owner && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
   if (owner && $("orgImportChains")) $("orgImportChains").onclick = () => orgRunImport("chain", $("orgImportChains"));
@@ -835,6 +844,80 @@ const orgAutoSummary = a => {
   const al = (ORG_AUTO_ACTIONS.find(x => x.kind === act) || {}).label || act || "do nothing";
   return "When " + (t ? t.label : "something happens") + " → " + al.toLowerCase();
 };
+
+/* ---------- template packs ---------- */
+
+/* THE ONBOARDING MOMENT. An empty screen asking somebody to design a
+   data model before they can log anything is where most of these
+   products lose people - the work is real, they just wanted to write
+   it down. A pack turns that first question from "what are your
+   fields?" into "what kind of place is this?", which everybody can
+   answer.
+
+   It is a starting point and the copy says so: everything a pack
+   creates is an ordinary role, type or rule the moment it lands, and
+   applying one never overwrites something the org already has. */
+function orgPackSummary(plan){
+  const bits = [];
+  const n = (k, one, many) => { const c = plan[k].length; if (c) bits.push(c + " " + (c === 1 ? one : many)); };
+  n("itemTypes", "kind of work", "kinds of work");
+  n("roles", "role", "roles");
+  n("automations", "rule", "rules");
+  return bits.length ? bits.join(" · ") : "Nothing new — you already have all of it";
+}
+
+function orgPackSheet(){
+  const have = {
+    roleIds: (orgS.roles || []).map(r => r.id),
+    typeIds: (orgS.types || []).map(t => t.id),
+    automationIds: (orgS.automations || []).map(a => a.id)
+  };
+  const rows = PACKS.map(p => {
+    const plan = packPlan(p, have);
+    const nothing = !plan.roles.length && !plan.itemTypes.length && !plan.automations.length;
+    return '<button type="button" class="org-row org-pack" data-pack="' + esc(p.key) + '"' +
+      (nothing ? " disabled" : "") + '>' +
+      '<span class="org-row-main"><b>' + esc(p.name) + '</b>' +
+        '<small>' + esc(p.blurb) + '</small>' +
+        '<small class="org-pack-count">' + esc(orgPackSummary(plan)) + '</small></span>' +
+      (nothing ? '<span class="org-row-lock">Added</span>' : '<span class="org-row-go">Add</span>') +
+      '</button>';
+  }).join("");
+
+  openSheet(
+    '<h3 class="sheet-title">Start from a template</h3>' +
+    '<p class="org-note">Pick whichever is closest. It sets up the kinds of work, the roles and a couple of rules to get going — then rename, delete and add whatever you like. Nothing you already have is touched.</p>' +
+    '<div class="org-list">' + rows + '</div>',
+    () => {
+      $("sheetBody").querySelectorAll(".org-pack").forEach(b => {
+        if (b.disabled) return;
+        b.onclick = () => orgPackApply(b.dataset.pack, b);
+      });
+    });
+}
+
+async function orgPackApply(key, btn){
+  const pack = packByKey(key);
+  if (!pack) return;
+  const go = btn.querySelector(".org-row-go");
+  btn.disabled = true;
+  if (go) go.textContent = "Adding…";
+  const r = await itemsApplyPack(key);
+  if (!r.ok) {
+    btn.disabled = false;
+    if (go) go.textContent = "Add";
+    toast(r.error === "no-org" ? "You are not in an organization yet."
+      : r.error === "invalid" ? "That template is not usable — nothing was changed."
+      : "Could not add the template.");
+    return;
+  }
+  closeSheet();
+  const c = r.created;
+  const made = c.itemTypes + c.roles + c.automations;
+  toast(made ? pack.name + " added — " + c.itemTypes + " kinds of work, " + c.roles + " roles, " + c.automations + " rules."
+             : "You already had everything in " + pack.name + ".");
+  enterOrgPage();
+}
 
 async function orgAutomationSheet(rule){
   const types = orgS.types || [];
