@@ -145,6 +145,82 @@ async function itemTypeSave(type){
   return { ok: true, id };
 }
 
+/* "I have finished my part", from the assigned queue.
+
+   The queue was built when every row was an assignment document with a
+   done flag. An Item has no such flag - it has a STATUS, whose vocabulary
+   the type owns, and possibly a handoff whose current stop is the real
+   answer to what finishing means. So this routes rather than guesses:
+
+     on a handoff you hold  -> advance the stop. Finishing your part IS
+                               passing it on, and the run decides the rest.
+     type has a "done"      -> set it. The migrated task type does.
+     otherwise              -> its last status, and SAY SO in the toast,
+                               because moving somebody's work to a stage
+                               they did not name is worth admitting.
+
+   Returns { ok, how, status } so the caller can word the toast honestly
+   instead of claiming "done" for all three. */
+async function itemsFinishFromQueue(itemId, comment){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+  let item, type;
+  try {
+    const d = await itemsCol(s.orgId).doc(itemId).get();
+    if (!d.exists) return { ok: false, error: "gone" };
+    item = Object.assign({ id: d.id }, d.data());
+    const t = await typesCol(s.orgId).doc(item.typeId).get();
+    if (!t.exists) return { ok: false, error: "no-type" };
+    type = Object.assign({ id: t.id }, t.data());
+  } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
+
+  if (item.workflowRunId) {
+    const h = await itemsHandoffLoad(item);
+    const uid = auth.currentUser ? auth.currentUser.uid : null;
+    const stops = h ? hoActiveStops(h.nodeRuns) : [];
+    const mine = stops.find(nr => hoMayAdvance(h.blueprint, nr, uid, h.members, false).ok);
+    if (mine) {
+      const r = await itemsAdvanceHandoff(item, type, mine.id, comment ? { comment } : {});
+      return r.ok ? { ok: true, how: "advanced" } : { ok: false, error: r.error };
+    }
+    // on a run but not their stop: finishing it from here would jump the
+    // queue past whoever actually holds it
+    return { ok: false, error: "not-your-stop" };
+  }
+
+  const statuses = (type.statuses || []).map(x => x.key);
+  const done = statuses.indexOf("done") >= 0 ? "done" : statuses[statuses.length - 1];
+  if (!done) return { ok: false, error: "no-status" };
+  if (item.status === done) return { ok: true, how: "already", status: done };
+  const r = await itemSave(type, item, { kind: "set_status", status: done });
+  if (!r.ok) return { ok: false, error: r.error || "save-failed" };
+  const label = (type.statuses || []).find(x => x.key === done);
+  return { ok: true, how: statuses.indexOf("done") >= 0 ? "done" : "moved",
+           status: (label && label.label) || done };
+}
+
+/* Undo, for the rows where undo means anything. A handoff cannot be
+   un-advanced from here - the baton is already with somebody else, and
+   taking it back behind their screen would be worse than making them
+   pass it on. */
+async function itemsUndoFromQueue(itemId, toStatus){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+  try {
+    const d = await itemsCol(s.orgId).doc(itemId).get();
+    if (!d.exists) return { ok: false, error: "gone" };
+    const item = Object.assign({ id: d.id }, d.data());
+    if (item.workflowRunId) return { ok: false, error: "on-a-handoff" };
+    const t = await typesCol(s.orgId).doc(item.typeId).get();
+    if (!t.exists) return { ok: false, error: "no-type" };
+    const type = Object.assign({ id: t.id }, t.data());
+    const back = toStatus || ((type.statuses || [])[0] || {}).key;
+    if (!back) return { ok: false, error: "no-status" };
+    const r = await itemSave(type, item, { kind: "set_status", status: back });
+    return r.ok ? { ok: true } : { ok: false, error: r.error || "save-failed" };
+  } catch (e) { console.error(e); return { ok: false, error: "failed" }; }
+}
+
 /* ---------- handoff: work that moves person to person ----------
    docs/handoff-spec.md. js/handoff.js decides; this writes.
 
@@ -282,19 +358,23 @@ async function itemsSyncFromRun(item, type, blueprint, run, nodeRuns){
   let cur = item;
 
   try {
-    if (item.workflowRunId !== run.id)
-      await itemsCol(s.orgId).doc(item.id).update({ workflowRunId: run.id });
-  } catch (e) { console.warn("Could not point the item at its run:", e); }
-
-  try {
-    if (status && cur.status !== status) {
-      const r = await itemSave(type, cur, { kind: "set_status", status });
+    /* One commit for everything that is not the status or the assignees,
+       and through itemSave like everything else. Writing any of it beside
+       the chokepoint means the next commit rebuilds the document from an
+       in-memory copy that predates the side write and quietly erases it -
+       which is how an Item ended up travelling a run it had no record of,
+       looking untracked to every screen that asked. */
+    const patch = {};
+    if (cur.workflowRunId !== run.id) patch.workflowRunId = run.id;
+    // a new stop means a new clock: the chase stamp from the last one
+    // must not silence the next
+    if ((cur.dueAt || null) !== (due || null)) { patch.dueAt = due; patch.nudgedAt = null; }
+    if (Object.keys(patch).length) {
+      const r = await itemSave(type, cur, Object.assign({ kind: "update" }, patch));
       if (r.ok && r.item) cur = r.item;
     }
-    if ((cur.dueAt || null) !== (due || null)) {
-      // a new stop means a new clock: the chase stamp from the last one
-      // must not silence the next
-      const r = await itemSave(type, cur, { kind: "update", dueAt: due, nudgedAt: null });
+    if (status && cur.status !== status) {
+      const r = await itemSave(type, cur, { kind: "set_status", status });
       if (r.ok && r.item) cur = r.item;
     }
     const now = (cur.assigneeIds || []).slice().sort().join(",");

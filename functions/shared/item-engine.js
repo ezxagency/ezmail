@@ -240,10 +240,25 @@ function itemCommit(args){
       next.title = String(intent.title).trim();
       if (next.title !== item.title) changed.title = { from: item.title, to: next.title };
     }
-    if (intent.dueAt !== undefined) next.dueAt = intent.dueAt;
+    /* The top-level fields an update may carry, and they must be COUNTED
+       as changes. `changed` decides whether anything is written at all -
+       the no-op guard below returns the original Item untouched - so a
+       field set here but not recorded there is set on an object nobody
+       ever saves. That silently killed two features: an Item never
+       remembered the run it was travelling, and a deadline never
+       persisted, so nothing was ever late. */
+    const top = (key, val) => {
+      next[key] = val;
+      if (JSON.stringify(val) !== JSON.stringify(item[key]))
+        changed[key] = { from: item[key] === undefined ? null : item[key], to: val };
+    };
+    if (intent.dueAt !== undefined) top("dueAt", intent.dueAt);
+    // the run an Item is travelling; an Item that has forgotten its run
+    // silently stops being a handoff on every screen that asks
+    if (intent.workflowRunId !== undefined) top("workflowRunId", intent.workflowRunId);
     // when the deadline moves, the chase stamp moves with it: a stamp
     // from the last stop must not silence the chase for the next one
-    if (intent.nudgedAt !== undefined) next.nudgedAt = intent.nudgedAt;
+    if (intent.nudgedAt !== undefined) top("nudgedAt", intent.nudgedAt);
     Object.keys(intent.fields || {}).forEach(key => {
       const f = itemFieldDef(type, key);
       if (!f) return;                 // a value for a field the type dropped is ignored, not an error

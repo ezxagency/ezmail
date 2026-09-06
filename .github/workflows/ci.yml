@@ -55,6 +55,8 @@ jobs:
         run: node tests/workflow-builder-handshake.test.mjs
       - name: Generated UI (jsdom)
         run: node tests/ui.test.mjs
+      - name: A to Z (the whole flow, against an in-memory Firestore)
+        run: node tests/flow.test.mjs
 
   # The 204 allow/deny assertions in tests/firestore-rules.test.mjs. Needs
   # Java for the emulator jar, which is why this never ran by hand.

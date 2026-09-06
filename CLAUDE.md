@@ -97,7 +97,7 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 390 assertions, node + jsdom, seconds
+npm test        # 404 assertions, node + jsdom, seconds
 npm run test:rules   # 248 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -112,6 +112,16 @@ draws is a control the app can read back; that round trip only exists in
 a document. It earns its keep: it is what caught `js/packs.js` declaring
 a helper called `S` on top of the live shift state.
 
+`flow.test.mjs` is the one that matters most and was added last. It runs
+the WHOLE sequence — apply a template, seat two people, create tracked
+work, watch the run start, finish a stop, watch the baton reach the next
+person — against `fakedb.mjs`, an in-memory Firestore. It exists because
+every bug a person found in this app lived in the GLUE between a decision
+and a write, and every other suite tests decisions. Its fake `update()`
+throws on a missing document exactly as Firestore does, because a fake
+that quietly succeeded would hide the very bugs it is here to catch. It
+found two the hour it was written.
+
 `packs.test.mjs` is the odd one out and worth understanding. It validates
 every pack in `js/packs.js` against the REAL engines, and then proves the
 validator actually refuses things — because a validator that always says
@@ -120,7 +130,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 638 pass as of this writing — a
+reaches through an org boundary. All 652 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys

@@ -813,7 +813,16 @@ function renderAssignedList(rows){
 
 // the other half of a Done toast: one mistap shouldn't be a conversation
 // with the admin, so the toast offers to reopen what it just closed
-async function undoDone(ids){
+async function undoDone(ids, row){
+  // an Item row has no assignment to reopen; its status is the thing that
+  // moved, so that is the thing that moves back
+  if (row && !row.fromAssignment && row.itemId) {
+    const r = await itemsUndoFromQueue(row.itemId);
+    toast(r.ok ? "Brought back"
+      : r.error === "on-a-handoff" ? "It has moved on — ask whoever holds it now."
+      : "Couldn't undo it.");
+    return;
+  }
   try {
     const batch = db.batch();
     ids.forEach(id => batch.update(db.collection("assignments").doc(id),
@@ -881,6 +890,34 @@ function markAssignmentDone(id){
 async function finishAssignment(id, row, comment){
   const btn = $("doneSend");
   if (btn) btn.disabled = true;
+
+  /* An Item has no `done` flag to set - it has a status its type owns,
+     and possibly a handoff whose current stop is what finishing actually
+     means. Rows that came from an assignment still take the old path,
+     because the assignment document is still what Done has always
+     written to and what the admin badge counts. */
+  if (row && !row.fromAssignment && row.itemId) {
+    const r = await itemsFinishFromQueue(row.itemId, comment);
+    if (!r.ok) {
+      if (btn) btn.disabled = false;
+      toast(r.error === "not-your-stop" ? "This is with somebody else now."
+        : r.error === "no-status" ? "This kind of work has no stage to finish at."
+        : r.error === "gone" ? "That work is no longer there."
+        : "Couldn't update — check Firestore rules allow it");
+      return;
+    }
+    closeSheet();
+    if (comment) dispatchMentionNotifications(comment, id, row).catch(e => console.error(e));
+    // the toast says what actually happened rather than "done" for all of
+    // them: passing a baton on and closing a job are different events
+    toast(r.how === "advanced" ? "Done — it has moved to whoever is next."
+      : r.how === "already" ? "Already finished."
+      : r.how === "moved" ? "Moved to " + r.status + "."
+      : "Marked done", r.how === "advanced" || r.how === "already" ? undefined
+        : { label: "Undo", run: () => undoDone([id], row) });
+    return;
+  }
+
   try {
     const now = Date.now();
     // ack:false so the admin notification badge picks this up as new
