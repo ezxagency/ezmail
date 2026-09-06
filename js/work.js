@@ -16,6 +16,11 @@
 let wkTypes = null;     // the org's ItemTypes; null until first load
 let wkTypeId = null;    // which one is on screen
 let wkRows = [];        // the items showing now
+let wkOrphans = [];     // work whose type is gone - reachable from no other tab
+
+// not a type id: the repair tab. Prefixed so it can never collide with
+// one an org invents, since these files share one global scope.
+const WK_ORPHAN = "__wk_orphans__";
 
 /* ---------- the eleven, as controls ----------
    One entry per field type, each answering the same two questions:
@@ -89,24 +94,41 @@ async function enterWorkPage(){
       'An owner creates the first one on the Organization page.</p></div>';
     return;
   }
-  if (!wkTypeId || !wkType(wkTypeId)) wkTypeId = wkTypes[0].id;
+  /* Work whose type was deleted is reachable from NO tab, because the
+     tabs are the types. That is how work could be deleted from here and
+     still be sitting on somebody's dashboard: it was never deleted, this
+     page just had nowhere to draw it. Looked for once per visit; the tab
+     only exists when there is something in it. */
+  try { wkOrphans = (await itemsOrphans()).rows; }
+  catch (e) { console.error(e); wkOrphans = []; }
+
+  if (!wkTypeId || (wkTypeId !== WK_ORPHAN && !wkType(wkTypeId))) wkTypeId = wkTypes[0].id;
+  if (wkTypeId === WK_ORPHAN && !wkOrphans.length) wkTypeId = wkTypes[0].id;
   await wkRender();
 }
 
 async function wkRender(){
-  const type = wkType(wkTypeId);
+  const orphanTab = wkTypeId === WK_ORPHAN;
+  const type = orphanTab ? null : wkType(wkTypeId);
   const box = $("workBody");
   box.innerHTML = '<div class="wk-tabs">' +
       wkTypes.map(t => '<button type="button" class="wk-tab' + (t.id === wkTypeId ? " on" : "") + '" data-type="' +
         esc(t.id) + '">' + esc(t.name || t.id) + '</button>').join("") +
-      '<button type="button" class="org-btn org-btn-sm wk-new" id="wkNew">New ' + esc((type.name || "item").toLowerCase()) + '</button>' +
+      (wkOrphans.length
+        ? '<button type="button" class="wk-tab wk-tab-broken' + (orphanTab ? " on" : "") + '" data-type="' +
+          WK_ORPHAN + '">Needs attention <span class="wk-tab-n">' + wkOrphans.length + '</span></button>'
+        : "") +
+      (orphanTab ? ""
+        : '<button type="button" class="org-btn org-btn-sm wk-new" id="wkNew">New ' + esc((type.name || "item").toLowerCase()) + '</button>') +
     '</div>' +
     '<div id="wkList" class="org-list"><p class="org-note">Loading…</p></div>';
 
   box.querySelectorAll(".wk-tab").forEach(b => b.onclick = () => {
     wkTypeId = b.dataset.type; wkRender();
   });
-  $("wkNew").onclick = () => wkItemSheet(null);
+  if ($("wkNew")) $("wkNew").onclick = () => wkItemSheet(null);
+
+  if (orphanTab) { wkPaintOrphans(); return; }
 
   // one array-contains lookup, which is the whole point of facets: no
   // per-type index has to exist in advance for this to be fast.
@@ -146,6 +168,46 @@ function wkPaintList(){
   }).join("");
   box.querySelectorAll(".wk-row").forEach(b =>
     b.onclick = () => wkItemSheet(wkRows.find(r => r.id === b.dataset.id) || null));
+}
+
+/* ---------- the repair tab ----------
+   One row per piece of work whose type is gone, and the only action that
+   is still honest: delete it. It cannot be opened (there are no fields to
+   draw), moved (no statuses to move between) or finished (the chokepoint
+   refuses) - so this offers none of those rather than four buttons that
+   all fail differently. Who is still holding it is named, because that is
+   whose dashboard it is stuck on. */
+function wkPaintOrphans(){
+  const box = $("wkList");
+  if (!box) return;
+  if (!wkOrphans.length){ box.innerHTML = '<p class="org-note">Nothing needs attention.</p>'; return; }
+  box.innerHTML =
+    '<p class="org-note">These point at a work type that no longer exists. Nobody can open or finish them, ' +
+    'and they stay on the dashboard of whoever holds them until they are cleared.</p>' +
+    wkOrphans.map(it => {
+      const who = (it.assigneeIds || []).map(orgPersonName).join(", ");
+      return '<div class="org-row wk-row wk-row-broken">' +
+        '<span class="org-row-main"><b>' + esc(it.title || "(untitled)") + '</b><small>' +
+          'was a ' + esc(it.typeId || "—") + (who ? " · still with " + esc(who) : " · with nobody") + '</small></span>' +
+        '<button type="button" class="org-btn org-btn-sm org-btn-danger wk-orphan-del" data-id="' + esc(it.id) + '">Delete</button>' +
+        '</div>';
+    }).join("");
+  box.querySelectorAll(".wk-orphan-del").forEach(b => b.onclick = async () => {
+    const it = wkOrphans.find(x => x.id === b.dataset.id);
+    if (!it) return;
+    b.disabled = true; b.textContent = "Deleting…";
+    const r = await itemsDeleteOrphan(it);
+    if (!r.ok){
+      b.disabled = false; b.textContent = "Delete";
+      toast(r.error === "denied" ? "Your role cannot delete work."
+        : "Could not delete it (" + (r.error || "unknown") + ")");
+      return;
+    }
+    wkOrphans = wkOrphans.filter(x => x.id !== it.id);
+    toast("Cleared — it leaves every dashboard it was on");
+    if (!wkOrphans.length && wkTypes.length) wkTypeId = wkTypes[0].id;
+    wkRender();
+  });
 }
 
 /* ---------- one item ---------- */

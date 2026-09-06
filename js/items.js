@@ -259,6 +259,50 @@ async function itemsCountOfType(typeId){
   } catch (e) { console.error(e); return -1; }   // -1 = could not tell, so do not pretend zero
 }
 
+/* ---------- work whose kind of work is gone ----------
+
+   The failure this exists for, in the order it happens: an owner deletes
+   a work type; its items keep pointing at it. The Work page is TABBED BY
+   TYPE, so with no tab those items cannot be reached - they look deleted.
+   The assigned queue is not: it reads by facet, so they sit on somebody
+   else's dashboard forever, unfinishable (the chokepoint refuses every
+   intent without a type) and undeletable (same refusal).
+
+   "Deleted from my end, still on theirs" was not two screens disagreeing.
+   It was one screen unable to show what the other could. */
+
+/* Everything in the org whose typeId names no type. Capped: this is a
+   repair view, not a listing, and an org with 500 orphans has a bigger
+   problem than paging. */
+async function itemsOrphans(limit){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org", rows: [] };
+  try {
+    const [typeSnap, itemSnap] = await Promise.all([
+      typesCol(s.orgId).get(),
+      itemsCol(s.orgId).limit(limit || 500).get()
+    ]);
+    const known = new Set(typeSnap.docs.map(d => d.id));
+    return { ok: true, rows: itemSnap.docs
+      .map(d => Object.assign({ id: d.id }, d.data()))
+      .filter(it => !it.typeId || !known.has(it.typeId)) };
+  } catch (e) { console.error(e); return { ok: false, error: "read-failed", rows: [] }; }
+}
+
+/* itemCommit refuses every intent when the type is missing - rightly, it
+   cannot validate a field it has no definition for. That refusal also
+   locked the ONLY action an orphan still needs. So deletion is handed a
+   ghost: a type with no fields and no statuses, which is a true
+   description of what is left and enough for the delete branch, which
+   only checks the permission and writes the event. Nothing else may be
+   done through it, because nothing else can be done honestly. */
+async function itemsDeleteOrphan(item){
+  if (!item || !item.id) return { ok: false, error: "no-item" };
+  const ghost = { id: item.typeId || "(none)", name: "Deleted work type", fields: [], statuses: [] };
+  const r = await itemSave(ghost, item, { kind: "delete" });
+  return r.ok ? { ok: true } : { ok: false, error: r.error || "failed" };
+}
+
 /* Delete every piece of work in this org, and the runs that carry it.
 
    For starting over on a test org. The EVENT LOG IS NOT TOUCHED, and
@@ -419,7 +463,12 @@ async function itemsSyncFromRun(item, type, blueprint, run, nodeRuns){
   const s = await orgEnsure();
   if (!s || !item) return;
   const holders = hoHolders(blueprint, nodeRuns, s.members || []);
-  const status = hoStatus(blueprint, nodeRuns);
+  /* hoStatus reads the ACTIVE stop, and a finished run has none - so the
+     last stop's status stuck to the work forever and a video that had
+     been through every stop still read "Scheduled". The run knows it is
+     over; the TYPE knows what over is called. Neither knows alone. */
+  const status = hoStatus(blueprint, nodeRuns)
+    || (run && run.status === "completed" ? itemDoneStatus(type) : null);
   // the active stop's deadline is copied onto the Item, so a list of
   // fifty can show what is late without reading fifty runs
   const due = hoDue(blueprint, nodeRuns, Date.now()).dueAt;

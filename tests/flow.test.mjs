@@ -273,6 +273,35 @@ await T("finished work leaves the queue, whatever the type calls finished", asyn
   assert.equal(run(`itemDoneStatus(null)`), null);
 });
 
+/* ---------- reaching the end of a track means FINISHED ---------- */
+await T("finishing the last stop finishes the work, not just the stop", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  const type = Object.assign({ id: "video" }, await get("orgs/" + ORG + "/itemTypes/video"));
+  const r = await runAsync(`
+    return await itemSave(${JSON.stringify(type)}, null,
+      { kind: "create", title: "Video #99", fields: {}, assigneeIds: [] });`);
+  assert.ok(r.ok, JSON.stringify(r));
+  const id = r.item.id;
+  await until(async () => (await get("orgs/" + ORG + "/items/" + id) || {}).workflowRunId, "the run to start");
+  // walk it off the end: four stops, owner overrides each
+  for (let i = 0; i < 4; i++) {
+    const it = Object.assign({ id }, await get("orgs/" + ORG + "/items/" + id));
+    const runDoc = await get("orgs/" + ORG + "/runs/" + it.workflowRunId);
+    const active = (runDoc.nodeRuns || []).find(n => n.status === "in_progress" && n.nodeType === "role");
+    if (!active) break;
+    const out = await runAsync(`return await itemsAdvanceHandoff(${JSON.stringify(it)},
+      ${JSON.stringify(type)}, ${JSON.stringify(active.id)}, {});`);
+    assert.ok(out.ok, "stop " + i + ": " + JSON.stringify(out));
+  }
+  const done = await get("orgs/" + ORG + "/items/" + id);
+  // the LAST STOP says "scheduled"; the TYPE says finished is "published".
+  // hoStatus reads the active stop and a finished run has none, so this
+  // used to stop at "scheduled" and read as unfinished forever.
+  assert.equal(done.status, "published", "work that ran the whole track still reads as mid-track");
+  assert.deepEqual(plain(done.assigneeIds), [], "it is finished and still on somebody's dashboard");
+});
+
 /* ---------- deleting a type must not orphan its work ---------- */
 await T("a type in use refuses to be deleted", async () => {
   AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
@@ -282,6 +311,51 @@ await T("a type in use refuses to be deleted", async () => {
   // orgTypeDelete refuses above zero - the orphan this prevents is an Item
   // pointing at a type that is gone: unopenable, unfinishable, and still
   // on somebody's dashboard
+});
+
+/* ---------- THE ONE THAT WAS REPORTED ----------
+   "the work is deleted from admin's end but still showing in test's
+   dashboard and it's not going." It was never deleted. The type was.
+   The Work page is tabbed BY TYPE, so with the type gone the work was
+   reachable from no tab and looked deleted; the assigned queue reads by
+   FACET, so it kept showing - unopenable, unfinishable, undeletable. */
+await T("work orphaned by a deleted type is findable again", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  await db.collection("orgs").doc(ORG).collection("items").doc("zombie1").set({
+    id: "zombie1", orgId: ORG, typeId: "video", title: "Video #23", status: "idea",
+    fields: {}, facets: ["type:video", "status:idea", "assignee:staff1"],
+    assigneeIds: ["staff1"], workflowRunId: null,
+    createdAt: 1, updatedAt: 1, createdBy: "owner1" });
+  // the owner deletes the type, as they did
+  await db.collection("orgs").doc(ORG).collection("itemTypes").doc("video").delete();
+  run(`orgInvalidate();`);
+
+  const r = await runAsync(`return await itemsOrphans();`);
+  assert.ok(r.ok, JSON.stringify(r));
+  const ids = r.rows.map(x => x.id);
+  assert.ok(ids.indexOf("zombie1") >= 0, "the owner still cannot see the work they think they deleted");
+});
+
+await T("and the owner can actually clear it", async () => {
+  const it = Object.assign({ id: "zombie1" }, await get("orgs/" + ORG + "/items/zombie1"));
+  const r = await runAsync(`return await itemsDeleteOrphan(${JSON.stringify(it)});`);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(await get("orgs/" + ORG + "/items/zombie1"), undefined, "it survived the delete");
+  // and so leaves the holder's queue, which reads these same documents
+  const mine = await db.collection("orgs/" + ORG + "/items")
+    .where("facets", "array-contains", "assignee:staff1").get();
+  assert.ok(mine.docs.every(d => d.id !== "zombie1"), "it is still on the holder's dashboard");
+});
+
+await T("an orphan cannot be finished, so the queue must not offer to", async () => {
+  // itemCommit refuses every intent with no type - which is right, and is
+  // why the Done button on that row could only ever produce an error
+  const refused = run(`itemCommit({ type: null, item: { id: "z", orgId: "${ORG}" },
+    intent: { kind: "set_status", status: "done" },
+    actor: { uid: "staff1", orgId: "${ORG}" }, allow: () => true, now: 1 })`);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.error, "no-type");
 });
 
 await T("starting over clears the work and the runs, and nothing else", async () => {

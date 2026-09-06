@@ -177,3 +177,14 @@
   .cx-inputrow,.cx-send{corner-shape:var(--squircle-sm)}
   .cx-sug,.cx-tag{corner-shape:var(--squircle-xs)}
 }
+
+/* A row nobody can act on: its kind of work was deleted. It keeps its
+   place in the queue on purpose - work you were told about and cannot
+   see is worse than work that says why it is stuck. */
+.atask-cgchip.is-broken{ background:rgba(255,138,128,.16); color:#ff8a80; }
+.atask-broken{
+  margin:.35rem 0 0; padding:.6rem .75rem; border-radius:10px;
+  background:rgba(255,138,128,.09); border:1px solid rgba(255,138,128,.22);
+  color:var(--muted); font-size:.86rem; line-height:1.45;
+}
+.atask-broken b{ color:#ff8a80; font-weight:600; }

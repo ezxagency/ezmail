@@ -523,7 +523,7 @@ async function cxSubmit(){
 function watchAssignedTasksFromItems(){
   assignedTasksSeen = null;
   let unsub = () => {};
-  orgEnsure().then(s => {
+  orgEnsure().then(async s => {
     if (!s) {
       // Not seated in an org yet - a team mid-migration, or an account
       // that predates the org. Falling back is the only acceptable
@@ -541,12 +541,22 @@ function watchAssignedTasksFromItems(){
     assignedEmptyReason = null;
     const uid = auth.currentUser.uid;
     const items = db.collection("orgs").doc(s.orgId).collection("items");
-    // the types, so a row can say what KIND of work it is and what stage
-    // it is at. Loaded once per subscription rather than per snapshot.
+    /* The types, so a row can say what KIND of work it is, what stage it
+       is at, and - the part that bit - what its type calls FINISHED.
+
+       AWAITED, not fired alongside. Loading them in parallel meant the
+       first snapshot could land against an empty map, and a snapshot only
+       re-runs when a DOCUMENT changes: types arriving later re-rendered
+       nothing. Every row drawn in that window was grouped under "—",
+       stageless, and measured against a fallback "done" that no custom
+       type has - so finished work stayed on the dashboard until something
+       else happened to move. One await is cheaper than that. */
     let typesById = {};
-    itemTypesLoad().then(list => {
-      (list || []).forEach(t => { typesById[t.id] = t; });
-    }).catch(e => console.error(e));
+    let typesLoaded = false;
+    try {
+      (await itemTypesLoad()).forEach(t => { typesById[t.id] = t; });
+      typesLoaded = true;
+    } catch (e) { console.error("Could not load the work types for the queue:", e); }
     unsub = items
       .where("facets", "array-contains", "assignee:" + uid)
       .onSnapshot(snap => {
@@ -560,11 +570,23 @@ function watchAssignedTasksFromItems(){
              or a pack has created since. Work you were told about and
              cannot find is worse than work nobody mentioned. */
           if (item.typeId === MIGRATE_CAMPAIGN_TYPE.id) return;
+          const type = typesById[item.typeId];
+          /* Its kind of work was deleted out from under it. Nobody can
+             finish this - the chokepoint refuses every intent without a
+             type - so offering Done would be offering a button that can
+             only produce an error, which is how three rounds got spent on
+             one row. It stays VISIBLE (hidden work you were told about is
+             worse) and says what is wrong and who can fix it. Only when
+             the types genuinely loaded: a failed read must not turn every
+             row on the dashboard into a broken one. */
+          const orphan = typesLoaded && !type;
           // finished work leaves the queue, and "finished" is whatever
           // the TYPE calls it - "done" only ever existed on the migrated
           // task type, so a Sponsorship at "paid" sat here forever
-          if (item.status === (itemDoneStatus(typesById[item.typeId]) || "done")) return;
-          rows.push(itemToQueueRow(item, typesById[item.typeId]));
+          if (!orphan && item.status === (itemDoneStatus(type) || "done")) return;
+          const row = itemToQueueRow(item, type);
+          row.orphanType = orphan ? (item.typeId || "(none)") : null;
+          rows.push(row);
         });
         assignedRowsLanded(rows, unseen => {
           // BOTH places. The assignment is still the document Done writes
@@ -770,7 +792,11 @@ function renderAssignedList(rows){
           // A workflow-stop row works the same way: completing it must
           // collect the stop's declared outputs and advance the run, so it
           // routes to the workflow stop sheet (which closes this row itself)
-          const acts = r.cg
+          const acts = r.orphanType
+            // no button at all, because there is no action. Saying so is
+            // the whole content of this row.
+            ? `<p class="atask-broken">Its kind of work (<b>${esc(r.orphanType)}</b>) was deleted, so nothing can be done with it here. An owner can clear it on the Work page.</p>`
+            : r.cg
             ? `<button type="button" class="btn btn-go btn-sm atask-pass" data-cg="${esc(r.cg)}">${r.multi ? "Approve" : "Pass forward"}</button>
                ${r.canBack ? `<button type="button" class="btn btn-ghost btn-sm atask-sendback" data-cg="${esc(r.cg)}">Send back</button>` : ""}
                <button type="button" class="btn btn-ghost btn-sm atask-view" data-cg="${esc(r.cg)}">Open</button>`
@@ -783,7 +809,7 @@ function renderAssignedList(rows){
           return `
           <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
             <button type="button" class="atask-head" data-tid="${esc(r.id)}" aria-expanded="${tOpen}">
-              <span class="atask-name">${esc(r.task)}${r.stage ? `<span class="atask-cgchip">${esc(r.stage)}</span>` : ""}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.wfNodeRunId ? `<span class="atask-cgchip">workflow</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
+              <span class="atask-name">${esc(r.task)}${r.stage ? `<span class="atask-cgchip">${esc(r.stage)}</span>` : ""}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.wfNodeRunId ? `<span class="atask-cgchip">workflow</span>` : ""}${r.orphanType ? `<span class="atask-cgchip is-broken">needs an owner</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
               <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(dueWithTime(r)) : ""}</span>
               ${CARET_SVG("atask-caret")}
             </button>

@@ -887,8 +887,9 @@ async function orgTypeDelete(type){
      refusal, because a refusal can be acted on. */
   const n = await itemsCountOfType(type.id);
   if (n > 0) {
-    toast(n === 1 ? "One piece of work still uses this type. Delete it first."
-      : n + " pieces of work still use this type. Delete them first.");
+    // say WHERE, or "delete it first" is an instruction with no address
+    toast((n === 1 ? "One piece of work still uses this type"
+      : n + " pieces of work still use this type") + " — clear them on the Work page first.");
     return;
   }
   if (n < 0) { toast("Could not check whether work uses this type."); return; }
