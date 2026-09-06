@@ -185,6 +185,12 @@ function wfEvalCondition(cond, ctx){
   let v;
   if (cond.source === "task"){
     v = ctx.task ? ctx.task[cond.path] : undefined;
+  } else if (cond.source === "field"){
+    // an Item's own values. A run started from an Item freezes it as the
+    // run's `task`, so its fields ride along in the snapshot already -
+    // no new property on the run, and no way for a later edit to the
+    // Item to change what a run in flight decides.
+    v = ctx.task && ctx.task.fields ? ctx.task.fields[cond.path] : undefined;
   } else {
     // "earlier nodeRuns in the same run": on a loop the LATEST completed
     // attempt is the one whose answer matters (the rework, not the
@@ -310,8 +316,17 @@ function wfValidate(bp){
       if (!hs.has("true") || !hs.has("false"))
         err("logic-handles", "A gate needs both paths connected: one for yes, one for no.", n.id);
     }
-    if (n.type === "role" && !cfg.role && !cfg.assigneeId)
+    // `assignees` counts as an answer to "who works here" - a stop with
+    // several owners is still a stop with someone on it, and without
+    // this a multi-owner stage could be drawn but never published
+    if (n.type === "role" && !cfg.role && !cfg.assigneeId && !(cfg.assignees || []).length)
       err("role-assignee", "Who works here? Pick a person or a role.", n.id);
+    // "everyone must act" needs more than one person to mean anything,
+    // and silently behaving like "any" would be a rule that looks set
+    // and is not - the kind a person only discovers after it mattered
+    if (n.type === "role" && cfg.completionPolicy === "all"
+        && (cfg.assignees || []).length < 2)
+      err("role-policy", "This stop waits for everyone, so it needs more than one person.", n.id);
     if (n.type === "action" && !cfg.actionType)
       err("action-type", "Pick what this Action does (notify, complete, email, webhook).", n.id);
   });
@@ -409,6 +424,13 @@ function wfFeedableEdges(bp, nodeRuns, pending, mergeNodeId){
   return feedable;
 }
 
+/* The people a role stop is waiting on. `assignees` is the list;
+   `assigneeId` is the one-person shorthand every blueprint drawn before
+   multi-owner stops existed still uses, and it keeps working. */
+const wfRolePeople = cfg =>
+  (cfg.assignees && cfg.assignees.length) ? cfg.assignees.slice()
+  : (cfg.assigneeId ? [cfg.assigneeId] : []);
+
 /* ============================================================
    ACTIVATION — what happens when a token actually lands on a
    block. Roles wait for a human; everything else resolves on
@@ -418,11 +440,22 @@ function wfResolve(bp, state, node, nr, opts, effects){
   const now = opts.now || 0;
   const cfg = node.config || {};
   const ctx = { task: state.run.task, nodeRuns: state.nodeRuns };
+  // A stop's clock starts when the token ARRIVES, not when the run did -
+  // which is what a campaign stage budget has always meant. The engine
+  // records the deadline and never acts on it: being late is a fact for
+  // a person to see, not a reason for work to move on its own.
+  if (cfg.dueAfter) nr.dueAt = now + cfg.dueAfter;
   if (node.type === "role"){
     nr.status = "in_progress";
-    nr.assigneeId = cfg.assigneeId || null;
+    const people = wfRolePeople(cfg);
+    nr.assigneeId = people[0] || null;
+    // both are recorded: `assignees` is who may act, `approvals` is who
+    // has. With completionPolicy "all" the gap between them is the stop.
+    nr.assignees = people;
+    nr.approvals = [];
     effects.push({ type: "role-activated", nodeId: node.id, nodeRunId: nr.id,
-      role: cfg.role || null, assigneeId: cfg.assigneeId || null });
+      role: cfg.role || null, assigneeId: people[0] || null,
+      assignees: people, completionPolicy: cfg.completionPolicy || "any" });
     return;
   }
   if (node.type === "split" && (cfg.mode || "route") === "route"){
@@ -614,6 +647,32 @@ function wfAdvance(prev, event, opts){
   if (missing.length) throw new Error("This stop must record: " + missing.join(", "));
 
   nr.output = Object.assign({}, nr.output, output);
+
+  // MULTI-OWNER STOPS. completionPolicy "all" means every person on the
+  // stop must act before the work moves - the rule campaigns have always
+  // had for a stage with several owners. Each call records one approval
+  // and leaves the stop where it is; only the last one advances the run.
+  // Recording is idempotent, so the same person tapping twice is not two
+  // approvals, and a stop waiting on three people cannot be cleared by
+  // one enthusiastic click.
+  const rcfg = (node && node.config) || {};
+  if (node && node.type === "role" && (rcfg.completionPolicy || "any") === "all"){
+    const people = wfRolePeople(rcfg);
+    if (people.length > 1){
+      const by = event.by;
+      if (!by) throw new Error("This stop needs everyone on it, so it must record who acted.");
+      if (people.indexOf(by) < 0) throw new Error("That person is not on this stop.");
+      nr.approvals = [...new Set([...(nr.approvals || []), by])];
+      const outstanding = people.filter(u => nr.approvals.indexOf(u) < 0);
+      if (outstanding.length){
+        effects.push({ type: "approval-recorded", nodeId: nr.nodeId, nodeRunId: nr.id,
+          by, approvals: nr.approvals.slice(), outstanding });
+        // the run does not move, so there is nothing to reconcile
+        return { run: state.run, nodeRuns: state.nodeRuns, effects };
+      }
+    }
+  }
+
   nr.status = "completed";
   nr.completedAt = opts.now || 0;
   wfReconcile(bp, state, opts, effects);

@@ -109,7 +109,7 @@ slip before it ships rather than after.
 ```
 cd tests
 npm ci               # once
-npm test             # 181 assertions, node + jsdom, seconds
+npm test             # 203 assertions, node + jsdom, seconds
 npm run test:rules   # 195 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```

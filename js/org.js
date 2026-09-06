@@ -247,6 +247,9 @@ function orgRender(){
         '<button type="button" class="org-row" id="orgImportCampaigns"><span class="org-row-main">' +
           '<b>Import campaigns</b><small>Copies every campaign into Work, at the stage it is on</small>' +
         '</span><span class="org-row-go">Import</span></button>' +
+        '<button type="button" class="org-row" id="orgImportChains"><span class="org-row-main">' +
+          '<b>Turn campaign chains into workflows</b><small>Each saved chain becomes a draft blueprint you can review and publish</small>' +
+        '</span><span class="org-row-go">Convert</span></button>' +
       '</div>' +
       '<p class="org-note">Nothing is deleted or changed — the Assign composer and Campaigns page keep working exactly as they do now. Safe to run more than once: anything already brought across is skipped.</p>' +
     '</section>' : '') +
@@ -262,6 +265,7 @@ function orgRender(){
   if (owner && $("orgAddType")) $("orgAddType").onclick = () => orgTypeSheet(null);
   if (owner && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
   if (owner && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
+  if (owner && $("orgImportChains")) $("orgImportChains").onclick = () => orgRunImport("chain", $("orgImportChains"));
   $("orgBody").querySelectorAll(".org-type").forEach(b => {
     if (b.disabled) return;
     b.onclick = () => orgTypeSheet((orgS.types || []).find(t => t.id === b.dataset.type) || null);
@@ -508,7 +512,7 @@ async function orgRunImport(kind, btn){
   const was = btn.querySelector(".org-row-go").textContent;
   btn.disabled = true;
   btn.querySelector(".org-row-go").textContent = "Working…";
-  const r = await itemsImport(kind);
+  const r = kind === "chain" ? await itemsImportChains() : await itemsImport(kind);
   btn.disabled = false;
   btn.querySelector(".org-row-go").textContent = was;
   if (!r.ok) {

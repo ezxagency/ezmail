@@ -36,9 +36,23 @@ owner-only import on the Organization page brings them across. It is
 additive, one-way and safe to run twice — item ids are derived from the
 source document, so a second run skips what it already made. Nothing is
 deleted and neither the assign composer nor the campaigns page changes
-behaviour. What remains is the UI cutover, which should follow only once
-the imported data has been looked at, and the campaign chain becoming a
-real workflow run — that needs the engine additions named below. **Phase 3 written, not yet deployable.** `functions/index.js` is the
+behaviour. The campaign chain is now a workflow too:
+`migrateCampaignBlueprint()` turns a saved chain into a publishable
+blueprint, and the three engine additions it needed are built and tested
+— `completionPolicy:"all"` for a stage with several owners,
+`dueAfter` for a stage budget, and `source:"field"` conditions that read
+an Item's own values. A test passes a baton down a generated track and
+proves it waits at the two-owner stage until both have acted.
+
+Chains arrive as **drafts**, and an in-flight campaign is deliberately
+NOT fast-forwarded into a half-finished run: that would mean writing
+approvals nobody gave into a log whose only value is that it never lies.
+Old work keeps the honest snapshot the import made of it; new work rides
+the track from its first stop.
+
+What remains in phase 2 is the UI cutover — the composer and the
+campaigns page reading Items — which should follow only once the
+imported data has been looked at. **Phase 3 written, not yet deployable.** `functions/index.js` is the
 `commitItem` callable: it runs the same engine the browser runs — the
 copies under `functions/shared/` are byte-identical, and a repo guard
 fails the build if they drift — inside a Firestore transaction, so two
@@ -331,13 +345,13 @@ once every org is migrated and verified.
 
 Small, and all inside `js/workflow-engine.js`'s existing contract:
 
-1. **`completionPolicy` on ROLE nodes** — `"any"` (default, today's
-   behaviour) or `"all"`. `waitFor` governs incoming *edges*; this governs
+1. ~~**`completionPolicy` on ROLE nodes**~~ — **built.** `"any"`
+   (default, unchanged) or `"all"`. `waitFor` governs incoming *edges*; this governs
    incoming *people*. Campaigns' multi-owner approval needs it and there is
    no way to express it today.
-2. **Node SLA** — `dueAfter` (ms from arrival) on any node, so a stop can be
+2. ~~**Node SLA**~~ — **built.** `dueAfter` (ms from arrival) on any node, so a stop can be
    overdue. Campaigns' stage budgets become this.
-3. **Condition context reads Item fields** — `wfEvalCondition` already reads
+3. ~~**Condition context reads Item fields**~~ — **built.** `wfEvalCondition` already reads
    task fields and earlier nodeRun outputs; the Item's `fields` map joins
    that context under a `field.` prefix.
 

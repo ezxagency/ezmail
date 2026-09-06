@@ -527,5 +527,122 @@ T("advance accepts nodeRuns in any order (Firestore returns docs unordered)", ()
   assert.equal(JSON.stringify(a), JSON.stringify(b));
 });
 
+/* ============================================================
+   MULTI-OWNER STOPS, DEADLINES, AND ITEM FIELDS
+   The three additions campaigns need before a stage chain can be a
+   real run (docs/platform-spec.md, "Engine changes required").
+   ============================================================ */
+
+const roleBP = (cfg) => BP(
+  [N("t", "trigger"), N("r", "role", cfg), N("a", "action", { actionType: "notify" })],
+  [Ed("e1", "t", "r"), Ed("e2", "r", "a")]
+);
+const openStop = st => st.nodeRuns.find(nr => nr.status === "in_progress");
+
+T("all-policy: one approval records and the work does NOT move", () => {
+  const st = start(roleBP({ assignees: ["u1", "u2"], completionPolicy: "all" }));
+  const nr = openStop(st);
+  const after = wfAdvance(st, { type: "complete", nodeRunId: nr.id, by: "u1" }, { now: 10 });
+  const still = after.nodeRuns.find(x => x.id === nr.id);
+  assert.equal(still.status, "in_progress", "one person cleared a stop that needs both");
+  assert.deepEqual(still.approvals, ["u1"]);
+  assert.equal(after.run.status, "running");
+  const ev = after.effects.find(e => e.type === "approval-recorded");
+  assert.deepEqual(ev.outstanding, ["u2"]);
+});
+
+T("all-policy: the last approval is the one that moves it", () => {
+  let st = start(roleBP({ assignees: ["u1", "u2"], completionPolicy: "all" }));
+  const id = openStop(st).id;
+  st = wfAdvance(st, { type: "complete", nodeRunId: id, by: "u1" }, { now: 10 });
+  st = wfAdvance(st, { type: "complete", nodeRunId: id, by: "u2" }, { now: 20 });
+  assert.equal(st.nodeRuns.find(x => x.id === id).status, "completed");
+  assert.equal(st.run.status, "completed");
+});
+
+T("all-policy: the same person twice is still one approval", () => {
+  let st = start(roleBP({ assignees: ["u1", "u2"], completionPolicy: "all" }));
+  const id = openStop(st).id;
+  st = wfAdvance(st, { type: "complete", nodeRunId: id, by: "u1" }, { now: 10 });
+  st = wfAdvance(st, { type: "complete", nodeRunId: id, by: "u1" }, { now: 20 });
+  const nr = st.nodeRuns.find(x => x.id === id);
+  assert.equal(nr.status, "in_progress", "an eager clicker cleared a stop alone");
+  assert.deepEqual(nr.approvals, ["u1"]);
+});
+
+T("all-policy: someone not on the stop cannot approve it", () => {
+  const st = start(roleBP({ assignees: ["u1", "u2"], completionPolicy: "all" }));
+  const id = openStop(st).id;
+  assert.throws(() => wfAdvance(st, { type: "complete", nodeRunId: id, by: "u9" }, { now: 10 }),
+    /not on this stop/);
+});
+
+T("all-policy: it must be told who acted", () => {
+  const st = start(roleBP({ assignees: ["u1", "u2"], completionPolicy: "all" }));
+  const id = openStop(st).id;
+  assert.throws(() => wfAdvance(st, { type: "complete", nodeRunId: id }, { now: 10 }),
+    /who acted/);
+});
+
+T("\"everyone must act\" with one person is refused, not quietly downgraded", () => {
+  const bad = wfValidate(roleBP({ assignees: ["u1"], completionPolicy: "all" }));
+  assert.ok(bad.some(e => e.code === "role-policy"),
+    "a rule that looks set and is not is worse than no rule");
+});
+
+T("a multi-owner stop validates - it can actually be published", () => {
+  assert.deepEqual(wfValidate(roleBP({ assignees: ["u1", "u2"], completionPolicy: "all" })), []);
+});
+
+T("a blueprint drawn before multi-owner stops existed is untouched", () => {
+  const st = start(roleBP({ assigneeId: "u1" }));
+  const nr = openStop(st);
+  assert.equal(nr.assigneeId, "u1");
+  assert.deepEqual(nr.assignees, ["u1"]);
+  assert.equal(wfAdvance(st, { type: "complete", nodeRunId: nr.id }, { now: 10 }).run.status, "completed");
+});
+
+T("a deadline starts when the token ARRIVES, not when the run did", () => {
+  const bp = BP(
+    [N("t", "trigger"), N("r1", "role", { assigneeId: "u1" }),
+     N("r2", "role", { assigneeId: "u2", dueAfter: 1000 })],
+    [Ed("e1", "t", "r1"), Ed("e2", "r1", "r2")]
+  );
+  let st = start(bp);                       // run starts at now: 0
+  st = wfAdvance(st, { type: "complete", nodeRunId: openStop(st).id }, { now: 500 });
+  const second = openStop(st);
+  assert.equal(second.dueAt, 1500, "the budget was measured from the run, not the arrival");
+});
+
+T("a stop with no budget carries no deadline", () => {
+  const st = start(roleBP({ assigneeId: "u1" }));
+  assert.equal(openStop(st).dueAt, undefined);
+});
+
+T("a condition can read the Item's own fields", () => {
+  const bp = BP(
+    [N("t", "trigger"),
+     N("g", "logic", { condition: { source: "field", path: "priority", op: "==", value: "high" } }),
+     N("hot", "action", { actionType: "notify" }), N("cold", "action", { actionType: "notify" })],
+    [Ed("e1", "t", "g"), Ed("e2", "g", "hot", "true"), Ed("e3", "g", "cold", "false")]
+  );
+  const st = start(bp, { title: "X", fields: { priority: "high" } });
+  const gate = st.nodeRuns.find(nr => nr.nodeId === "g");
+  assert.equal(gate.output.result, true);
+  assert.ok(st.nodeRuns.some(nr => nr.nodeId === "hot"), "the true side never fired");
+  assert.ok(!st.nodeRuns.some(nr => nr.nodeId === "cold"), "the false side fired too");
+});
+
+T("a field a run never had reads as false, like every other missing value", () => {
+  const bp = BP(
+    [N("t", "trigger"),
+     N("g", "logic", { condition: { source: "field", path: "nope", op: "==", value: "x" } }),
+     N("a", "action", { actionType: "notify" }), N("b", "action", { actionType: "notify" })],
+    [Ed("e1", "t", "g"), Ed("e2", "g", "a", "true"), Ed("e3", "g", "b", "false")]
+  );
+  const st = start(bp, { title: "X", fields: {} });
+  assert.equal(st.nodeRuns.find(nr => nr.nodeId === "g").output.result, false);
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

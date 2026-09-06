@@ -242,3 +242,46 @@ async function itemsImport(kind){
   }
   return { ok: true, created, skipped, refused, details };
 }
+
+/* Saved campaign chains, brought across as workflow blueprints.
+
+   They arrive as DRAFTS on purpose. A chain that has been passing work
+   between real people for months still deserves a look before anyone
+   rides it as a workflow - and publishing is where the engine's own
+   validation runs anyway. Same idempotency as the item import: the id
+   is derived from the template, so a second run skips what it made. */
+async function itemsImportChains(){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+
+  let rows;
+  try {
+    const snap = await db.collection("campaignTemplates").get();
+    rows = snap.docs.map(d => Object.assign({ __id: d.id }, d.data()));
+  } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
+  if (!rows.length) return { ok: true, created: 0, skipped: 0, refused: 0, details: [] };
+
+  const uid = auth.currentUser.uid;
+  let created = 0, skipped = 0, refused = 0;
+  const details = [];
+
+  for (const row of rows) {
+    const id = migrateItemId("chain", row.__id);
+    const ref = db.collection("blueprints").doc(id);
+    try {
+      if ((await ref.get()).exists) { skipped++; continue; }
+    } catch (e) { console.error(e); refused++; continue; }
+
+    const bp = migrateCampaignBlueprint(
+      { title: row.name, stages: row.stages },
+      { id, orgId: s.orgId, ownerId: uid, now: Date.now() }
+    );
+    // a chain with no stages is not a workflow; saying so beats writing
+    // an empty blueprint nobody can publish and nobody can explain
+    if (!bp) { refused++; if (details.length < 5) details.push(row.__id + ": no stages"); continue; }
+
+    try { await ref.set(bp); created++; }
+    catch (e) { console.error(e); refused++; if (details.length < 5) details.push(row.__id + ": write failed"); }
+  }
+  return { ok: true, created, skipped, refused, details };
+}
