@@ -308,6 +308,17 @@ T("a migrated task still uses its own field", () => {
   assert.equal(M.itemToQueueRow({ id: "i2", typeId: "task", title: "ignored",
     fields: { task: "Restock" }, assigneeIds: ["u1"] }).task, "Restock");
 });
+T("a row knows whether an assignment stands behind it", () => {
+  // update() on a document that is not there fails the whole batch, so
+  // the receipt stamp has to know which rows have one
+  assert.equal(M.itemToQueueRow({ id: "i1", typeId: "task", fields: {},
+    importedFrom: "assignment:a1", assigneeIds: [] }).fromAssignment, true);
+  assert.equal(M.itemToQueueRow({ id: "i1", typeId: "task", fields: {}, assigneeIds: [] }).fromAssignment, false);
+  // ...and the row id follows the same fact
+  assert.equal(M.itemToQueueRow({ id: "i1", typeId: "task", fields: {},
+    importedFrom: "assignment:a1", assigneeIds: [] }).id, "a1");
+  assert.equal(M.itemToQueueRow({ id: "i1", typeId: "task", fields: {}, assigneeIds: [] }).id, "i1");
+});
 T("a row with neither a field nor a title is empty, not undefined", () => {
   assert.equal(M.itemToQueueRow({ id: "i3", typeId: "x", fields: {}, assigneeIds: [] }).task, "");
 });

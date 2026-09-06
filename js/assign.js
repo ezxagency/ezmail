@@ -560,7 +560,12 @@ function watchAssignedTasksFromItems(){
           const at = Date.now();
           const stamp = db.batch();
           unseen.forEach(r => {
-            stamp.update(db.collection("assignments").doc(r.id), { seenAt: at });
+            // only where one actually exists. Work created in the app has
+            // no assignment behind it, and update() on a missing document
+            // fails the entire batch - so this used to lose the Item's
+            // stamp too, leaving every row unseen forever and re-stamping
+            // on every snapshot.
+            if (r.fromAssignment) stamp.update(db.collection("assignments").doc(r.id), { seenAt: at });
             stamp.update(items.doc(r.itemId), { "fields.seenAt": at });
           });
           stamp.commit().catch(e => console.error(e));

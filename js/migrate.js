@@ -257,6 +257,11 @@ function itemToQueueRow(item){
   return {
     id: sourceId || item.id,
     itemId: item.id,
+    // whether a legacy assignment document stands behind this row. Work
+    // created in the app has none, and a batched update() against a
+    // document that is not there fails the WHOLE batch - which is how the
+    // receipt stamp took the Item's own stamp down with it.
+    fromAssignment: !!sourceId,
     toUid: (item.assigneeIds || [])[0] || null,
     store: f.store || "",
     // the migrated task type keeps its own `task` field; every other kind
