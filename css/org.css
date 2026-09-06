@@ -129,3 +129,56 @@ button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
 }
 .org-fieldrow .oft-req input { width: auto; margin: 0; }
 .org-fieldrow .oft-del { flex: none; }
+
+/* ---- people ---- */
+/* An initial, not a photo: the directory holds names and emails, and a
+   letter that is always right beats an avatar that is usually missing. */
+.org-av, .org-person-av {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-weight: 700; letter-spacing: -.01em;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+}
+.org-av { width: 32px; height: 32px; font-size: 13px; margin-right: 11px; }
+.org-person-av { width: 52px; height: 52px; font-size: 21px; }
+
+.org-member { text-align: left; }
+
+.org-person { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; }
+.org-person-id { min-width: 0; }
+.org-person-id .sheet-title { margin: 0 0 2px; }
+.org-person-id p {
+  margin: 0; font-size: 13px; opacity: .55;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+/* label/value pairs, one per line, so a long email never shoves a value
+   off its own row */
+.org-facts { display: grid; gap: 1px; margin: 0 0 18px; }
+.org-fact {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.org-fact:last-child { border-bottom: none; }
+.org-fact span { font-size: 12.5px; opacity: .55; flex: none; }
+.org-fact b { font-size: 13.5px; font-weight: 600; text-align: right; min-width: 0; }
+
+/* ---- collapsible section ---- */
+.org-fold > summary {
+  cursor: pointer; list-style: none; padding: 9px 0;
+  font-size: 13px; opacity: .62; user-select: none;
+  display: flex; align-items: center; gap: 6px;
+}
+.org-fold > summary::-webkit-details-marker { display: none; }
+.org-fold > summary b { font-weight: 700; opacity: .9; }
+/* a chevron that points down when open, right when shut */
+.org-fold > summary::before {
+  content: ""; width: 6px; height: 6px; flex: none; margin-right: 3px;
+  border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
+  transform: rotate(-45deg); transition: transform .16s ease;
+}
+.org-fold[open] > summary::before { transform: rotate(45deg); }
+.org-fold > summary:hover { opacity: .85; }
+.org-fold > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .org-fold > summary::before { transition: none; }
+}

@@ -200,6 +200,84 @@ T("a non-owner sees no editing controls, and cannot start an import", () => {
   assert.equal(body.querySelector("#orgImportTasks"), null);
 });
 
+/* ---------- the roster and the person behind it ----------
+   Every row has to hand back the uid its own handler reads, or a person
+   is on screen and unreachable. And the sheet has to refuse the two
+   changes that would damage the org: a second owner by mistap, and an
+   owner demoting the seat everything hangs from. */
+const ROSTER = `orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner",
+  members: [
+    { uid: "u1", roleId: "owner",   joinedAt: 1700000000000 },
+    { uid: "u3", roleId: "staff",   joinedAt: 1700000000000 },
+    { uid: "u2", roleId: "manager", joinedAt: 1700000000000 }
+  ],
+  roles: [{ id: "owner", name: "Owner", permissions: ["*:*:org"] },
+          { id: "manager", name: "Manager", permissions: ["item:read:org"] },
+          { id: "staff", name: "Staff", permissions: ["item:read:org"] }],
+  types: [], automations: [],
+  dir: { u1: { name: "Ada", email: "ada@x.com" },
+         u2: { name: "Max", email: "max@x.com" },
+         u3: { name: "Bo",  email: "bo@x.com"  } } };`;
+
+T("every person is a row that hands back their own uid", () => {
+  run(ROSTER + " orgRender();");
+  const rows = [...doc.querySelectorAll(".org-member")];
+  assert.equal(rows.length, 3);
+  rows.forEach(r => assert.ok(run(`!!(orgS.members || []).find(m => m.uid === ${JSON.stringify(r.dataset.member)})`),
+    r.dataset.member + " is on screen but resolves to nobody"));
+});
+
+T("the owner sits first, everyone else by name", () => {
+  assert.deepEqual([...doc.querySelectorAll(".org-member")].map(r => r.dataset.member),
+    ["u1", "u3", "u2"]);   // Ada (owner), then Bo, then Max
+});
+
+T("the roster collapses but starts open", () => {
+  const fold = doc.querySelector(".org-fold");
+  assert.ok(fold, "no collapsible section");
+  assert.ok(fold.open, "a settings page should not hide your own team at rest");
+  assert.match(fold.querySelector("summary").textContent, /3 people/);
+});
+
+T("opening a person shows who they are", () => {
+  run(`orgMemberSheet((orgS.members || []).find(m => m.uid === "u2"));`);
+  const body = doc.getElementById("sheetBody").textContent;
+  assert.match(body, /Max/);
+  assert.match(body, /max@x\.com/);
+  assert.match(body, /Manager/);
+});
+
+T("an owner can move them, and the list never offers owner", () => {
+  const opts = [...doc.querySelectorAll("#omRole option")].map(o => o.value);
+  assert.deepEqual(plain(opts), ["manager", "staff"]);
+  assert.equal(doc.querySelector("#omRole").value, "manager");
+  assert.ok(doc.querySelector("#omRemove"), "an owner should be able to remove them");
+});
+
+T("the owner's own seat cannot be reassigned from here", () => {
+  run(`orgMemberSheet((orgS.members || []).find(m => m.uid === "u1"));`);
+  assert.equal(doc.querySelector("#omRole"), null);
+  assert.equal(doc.querySelector("#omRemove"), null, "nor removed");
+  assert.match(doc.getElementById("sheetBody").textContent, /owner's role is fixed/);
+});
+
+T("removing takes two taps, and the first only arms it", () => {
+  run(`orgMemberSheet((orgS.members || []).find(m => m.uid === "u3"));`);
+  const btn = doc.querySelector("#omRemove");
+  assert.match(btn.textContent, /Remove from organization/);
+  btn.onclick();                       // first tap: arm only, no write
+  assert.match(btn.textContent, /Tap again/);
+  assert.equal(btn.dataset.armed, "1");
+});
+
+T("a staff member sees the roster but is offered nothing to change", () => {
+  run(ROSTER + ' orgS.myRoleId = "staff"; orgRender();');
+  assert.equal(doc.querySelectorAll(".org-member").length, 3, "they can still see who is here");
+  run(`orgMemberSheet((orgS.members || []).find(m => m.uid === "u2"));`);
+  assert.equal(doc.querySelector("#omRole"), null);
+  assert.match(doc.getElementById("sheetBody").textContent, /Only an owner can change roles/);
+});
+
 /* ---------- the mirror's one promise ----------
    js/items.js mirrors assignments into Items after the composer has
    already committed and already told the person it worked. The whole

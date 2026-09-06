@@ -250,9 +250,19 @@ function orgRender(){
         '</button>').join("")
     : '<p class="org-note">No rules yet.' + (owner ? ' Create one to make something happen by itself.' : '') + '</p>';
 
-  const membersHtml = (orgS.members || [])
-    .map(m => '<div class="org-row"><span class="org-row-main"><b>' + esc(orgPersonName(m.uid)) + '</b>' +
-      '<small>' + esc(orgRoleName(m.roleId)) + '</small></span></div>').join("");
+  // owner first, then by name: a roster you scan for a person, not a row
+  const membersHtml = (orgS.members || []).slice()
+    .sort((a, b) => a.roleId === "owner" ? -1 : b.roleId === "owner" ? 1
+      : orgPersonName(a.uid).localeCompare(orgPersonName(b.uid)))
+    .map(m => {
+      const nm = orgPersonName(m.uid);
+      return '<button type="button" class="org-row org-member" data-member="' + esc(m.uid) + '">' +
+        '<span class="org-av">' + esc(orgInitial(nm)) + '</span>' +
+        '<span class="org-row-main"><b>' + esc(nm) + '</b>' +
+          '<small>' + esc(orgRoleName(m.roleId)) + '</small></span>' +
+        '<span class="org-row-go">' + (owner ? "Manage" : "View") + '</span>' +
+        '</button>';
+    }).join("");
 
   $("orgBody").innerHTML =
     '<section class="org-sec">' +
@@ -301,10 +311,17 @@ function orgRender(){
       '<p class="org-note">Nothing is deleted or changed — the Assign composer and Campaigns page keep working exactly as they do now. Safe to run more than once: anything already brought across is skipped.</p>' +
     '</section>' : '') +
     '<section class="org-sec">' +
-      '<div class="org-sec-head"><h3>People<span class="org-count">' + (orgS.members || []).length + '</span></h3>' +
+      '<div class="org-sec-head"><h3>People</h3>' +
         (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgInviteBtn">Invite</button>' : '') +
       '</div>' +
-      '<div class="org-list">' + membersHtml + '</div>' +
+      // a roster grows and a settings page should not grow with it - but it
+      // opens by default, because hiding your own team behind a tap to save
+      // a few pixels is the wrong trade at every size
+      '<details class="org-fold" open>' +
+        '<summary><b>' + (orgS.members || []).length + '</b> ' +
+          ((orgS.members || []).length === 1 ? "person" : "people") + ' in this organization</summary>' +
+        '<div class="org-list">' + membersHtml + '</div>' +
+      '</details>' +
     '</section>';
 
   if (owner && $("orgAddRole")) $("orgAddRole").onclick = () => orgRoleSheet(null);
@@ -323,6 +340,9 @@ function orgRender(){
   $("orgBody").querySelectorAll(".org-type").forEach(b => {
     if (b.disabled) return;
     b.onclick = () => orgTypeSheet((orgS.types || []).find(t => t.id === b.dataset.type) || null);
+  });
+  $("orgBody").querySelectorAll(".org-member").forEach(b => {
+    b.onclick = () => orgMemberSheet((orgS.members || []).find(m => m.uid === b.dataset.member) || null);
   });
   $("orgBody").querySelectorAll(".org-role").forEach(b => {
     if (b.disabled) return;
@@ -844,6 +864,123 @@ const orgAutoSummary = a => {
   const al = (ORG_AUTO_ACTIONS.find(x => x.kind === act) || {}).label || act || "do nothing";
   return "When " + (t ? t.label : "something happens") + " → " + al.toLowerCase();
 };
+
+/* ---------- a person ---------- */
+
+const orgInitial = t => (((t || "?").trim().charAt(0)) || "?").toUpperCase();
+
+/* Somebody's profile: who they are, what they hold, and the two things
+   an owner actually wants from a roster - move them, or remove them.
+
+   Changing a role lives HERE, on the person, rather than as a control on
+   the roster row: it is a decision about somebody, not a line item, and
+   it deserves the pause of opening their card. It also closes a real
+   dead end - orgDeleteRole refuses to delete a role somebody still holds
+   and tells you to "move them first", which until now was advice with
+   nowhere to go. */
+function orgMemberSheet(m){
+  if (!m) return;
+  const owner = orgIsOwner();
+  const person = (orgS.dir || {})[m.uid] || {};
+  const name = orgPersonName(m.uid);
+  const ownerSeat = m.roleId === "owner";
+  const isSelf = m.uid === orgUid();
+  /* "owner" is deliberately not offered. A second owner is something you
+     should have to mean, not something you reach by mistapping a list -
+     and the org document's ownerUid, which the founding seat trusts, is
+     frozen either way. */
+  const roles = (orgS.roles || []).filter(r => r.id !== "owner");
+  const joined = m.joinedAt
+    ? new Date(m.joinedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+    : "";
+
+  const fact = (label, value) => value
+    ? '<div class="org-fact"><span>' + esc(label) + '</span><b>' + esc(value) + '</b></div>' : "";
+
+  const canEdit = owner && !ownerSeat && roles.length > 0;
+
+  openSheet(
+    '<div class="org-person">' +
+      '<span class="org-person-av">' + esc(orgInitial(name)) + '</span>' +
+      '<div class="org-person-id">' +
+        '<h3 class="sheet-title">' + esc(name) + '</h3>' +
+        (person.email ? '<p>' + esc(person.email) + '</p>' : '') +
+      '</div>' +
+    '</div>' +
+    '<div class="org-facts">' +
+      fact("Role", orgRoleName(m.roleId)) +
+      fact("Joined", joined) +
+      fact("Craft", person.craft) +
+      fact("This is you", isSelf ? "Yes" : "") +
+    '</div>' +
+    (canEdit
+      ? '<label class="org-field"><span>Role</span><select id="omRole">' +
+          roles.map(r => '<option value="' + esc(r.id) + '"' +
+            (r.id === m.roleId ? " selected" : "") + '>' + esc(r.name) + '</option>').join("") +
+        '</select></label>' +
+        '<p class="org-note">A role is what the rules mean by "tell the managers" — moving someone changes what reaches them, immediately.</p>' +
+        '<div class="org-actions">' +
+          '<button type="button" class="org-btn" id="omSave">Save role</button>' +
+          (isSelf ? "" : '<button type="button" class="org-btn org-btn-danger" id="omRemove">Remove from organization</button>') +
+        '</div>'
+      : '<p class="org-note">' + esc(
+          ownerSeat ? "The owner's role is fixed — the whole organization hangs from it."
+          : !owner   ? "Only an owner can change roles."
+          : "Create a role first — there is nothing to move anyone to.") + '</p>'),
+    () => {
+      if ($("omSave")) $("omSave").onclick = () => orgMemberSaveRole(m);
+      if ($("omRemove")) $("omRemove").onclick = () => orgMemberRemove(m, $("omRemove"));
+    });
+}
+
+async function orgMemberSaveRole(m){
+  const roleId = $("omRole").value;
+  if (!roleId || roleId === m.roleId) { closeSheet(); return; }
+  // read the names BEFORE the cache is dropped - afterwards there is
+  // nothing to look them up in
+  const who = orgPersonName(m.uid), what = orgRoleName(roleId);
+  const btn = $("omSave");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    await db.collection("orgs").doc(orgS.orgId).collection("members").doc(m.uid).update({ roleId });
+    orgInvalidate();
+    closeSheet();
+    toast(who + " is now " + what + ".");
+    enterOrgPage();
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false; btn.textContent = "Save role";
+    toast("Could not change their role.");
+  }
+}
+
+/* Two taps, not a browser confirm(): the second tap is the confirmation,
+   and it costs nothing to change your mind between them. */
+async function orgMemberRemove(m, btn){
+  if (btn.dataset.armed !== "1") {
+    btn.dataset.armed = "1";
+    btn.textContent = "Tap again to remove";
+    return;
+  }
+  const who = orgPersonName(m.uid);
+  btn.disabled = true; btn.textContent = "Removing…";
+  try {
+    /* Their seat is the truth about membership, so deleting it is the
+       whole removal. Their own memberOf pointer is a document only they
+       may write, so it is left dangling on purpose - orgLoad re-derives
+       membership from the seats themselves and heals the pointer, which
+       means they simply find themselves in no organization. */
+    await db.collection("orgs").doc(orgS.orgId).collection("members").doc(m.uid).delete();
+    orgInvalidate();
+    closeSheet();
+    toast(who + " was removed. Work they created stays.");
+    enterOrgPage();
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false; btn.textContent = "Remove from organization";
+    toast("Could not remove them.");
+  }
+}
 
 /* ---------- template packs ---------- */
 
