@@ -421,6 +421,16 @@ function orgRender(){
       '</div>' +
       '<p class="org-note">Nothing is deleted or changed — the Assign composer and Campaigns page keep working exactly as they do now. Safe to run more than once: anything already brought across is skipped.</p>' +
     '</section>' : '') +
+    (owner ? '<section class="org-sec">' +
+      '<div class="org-sec-head"><h3>Start over</h3></div>' +
+      '<div class="org-list">' +
+        '<button type="button" class="org-row org-btn-danger" id="orgWipeWork"><span class="org-row-main">' +
+          '<b>Delete all work in this organization</b>' +
+          '<small>Every item and every handoff run. Your kinds of work, roles and rules stay.</small>' +
+        '</span><span class="org-row-go">Delete</span></button>' +
+      '</div>' +
+      '<p class="org-note">For starting a test again from clean. Tasks assigned through the old composer are NOT touched — they live outside this organization and can be brought back with Import above. The event log is never deleted, by anyone, which is what makes it worth reading.</p>' +
+    '</section>' : '') +
     '<section class="org-sec">' +
       '<div class="org-sec-head"><h3>People</h3>' +
         (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgInviteBtn">Invite</button>' : '') +
@@ -439,6 +449,7 @@ function orgRender(){
   if (owner && $("orgInviteBtn")) $("orgInviteBtn").onclick = () => orgInviteSheet();
   if (owner && $("orgAddType")) $("orgAddType").onclick = () => orgTypeSheet(null);
   if (owner && $("orgPackBtn")) $("orgPackBtn").onclick = () => orgPackSheet();
+  if (owner && $("orgWipeWork")) $("orgWipeWork").onclick = () => orgWipeWork($("orgWipeWork"));
   if (owner && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
   if (owner && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
   if (owner && $("orgImportChains")) $("orgImportChains").onclick = () => orgRunImport("chain", $("orgImportChains"));
@@ -869,10 +880,22 @@ async function orgTypeSave(){
 }
 
 async function orgTypeDelete(type){
+  /* Refuse while work still rides it. The old behaviour deleted the type
+     and told you the work was "untouched" - which was true and was the
+     problem: those Items point at a type that no longer exists, so they
+     cannot be opened, finished, or got rid of. An orphan is worse than a
+     refusal, because a refusal can be acted on. */
+  const n = await itemsCountOfType(type.id);
+  if (n > 0) {
+    toast(n === 1 ? "One piece of work still uses this type. Delete it first."
+      : n + " pieces of work still use this type. Delete them first.");
+    return;
+  }
+  if (n < 0) { toast("Could not check whether work uses this type."); return; }
   try {
     await db.collection("orgs").doc(orgS.orgId).collection("itemTypes").doc(type.id).delete();
     closeSheet();
-    toast("Type deleted. Work already created with it is untouched.");
+    toast("Type deleted.");
     enterOrgPage();
   } catch (e) { console.error(e); toast("Could not delete the type."); }
 }
@@ -978,6 +1001,34 @@ const orgAutoSummary = a => {
   const al = (ORG_AUTO_ACTIONS.find(x => x.kind === act) || {}).label || act || "do nothing";
   return "When " + (t ? t.label : "something happens") + " → " + al.toLowerCase();
 };
+
+/* Two taps, and the second says what it will actually destroy. Deleting
+   everything is the one action where a vague confirmation is worse than
+   none: somebody who mis-taps twice deserves to have been told the
+   number. */
+async function orgWipeWork(btn){
+  if (!orgIsOwner()) return;
+  const go = btn.querySelector(".org-row-go");
+  if (btn.dataset.armed !== "1") {
+    btn.dataset.armed = "1";
+    if (go) go.textContent = "Tap again";
+    btn.querySelector("b").textContent = "This deletes every item and run — permanently";
+    return;
+  }
+  btn.disabled = true;
+  if (go) go.textContent = "Deleting…";
+  const r = await itemsDeleteAllWork();
+  if (!r.ok) {
+    btn.disabled = false;
+    if (go) go.textContent = "Delete";
+    toast(r.error === "not-owner" ? "Only an owner can do this." : "Could not delete it all.");
+    return;
+  }
+  orgInvalidate();
+  toast("Deleted " + r.items + (r.items === 1 ? " item" : " items") +
+        " and " + r.runs + (r.runs === 1 ? " run" : " runs") + ".");
+  enterOrgPage();
+}
 
 /* ---------- the handoff track ----------
    A straight line of stops, each held by a role. It compiles to a real

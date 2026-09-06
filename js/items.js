@@ -246,6 +246,49 @@ async function itemsUndoFromQueue(itemId, toStatus){
   } catch (e) { console.error(e); return { ok: false, error: "failed" }; }
 }
 
+/* How much work rides this type. Deleting a type used to leave its work
+   behind "untouched", which sounded considerate and produced Items
+   pointing at a type that no longer exists - unfinishable, unopenable,
+   and still sitting on somebody's dashboard. */
+async function itemsCountOfType(typeId){
+  const s = await orgEnsure();
+  if (!s) return 0;
+  try {
+    const snap = await itemsCol(s.orgId).where("facets", "array-contains", "type:" + itemSlug(typeId)).get();
+    return snap.size;
+  } catch (e) { console.error(e); return -1; }   // -1 = could not tell, so do not pretend zero
+}
+
+/* Delete every piece of work in this org, and the runs that carry it.
+
+   For starting over on a test org. The EVENT LOG IS NOT TOUCHED, and
+   cannot be: firestore.rules refuses updates and deletes on events to
+   anyone including an owner, which is what makes it worth reading. So
+   this clears what work IS, not what happened. */
+async function itemsDeleteAllWork(){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+  if (s.myRoleId !== "owner") return { ok: false, error: "not-owner" };
+  let items, runs;
+  try {
+    items = await itemsCol(s.orgId).get();
+    runs = await db.collection("orgs").doc(s.orgId).collection("runs").get();
+  } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
+
+  const refs = items.docs.map(d => itemsCol(s.orgId).doc(d.id))
+    .concat(runs.docs.map(d => db.collection("orgs").doc(s.orgId).collection("runs").doc(d.id)));
+  try {
+    // Firestore caps a batch at 500 writes, and "it worked in testing"
+    // is exactly how that limit gets discovered by somebody else
+    for (let i = 0; i < refs.length; i += 400) {
+      const batch = db.batch();
+      refs.slice(i, i + 400).forEach(r => batch.delete(r));
+      await batch.commit();
+    }
+  } catch (e) { console.error(e); return { ok: false, error: "delete-failed" }; }
+  return { ok: true, items: items.size, runs: runs.size };
+}
+
 /* ---------- handoff: work that moves person to person ----------
    docs/handoff-spec.md. js/handoff.js decides; this writes.
 

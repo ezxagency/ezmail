@@ -273,5 +273,37 @@ await T("finished work leaves the queue, whatever the type calls finished", asyn
   assert.equal(run(`itemDoneStatus(null)`), null);
 });
 
+/* ---------- deleting a type must not orphan its work ---------- */
+await T("a type in use refuses to be deleted", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  const n = await runAsync(`return await itemsCountOfType("video");`);
+  assert.ok(n > 0, "the count cannot see work of that type");
+  // orgTypeDelete refuses above zero - the orphan this prevents is an Item
+  // pointing at a type that is gone: unopenable, unfinishable, and still
+  // on somebody's dashboard
+});
+
+await T("starting over clears the work and the runs, and nothing else", async () => {
+  const typesBefore = find("orgs/" + ORG + "/itemTypes").length;
+  const rolesBefore = find("orgs/" + ORG + "/roles").length;
+  const r = await runAsync(`return await itemsDeleteAllWork();`);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(find("orgs/" + ORG + "/items").length, 0, "work survived");
+  assert.equal(find("orgs/" + ORG + "/runs").length, 0, "runs survived");
+  assert.equal(find("orgs/" + ORG + "/itemTypes").length, typesBefore, "it took the types with it");
+  assert.equal(find("orgs/" + ORG + "/roles").length, rolesBefore, "it took the roles with it");
+  // the log is append-only against everyone, so it is still there
+  assert.ok(find("orgs/" + ORG + "/events").length > 0, "the event log was cleared, which nothing may do");
+});
+
+await T("only an owner may start over", async () => {
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  const r = await runAsync(`return await itemsDeleteAllWork();`);
+  assert.equal(r.ok, false);
+  assert.equal(r.error, "not-owner");
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
