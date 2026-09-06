@@ -524,7 +524,16 @@ function watchAssignedTasksFromItems(){
   assignedTasksSeen = null;
   let unsub = () => {};
   orgEnsure().then(s => {
-    if (!s) { console.warn("itemsRead is on but this account is in no organization"); return; }
+    if (!s) {
+      // Not seated in an org yet - a team mid-migration, or an account
+      // that predates the org. Falling back is the only acceptable
+      // answer: an empty task list looks exactly like having no work,
+      // and someone who does have work would believe it. The old path
+      // has never stopped working, so use it.
+      console.warn("itemsRead is on, but this account is in no organization - using the assignments path");
+      watchAssignedTasksFromAssignments();
+      return;
+    }
     const uid = auth.currentUser.uid;
     const items = db.collection("orgs").doc(s.orgId).collection("items");
     unsub = items
@@ -607,6 +616,12 @@ function watchAssignedTasks(){
   // the brief, the toasts, the receipt, Done - is untouched. Swapping
   // the source is the whole change; the screen does not know.
   if (CONFIG.itemsRead) return watchAssignedTasksFromItems();
+  return watchAssignedTasksFromAssignments();
+}
+
+function watchAssignedTasksFromAssignments(){
+  const box = $("assignedTasksSection");
+  if (!box || !auth.currentUser) return;
   // Fresh subscription, fresh baseline - carrying the previous user's ids
   // over would make every one of this user's existing tasks look new and
   // fire a "New task from ..." toast for each on the first snapshot.

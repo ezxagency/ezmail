@@ -37,8 +37,11 @@ const CONFIG = {
   // Writes go to assignments either way, and the mirror keeps the model
   // current, so this is genuinely a switch rather than a one-way door:
   // flip it back and the old path is exactly where it was.
-  // Leave it false until the mirrored rows have been watched for a day.
-  itemsRead: false,
+  // Safe to have on before a team is fully migrated: someone not yet
+  // seated in the org silently gets the assignments path instead, because
+  // an empty task list looks exactly like having no work and a person who
+  // has work would believe it.
+  itemsRead: true,
 
   // Email summaries via EmailJS (free tier, no billing account needed).
   // Setup lives in README > "Email summaries" — paste the three ids from

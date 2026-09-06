@@ -46,6 +46,26 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/orgs/$(orgId)).data.ownerUid == request.auth.uid;
     }
 
+    // A person finding their OWN membership, anywhere it lives.
+    // orgs/{orgId}/members/{uid} is the truth about who belongs where,
+    // but until now only someone who already knew their orgId could read
+    // it - which left the memberOf pointer below as the only way in, and
+    // that pointer is a document only its owner may write. So an owner
+    // seating their existing team could create the membership and had no
+    // way to hand anyone the pointer to it.
+    // A collection-group read fixes it at the root: scoped to documents
+    // whose id IS the caller, it can only ever return that person's own
+    // rows, in any org. The pointer stays as a cache, and orgLoad heals
+    // it from here when it is missing.
+    // The condition is on the FIELD, not the document id, and that is not
+    // cosmetic: a query is only allowed if the rules can be satisfied from
+    // its constraints alone, and a collection-group query cannot filter on
+    // an id. where("uid","==",me) is what makes this provable - which is
+    // why the uid is stored beside the seat as well as being its name.
+    match /{path=**}/members/{memberId} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
     // Which org a person belongs to, kept somewhere they can read it
     // WITHOUT already knowing the answer - orgs are not enumerable, so a
     // signed-in client needs one pointer about itself to find its tenant.

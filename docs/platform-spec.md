@@ -64,8 +64,10 @@ and a jsdom test proves it resolves quietly even when every database call
 fails. A missing mirror row is recoverable — the import picks it up. A
 composer that threw after assigning real work is not.
 
-**The read cutover is built, behind `CONFIG.itemsRead`** (default
-`false`). The queue reads Items and adapts them back to the row shape it
+**The read cutover is ON** (`CONFIG.itemsRead`), and safe to have on
+mid-migration: an account not yet seated in the org silently gets the
+assignments path, because an empty task list looks exactly like having no
+work and a person who has work would believe it. The queue reads Items and adapts them back to the row shape it
 has always produced, so not one line of its rendering changes — only
 where the rows come from. Writes still go to `assignments`, and the
 mirror keeps the model current, so the flag is a switch rather than a

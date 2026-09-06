@@ -64,7 +64,23 @@ async function orgLoad(){
   let ptr;
   try { ptr = await db.collection("memberOf").doc(uid).get(); }
   catch (e) { console.error(e); orgWhyNone = "error"; return null; }
-  const orgId = ptr.exists ? ptr.data().orgId : null;
+  let orgId = ptr.exists ? ptr.data().orgId : null;
+
+  // No pointer does not mean no org. Someone an owner seated directly -
+  // a team that existed long before the org did - has a membership and
+  // was never handed a pointer to it, because that document is theirs
+  // alone to write. So look for the membership itself, then write the
+  // pointer on their own behalf: the lookup happens once, and every
+  // load after this one takes the cheap path above.
+  if (!orgId) {
+    try {
+      const mine = await db.collectionGroup("members").where("uid", "==", uid).limit(1).get();
+      if (!mine.empty) {
+        orgId = mine.docs[0].ref.parent.parent.id;
+        db.collection("memberOf").doc(uid).set({ orgId, at: Date.now() }).catch(e => console.error(e));
+      }
+    } catch (e) { console.error(e); orgWhyNone = "error"; return null; }
+  }
   if (!orgId) return null;
 
   let orgDoc;
@@ -155,7 +171,10 @@ async function orgCreate(name){
     //    means nobody - me included - can read or write anything under
     //    the org. It is the write that must not be skipped on failure.
     await db.collection("orgs").doc(orgId).collection("members").doc(uid).set({
-      roleId: "owner", joinedAt: Date.now()
+      // uid is stored as a FIELD as well as the document id: a
+      // collection-group query cannot filter on an id, and that query is
+      // how a person finds this row when nobody has handed them a pointer
+      uid, roleId: "owner", joinedAt: Date.now()
     });
     // 3. starter roles, then the pointer that lets me find all this again
     const batch = db.batch();
@@ -247,6 +266,9 @@ function orgRender(){
         '<button type="button" class="org-row" id="orgImportCampaigns"><span class="org-row-main">' +
           '<b>Import campaigns</b><small>Copies every campaign into Work, at the stage it is on</small>' +
         '</span><span class="org-row-go">Import</span></button>' +
+        '<button type="button" class="org-row" id="orgSeatTeam"><span class="org-row-main">' +
+          '<b>Add the whole team</b><small>Seats everyone who already has an account — admins as Managers, workers as Staff</small>' +
+        '</span><span class="org-row-go">Seat</span></button>' +
         '<button type="button" class="org-row" id="orgImportChains"><span class="org-row-main">' +
           '<b>Turn campaign chains into workflows</b><small>Each saved chain becomes a draft blueprint you can review and publish</small>' +
         '</span><span class="org-row-go">Convert</span></button>' +
@@ -266,6 +288,7 @@ function orgRender(){
   if (owner && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
   if (owner && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
   if (owner && $("orgImportChains")) $("orgImportChains").onclick = () => orgRunImport("chain", $("orgImportChains"));
+  if (owner && $("orgSeatTeam")) $("orgSeatTeam").onclick = () => orgSeatTeam($("orgSeatTeam"));
   $("orgBody").querySelectorAll(".org-type").forEach(b => {
     if (b.disabled) return;
     b.onclick = () => orgTypeSheet((orgS.types || []).find(t => t.id === b.dataset.type) || null);
@@ -490,7 +513,7 @@ async function orgTryJoin(){
     // the seat NAMES the token - that is what the rules check, and it is
     // why a holder cannot claim a role the invitation never offered
     await db.collection("orgs").doc(orgId).collection("members").doc(uid).set({
-      roleId: d.roleId, invite: token, joinedAt: Date.now()
+      uid, roleId: d.roleId, invite: token, joinedAt: Date.now()
     });
     // burn it, then point ourselves at the org. If burning fails the seat
     // still stands - a taken seat with a live token is untidy, not unsafe,
@@ -687,4 +710,69 @@ async function orgTypeDelete(type){
     toast("Type deleted. Work already created with it is untouched.");
     enterOrgPage();
   } catch (e) { console.error(e); toast("Could not delete the type."); }
+}
+
+/* ============================================================
+   SEATING AN EXISTING TEAM.
+
+   The invite link is right for a new person and wrong for a team
+   that already has accounts: nobody is going to send twelve links
+   to twelve people who have been signing in for months. This
+   seats them all from the roster that already exists.
+
+   Roles are mapped from what they already are, not guessed: an
+   admin becomes a Manager, a worker becomes Staff, and whoever
+   founded the org stays its Owner. Anyone still 'pending' is
+   skipped - they are not a member of the team yet, and an import
+   is not the place to decide that they should be.
+
+   Additive and safe to run twice: somebody already seated keeps
+   the role they have, because an owner may since have changed it
+   deliberately and a re-run must not undo that.
+   ============================================================ */
+
+const ORG_ROLE_FOR = role => (role === "admin" ? "manager" : "staff");
+
+async function orgSeatTeam(btn){
+  if (!orgIsOwner()) return;
+  const label = btn.querySelector(".org-row-go");
+  const was = label.textContent;
+  btn.disabled = true; label.textContent = "Working…";
+
+  let seated = 0, already = 0, skipped = 0;
+  try {
+    const snap = await db.collection("users").get();
+    const seatedIds = new Set((orgS.members || []).map(m => m.uid));
+    const roleIds = new Set((orgS.roles || []).map(r => r.id));
+
+    const batch = db.batch();
+    let n = 0;
+    snap.forEach(doc => {
+      const u = doc.data() || {};
+      if (u.role !== "admin" && u.role !== "worker") { skipped++; return; }
+      if (seatedIds.has(doc.id)) { already++; return; }
+      let roleId = ORG_ROLE_FOR(u.role);
+      // a role the org does not have would seat someone permissionless,
+      // which looks like a bug to them and reads as one to an admin
+      if (!roleIds.has(roleId)) roleId = roleIds.has("staff") ? "staff" : (orgS.roles[0] || {}).id;
+      if (!roleId) { skipped++; return; }
+      batch.set(db.collection("orgs").doc(orgS.orgId).collection("members").doc(doc.id),
+        { uid: doc.id, roleId, joinedAt: Date.now(), seatedBy: orgUid() });
+      seated++; n++;
+    });
+    if (n) await batch.commit();
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false; label.textContent = was;
+    toast("Could not read the team roster.");
+    return;
+  }
+
+  btn.disabled = false; label.textContent = was;
+  const bits = [];
+  if (seated) bits.push(seated + " seated");
+  if (already) bits.push(already + " already here");
+  if (skipped) bits.push(skipped + " skipped");
+  toast(bits.length ? bits.join(", ") + "." : "Nobody to seat.");
+  enterOrgPage();
 }

@@ -65,7 +65,7 @@ shift clock digit for digit and the second ring would say nothing.
 cd tests
 npm ci          # once
 npm test        # 212 assertions, node + jsdom, seconds
-npm run test:rules   # 195 rules assertions (needs Java + firebase-tools)
+npm run test:rules   # 199 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
@@ -80,7 +80,7 @@ back; that round trip only exists in a document.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 407 pass as of this writing — a
+reaches through an org boundary. All 411 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys

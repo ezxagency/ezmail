@@ -9,7 +9,7 @@
    Change the rules path below if you run it from elsewhere. */
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import { readFileSync } from "fs";
-import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, addDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, collectionGroup, query, where, addDoc } from "firebase/firestore";
 
 const rules = readFileSync("../firestore.rules", "utf8");
 let pass = 0, fail = 0;
@@ -55,12 +55,12 @@ await env.withSecurityRulesDisabled(async ctx => {
   // ---- tenancy (phase 1): two orgs that must never see each other, plus
   // two founded-but-unseated orgs for the founding-seat case ----
   await setDoc(doc(db, "orgs/orgA"), { name: "Org A", ownerUid: "admin1", createdAt: 1 });
-  await setDoc(doc(db, "orgs/orgA/members/admin1"), { roleId: "owner", joinedAt: 1 });
-  await setDoc(doc(db, "orgs/orgA/members/worker1"), { roleId: "staff", joinedAt: 1 });
+  await setDoc(doc(db, "orgs/orgA/members/admin1"), { uid: "admin1", roleId: "owner", joinedAt: 1 });
+  await setDoc(doc(db, "orgs/orgA/members/worker1"), { uid: "worker1", roleId: "staff", joinedAt: 1 });
   await setDoc(doc(db, "orgs/orgA/roles/owner"), { name: "Owner", permissions: ["*:*:org"] });
   await setDoc(doc(db, "orgs/orgA/roles/staff"), { name: "Staff", permissions: ["item:update:assigned"] });
   await setDoc(doc(db, "orgs/orgB"), { name: "Org B", ownerUid: "worker2", createdAt: 1 });
-  await setDoc(doc(db, "orgs/orgB/members/worker2"), { roleId: "owner", joinedAt: 1 });
+  await setDoc(doc(db, "orgs/orgB/members/worker2"), { uid: "worker2", roleId: "owner", joinedAt: 1 });
   await setDoc(doc(db, "orgs/orgB/roles/owner"), { name: "Owner", permissions: ["*:*:org"] });
   await setDoc(doc(db, "orgs/orgC"), { name: "Org C", ownerUid: "newbie1", createdAt: 1 });
   await setDoc(doc(db, "orgs/orgF"), { name: "Org F", ownerUid: "newbie2", createdAt: 1 });
@@ -278,6 +278,18 @@ await T("memberOf: read SOMEONE ELSE's pointer DENIED", assertFails(getDoc(doc(w
 await T("memberOf: write SOMEONE ELSE's pointer DENIED", assertFails(setDoc(doc(worker, "memberOf/worker2"), { orgId: "orgA", at: 1 })));
 await T("memberOf: anonymous read DENIED", assertFails(getDoc(doc(anon, "memberOf/worker1"))));
 // pointing at an org you do not belong to buys nothing - the org refuses you
+// ---- finding your own membership when nobody handed you a pointer ----
+// An owner can seat an existing team, but memberOf is a document only its
+// owner may write - so the seated person has to be able to FIND the seat.
+await T("a person finds their own membership across orgs", assertSucceeds(
+  getDocs(query(collectionGroup(worker, "members"), where("uid", "==", "worker1")))));
+await T("that lookup cannot be pointed at anyone else", assertFails(
+  getDocs(query(collectionGroup(worker, "members"), where("uid", "==", "admin1")))));
+await T("an unfiltered sweep of every membership everywhere DENIED", assertFails(
+  getDocs(collectionGroup(worker, "members"))));
+await T("anonymous cannot run that lookup at all", assertFails(
+  getDocs(query(collectionGroup(anon, "members"), where("uid", "==", "worker1")))));
+
 // ---- org invites: the token is the capability, and the seat names it ----
 const seat = (roleId, invite) => ({ roleId, invite, joinedAt: 9 });
 
