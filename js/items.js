@@ -169,8 +169,13 @@ async function itemsFinishFromQueue(itemId, comment){
     const d = await itemsCol(s.orgId).doc(itemId).get();
     if (!d.exists) return { ok: false, error: "gone" };
     item = Object.assign({ id: d.id }, d.data());
+    if (!item.typeId) return { ok: false, error: "no-type", detail: "the work names no kind at all" };
     const t = await typesCol(s.orgId).doc(item.typeId).get();
-    if (!t.exists) return { ok: false, error: "no-type" };
+    // name it. "Its kind of work no longer exists" is true and useless;
+    // WHICH kind, and in which org, is the difference between a shrug and
+    // a fix - the type may be deleted, renamed, or in another tenant.
+    if (!t.exists) return { ok: false, error: "no-type",
+      detail: '"' + item.typeId + '" is not a work type in ' + s.orgId };
     type = Object.assign({ id: t.id }, t.data());
   } catch (e) {
     console.error("itemsFinishFromQueue could not read the work:", e);

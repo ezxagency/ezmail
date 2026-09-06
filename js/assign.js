@@ -916,7 +916,7 @@ async function finishAssignment(id, row, comment){
         : r.error === "no-status" ? "This kind of work has no stage to finish at."
         : r.error === "gone" ? "That work is no longer there."
         : r.error === "no-org" ? "You are not in an organization."
-        : r.error === "no-type" ? "Its kind of work no longer exists."
+        : r.error === "no-type" ? "Missing work type — " + (r.detail || "it no longer exists")
         : r.error === "denied" ? "Your role cannot change this work."
         : r.error === "invalid" ? "It would not save — a required field is empty."
         : r.error === "read-failed" ? "Could not load it: " + (r.detail || "unknown")
