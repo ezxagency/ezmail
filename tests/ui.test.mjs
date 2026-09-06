@@ -53,6 +53,9 @@ ctx.console = console;
 // load order IS the dependency graph, exactly as index.html declares it
 ["js/config.js", "js/permissions.js", "js/item-engine.js", "js/ui.js",
  "js/migrate.js", "js/items.js", "js/workflow-engine.js", "js/automation.js",
+ // org.js calls dirInvalidate() from here: the harness only proves
+ // anything if it carries the same shared scope the browser builds
+ "js/notify.js",
  "js/packs.js", "js/org.js", "js/work.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 
@@ -276,6 +279,14 @@ T("a staff member sees the roster but is offered nothing to change", () => {
   run(`orgMemberSheet((orgS.members || []).find(m => m.uid === "u2"));`);
   assert.equal(doc.querySelector("#omRole"), null);
   assert.match(doc.getElementById("sheetBody").textContent, /Only an owner can change roles/);
+});
+
+T("dropping the org cache drops the directory cache with it", () => {
+  // the directory is read per-organization now, so a cached roster from
+  // one tenant must never survive into another
+  run(`orgS = { orgId: "orgA" }; notifDir = [{ uid: "u1", name: "Ada" }]; orgInvalidate();`);
+  assert.equal(run("orgS"), null);
+  assert.equal(run("notifDir"), null);
 });
 
 /* ---------- the mirror's one promise ----------

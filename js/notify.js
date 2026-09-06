@@ -17,19 +17,39 @@ async function syncDirectory(){
   try {
     // merge, never replace: the doc also carries the craft (role label) the
     // admin set - a plain set() here erased it on every sign-in
-    await db.collection("directory").doc(u.uid).set({
+    // The entry says which tenant it belongs to, because that is who may
+    // read it. Without it the only possible audience was "everyone signed
+    // in", which stopped being an acceptable answer the moment a second
+    // company could exist.
+    let orgId = null;
+    try { const s = await orgEnsure(); orgId = s ? s.orgId : null; } catch (e) {}
+    const row = {
       name: S.worker || (u.email ? u.email.split("@")[0] : "Someone"),
       email: u.email || "",
       updatedAt: Date.now()
-    }, { merge: true });
+    };
+    if (orgId) row.orgId = orgId;
+    await db.collection("directory").doc(u.uid).set(row, { merge: true });
   } catch (e) { console.error(e); }
 }
 
 let notifDir = null;   // cached directory rows; null until first load
-async function loadDirectory(){
+// the cache is scoped to one org, so anything that changes which org we
+// are in has to drop it - orgInvalidate() calls this
+function dirInvalidate(){ notifDir = null; }
+/* Scoped to one organization. The orgId argument exists to break a loop:
+   orgLoad() calls this while it is still working out the org, so it hands
+   its own orgId in rather than letting us ask orgEnsure() and re-enter it. */
+async function loadDirectory(orgId){
   if (notifDir) return notifDir;
+  let scope = orgId || null;
+  if (!scope) { try { const s = await orgEnsure(); scope = s ? s.orgId : null; } catch (e) {} }
   try {
-    const snap = await db.collection("directory").get();
+    // in no org: the pre-tenancy whole-collection read, which the rules
+    // still allow for Ez Agency's own team against unstamped entries
+    const q = scope ? db.collection("directory").where("orgId", "==", scope)
+                    : db.collection("directory");
+    const snap = await q.get();
     const rows = [];
     snap.forEach(doc => rows.push({ uid: doc.id, ...doc.data() }));
     notifDir = rows;

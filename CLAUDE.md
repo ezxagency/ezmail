@@ -97,8 +97,8 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 291 assertions, node + jsdom, seconds
-npm run test:rules   # 218 rules assertions (needs Java + firebase-tools)
+npm test        # 292 assertions, node + jsdom, seconds
+npm run test:rules   # 230 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
@@ -120,7 +120,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 509 pass as of this writing — a
+reaches through an org boundary. All 522 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys
@@ -130,7 +130,7 @@ failure is a real regression, not a flake.
   what rule 2 is about.
 - **Firestore rules + indexes**: `.github/workflows/deploy-rules.yml` ships
   them on any push to `main` that touches `firestore.rules` or
-  `firestore.indexes.json` — but only after the 218-assertion suite passes
+  `firestore.indexes.json` — but only after the 230-assertion suite passes
   against the edited rules. Never paste rules into the Firebase console by
   hand; the console and the repo drift apart the moment you do, and the
   repo is the version that gets tested.

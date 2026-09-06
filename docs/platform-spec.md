@@ -511,6 +511,25 @@ the worker role would have read another company's work. That boundary is
 five rules assertions, because it is the one mistake here that would be a
 real breach rather than a bug.
 
+**The directory came with the door.** `directory/{uid}` holds every user's
+name and email, and its rule was `allow read: if request.auth != null`.
+That was a true-enough statement while signup was invite-only and approved
+by hand — everyone with an account worked here, so the whole directory
+described one company. Opening the founder door falsified it: a customer
+would read Ez Agency's staff, and two customers would read each other's.
+
+An entry now names its org and is readable by that org's members. Entries
+written before this carry no `orgId` and stay readable by Ez Agency's own
+team — which is exactly who they describe — until an owner stamps them.
+That clause is a migration ramp, not a hole: a member is not team. The
+stamping is self-healing in `orgLoad()`, the same shape as the `memberOf`
+pointer it already repairs, and an owner may write `orgId` and nothing
+else, because holding a roster is not a licence to rename people.
+
+The general lesson is worth keeping: **every "any signed-in account" rule
+is a statement about who can hold an account.** That premise changed the
+day the founder door opened, and any rule resting on it had to be re-read.
+
 Still open: nothing is time-based, and billing, seats and a plan on the org
 document remain unwritten.
 

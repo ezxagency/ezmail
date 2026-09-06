@@ -98,7 +98,7 @@ async function orgLoad(){
     db.collection("orgs").doc(orgId).collection("automations").get(),
     // the roster stores uids; names live in the directory every signed-in
     // account may already read, so being polite costs no new permission
-    loadDirectory()
+    loadDirectory(orgId)
   ]); } catch (e) { console.error(e); orgWhyNone = "error"; return null; }
   const dir = {};
   (dirRows || []).forEach(r => { dir[r.uid] = r; });
@@ -108,7 +108,29 @@ async function orgLoad(){
   const automations = autoSnap.docs.map(d => Object.assign({ id: d.id }, d.data()));
   orgWhyNone = null;
   const me = members.find(m => m.uid === uid);
+  /* Self-healing, the same shape as the memberOf pointer above. A
+     directory entry written before the directory was tenant-scoped
+     carries no orgId, so this org's own scoped read cannot see it and its
+     owner would be looking at a roster of uids. An owner stamps them
+     once, in the background, and never notices it happened. */
+  if (me && me.roleId === "owner") orgHealDirectory(orgId, members, dir);
   return { orgId, org: orgDoc.data(), members, roles, types, automations, dir, myRoleId: me ? me.roleId : null };
+}
+
+/* Stamp this org's id onto the directory entries of people who are in it
+   and whose entry does not say so. Deliberately writes ONLY orgId - the
+   rules refuse anything else, because holding a roster is not a licence
+   to rewrite somebody's name. Fire-and-forget: a page must never wait on
+   a migration, and if it fails the only cost is that it runs again. */
+async function orgHealDirectory(orgId, members, dir){
+  const missing = (members || []).filter(m => m && m.uid && !dir[m.uid]);
+  if (!missing.length) return;
+  try {
+    const batch = db.batch();
+    missing.forEach(m => batch.set(db.collection("directory").doc(m.uid), { orgId }, { merge: true }));
+    await batch.commit();
+    dirInvalidate();   // the names will be there the next time it is read
+  } catch (e) { console.warn("Could not stamp the directory for this org:", e); }
 }
 
 /* The org context, loaded once and reused. The Organization PAGE is not
@@ -127,7 +149,7 @@ async function orgEnsure(){
    answering from a picture of an org that no longer exists. It lives
    here rather than being assigned across files because orgS is this
    file's to own; js/items.js should not know the variable's name. */
-function orgInvalidate(){ orgS = null; }
+function orgInvalidate(){ orgS = null; dirInvalidate(); }
 
 /* ---------- page entry ---------- */
 

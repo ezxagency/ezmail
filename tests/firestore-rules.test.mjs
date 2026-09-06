@@ -60,6 +60,18 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "invites/invTeam"), { kind: "team", createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null });
   // somebody already through the founder door, running their own org
   await setDoc(doc(db, "users/member1"), { email: "founder@other.com", role: "member", emailVerified: true });
+  // the directory, mid-migration: one entry stamped to Ez Agency's org,
+  // one still carrying no orgId at all (every entry looked like this
+  // before the directory was tenant-scoped)
+  await setDoc(doc(db, "directory/worker1"), { name: "W1", email: "w1@x.com", orgId: "orgA" });
+  await setDoc(doc(db, "directory/worker2"), { name: "W2", email: "w2@x.com" });
+  await setDoc(doc(db, "directory/member1"), { name: "Founder", email: "founder@other.com" });
+  // an org member1 already owns, with somebody else genuinely in it - the
+  // only setup where the "orgId and nothing else" constraint is what
+  // decides, rather than the target simply being a stranger
+  await setDoc(doc(db, "orgs/orgN"), { name: "N Co", ownerUid: "member1", createdAt: 1 });
+  await setDoc(doc(db, "orgs/orgN/members/member1"), { uid: "member1", roleId: "owner", joinedAt: 1 });
+  await setDoc(doc(db, "orgs/orgN/members/worker2"), { uid: "worker2", roleId: "staff", joinedAt: 1 });
   // ---- tenancy (phase 1): two orgs that must never see each other, plus
   // two founded-but-unseated orgs for the founding-seat case ----
   await setDoc(doc(db, "orgs/orgA"), { name: "Org A", ownerUid: "admin1", createdAt: 1 });
@@ -174,6 +186,27 @@ await T("member: creates their own org and seats themselves as owner", assertSuc
 })()));
 await T("member: designs a work type in their own org", assertSucceeds(setDoc(doc(member, "orgs/orgM/itemTypes/task"), { name: "Task", fields: [], statuses: [] })));
 await T("Ez Agency's admin cannot read the member's org", assertFails(getDoc(doc(admin, "orgs/orgM"))));
+
+// ================= THE DIRECTORY IS TENANT-SCOPED =================
+// It holds names and emails. "Every signed-in account may read it" was
+// true enough while everyone with an account worked here; the founder
+// door ended that, and this is the boundary that replaces it.
+await T("member: read another org's directory entry DENIED", assertFails(getDoc(doc(member, "directory/worker1"))));
+await T("member: read a LEGACY unstamped entry DENIED (they are not team)", assertFails(getDoc(doc(member, "directory/worker2"))));
+await T("member: read their OWN entry", assertSucceeds(getDoc(doc(member, "directory/member1"))));
+await T("member: sweep the whole directory DENIED", assertFails(getDocs(collection(member, "directory"))));
+await T("worker: read a teammate stamped to their own org", assertSucceeds(getDoc(doc(worker, "directory/worker1"))));
+await T("worker: read a legacy unstamped entry (the migration ramp)", assertSucceeds(getDoc(doc(worker, "directory/worker2"))));
+await T("worker: scoped query over their own org", assertSucceeds(getDocs(query(collection(worker, "directory"), where("orgId", "==", "orgA")))));
+
+// An owner stamps their own people, and may change nothing else about them
+await T("admin(owner of orgA): stamps a member's entry with orgId", assertSucceeds(setDoc(doc(admin, "directory/worker2"), { orgId: "orgA" }, { merge: true })));
+await T("owner: stamping somebody who is NOT in their org DENIED", assertFails(setDoc(doc(member, "directory/worker1"), { orgId: "orgN" }, { merge: true })));
+// worker2 IS in orgN, so these two turn on the constraint itself rather
+// than on the target being a stranger
+await T("owner: stamps orgId onto their own member", assertSucceeds(setDoc(doc(member, "directory/worker2"), { orgId: "orgN" }, { merge: true })));
+await T("owner: stamping orgId AND a name DENIED (a roster is not a rename)", assertFails(setDoc(doc(member, "directory/worker2"), { orgId: "orgN", name: "Hacked" }, { merge: true })));
+await T("owner: renaming their own member DENIED", assertFails(setDoc(doc(member, "directory/worker2"), { name: "Hacked" }, { merge: true })));
 
 // ================= WORKFLOW BLUEPRINTS =================
 await T("worker: read blueprints (runs board shows the track)", assertSucceeds(getDocs(query(collection(worker, "blueprints"), where("orgId", "==", "ez-agency")))));
