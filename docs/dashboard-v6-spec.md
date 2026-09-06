@@ -221,6 +221,56 @@ checklist, Attached — and two buttons: **Start task** and **Done**.
 The counts above it stay as the three coloured pips the app already
 draws (`0 open`, `2 overdue`, `0 due today`), not a plain sentence.
 
+## 13. Measurements
+
+Read out of the Figma file `WvOrne82eXwKCeBk7MaQCV`, frame `1:2152`
+(1920×1080), rather than scaled off a picture. Where the prototype and
+the file disagree, the file wins — it is the later artifact.
+
+**The three columns.** `116 | 1184 | 620`. The prototype's fractional
+grid lands within a few pixels of this at 1920, so the fractions stay
+for other widths and these are what 1920 must produce.
+
+**Rail** (116 wide). Badge 44×44 at y28. Nav items 44 wide, 61 tall,
+81 apart, icons 21×21, label 15 tall beneath. The active item carries a
+3×34 bar on the left edge. Avatar 36×36 and a 28×28 sign-out at y968.
+
+**Middle** (1184, 48px inset both sides → 1088 of content).
+Brand block 113.5 tall: wordmark 43, a 360×3 rule under it, the name row
+22.5, then the status line. Week row 80 tall: the hours block 100.6
+wide on the left, seven 52-wide bars 63 apart in the centre (tallest 58),
+the streak pill 124.3×35 on the right.
+Hero: pill switcher 307×43, two 232px rings 288 apart (8px stroke), the
+CLOCK IN button **520×98**, then the chips row 450.8 wide.
+Scrubber block 109 tall at y939: title row, a **34px** bar, then
+timestamps and legend.
+
+**Right panel** (620 wide, 32px inset → 556 of content).
+Header 63.5 tall: "YOUR WORK" 25 tall, two 38×38 round arrow buttons at
+the top right. Subtitle row underneath.
+The stack: **front card 470×840**, flat and centred at x43. Behind it a
+left card 367×743 at x0.2/y85.6 and a right card 367×652 at x191/y131 —
+different sizes and offsets, which is the perspective doing the work
+rather than a uniform stack.
+Card interior: 25px padding, 420 of content. Store pill 105.9×27.3 and
+the due pill 95×27 on the top row; title 28 tall; sub-meta 20; hairline
+dividers; BRIEF; a checklist of 19.5-tall rows with 18×18 boxes 30px
+from their text; ATTACHED with 40.75-tall file rows.
+Footer: **START TASK 304×52** beside **DONE 104×52**, 12px apart.
+Pagination under the stack: a 26×6 pill for the current card, then 6×6
+dots.
+
+**Three places the file and your instructions differ**, resolved your
+way because you said so after the file was made:
+
+- The rail reads **CAMPS**; you said use **Links**. Links.
+- The rail has six items and no **Work**; you said keep everything.
+  Work stays.
+- The subtitle is a sentence — `3 tasks · ● 1 overdue · 1 due today` —
+  with a single red dot on the overdue count, where the live app draws
+  three coloured pips. The sentence is what gets built, since it is the
+  newer drawing, and the one dot keeps the colour you asked to keep.
+
 ## 12. What this does NOT change
 
 The rings. They keep their fixed 8h and 1h laps and their second-lap
