@@ -1,0 +1,95 @@
+/* ============================================================
+   THE LEFT RAIL — 116px icon nav, .ui-next only.
+   Measured off the Figma frame (142:1102): 116px track, 44px
+   icon column, 61px per item, a 3px active bar on the left edge,
+   the avatar and sign-out pinned to the bottom.
+   Below 1024px it is not drawn and the hamburger comes back —
+   the redesign is a desktop screen for now.
+   ============================================================ */
+#rail{display:none}
+
+@media (min-width:1024px){
+  .ui-next #rail{
+    display:flex;flex-direction:column;align-items:center;
+    position:fixed;left:0;top:0;bottom:0;width:116px;
+    /* above the sub-pages (z 30) so the nav never disappears under one,
+       below the scrim (z 40) so an open sheet dims it like everything else */
+    z-index:35;
+    padding:28px 0 22px;
+    background:linear-gradient(180deg,rgba(10,11,15,.72),rgba(10,11,15,.58));
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border-right:1px solid rgba(255,255,255,.07);
+  }
+  /* the rail owns that strip: everything else starts after it */
+  .ui-next .app,
+  .ui-next .app.panes{padding-left:116px}
+  .ui-next .admin-page{left:116px}
+  /* the hamburger is what the rail replaces */
+  .ui-next .menu-btn{display:none}
+}
+
+.rail-badge{
+  display:flex;align-items:center;justify-content:center;
+  width:44px;height:44px;flex:none;
+  border-radius:13px;
+  background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+  color:var(--wk-white);text-decoration:none;
+  font-family:var(--wk);font-weight:800;font-size:15px;letter-spacing:.04em;
+}
+
+.rail-items{
+  display:flex;flex-direction:column;align-items:center;
+  margin-top:28px;width:100%;
+  /* a long roster of pages scrolls rather than pushing the avatar off */
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:none;
+}
+.rail-items::-webkit-scrollbar{display:none}
+
+.rail-item{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  width:100%;padding:10px 0 9px;
+  color:var(--wk-white-60);text-decoration:none;
+  transition:color .18s var(--pz-ease);
+}
+.rail-item:hover{color:var(--wk-white-70)}
+.rail-item.hidden{display:none}
+.rail-ico{display:block;width:21px;height:21px}
+.rail-ico svg{width:100%;height:100%}
+.rail-txt{
+  font-family:var(--wk);font-size:9px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+}
+/* the comp's 3px bar on the left edge, and the only thing that says
+   which page you are on */
+.rail-mark{
+  position:absolute;left:0;top:50%;transform:translateY(-50%) scaleY(0);
+  width:3px;height:34px;border-radius:0 3px 3px 0;
+  background:var(--wk-white);
+  transition:transform .22s var(--pz-spring);
+}
+.rail-item.is-on{color:var(--wk-white)}
+.rail-item.is-on .rail-mark{transform:translateY(-50%) scaleY(1)}
+
+.rail-foot{
+  margin-top:auto;
+  display:flex;flex-direction:column;align-items:center;gap:20px;
+}
+.rail-av{
+  width:36px;height:36px;border-radius:50%;border:0;cursor:pointer;
+  background:rgba(255,255,255,.12) center/cover no-repeat;
+  color:var(--wk-white);font-family:var(--wk);font-weight:700;font-size:14px;
+}
+.rail-av.has-photo{color:transparent}
+.rail-out{
+  display:flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border:0;border-radius:8px;
+  background:none;color:var(--wk-white-60);cursor:pointer;
+}
+.rail-out svg{width:20px;height:20px}
+.rail-out:hover{color:var(--wk-white)}
+
+@media (prefers-reduced-motion:reduce){ .rail-mark{transition:none} }

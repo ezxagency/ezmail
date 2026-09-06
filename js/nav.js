@@ -71,6 +71,7 @@ function updateDrawerIdentity(){
   avatar.classList.toggle("has-photo", !!userPhoto);
   avatar.style.backgroundImage = userPhoto ? `url("${userPhoto}")` : "";
   avatar.textContent = userPhoto ? "" : ((S.worker || email || "·").trim().charAt(0).toUpperCase() || "·");
+  if (typeof rlSync === "function") rlSync();
 }
 
 /* Keyboard: 1-5 jump straight to a page (guarded away from inputs and open
@@ -118,6 +119,8 @@ function applyRoute(){
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
     a.classList.toggle("active", (a.dataset.route || "") === r));
+  // the rail copies the drawer rather than deciding anything of its own
+  if (typeof rlSync === "function") rlSync();
   closeDrawer();
   if (r === "mission") renderMissionPage();
   else if (r === "history") renderHistoryPage();

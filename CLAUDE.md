@@ -116,7 +116,7 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 462 assertions, node + jsdom, seconds
+npm test        # 472 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -149,7 +149,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 721 pass as of this writing — a
+reaches through an org boundary. All 731 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -191,6 +191,14 @@ it costs no read, no query and no index. The open shift is added live,
 because a row that ignored the hours you are working right now would be
 wrong all day and right only after clock-out. `wr` prefix, not `wk`:
 `js/work.js` already owns `wk` in the one shared scope.
+
+Fourth piece: the **left rail**, which replaces the hamburger. It keeps
+no list of pages — `js/rail.js` builds it from the drawer's own items and
+re-reads their `.hidden` and `.active` on every sync, so which pages a
+person gets is still answered once, by the role gating in `js/auth.js`.
+That is also the answer to the comp's six icons against the app's eight
+routes: the rail carries whatever the drawer carries, so Work keeps a
+seat instead of quietly becoming unreachable.
 
 The rings are deliberately NOT affected. They keep their fixed 8h lap
 because they answer "how long have you been at it", not "how much of
