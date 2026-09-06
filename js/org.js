@@ -26,6 +26,12 @@
    ============================================================ */
 
 let orgS = null;   // { orgId, org, members, roles, myRoleId } | null while loading
+/* Why the last load produced nothing. Both outcomes return null, but they
+   are not the same thing to a person: "you have no organization" is a
+   next step, while "something failed" is a reason to try again. Telling
+   someone the first when the second happened sends them off to create an
+   org they already have. */
+let orgWhyNone = null;   // null | "none" | "error" 
 
 const orgUid = () => (auth.currentUser ? auth.currentUser.uid : null);
 const orgIsOwner = () => !!orgS && orgS.myRoleId === "owner";
@@ -46,6 +52,7 @@ const ORG_SEED_ROLES = [
 /* ---------- load ---------- */
 
 async function orgLoad(){
+  orgWhyNone = "none";
   const uid = orgUid();
   if (!uid) return null;
   // A denied or offline read must answer "no org", never throw. Callers
@@ -56,13 +63,13 @@ async function orgLoad(){
   // moves, while the rules that JS needs are still deploying behind it.
   let ptr;
   try { ptr = await db.collection("memberOf").doc(uid).get(); }
-  catch (e) { console.error(e); return null; }
+  catch (e) { console.error(e); orgWhyNone = "error"; return null; }
   const orgId = ptr.exists ? ptr.data().orgId : null;
   if (!orgId) return null;
 
   let orgDoc;
   try { orgDoc = await db.collection("orgs").doc(orgId).get(); }
-  catch (e) { console.error(e); return null; }
+  catch (e) { console.error(e); orgWhyNone = "error"; return null; }
   // the pointer outlived the membership (removed from the org, or it was
   // never real): treat it as no org rather than an error the user can't act on
   if (!orgDoc.exists) return null;
@@ -75,12 +82,13 @@ async function orgLoad(){
     // the roster stores uids; names live in the directory every signed-in
     // account may already read, so being polite costs no new permission
     loadDirectory()
-  ]); } catch (e) { console.error(e); return null; }
+  ]); } catch (e) { console.error(e); orgWhyNone = "error"; return null; }
   const dir = {};
   (dirRows || []).forEach(r => { dir[r.uid] = r; });
   const members = memSnap.docs.map(d => Object.assign({ uid: d.id }, d.data()));
   const roles = roleSnap.docs.map(d => Object.assign({ id: d.id }, d.data()));
   const types = typeSnap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+  orgWhyNone = null;
   const me = members.find(m => m.uid === uid);
   return { orgId, org: orgDoc.data(), members, roles, types, dir, myRoleId: me ? me.roleId : null };
 }

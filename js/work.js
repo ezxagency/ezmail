@@ -67,7 +67,9 @@ async function enterWorkPage(){
   box.innerHTML = '<p class="org-note">Loading…</p>';
   const s = await orgEnsure();
   if (!s) {
-    box.innerHTML = '<p class="org-note">You are not in an organization yet.</p>';
+    box.innerHTML = (orgWhyNone === "error")
+      ? '<p class="org-note">Could not reach your organization. Check your connection and refresh.</p>'
+      : '<p class="org-note">You are not in an organization yet. An owner can create one on the Organization page.</p>';
     return;
   }
   try { wkTypes = await itemTypesLoad(); }
@@ -102,8 +104,17 @@ async function wkRender(){
   $("wkNew").onclick = () => wkItemSheet(null);
 
   // one array-contains lookup, which is the whole point of facets: no
-  // per-type index has to exist in advance for this to be fast
-  wkRows = await itemsByFacet("type:" + itemSlug(wkTypeId), 60);
+  // per-type index has to exist in advance for this to be fast.
+  // Guarded because this ran unguarded once: a failing query left the
+  // tabs drawn and the list on "Loading…" with no way to tell whether
+  // the page was slow or broken, which is the worst of both.
+  try {
+    wkRows = await itemsByFacet("type:" + itemSlug(wkTypeId), 60);
+  } catch (e) {
+    console.error(e);
+    $("wkList").innerHTML = '<p class="org-note">Could not load this work. Refresh to try again.</p>';
+    return;
+  }
   wkRows.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   wkPaintList();
 }
