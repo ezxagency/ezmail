@@ -1,14 +1,21 @@
 # Ships the server-side commit. Same shape as deploy-rules.yml and for
 # the same reason: the thing that enforces the rules should not be
 # deployed by hand from somebody's laptop.
+#
+# MANUAL ONLY, on purpose. Cloud Functions needs the Firebase Blaze plan
+# and this project's billing account is not active, so every push that
+# touched functions/ left a red X on main for a deploy that could not
+# have succeeded. A failure nobody can act on is a failure everybody
+# learns to scroll past - and the next real one hides behind it.
+#
+# Nothing is lost by this: the tests that gate the deploy still run on
+# every push as part of CI, so functions/ cannot rot unnoticed. Only the
+# deploy step waits. When billing works, run this from the Actions tab
+# ("Run workflow"), then flip CONFIG.serverCommit and narrow the items
+# rule - the two steps docs/platform-spec.md describes, in that order.
 name: Deploy functions
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - functions/**
-      - .github/workflows/deploy-functions.yml
   workflow_dispatch:
 
 env:
