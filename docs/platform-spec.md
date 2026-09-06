@@ -139,8 +139,9 @@ into a base model any organization can configure. Re-read it fully before
 touching platform work in any session.
 
 Companion docs: `docs/workflow-builder-spec.md` (the engine that already
-exists and does not change here), `CLAUDE.md` (conventions), `README.md`
-(what ships today).
+exists and does not change here), `docs/handoff-spec.md` (connecting that
+engine to Items, so work moves person to person — spec only, nothing
+built), `CLAUDE.md` (conventions), `README.md` (what ships today).
 
 ## What this is trying to do
 
@@ -572,6 +573,24 @@ rule is correct now, but moving it is the cleaner shape.
 
 Still open: nothing is time-based, and billing, seats and a plan on the org
 document remain unwritten.
+
+## The handoff gap
+
+Phase 2 gave an Item `workflowRunId` and an ItemType `workflowId`, and the
+engine's runs have always carried `taskId`. All three are written as `null`
+and read by nothing, so the two halves of this product — work, and the
+pipeline work is supposed to travel — have never been connected.
+
+The cost is not theoretical. Assignees are a LIST, not a queue: putting
+three people on an Item means all three see the same screen at once, and
+nothing says whose turn it is. A customer describing "pass it from one
+person to the next" gets a shared card instead.
+
+`docs/handoff-spec.md` designs the connection. Its load-bearing calls: the
+run drives the status rather than competing with it; `assigneeIds` becomes
+derived from the active stops, so "assigned to me" starts meaning "my
+turn"; and advancing runs in a client transaction, which means the largest
+remaining piece of value needs no server and is not blocked on billing.
 
 ## Open decisions
 
