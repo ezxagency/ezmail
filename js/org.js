@@ -253,14 +253,50 @@ function orgRender(){
         '</button>';
     }).join("");
 
+  /* Each kind of work OPENS. A list of names answers "what kinds do we
+     have"; it cannot answer the question anyone actually arrives with,
+     which is "what does a Brief look like, and what happens to one".
+     Fields, stages and the rules watching it are the answer, and they
+     belong under the type they describe rather than in three sections
+     the reader has to join up themselves.
+     Closed by default: with several types, all of them open at once is
+     the wall of text this is meant to replace. */
+  const typeChip = f => '<span class="org-chip">' + esc(f.label || f.key) +
+    '<i>' + esc(f.type) + '</i>' + (f.required ? '<u>required</u>' : '') + '</span>';
+
   const typesHtml = (orgS.types || []).length
     ? (orgS.types || []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(t => {
-        const n = (t.fields || []).length, st = (t.statuses || []).length;
-        const summary = n + (n === 1 ? " field" : " fields") + " · " + st + (st === 1 ? " status" : " statuses");
-        return '<button type="button" class="org-row org-type" data-type="' + esc(t.id) + '"' + (owner ? "" : " disabled") + '>' +
-          '<span class="org-row-main"><b>' + esc(t.name || t.id) + '</b><small>' + esc(summary) + '</small></span>' +
-          (owner ? '<span class="org-row-go">Edit</span>' : '') +
-          '</button>';
+        const fields = t.fields || [], st = t.statuses || [];
+        const summary = fields.length + (fields.length === 1 ? " field" : " fields") +
+          " · " + st.length + (st.length === 1 ? " stage" : " stages");
+        // a rule is "about" a type when it names it; ones that watch any
+        // kind of work are listed in Rules and belong to no single type
+        const watching = (orgS.automations || []).filter(a => (a.trigger || {}).typeId === t.id);
+        return '<details class="org-fold org-typefold">' +
+          '<summary><span class="org-row-main"><b>' + esc(t.name || t.id) + '</b>' +
+            '<small>' + esc(summary) + '</small></span></summary>' +
+          '<div class="org-typebody">' +
+            (fields.length
+              ? '<p class="org-sub">Fields</p><div class="org-chips">' + fields.map(typeChip).join("") + '</div>'
+              : '<p class="org-note">No fields — just a title and a stage.</p>') +
+            (st.length
+              ? '<p class="org-sub">Stages</p><div class="org-chips org-stages">' +
+                  st.map(x => '<span class="org-chip">' + esc(x.label || x.key) + '</span>').join("") + '</div>'
+              : '') +
+            '<p class="org-sub">Rules watching this</p>' +
+            (watching.length
+              ? '<div class="org-list">' + watching.map(a =>
+                  '<button type="button" class="org-row org-auto" data-auto="' + esc(a.id) + '"' +
+                    (owner ? "" : " disabled") + '>' +
+                    '<span class="org-row-main"><b>' + esc(a.name || "Rule") + '</b>' +
+                      '<small>' + esc(orgAutoSummary(a)) + '</small></span>' +
+                    (owner ? '<span class="org-row-go">Edit</span>' : '') +
+                  '</button>').join("") + '</div>'
+              : '<p class="org-note">Nothing happens by itself when one of these changes.</p>') +
+            (owner ? '<div class="org-actions"><button type="button" class="org-btn org-btn-sm org-type" ' +
+              'data-type="' + esc(t.id) + '">Edit this type</button></div>' : '') +
+          '</div>' +
+        '</details>';
       }).join("")
     : '<p class="org-note">No work types yet.' + (owner ? ' Start from a template below, or create one to describe the work your team actually does.' : '') + '</p>';
 

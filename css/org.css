@@ -182,3 +182,53 @@ button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
 @media (prefers-reduced-motion: reduce) {
   .org-fold > summary::before { transition: none; }
 }
+
+/* ---- a kind of work, opened ---- */
+/* Closed, it reads exactly like the rows around it. Open, it becomes a
+   container - so the page gains depth without gaining a new visual
+   language for the reader to learn. */
+.org-typefold {
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.org-typefold > summary {
+  padding: 14px 16px; gap: 14px; opacity: 1;
+}
+.org-typefold > summary::before { margin-right: 0; opacity: .5; }
+.org-typefold > summary:hover { background: rgba(255,255,255,.02); }
+.org-typefold[open] > summary { border-bottom: 1px solid rgba(255,255,255,.07); }
+
+.org-typebody { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 4px; }
+.org-typebody .org-list { margin-top: 2px; }
+.org-typebody .org-note { margin: 2px 0 6px; }
+.org-typebody .org-actions { margin-top: 10px; }
+
+.org-sub {
+  margin: 12px 0 7px; font-size: 11px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; opacity: .45;
+}
+.org-typebody > .org-sub:first-child { margin-top: 0; }
+
+/* a field is three facts - what it is called, what it holds, and whether
+   it is required - so the chip carries all three rather than making the
+   reader open the editor to find out */
+.org-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.org-chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 5px 10px; border-radius: 8px; font-size: 12.5px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.07);
+}
+.org-chip i { font-style: normal; font-size: 10.5px; opacity: .45; letter-spacing: .04em; }
+.org-chip u {
+  text-decoration: none; font-size: 9.5px; letter-spacing: .08em;
+  text-transform: uppercase; opacity: .55;
+}
+/* stages are a sequence, and a row of arrows says so without a diagram */
+.org-stages .org-chip + .org-chip { position: relative; margin-left: 12px; }
+.org-stages .org-chip + .org-chip::before {
+  content: "\2192"; position: absolute; left: -13px; top: 50%;
+  transform: translateY(-50%); opacity: .3; font-size: 11px;
+}

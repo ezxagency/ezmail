@@ -281,6 +281,61 @@ T("a staff member sees the roster but is offered nothing to change", () => {
   assert.match(doc.getElementById("sheetBody").textContent, /Only an owner can change roles/);
 });
 
+/* ---------- a kind of work, opened ----------
+   A list of names cannot answer the question anyone arrives with: what
+   does a Brief look like, and what happens to one. The fields, the
+   stages and the rules watching it have to be under the type itself. */
+T("a work type opens to show its fields and stages", () => {
+  run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", members: [], dir: {},
+    roles: [{ id: "owner", name: "Owner", permissions: ["*:*:org"] }],
+    types: [{ id: "brief", name: "Brief",
+      fields: [{ key: "client", label: "Client", type: "text", required: true },
+               { key: "due", label: "Due", type: "date" }],
+      statuses: [{ key: "new", label: "New" }, { key: "done", label: "Done" }] }],
+    automations: [
+      { id: "a1", name: "Tell the senior", enabled: true,
+        trigger: { verb: "item.status_changed", typeId: "brief" }, conditions: [],
+        actions: [{ kind: "notify", toRole: "lead" }] },
+      { id: "a2", name: "Something else", enabled: true,
+        trigger: { verb: "item.created", typeId: "other" }, conditions: [],
+        actions: [{ kind: "notify", toRole: "lead" }] }
+    ] };
+    orgRender();`);
+  const fold = doc.querySelector(".org-typefold");
+  assert.ok(fold, "the type is not a collapsible");
+  assert.ok(!fold.open, "several types all open at once is the wall of text this replaces");
+  const body = fold.textContent;
+  assert.match(body, /Client/);
+  assert.match(body, /required/i);
+  assert.match(body, /Due/);
+  assert.match(body, /New/);
+  assert.match(body, /Done/);
+});
+
+T("only the rules that watch THIS type appear under it", () => {
+  const fold = doc.querySelector(".org-typefold");
+  const names = [...fold.querySelectorAll(".org-auto")].map(b => b.dataset.auto);
+  assert.deepEqual(plain(names), ["a1"], "a rule aimed at another type leaked in");
+});
+
+T("the edit button inside still resolves to the type", () => {
+  const btn = doc.querySelector(".org-typefold .org-type");
+  assert.ok(btn, "no way to edit the type any more");
+  assert.equal(btn.dataset.type, "brief");
+  assert.ok(run(`!!(orgS.types || []).find(t => t.id === "brief")`));
+});
+
+T("a type nothing watches says so, rather than showing an empty box", () => {
+  run(`orgS.automations = []; orgRender();`);
+  assert.match(doc.querySelector(".org-typefold").textContent, /Nothing happens by itself/);
+});
+
+T("a staff member can open a type but is offered no edit", () => {
+  run(`orgS.myRoleId = "staff"; orgRender();`);
+  assert.ok(doc.querySelector(".org-typefold"), "they should still see what the work looks like");
+  assert.equal(doc.querySelector(".org-typefold .org-type"), null);
+});
+
 T("dropping the org cache drops the directory cache with it", () => {
   // the directory is read per-organization now, so a cached roster from
   // one tenant must never survive into another
