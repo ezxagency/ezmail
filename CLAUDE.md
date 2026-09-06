@@ -125,6 +125,18 @@ failure is a real regression, not a flake.
 
 ## Deploys
 
+**Standing approval to merge.** The owner has said, in as many words, to
+stop asking every time. So: work on the feature branch, and once the full
+suite passes locally, merge to `main` and push without waiting. Report
+what shipped rather than requesting permission.
+
+Three things still get asked first, because they are not the same kind of
+decision: anything **destructive or irreversible** (deleting live data,
+rewriting history, force-pushing); anything that is a **judgment call
+about the business** rather than the code (who may sign up, what a
+customer is charged); and **any merge whose tests do not pass** — a red
+suite is not a thing to seek permission for, it is a thing to fix.
+
 - **App**: GitHub Pages serves the repo directly. Push to `main` ships it.
   There is no build step to wait for — only the browser cache, which is
   what rule 2 is about.
