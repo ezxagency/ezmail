@@ -264,6 +264,58 @@ its shape rather than collapsing. It still has to distinguish "nothing
 assigned" from "could not reach your organization", which is the
 distinction §1 of docs/lessons.md exists for.
 
+## 12a. One mechanism: the whole app is a chain of stages
+
+The decision that collapses four things into one.
+
+> A company sets up a chain of stages once. Anyone with permission to
+> assign creates work. The work moves along those stages by itself.
+
+There is no separate Campaigns product in that sentence, and there does
+not need to be one in the app. **The Campaigns page goes.** Its idea —
+work that passes person to person — is not lost; it is the whole model
+now, and it is the model the org already has:
+
+- A **work type** carries a **track**: an ordered line of stops, each
+  held by a role (`js/handoff.js`, `docs/handoff-spec.md`).
+- Creating work of a tracked type **starts its run**.
+- Whoever holds the current stop sees that work on their deck.
+- Finishing hands it to the next stop. There is nothing else to press.
+
+So the dashboard is not "the home page beside a campaign page". It is
+the campaign page, for the one person looking at it — their stops, one
+card at a time.
+
+**What this deletes from the card.** The four kinds the deck carries
+today (a plain assignment, a campaign baton, a workflow stop, orphaned
+work) stop being four kinds:
+
+| Was | Is now |
+|---|---|
+| `Done` on an assignment | **Done** — finish my stage |
+| `Pass forward` on a baton | **Done** — same act, same button |
+| `Send back` on a baton | **Send back** — §4a, the left button while running |
+| `Open` on a baton | the card IS the detail; nothing to open |
+| `Work this stop` on a workflow stop | **Start task**, then **Done** |
+
+Work with no track behind it still exists — a one-off nobody chains —
+and Done simply closes it, because there is no next stop to hand it to.
+That is the same button doing the same thing with a shorter chain, not a
+second kind of work.
+
+**Orphaned work stays the exception**, and keeps its no-button card: its
+type was deleted, so there is no track to move along and no status to
+take. Saying so is the whole content of that card.
+
+**OPEN 4** — the Campaigns page is live and Ez Agency has real
+campaigns in it right now. Retiring the page does not delete the data,
+but it does make it unreachable. Migrate existing campaigns into tracked
+work, or keep the page read-only while nothing new is created there?
+
+**OPEN 5** — the rail's fourth item. The Figma names it "Camps", which
+was Campaigns; the instruction was to call it **Links**. With Campaigns
+gone, Links has to point at something. Unresolved.
+
 ## 13. Measurements
 
 Read out of the Figma file `WvOrne82eXwKCeBk7MaQCV`, frame `1:2152`
