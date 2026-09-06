@@ -352,6 +352,12 @@ await T("events: a member rewrites history DENIED", assertFails(updateDoc(doc(wo
 await T("events: an OWNER rewrites history DENIED", assertFails(updateDoc(doc(admin, "orgs/orgA/events/ev1"), { verb: "item.deleted" })));
 await T("events: an OWNER deletes history DENIED", assertFails(deleteDoc(doc(admin, "orgs/orgA/events/ev1"))));
 
+await T("automations: a member reads the rules that act on their work", assertSucceeds(getDocs(collection(worker, "orgs/orgA/automations"))));
+await T("automations: a non-owner writes one DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/automations/evil"), { name: "E", enabled: true, trigger: { verb: "item.created" }, actions: [] })));
+await T("automations: an owner writes one", assertSucceeds(setDoc(doc(admin, "orgs/orgA/automations/a1"), { name: "Notify leads", enabled: true, trigger: { verb: "item.created" }, conditions: [], actions: [{ kind: "notify", toRole: "manager", message: "New" }] })));
+await T("automations: a NON-member reads them DENIED", assertFails(getDocs(collection(unverified, "orgs/orgA/automations"))));
+await T("automations: a member of A reads B DENIED", assertFails(getDocs(collection(worker, "orgs/orgB/automations"))));
+
 await T("memberOf: a forged pointer still cannot open the org", assertFails((async () => {
   await setDoc(doc(worker, "memberOf/worker1"), { orgId: "orgB", at: 1 });
   return getDoc(doc(worker, "orgs/orgB"));

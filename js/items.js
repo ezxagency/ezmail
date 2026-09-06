@@ -39,7 +39,7 @@ async function itemActorPermissions(){
    intent = { kind, ...payload }; type = the ItemType; item = current or null.
    Returns exactly what the engine returned, so callers read one shape
    whether the refusal came from permissions, validation or the network. */
-async function itemSave(type, item, intent){
+async function itemSave(type, item, intent, opts){
   const s = await orgEnsure();
   if (!s) return { ok: false, error: "no-org" };
   const uid = auth.currentUser ? auth.currentUser.uid : null;
@@ -76,6 +76,11 @@ async function itemSave(type, item, intent){
     // describing a change that did not happen is worse than no log
     decision.events.forEach(ev => batch.set(eventsCol(s.orgId).doc(), ev));
     await batch.commit();
+    // Automations run AFTER the write, on the events it produced, and
+    // never block the answer the person is waiting for. A rule that
+    // fails is this feature's problem; the change they made already
+    // landed and they have already been told so.
+    itemsRunAutomations(decision.events, decision.item, (opts && opts.depth) || 0);
     return decision;
   } catch (e) {
     console.error(e);
@@ -407,4 +412,86 @@ async function itemsMirrorAssignmentStatus(assignmentId, done){
   } catch (e) {
     console.warn("Could not mirror a status change into Items:", e);
   }
+}
+
+
+/* ============================================================
+   AUTOMATIONS — carrying out the plan.
+
+   js/automation.js decides; this delivers. It reads the org's
+   rules once per session, plans against each event a change
+   produced, and applies what comes back through itemSave() -
+   the same chokepoint everything else uses, so an automation is
+   held to exactly the permissions and validation a person is.
+
+   That last part matters: a rule cannot do what the person who
+   triggered it could not. An automation that could move work its
+   own author is not allowed to touch would be a way around the
+   permission model rather than a feature of it.
+
+   Depth rides along so a chain of rules answering each other
+   stops. It rarely gets that far - a rule writing a value that
+   is already set produces no event, so the common loop dies on
+   its second lap - but the cap is there for the ones that do not.
+   ============================================================ */
+
+let itemsAutomationsCache = null;
+
+async function itemsAutomationsLoad(orgId){
+  if (itemsAutomationsCache) return itemsAutomationsCache;
+  try {
+    const snap = await db.collection("orgs").doc(orgId).collection("automations").get();
+    itemsAutomationsCache = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+  } catch (e) { console.error(e); itemsAutomationsCache = []; }
+  return itemsAutomationsCache;
+}
+
+async function itemsRunAutomations(events, item, depth){
+  if (!events || !events.length || !item) return;
+  try {
+    const s = await orgEnsure();
+    if (!s) return;
+    const rules = await itemsAutomationsLoad(s.orgId);
+    if (!rules.length) return;
+
+    const types = await itemTypesLoad();
+    const type = types.find(t => t.id === item.typeId);
+    if (!type) return;
+
+    let current = item;
+    for (const event of events) {
+      const plan = autoPlan({ automations: rules, event, item: current, depth });
+      if (plan.stopped) {
+        console.warn("Automation chain stopped:", plan.stopped, "on", event.verb);
+        continue;
+      }
+      for (const step of plan.steps) {
+        if (step.kind === "notify") { await itemsDeliverNotify(step, current); continue; }
+        // through itemSave, so the rule is checked exactly as a person is
+        const r = await itemSave(type, current, step.intent, { depth: step.depth });
+        if (!r.ok) { console.warn("Automation", step.automationId, "refused:", r.error); continue; }
+        if (r.item) current = r.item;
+      }
+    }
+  } catch (e) {
+    console.warn("Could not run automations:", e);
+  }
+}
+
+/* Notifications go to the collection the app already uses, so an
+   automation's message arrives in the same bell as everything else
+   rather than inventing a second place people have to remember. */
+async function itemsDeliverNotify(step, item){
+  const from = auth.currentUser ? auth.currentUser.uid : null;
+  const text = step.message || (item.title + " needs attention");
+  const base = { fromUid: from, kind: "automation", read: false, createdAt: Date.now(),
+    text, store: (item.fields || {}).store || "", task: item.title || "" };
+  try {
+    const batch = db.batch();
+    if (step.toRole) batch.set(db.collection("notifications").doc(),
+      Object.assign({ toRole: step.toRole === "admin" ? "admin" : step.toRole }, base));
+    (step.toUids || []).forEach(uid => batch.set(db.collection("notifications").doc(),
+      Object.assign({ toUid: uid }, base)));
+    await batch.commit();
+  } catch (e) { console.warn("Could not deliver an automation notification:", e); }
 }

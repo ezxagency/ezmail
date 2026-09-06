@@ -163,6 +163,16 @@ service cloud.firestore {
         allow create, update, delete: if isOrgMember(orgId);
       }
 
+      // The rules an org writes for itself. Everyone reads them - the
+      // UI has to show what will happen to your work and why - but only
+      // an owner writes them: an automation is a standing instruction
+      // that acts in everyone's name, so it belongs with the person who
+      // already decides what roles may do.
+      match /automations/{autoId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update, delete: if isOrgOwner(orgId);
+      }
+
       // The log. Append-only, forever - not even an owner rewrites what
       // happened, which is the entire reason it can be trusted as an
       // audit trail and as the trigger surface automations read.

@@ -37,6 +37,8 @@ jobs:
         run: node tests/item-engine.test.mjs
       - name: Migration mapping
         run: node tests/migrate.test.mjs
+      - name: Automations
+        run: node tests/automation.test.mjs
       - name: Workflow engine
         run: node tests/workflow-engine.test.mjs
       - name: Workflow effects

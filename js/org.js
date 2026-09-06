@@ -90,11 +90,12 @@ async function orgLoad(){
   // never real): treat it as no org rather than an error the user can't act on
   if (!orgDoc.exists) return null;
 
-  let memSnap, roleSnap, typeSnap, dirRows;
-  try { [memSnap, roleSnap, typeSnap, dirRows] = await Promise.all([
+  let memSnap, roleSnap, typeSnap, autoSnap, dirRows;
+  try { [memSnap, roleSnap, typeSnap, autoSnap, dirRows] = await Promise.all([
     db.collection("orgs").doc(orgId).collection("members").get(),
     db.collection("orgs").doc(orgId).collection("roles").get(),
     db.collection("orgs").doc(orgId).collection("itemTypes").get(),
+    db.collection("orgs").doc(orgId).collection("automations").get(),
     // the roster stores uids; names live in the directory every signed-in
     // account may already read, so being polite costs no new permission
     loadDirectory()
@@ -104,9 +105,10 @@ async function orgLoad(){
   const members = memSnap.docs.map(d => Object.assign({ uid: d.id }, d.data()));
   const roles = roleSnap.docs.map(d => Object.assign({ id: d.id }, d.data()));
   const types = typeSnap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+  const automations = autoSnap.docs.map(d => Object.assign({ id: d.id }, d.data()));
   orgWhyNone = null;
   const me = members.find(m => m.uid === uid);
-  return { orgId, org: orgDoc.data(), members, roles, types, dir, myRoleId: me ? me.roleId : null };
+  return { orgId, org: orgDoc.data(), members, roles, types, automations, dir, myRoleId: me ? me.roleId : null };
 }
 
 /* The org context, loaded once and reused. The Organization PAGE is not
@@ -233,6 +235,14 @@ function orgRender(){
       }).join("")
     : '<p class="org-note">No work types yet.' + (owner ? ' Create one to describe the work your team actually does.' : '') + '</p>';
 
+  const autoHtml = (orgS.automations || []).length
+    ? (orgS.automations || []).map(a =>
+        '<button type="button" class="org-row org-auto" data-auto="' + esc(a.id) + '"' + (owner ? "" : " disabled") + '>' +
+          '<span class="org-row-main"><b>' + esc(a.name || "Rule") + '</b><small>' + esc(orgAutoSummary(a)) + '</small></span>' +
+          (owner ? '<span class="org-row-go">Edit</span>' : '') +
+        '</button>').join("")
+    : '<p class="org-note">No rules yet.' + (owner ? ' Create one to make something happen by itself.' : '') + '</p>';
+
   const membersHtml = (orgS.members || [])
     .map(m => '<div class="org-row"><span class="org-row-main"><b>' + esc(orgPersonName(m.uid)) + '</b>' +
       '<small>' + esc(orgRoleName(m.roleId)) + '</small></span></div>').join("");
@@ -256,6 +266,13 @@ function orgRender(){
       '</div>' +
       '<div class="org-list">' + typesHtml + '</div>' +
       '<p class="org-note">A work type is what makes this fit your business: the fields your work actually has, and the stages it moves through.</p>' +
+    '</section>' +
+    '<section class="org-sec">' +
+      '<div class="org-sec-head"><h3>Rules</h3>' +
+        (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgAddAuto">New rule</button>' : '') +
+      '</div>' +
+      '<div class="org-list">' + autoHtml + '</div>' +
+      '<p class="org-note">A rule watches for something happening and does one thing about it, every time, without anyone remembering to.</p>' +
     '</section>' +
     (owner ? '<section class="org-sec">' +
       '<div class="org-sec-head"><h3>Bring existing work across</h3></div>' +
@@ -289,6 +306,11 @@ function orgRender(){
   if (owner && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
   if (owner && $("orgImportChains")) $("orgImportChains").onclick = () => orgRunImport("chain", $("orgImportChains"));
   if (owner && $("orgSeatTeam")) $("orgSeatTeam").onclick = () => orgSeatTeam($("orgSeatTeam"));
+  if (owner && $("orgAddAuto")) $("orgAddAuto").onclick = () => orgAutomationSheet(null);
+  $("orgBody").querySelectorAll(".org-auto").forEach(b => {
+    if (b.disabled) return;
+    b.onclick = () => orgAutomationSheet((orgS.automations || []).find(a => a.id === b.dataset.auto) || null);
+  });
   $("orgBody").querySelectorAll(".org-type").forEach(b => {
     if (b.disabled) return;
     b.onclick = () => orgTypeSheet((orgS.types || []).find(t => t.id === b.dataset.type) || null);
@@ -775,4 +797,165 @@ async function orgSeatTeam(btn){
   if (skipped) bits.push(skipped + " skipped");
   toast(bits.length ? bits.join(", ") + "." : "Nobody to seat.");
   enterOrgPage();
+}
+
+/* ============================================================
+   AUTOMATIONS — the screen where an org writes its own rules.
+
+   Deliberately one trigger, one optional condition, one action.
+   The data model holds many of each and the engine plans them
+   all, but a first rule somebody can actually reason about beats
+   a builder that can express anything and is understood by
+   nobody. Widening this is a UI change, not a model change.
+   ============================================================ */
+
+const ORG_TRIGGERS = [
+  { verb: "item.created",        label: "work is created" },
+  { verb: "item.status_changed", label: "its status changes" },
+  { verb: "item.assigned",       label: "it is assigned to someone" },
+  { verb: "item.updated",        label: "it is edited" }
+];
+const ORG_AUTO_ACTIONS = [
+  { kind: "notify",     label: "Notify people" },
+  { kind: "set_status", label: "Move it to a status" },
+  { kind: "assign",     label: "Assign it to someone" },
+  { kind: "set_field",  label: "Set a field" }
+];
+
+async function orgAutomationsLoad(){
+  try {
+    const snap = await db.collection("orgs").doc(orgS.orgId).collection("automations").get();
+    return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+  } catch (e) { console.error(e); return []; }
+}
+
+const orgAutoSummary = a => {
+  const t = ORG_TRIGGERS.find(x => x.verb === (a.trigger || {}).verb);
+  const act = ((a.actions || [])[0] || {}).kind;
+  const al = (ORG_AUTO_ACTIONS.find(x => x.kind === act) || {}).label || act || "do nothing";
+  return "When " + (t ? t.label : "something happens") + " → " + al.toLowerCase();
+};
+
+async function orgAutomationSheet(rule){
+  const types = orgS.types || [];
+  const roles = (orgS.roles || []).filter(r => r.id !== "owner");
+  const a = rule || { name: "", enabled: true, trigger: { verb: "item.created" }, conditions: [], actions: [] };
+  const act = (a.actions || [])[0] || { kind: "notify" };
+  const cond = (a.conditions || [])[0] || null;
+
+  const opts = (list, val, key, label) => list.map(x =>
+    '<option value="' + esc(x[key]) + '"' + (x[key] === val ? " selected" : "") + '>' + esc(x[label]) + '</option>').join("");
+
+  openSheet(
+    '<h3 class="sheet-title">' + (rule ? "Edit rule" : "New rule") + '</h3>' +
+    '<label class="org-field"><span>Name</span><input id="oaName" type="text" maxlength="60" value="' +
+      esc(a.name || "") + '" placeholder="Tell the leads about new swaps"></label>' +
+
+    '<label class="org-field"><span>When</span><select id="oaVerb">' +
+      opts(ORG_TRIGGERS, (a.trigger || {}).verb, "verb", "label") + '</select></label>' +
+    '<label class="org-field"><span>Of this kind of work</span><select id="oaType">' +
+      '<option value="">Any kind</option>' +
+      types.map(t => '<option value="' + esc(t.id) + '"' +
+        (t.id === (a.trigger || {}).typeId ? " selected" : "") + '>' + esc(t.name || t.id) + '</option>').join("") +
+      '</select></label>' +
+
+    '<p class="org-note">Optionally only when a field has a particular value. Leave the field blank to always run.</p>' +
+    '<div class="org-fieldrow">' +
+      '<input id="oaCondKey" class="oft-label" type="text" maxlength="40" placeholder="Field name" value="' +
+        esc(cond ? cond.path : "") + '">' +
+      '<input id="oaCondVal" class="oft-label" type="text" maxlength="60" placeholder="equals this value" value="' +
+        esc(cond ? String(cond.value) : "") + '">' +
+    '</div>' +
+
+    '<label class="org-field" style="margin-top:14px"><span>Then</span><select id="oaAction">' +
+      opts(ORG_AUTO_ACTIONS, act.kind, "kind", "label") + '</select></label>' +
+    '<div id="oaParams"></div>' +
+
+    '<div class="org-actions">' +
+      '<button type="button" class="org-btn" id="oaSave">' + (rule ? "Save rule" : "Create rule") + '</button>' +
+      (rule ? '<button type="button" class="org-btn org-btn-danger" id="oaDelete">Delete</button>' : '') +
+    '</div>',
+    () => {
+      const paint = () => {
+        const kind = $("oaAction").value;
+        const box = $("oaParams");
+        if (kind === "notify")
+          box.innerHTML = '<label class="org-field"><span>Tell which role</span><select id="oaRole">' +
+            roles.map(r => '<option value="' + esc(r.id) + '"' + (r.id === act.toRole ? " selected" : "") +
+              '>' + esc(r.name) + '</option>').join("") + '</select></label>' +
+            '<label class="org-field"><span>Message</span><input id="oaMsg" type="text" maxlength="140" value="' +
+              esc(act.message || "") + '" placeholder="A new swap needs covering"></label>';
+        else if (kind === "set_status")
+          box.innerHTML = '<label class="org-field"><span>Move it to</span><input id="oaStatus" type="text" maxlength="40" value="' +
+            esc(act.status || "") + '" placeholder="review"></label>' +
+            '<p class="org-note">Use the status key exactly as the work type spells it.</p>';
+        else if (kind === "assign")
+          box.innerHTML = '<label class="org-field"><span>Assign to</span><select id="oaWho">' +
+            (orgS.members || []).map(m => '<option value="' + esc(m.uid) + '"' +
+              ((act.assigneeIds || []).includes(m.uid) ? " selected" : "") + '>' + esc(orgPersonName(m.uid)) + '</option>').join("") +
+            '</select></label>';
+        else
+          box.innerHTML = '<div class="org-fieldrow">' +
+            '<input id="oaFieldKey" class="oft-label" type="text" maxlength="40" placeholder="Field name" value="' + esc(act.key || "") + '">' +
+            '<input id="oaFieldVal" class="oft-label" type="text" maxlength="60" placeholder="set it to" value="' + esc(act.value == null ? "" : act.value) + '">' +
+            '</div>';
+      };
+      paint();
+      $("oaAction").onchange = paint;
+      $("oaSave").onclick = () => orgAutomationSave(rule);
+      if (rule && $("oaDelete")) $("oaDelete").onclick = () => orgAutomationDelete(rule);
+    }
+  );
+}
+
+async function orgAutomationSave(rule){
+  const name = ($("oaName").value || "").trim();
+  if (name.length < 2) { toast("Give the rule a name first."); return; }
+
+  const trigger = { verb: $("oaVerb").value };
+  if ($("oaType").value) trigger.typeId = $("oaType").value;
+
+  const conditions = [];
+  const ck = ($("oaCondKey").value || "").trim();
+  if (ck) conditions.push({ source: "field", path: ck, op: "==", value: ($("oaCondVal").value || "").trim() });
+
+  const kind = $("oaAction").value;
+  let action = null;
+  if (kind === "notify") action = { kind, toRole: $("oaRole") ? $("oaRole").value : null, message: ($("oaMsg").value || "").trim() };
+  else if (kind === "set_status") action = { kind, status: ($("oaStatus").value || "").trim() };
+  else if (kind === "assign") action = { kind, assigneeIds: $("oaWho") ? [$("oaWho").value] : [] };
+  else action = { kind, key: ($("oaFieldKey").value || "").trim(), value: ($("oaFieldVal").value || "").trim() };
+
+  // a rule that would do nothing is worth refusing here rather than
+  // letting somebody wonder later why it never seemed to fire
+  if (kind === "set_status" && !action.status) { toast("Which status should it move to?"); return; }
+  if (kind === "set_field" && !action.key) { toast("Which field should it set?"); return; }
+
+  const btn = $("oaSave");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    const id = rule ? rule.id : ("au" + orgNewId());
+    await db.collection("orgs").doc(orgS.orgId).collection("automations").doc(id)
+      .set({ name, enabled: true, trigger, conditions, actions: [action], updatedAt: Date.now() });
+    // the running app caches these; a stale cache means a rule someone
+    // just wrote appears not to work until they reload
+    itemsAutomationsCache = null;
+    closeSheet();
+    toast(rule ? "Rule saved." : "Rule created.");
+    enterOrgPage();
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false; btn.textContent = rule ? "Save rule" : "Create rule";
+    toast("Could not save the rule.");
+  }
+}
+
+async function orgAutomationDelete(rule){
+  try {
+    await db.collection("orgs").doc(orgS.orgId).collection("automations").doc(rule.id).delete();
+    itemsAutomationsCache = null;
+    closeSheet();
+    toast("Rule deleted.");
+    enterOrgPage();
+  } catch (e) { console.error(e); toast("Could not delete the rule."); }
 }

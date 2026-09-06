@@ -102,7 +102,20 @@ in two steps that need a billing account:
 2. Only then narrow the `items` rule to reject client writes. Doing that
    first breaks every write; doing it never leaves the door open.
 
-Phases 4–5 remain spec only.
+**Phase 4 is built.** `js/automation.js` plans; `js/items.js` carries the
+plan out; the Organization page writes the rules. Conditions are evaluated
+by `wfEvalCondition()` — the workflow gates' own grammar — because a
+second expression language is a second set of bugs and two different
+answers to "is this field empty".
+
+Automations apply through `itemSave()`, so a rule is held to exactly the
+permissions and validation a person is: it cannot move work its own
+author is not allowed to touch. Termination has two layers, and the good
+one is that a rule writing a value already set produces no event, so the
+commonest loop dies on its second lap; `causationDepth` is only the guard
+of last resort.
+
+Phase 5 remains spec only.
 This is the source of truth for turning EZ Clock In from one agency's tool
 into a base model any organization can configure. Re-read it fully before
 touching platform work in any session.
