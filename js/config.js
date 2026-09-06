@@ -134,10 +134,17 @@ const Store = (() => {
 /* ============================================================
    STATE
    shift = { client, startedAt,
-             segs:  [{ task, startedAt, endedAt, via }],   // via: start|switch|resume
+             segs:  [{ task, itemId, startedAt, endedAt, via }],
              breaks:[{ reason, startedAt, endedAt }] }
-   Invariant: while ACTIVE exactly one open seg; while ON_BREAK none.
-   Therefore  sum(segs) === net working time, always.
+     via: start | switch | resume | task | pickup | idle
+     A segment is either a TASK segment (itemId and task set) or an IDLE
+     one (task null) - clocked in with nothing running, which finishing a
+     task now leaves you in. See docs/dashboard-v6-spec.md §1.
+   Invariant: while ACTIVE exactly one open seg, of EITHER kind; while
+   ON_BREAK none.
+   Therefore  sum(all segs)  === net working time, always, and
+              sum(task segs) === time actually spent on work.
+   The difference between them is idle time.
    ============================================================ */
 let S = { worker:"", status:"IDLE", shift:null, history:[], lastReport:null };
 // the signed-in user's own avatar (a small base64 JPEG, or null) - lives
@@ -165,16 +172,19 @@ function humanDur(ms){
 }
 
 const openSeg   = sh => (sh.segs || []).find(s => !s.endedAt);
-// The task clock times the CURRENT task only: the open segment, or - while
-// on break - the last one worked, frozen at the moment the break started.
-// It must NOT sum every segment: the invariant above guarantees
-// sum(segs) === net working time, so a total would just reproduce the
-// shift clock digit for digit and the second ring would say nothing.
+// The task clock times the CURRENT task: everything spent on it in this
+// shift when the segment names an Item (so putting a task down and picking
+// it back up continues where it left off), and the open segment alone when
+// it does not - which is every segment the classic dashboard makes, so that
+// path is unchanged. While on break there is no open segment and the last
+// one is used, frozen, exactly as before.
+// It must never sum EVERY segment: the invariant above guarantees
+// sum(segs) === net working time, so a total would just reproduce the shift
+// clock digit for digit and the second ring would say nothing. Summing ONE
+// task's segments is a different number and the one this asks for.
+// The arithmetic lives in js/clock.js, where it can be tested under Node.
 function taskClockMs(sh, now = Date.now()) {
-  if (!sh) return 0;
-  const segs = sh.segs || [];
-  const seg = openSeg(sh) || segs[segs.length - 1];
-  return seg ? segMs(seg, now) : 0;
+  return clkTaskMs(sh, now);
 }
 const openBreak = sh => (sh.breaks || []).find(b => !b.endedAt);
 const breakMs = (sh, now = Date.now()) => (sh.breaks||[]).reduce((t,b)=>t+((b.endedAt||now)-b.startedAt),0);

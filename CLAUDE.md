@@ -101,22 +101,35 @@ browser does.
 
 ## The shift invariant
 
-`S.shift` holds `segs` (task segments) and `breaks`. The invariant, stated
-in `js/config.js` and relied on throughout:
+`S.shift` holds `segs` and `breaks`. A segment is either a **task**
+segment (`itemId` and `task` set) or an **idle** one (`task: null`) —
+clocked in with nothing running, which finishing a task leaves you in.
+The invariant, stated in `js/config.js` and relied on throughout:
 
-> While ACTIVE, exactly one open seg. While ON_BREAK, none.
-> Therefore `sum(segs) === net working time`, always.
+> While ACTIVE, exactly one open seg, of EITHER kind. While ON_BREAK,
+> none. Therefore `sum(all segs) === net working time`, always, and
+> `sum(task segs) === time actually spent on work`. The difference is
+> idle time.
 
-Anything that opens or closes a segment must preserve this. `taskClockMs()`
-deliberately does *not* sum every segment — that would just reproduce the
-shift clock digit for digit and the second ring would say nothing.
+Anything that opens or closes a segment must preserve this. The
+arithmetic lives in `js/clock.js` so it can be tested under Node, and
+two rules keep it honest: a task's time is the **sum of its segments**
+found by `itemId`, never a counter kept beside them (a second copy of a
+fact the segments already carry drifts the first time a save fails); and
+a segment with **no** `itemId` behaves exactly as it always did, so the
+classic dashboard does not move. `taskClockMs()` still refuses to sum
+EVERY segment — that would reproduce the shift clock digit for digit and
+the second ring would say nothing — but summing ONE task's segments is a
+different number, and the one "pick the task back up" asks for.
+
+The whole design this serves is `docs/dashboard-v6-spec.md`.
 
 ## Testing
 
 ```
 cd tests
 npm ci          # once
-npm test        # 483 assertions, node + jsdom, seconds
+npm test        # 496 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -156,7 +169,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 742 pass as of this writing — a
+reaches through an org boundary. All 755 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag

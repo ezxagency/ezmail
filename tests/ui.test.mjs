@@ -52,7 +52,7 @@ ctx.firebase = {
 ctx.console = console;
 
 // load order IS the dependency graph, exactly as index.html declares it
-["js/config.js", "js/permissions.js", "js/item-engine.js", "js/ui.js", "js/scrubber.js",
+["js/config.js", "js/clock.js", "js/permissions.js", "js/item-engine.js", "js/ui.js", "js/scrubber.js",
  "js/migrate.js", "js/items.js", "js/workflow-engine.js", "js/automation.js",
  // org.js calls dirInvalidate() from here: the harness only proves
  // anything if it carries the same shared scope the browser builds

@@ -84,7 +84,7 @@ ctx.firebase = {
   firestore(){ return { collection(){ throw new Error("no network in this test"); } }; }
 };
 ctx.console = console;
-["js/config.js", "js/hero.js"].forEach(f =>
+["js/config.js", "js/clock.js", "js/hero.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 const run = expr => vm.runInContext(expr, ctx);
 const dock = () => dom.window.document.getElementById("dock");

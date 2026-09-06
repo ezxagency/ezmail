@@ -115,7 +115,7 @@ ctx.firebase = {
   firestore(){ return { collection(){ throw new Error("no network in this test"); } }; }
 };
 ctx.console = console;
-["js/config.js", "js/week.js"].forEach(f =>
+["js/config.js", "js/clock.js", "js/week.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 const run = expr => vm.runInContext(expr, ctx);
 const row = () => dom.window.document.getElementById("weekRow");

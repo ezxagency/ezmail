@@ -82,7 +82,7 @@ ctx.firebase = {
 ctx.console = console;
 
 // load order IS the dependency graph, exactly as index.html declares it
-["js/config.js", "js/permissions.js", "js/item-engine.js", "js/ui.js",
+["js/config.js", "js/clock.js", "js/permissions.js", "js/item-engine.js", "js/ui.js",
  "js/migrate.js", "js/items.js", "js/workflow-engine.js", "js/automation.js",
  "js/notify.js", "js/packs.js", "js/handoff.js", "js/org.js", "js/work.js",
  // dueWithTime lives in assign.js and todayISO in team.js: the deck reads
