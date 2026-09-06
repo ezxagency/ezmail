@@ -1,5 +1,11 @@
 # Dashboard v6 — the task deck, and what it does to the clock
 
+> **Status:** the redesign is the DEFAULT dashboard as of this writing,
+> at the owner's instruction and against my recommendation to wait for
+> the three-column layout and the real card. What is live is five pieces
+> on the OLD layout. `?ui=classic` is the way back and
+> `UI_NEXT_DEFAULT` in `js/config.js` flips it wholesale.
+
 The prototype (`ezdashboardv6switcher.html`) replaces the Figma frame
 `142:1102` as the design of record. This file is the part a mock cannot
 carry: what the app must DO, and which of its existing guarantees change.

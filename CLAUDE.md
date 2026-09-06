@@ -129,7 +129,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 505 assertions, node + jsdom, seconds
+npm test        # 507 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -169,14 +169,18 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 764 pass as of this writing — a
+reaches through an org boundary. All 766 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
 
-The new staff dashboard (Figma `142:1102`) is being built BESIDE the live
-one, not on top of it. `?ui=next` turns it on for one browser and
-remembers the choice; `?ui=classic` turns it off. The query may sit
+The new staff dashboard is now the DEFAULT: a plain visit gets it, and
+`?ui=classic` is the way back. That choice is remembered and outranks the
+default — somebody who picks the classic screen keeps it rather than
+being quietly returned to the new one, which is why the flag's answer is
+three-valued (`asked` / `stored` / `never chose`) and not a boolean.
+`?ui=next` still forces it on. `UI_NEXT_DEFAULT` in `js/config.js` is the
+one line that flips it back if the new screen has to be pulled. The query may sit
 before the hash (`?ui=next#/`) or inside the route (`#/?ui=next`).
 `applyUiFlag()` in `js/config.js` puts a `ui-next` class on `<body>`, and
 every new piece hangs off that class — so a team mid-shift keeps the

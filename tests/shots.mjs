@@ -78,18 +78,19 @@ await page.addInitScript(() => {
 
 const errs = [];
 page.on("pageerror", e => errs.push(String(e.message).slice(0, 160)));
-/* WITH THE FLAG IN THE URL, not set by hand afterwards. The harness used
-   to add the ui-next class itself, which meant five slices were
-   photographed without ever proving that ?ui=next does anything. */
-await page.goto(base + "/index.html?ui=next#/", { waitUntil: "load" });
+/* A PLAIN visit, with nothing set by hand. The harness used to add the
+   ui-next class itself, which meant five slices were photographed
+   without ever proving the flag does anything. Now it proves the
+   default: no query string, no stored choice, new dashboard. */
+await page.goto(base + "/index.html#/", { waitUntil: "load" });
 await page.waitForTimeout(400);
 
 const flagged = await page.evaluate(() => document.body.classList.contains("ui-next"));
 if (!flagged){
-  console.log("FAIL: ?ui=next did not turn the redesign on");
+  console.log("FAIL: a plain visit did not get the new dashboard");
   await browser.close(); server.close(); process.exit(1);
 }
-console.log("?ui=next is on from the URL alone");
+console.log("plain visit → the new dashboard (the default)");
 
 const shoot = async (name) => {
   await page.waitForTimeout(350);

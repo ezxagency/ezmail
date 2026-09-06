@@ -222,6 +222,12 @@ const taskLabel = t => (t.store||"").toUpperCase() + " " + t.task.toUpperCase() 
    route (#/?ui=next); both are what a person actually pastes.
    ============================================================ */
 const UI_NEXT_KEY = "ezUiNext";
+/* THE DEFAULT, and it is now the new dashboard. Somebody who has never
+   chosen gets the redesign; ?ui=classic is the way back and is
+   remembered, so a person who chooses the old screen keeps it and is not
+   quietly returned to the new one on their next visit. That is the whole
+   reason the answer is three-valued rather than a boolean. */
+const UI_NEXT_DEFAULT = true;
 function uiNextAsked(){
   const q = (location.search || "") + (location.hash || "");
   if (/[?&]ui=next(\b|$)/.test(q)) return true;
@@ -233,7 +239,13 @@ function applyUiFlag(){
   const asked = uiNextAsked();
   if (asked !== null) { try { localStorage.setItem(UI_NEXT_KEY, asked ? "1" : "0"); } catch (e) {} }
   let on = asked;
-  if (on === null) { try { on = localStorage.getItem(UI_NEXT_KEY) === "1"; } catch (e) { on = false; } }
+  if (on === null) {
+    // null means nothing is stored - never chosen - which is the only case
+    // the default decides. "0" is a CHOICE and outranks it.
+    let saved = null;
+    try { saved = localStorage.getItem(UI_NEXT_KEY); } catch (e) {}
+    on = saved === null ? UI_NEXT_DEFAULT : saved === "1";
+  }
   document.body.classList.toggle("ui-next", !!on);
   return !!on;
 }

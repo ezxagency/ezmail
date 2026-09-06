@@ -45,9 +45,25 @@ function boot(url, seed){
 
 const BASE = "https://ezclockn.com/";
 
-T("a plain visit stays on the dashboard the team already knows", () => {
-  assert.equal(boot(BASE).on, false);
-  assert.equal(boot(BASE + "#/").on, false, "the hash route alone turned the redesign on");
+/* THE DEFAULT. Flipped deliberately: a plain visit is now the redesign. */
+T("a plain visit gets the new dashboard", () => {
+  assert.equal(boot(BASE).on, true);
+  assert.equal(boot(BASE + "#/").on, true, "a route stopped the default applying");
+});
+
+/* The difference that matters most now the default is on: "never chose"
+   and "chose the old one" are not the same answer, and only the first is
+   the default's to decide. */
+T("choosing classic outranks the default, forever", () => {
+  assert.equal(boot(BASE, "0").on, false,
+    "somebody who chose the classic dashboard was dragged back to the new one");
+  assert.equal(boot(BASE + "#/", "0").on, false);
+});
+
+T("a browser that refuses localStorage still gets the default", () => {
+  // private windows and blocked site data throw on read; the screen must
+  // still draw rather than the flag throwing on the way past
+  assert.equal(boot(BASE).on, true);
 });
 
 /* The two shapes a person actually pastes. */
@@ -61,8 +77,9 @@ T("?ui=next INSIDE the route turns it on", () => {
   assert.equal(boot(BASE + "#/work?ui=next").on, true);
 });
 
-T("the choice is remembered, so the next plain visit keeps it", () => {
+T("the choice is remembered either way", () => {
   assert.equal(boot(BASE + "?ui=next").stored, "1");
+  assert.equal(boot(BASE + "?ui=classic").stored, "0");
   assert.equal(boot(BASE, "1").on, true, "the remembered choice was not honoured");
   assert.equal(boot(BASE + "#/", "1").on, true);
 });
@@ -80,9 +97,12 @@ T("it is found among other query parameters", () => {
   assert.equal(boot(BASE + "?ui=next&t=123").on, true);
 });
 
+/* A lookalike must not be read as ?ui=classic either, now that classic is
+   the thing a mistyped parameter could cost somebody. */
 T("a lookalike parameter is not the flag", () => {
-  assert.equal(boot(BASE + "?guide=nextweek").on, false);
-  assert.equal(boot(BASE + "?ui=nextish").on, false, "?ui=nextish was read as ?ui=next");
+  assert.equal(boot(BASE + "?ui=nextish", "0").on, false, "?ui=nextish was read as ?ui=next");
+  assert.equal(boot(BASE + "?ui=classical").on, true, "?ui=classical was read as ?ui=classic");
+  assert.equal(boot(BASE + "?guide=nextweek", "0").on, false);
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
