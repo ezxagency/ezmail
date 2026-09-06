@@ -1,118 +1,167 @@
 /* ============================================================
-   THE ASSIGNED DECK — one card in front, the rest stacked behind.
-   Only mounts under .ui-next; the classic queue keeps its nested
-   store list. The stack is three cards deep at most: past that a
-   reader is looking at texture, not information.
+   THE WORK DECK — the right column. .ui-next only.
+   Values from the prototype's own CSS and the Figma frame
+   (1:2365): stage 556 wide, front card 470x840, START TASK
+   304x52 beside DONE 104x52, dots 6px with a 26px pill for the
+   card you are on.
    ============================================================ */
 .adeck{display:none}
 .ui-next .adeck{display:block}
 .ui-next .assign-panel-full .hist{display:none}
 
-.adeck-stage{
-  position:relative;
-  /* the peeking cards are absolutely placed, so the stage takes its
-     height from the front card and the deck never jumps as you move */
-  min-height:210px;
+/* ---------- header ---------- */
+.dk-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  padding:0 4px 18px;flex:none;
 }
+.dk-head h2{
+  margin:0;font-family:var(--wk);font-size:clamp(20px,1.5vw,25px);font-weight:700;
+  letter-spacing:.02em;text-transform:uppercase;line-height:1.05;color:var(--wk-white);
+}
+.dk-sub{margin:6px 0 0;font-size:12px;color:var(--wk-white-60);display:flex;align-items:center;gap:6px}
+.dk-sub em{font-style:normal;opacity:.45}
+.dk-sub b{display:inline-flex;align-items:center;gap:7px;font-weight:600;color:#ff9d97}
+.dk-sub b i{width:8px;height:8px;border-radius:50%;background:#d6453f;display:block}
 
-.adeck-card{
-  position:absolute;left:0;right:0;top:0;
-  padding:18px 18px 16px;
-  border-radius:16px;
-  /* OPAQUE, and that is not a style choice: a translucent front card let
-     the title of the card behind it read straight through the middle of
-     this one's, which looked like a rendering fault */
-  background:#1b1d25;
-  border:1px solid rgba(255,255,255,.10);
-  box-shadow:0 18px 40px rgba(0,0,0,.42);
-  /* depth: each card behind sits lower, to the right, and dimmer - offset
-     on BOTH axes so the stack reads as a deck rather than as one card
-     with a shadow */
-  transform:translate(calc(var(--d) * 14px), calc(var(--d) * 12px)) scale(calc(1 - var(--d) * .035));
-  opacity:calc(1 - var(--d) * .42);
-  z-index:calc(10 - var(--d));
-  transition:transform .34s var(--pz-spring), opacity .28s var(--pz-ease);
-  pointer-events:none;
+.dk-arrows{display:flex;gap:9px;flex:none}
+.dk-ab{
+  width:38px;height:38px;border-radius:50%;cursor:pointer;
+  background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.32);
+  color:var(--wk-white);display:flex;align-items:center;justify-content:center;
+  transition:background .16s var(--pz-ease), transform .12s var(--pz-ease), opacity .16s ease;
 }
-.adeck-card.is-front{position:relative;pointer-events:auto}
+.dk-ab svg{width:16px;height:16px}
+.dk-ab:hover:not([disabled]){background:rgba(255,255,255,.2);transform:translateY(-2px)}
+.dk-ab[disabled]{opacity:.28;cursor:default;transform:none}
 
-/* finished: it leaves to the left, because the deck moves forward */
-.adeck-card.is-going{
-  transform:translate(-26px, 0) scale(.97);
-  opacity:0;
-  transition:transform .22s var(--pz-ease), opacity .22s var(--pz-ease);
+/* ---------- the stage ---------- */
+.dk-stage{
+  flex:1;min-height:0;position:relative;
+  perspective:1500px;perspective-origin:50% 45%;
+  touch-action:pan-y;cursor:grab;overflow:hidden;outline:none;
 }
+.adeck.is-drag .dk-stage{cursor:grabbing}
+.adeck.is-drag .dk-card{transition:none}
 
-.adeck-eyebrow{
-  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
-  margin:0 0 8px;min-height:18px;
+.dk-card{
+  position:absolute;top:0;bottom:0;left:50%;width:84%;max-width:470px;
+  display:flex;flex-direction:column;min-height:0;
+  background:rgba(255,244,229,.16);
+  backdrop-filter:blur(9px) saturate(110%);-webkit-backdrop-filter:blur(9px) saturate(110%);
+  border:1px solid rgba(255,255,255,.15);border-radius:26px;
+  padding:22px 22px 18px;
+  /* FLAT, not preserve-3d. The stage keeps the perspective, but a card is
+     a flat plane in it - and that is what makes z-index authoritative.
+     Under preserve-3d the browser sorts by 3D geometry instead, and a tall
+     card rotated 26 degrees swings its near edge in FRONT of the card it is
+     meant to sit behind, so the neighbour's title read straight through the
+     middle of the front card's brief. */
+  transform-style:flat;will-change:transform,opacity;
+  box-shadow:0 26px 60px rgba(0,0,0,.42);
+  transition:opacity .34s var(--pz-ease), border-color .34s ease;
 }
-.adeck-store{
-  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--wk-white-60);
+.dk-card.is-front{
+  border-color:rgba(255,255,255,.32);
+  /* the comp names this layer "Full Opacity" and means it: at 90% the
+     card behind still read through the brief */
+  background:rgba(44,40,36,.975);
 }
-.adeck-kind{
-  font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  padding:3px 8px;border-radius:999px;
-  background:rgba(255,255,255,.10);color:var(--wk-white-70);
+.dk-card *{user-select:none}
+.dk-card.is-front .dk-body{user-select:text}
+.dk-card.is-going{opacity:0 !important;transition:opacity .22s var(--pz-ease)}
+/* Nothing assigned is still a CARD - the column keeps its shape rather
+   than collapsing - but it is not IN the stack, so it does not move. */
+.dk-card-empty{
+  position:absolute;inset:0;left:0;width:100%;max-width:none;
+  transform:none;justify-content:center;align-items:center;text-align:center;
+  padding:40px 34px;
 }
-.adeck-kind.is-broken{background:rgba(255,90,90,.16);color:#ffb4b4}
+.dk-card-empty .dk-title{font-size:18px}
+.dk-card-empty .dk-from{margin-top:10px;max-width:36ch;line-height:1.55}
 
-.adeck-title{
-  margin:0 0 6px;
-  font-family:var(--wk);font-weight:700;
-  font-size:clamp(19px,1.5vw,26px);line-height:1.15;
-  letter-spacing:.01em;color:var(--wk-white);
+/* ---------- card content ---------- */
+.dk-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px;flex:none;min-height:27px}
+.dk-pill{
+  padding:5px 11px;border-radius:999px;font-size:10px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;
 }
-.adeck-due{margin:0 0 12px;font-size:12px;color:var(--wk-white-60);letter-spacing:.04em}
-.adeck-due.is-late{color:#ff8f8f;font-weight:700}
-.adeck-note{
-  margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--wk-white-70);
-  /* a long brief must not push the action off the card */
-  max-height:5.6em;overflow:auto;
-}
-.adeck-meta{margin:0 0 14px;font-size:11px;color:var(--wk-white-60);letter-spacing:.03em}
-.adeck-broken{margin:0;font-size:12px;line-height:1.5;color:#ffb4b4}
-.adeck-acts{display:flex;flex-wrap:wrap;gap:8px}
+.dk-store{background:rgba(255,255,255,.14);color:var(--wk-white)}
+.dk-due{background:rgba(0,174,11,.2);color:#7dfa86;border:1px solid rgba(0,174,11,.4)}
+.dk-late{background:rgba(214,69,63,.2);color:#ff9d97;border:1px solid rgba(214,69,63,.45)}
+.dk-live{background:var(--wk-white);color:#12131a}
+.dk-paused{background:rgba(255,255,255,.10);color:var(--wk-white-70);border:1px solid rgba(255,255,255,.22)}
 
-.adeck-nav{
-  display:flex;align-items:center;justify-content:center;gap:14px;
-  margin-top:18px;
+.dk-title{margin:0;font-size:clamp(17px,1.15vw,20px);font-weight:600;line-height:1.28;flex:none;color:var(--wk-white)}
+.dk-from{margin:7px 0 0;font-size:12px;color:var(--wk-white-60);flex:none}
+
+.dk-body{
+  flex:1;min-height:0;overflow-y:auto;margin-top:16px;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent;
 }
-.adeck-arrow{
+.dk-body::-webkit-scrollbar{width:4px}
+.dk-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22);border-radius:999px}
+
+.dk-blk{border-top:1px solid rgba(255,255,255,.13);padding:16px 0}
+.dk-blk:first-child{border-top:0;padding-top:0}
+.dk-blk-h{margin:0 0 11px;font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--wk-white-60)}
+.dk-brief{margin:0;font-size:13.5px;line-height:1.62;color:var(--wk-white-70)}
+
+.dk-checks{display:flex;flex-direction:column;gap:9px}
+.dk-chk{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:var(--wk-white-70);line-height:1.45}
+.dk-chk i{
+  width:18px;height:18px;border-radius:5px;flex:none;margin-top:1px;
+  border:1.5px solid rgba(255,255,255,.32);
+  display:flex;align-items:center;justify-content:center;color:#12131a;
+}
+.dk-chk i svg{width:12px;height:12px}
+.dk-chk.is-done i{background:var(--wk-green);border-color:transparent}
+.dk-chk.is-done{color:rgba(255,255,255,.45);text-decoration:line-through}
+
+.dk-files{display:flex;flex-direction:column;gap:8px}
+.dk-file{
+  display:flex;align-items:center;gap:12px;cursor:pointer;width:100%;text-align:left;
+  padding:11px 13px;border-radius:14px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+  color:var(--wk-white);font-family:var(--wk);
+  transition:background .16s ease, transform .12s ease;
+}
+.dk-file:hover{background:rgba(255,255,255,.14);transform:translateY(-2px)}
+.dk-file-i{
+  width:34px;height:34px;border-radius:10px;flex:none;
+  background:rgba(8,9,13,.45);color:var(--wk-white-70);
   display:flex;align-items:center;justify-content:center;
-  width:32px;height:32px;border:0;border-radius:50%;
-  background:rgba(255,255,255,.10);color:var(--wk-white);cursor:pointer;
 }
-.adeck-arrow svg{width:17px;height:17px}
-.adeck-arrow:disabled{opacity:.28;cursor:default}
-.adeck-count{
-  font-size:11px;letter-spacing:.12em;color:var(--wk-white-60);
-  font-variant-numeric:tabular-nums;
-}
-.adeck-count i{font-style:normal;opacity:.45;padding:0 2px}
+.dk-file-i svg{width:17px;height:17px}
+.dk-file-t{flex:1;min-width:0}
+.dk-file-t b{display:block;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dk-file-t span{display:block;font-size:11px;color:rgba(255,255,255,.45);margin-top:2px;font-family:var(--mono)}
 
-.adeck-empty{
-  display:flex;flex-direction:column;gap:6px;
-  padding:22px 4px;text-align:center;
+/* ---------- the two buttons ---------- */
+.dk-foot{display:flex;gap:12px;padding-top:16px;margin-top:2px;border-top:1px solid rgba(255,255,255,.13);flex:none}
+.dk-bt{
+  padding:14px 12px;border-radius:14px;cursor:pointer;border:0;
+  font-family:var(--wk);font-size:12px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:transform .12s var(--pz-ease), background .16s ease;
 }
-.adeck-empty b{font-size:14px;color:var(--wk-white)}
-.adeck-empty span{font-size:12px;line-height:1.5;color:var(--wk-white-60)}
+.dk-bt svg{width:16px;height:16px}
+/* 304 : 104 in the comp - the primary is not an equal half */
+.dk-bt-go{flex:304;background:var(--wk-white);color:#12131a;box-shadow:0 10px 20px rgba(0,0,0,.26)}
+.dk-bt-gh{flex:104;background:rgba(255,255,255,.11);color:var(--wk-white);border:1.5px solid rgba(255,255,255,.32)}
+.dk-foot .dk-bt-gh.dk-send{flex:304}
+.dk-foot .dk-bt-go.dk-done{flex:104}
+.dk-bt:hover{transform:translateY(-2px)}
+.dk-bt:active{transform:scale(.984)}
+.dk-broken{margin:0;font-size:12px;line-height:1.5;color:#ffb4b4}
+
+/* ---------- dots ---------- */
+.dk-dots{display:flex;justify-content:center;gap:8px;padding:14px 0 4px;flex:none}
+.dk-dots i{
+  width:7px;height:7px;border-radius:50%;cursor:pointer;display:block;
+  background:rgba(255,255,255,.26);transition:background .2s ease, width .2s ease;
+}
+.dk-dots i.on{background:var(--wk-white);width:26px;border-radius:999px}
 
 @media (prefers-reduced-motion:reduce){
-  .adeck-card,.adeck-card.is-going{transition:none}
+  .dk-card{transition:none}
 }
-
-/* ---------- where the deck sits in the panel ----------
-   The classic panel keeps a collapsed brief (counts, the next thing due,
-   Proceed) and reveals the list only once Proceed is pressed. The deck IS
-   the panel's content in the comp, so under .ui-next the counts stay and
-   the deck stands under them permanently - there is nothing left to
-   proceed into. Written against .app.panes because that is the desktop
-   three-column layout; narrow screens already show the full block. */
-.ui-next .app.panes.has-tasks .assign-panel-brief{display:block;flex:none}
-.ui-next .assign-panel-brief .team-latest,
-.ui-next .assign-panel-brief .team-proceed{display:none}
-.ui-next .app.panes.has-tasks .assign-panel-full{display:block;flex:1;min-height:0}
-.ui-next .app.panes .assign-panel-full .team-panel-sub,
-.ui-next .app.panes .assign-panel-full .team-collapse{display:none}

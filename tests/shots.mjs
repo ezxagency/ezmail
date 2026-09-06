@@ -139,10 +139,21 @@ await page.evaluate(() => {
   const t = (id, task, store, due, extra) => Object.assign(
     { id, task, store, dueDate: due, fromName: "Ada", createdAt: Date.now() - 86400000 }, extra || {});
   const rows = [
-    t("r1", "Copy", "Store Epsilon", "2026-09-04", { note: "Second pass on the launch email — subject lines only." }),
-    t("r2", "Design review", "Store Beta", "2026-09-02"),
-    t("r3", "Embed", "Studio North", null, { cg: "c1", canBack: true }),
-    t("r4", "Final QA", "Store Zeta", "2026-09-10", { wfNodeRunId: "run1:n1:1" })
+    t("r1", "Write the spring launch email", "Store Epsilon", "2026-09-30", {
+      note: "Three-email sequence for the spring drop. Lead with the restock, not the discount — last quarter the discount-led version underperformed by 18%.",
+      checklist: [
+        { text: "Subject line, 3 variants", done: true },
+        { text: "Body copy, email 1", done: false },
+        { text: "Body copy, emails 2 and 3", done: false }
+      ],
+      attachments: [
+        { name: "Spring launch brief.docx", meta: "248 KB · Sandy", url: "#", icon: "doc" },
+        { name: "Product shots (12)", meta: "4.1 MB", url: "#", icon: "img" },
+        { name: "Last quarter's sequence", meta: "Google Docs", url: "#", icon: "link" }
+      ] }),
+    t("r2", "Second pass on the sprint backlog", "Studio North", "2026-09-02", {
+      note: "Re-cut the backlog into two-week blocks. Anything that slipped twice gets dropped or reassigned." }),
+    t("r3", "Approve the final artwork", "Store Delta", "2026-09-08", { cg: "c1", canBack: true })
   ];
   dkRender(rows);
   renderAssignedBrief(rows);

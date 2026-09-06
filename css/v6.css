@@ -1,0 +1,111 @@
+/* ============================================================
+   DASHBOARD V6 — the layout the design actually asks for.
+   docs/dashboard-v6-spec.md §10 and §13. Loaded after every
+   other sheet so it overrides the classic grid, and scoped to
+   .ui-next throughout so ?ui=classic is untouched.
+
+   Three columns at 1920: 116 rail | 1184 middle | 620 work.
+   The rail is position:fixed (it spans the full height and
+   scrolls nothing), so the grid itself is two columns behind a
+   116px inset - same result, fewer moving parts.
+   ============================================================ */
+
+@media (min-width:1024px){
+  /* ---------- the three columns ---------- */
+  body.ui-next .app.panes,
+  body.ui-next .app.panes.has-tasks,
+  body.ui-next .app.panes.has-team{
+    padding:0 0 0 116px;
+    grid-template-columns:minmax(0,1fr) clamp(520px, 32.3%, 620px);
+    /* brand+week, then the hero taking what is left, then the bar */
+    grid-template-rows:auto minmax(0,1fr) auto auto;
+    grid-template-areas:
+      "band     side"
+      "clock    side"
+      "dock     side"
+      "shiftbar side";
+    column-gap:0;
+    row-gap:0;
+    overflow:hidden;
+  }
+
+  /* Daily Mission leaves the dashboard. Its page stays, on the rail. */
+  body.ui-next .app.panes .card{display:none}
+
+  /* ---------- middle column ---------- */
+  /* 48px inset each side: 1184 - 96 = 1088 of content, the design's number */
+  body.ui-next .app.panes .band{
+    grid-area:band;
+    padding:32px 48px 0;
+    align-items:flex-start;
+  }
+  body.ui-next .brand-word{font-size:clamp(30px, 2.3vw, 43px)}
+  body.ui-next .brand-rule{width:360px;max-width:100%;height:3px;margin:11px 0 12px}
+  body.ui-next .band-meta{font-size:clamp(12px,1.05vw,15px)}
+  body.ui-next .band-meta{margin-top:0}
+  body.ui-next .band-state{margin-top:6px}
+
+  /* The hero: the pill switcher over two rings side by side. A GRID, not a
+     flex column - the switcher and the two ring panels are siblings, so a
+     column would stack the rings on top of each other. The switcher spans
+     both tracks; the rings take one each. */
+  body.ui-next .app.panes .clock{
+    grid-area:clock;
+    display:grid;
+    grid-template-columns:auto auto;
+    justify-content:center;align-content:center;
+    gap:clamp(16px, 3.2vh, 34px) 56px;      /* 288 - 232 = 56 between the rings */
+    padding:0 48px;
+    min-height:0;
+  }
+  body.ui-next .app.panes .clock .mode-switch{grid-column:1 / -1;justify-self:center;margin:0}
+  body.ui-next .app.panes .clock .pomo,
+  body.ui-next .app.panes .clock .anchor{grid-column:1 / -1}
+  body.ui-next .app.panes .clock-panel{padding:0}
+  /* 232px at the comp's 1080, shrinking on a shorter window rather than
+     pushing the button off the bottom */
+  body.ui-next .app.panes .ring{width:clamp(132px, 21.5vh, 232px);height:clamp(132px, 21.5vh, 232px)}
+  body.ui-next .app.panes .clock-label{margin-top:14px}
+
+  /* the button and the paused-task chips, on their own row under the rings */
+  body.ui-next .app.panes .dock{
+    grid-area:dock;
+    display:flex;flex-direction:column;align-items:center;
+    padding:0 48px clamp(12px, 2.2vh, 26px);
+    min-height:auto;justify-content:flex-end;gap:12px;
+  }
+  body.ui-next .app.panes .dock .btn{
+    width:520px;max-width:100%;height:clamp(62px, 9vh, 98px);
+    border-radius:20px;
+  }
+  body.ui-next .app.panes .dock .row{display:flex;gap:12px;width:520px;max-width:100%}
+  body.ui-next .app.panes .dock .row .btn{width:auto;flex:1}
+
+  body.ui-next .app.panes .shiftbar{
+    grid-area:shiftbar;
+    padding:0 48px clamp(20px, 3.2vh, 36px);
+    align-self:end;
+  }
+
+  /* ---------- right column: the work deck ---------- */
+  /* bare on the stone: no panel, no border, no cap. The CARDS are the
+     glass, and the column is the space they move in. */
+  body.ui-next .app.panes .assign-panel{
+    grid-area:side;
+    margin:0;padding:32px 32px 0 0;
+    background:none;border:0;
+    max-height:none;overflow:visible;
+    display:flex;flex-direction:column;min-height:0;
+  }
+  body.ui-next .assign-panel-head,
+  body.ui-next .app.panes .assign-panel-brief{display:none}
+  body.ui-next .app.panes .assign-panel-full{
+    display:flex;flex-direction:column;flex:1;min-height:0;padding:0;
+  }
+  body.ui-next .app.panes .adeck{display:flex;flex-direction:column;flex:1;min-height:0}
+}
+
+/* the rail is the first column at every size the redesign draws */
+@media (min-width:1024px){
+  body.ui-next .admin-page{left:116px}
+}

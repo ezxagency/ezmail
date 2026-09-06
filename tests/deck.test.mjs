@@ -63,11 +63,15 @@ T("a remembered index from a longer deck cannot point off the end", () => {
   assert.equal(p.id, "a");
 });
 
-/* ---------- the DOM half ---------- */
+/* ---------- the DOM half ----------
+   §12a collapsed four kinds of work into one card with one pair of
+   buttons, so these assertions are about THAT: the same card, the same
+   two buttons, and a left button that changes with state rather than
+   with where the work came from. */
 const dom = new JSDOM(`<!doctype html><html><body>
   <div id="scrim"></div><div id="sheet" tabindex="-1"><div id="sheetBody"></div></div>
   <div id="toast"></div><div id="orgBody"></div><div id="workBody"></div>
-  <div id="shiftbar"></div><div id="cxScrim"></div>
+  <div id="shiftbar"></div><div id="cxScrim"></div><footer id="dock"></footer>
   <div id="appScreen"><aside id="assignedTasksSection">
     <span id="assignedCount"></span><p id="assignedCounts"></p><div id="assignedNext"></div>
     <ul id="assignedTasksList"></ul><div id="assignedDeck" tabindex="0"></div>
@@ -85,88 +89,112 @@ ctx.console = console;
 ["js/config.js", "js/clock.js", "js/permissions.js", "js/item-engine.js", "js/ui.js",
  "js/migrate.js", "js/items.js", "js/workflow-engine.js", "js/automation.js",
  "js/notify.js", "js/packs.js", "js/handoff.js", "js/org.js", "js/work.js",
- // dueWithTime lives in assign.js and todayISO in team.js: the deck reads
- // both, so both are loaded rather than stubbed
  "js/team.js", "js/assign.js", "js/deck.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 
 const run = expr => vm.runInContext(expr, ctx);
 const deck = () => dom.window.document.getElementById("assignedDeck");
 const draw = js => { run(js); return deck().innerHTML; };
-const front = () => deck().querySelector(".adeck-card.is-front");
+const front = () => deck().querySelector(".dk-card.is-front") || deck().querySelector(".dk-card");
+const rowJs = (extra) => `dkReset(); S.status = "IDLE"; S.shift = null; dkRender([Object.assign(
+  { id:"r1", task:"Write the spring launch email", store:"Store Epsilon", fromName:"Sandy" }, ${extra || "{}"})]);`;
 
-T("one card in front, the rest stacked behind it, and a count that says how many", () => {
-  const html = draw(`dkReset(); dkRender([
-    { id:"r1", task:"Copy", store:"Store Epsilon", fromName:"Ada" },
-    { id:"r2", task:"Design", store:"Store Beta", fromName:"Ada" },
-    { id:"r3", task:"Embed", store:"Store Zeta", fromName:"Ada" },
-    { id:"r4", task:"Review", store:"Store Alpha", fromName:"Ada" }]);`);
-  assert.equal(deck().querySelectorAll(".adeck-card").length, 3, "the stack is not three deep");
-  assert.equal(deck().querySelectorAll(".adeck-card.is-front").length, 1);
-  assert.ok(front().textContent.includes("Copy"));
-  assert.ok(html.includes("1 <i>/</i> 4"), "the counter does not say where you are");
+T("the header is Your work, with a count sentence", () => {
+  draw(`dkReset(); S.status="IDLE"; S.shift=null; dkRender([
+    { id:"r1", task:"Copy", store:"A", dueDate:"2000-01-01" },
+    { id:"r2", task:"Design", store:"B", dueDate:"2000-01-02" },
+    { id:"r3", task:"Embed", store:"C" }]);`);
+  assert.ok(deck().querySelector(".dk-head h2").textContent.match(/your work/i));
+  const sub = deck().querySelector(".dk-sub").textContent;
+  assert.ok(sub.includes("3 tasks"), "the sentence does not count the work: " + sub);
+  assert.ok(sub.includes("2 overdue"));
+  assert.ok(deck().querySelector(".dk-sub b i"), "the overdue count lost its red dot");
 });
 
-T("the peeking cards carry no note and no buttons — they are not reachable", () => {
-  draw(`dkReset(); dkRender([
-    { id:"r1", task:"Copy", fromName:"Ada" },
-    { id:"r2", task:"Design", note:"the brief for the second one", fromName:"Ada" }]);`);
-  const behind = deck().querySelectorAll(".adeck-card:not(.is-front)");
-  assert.equal(behind.length, 1);
-  assert.equal(behind[0].querySelectorAll("button").length, 0, "a card behind the front one is clickable");
-  assert.ok(!behind[0].innerHTML.includes("the brief"), "a card nobody can act on is showing its brief");
-  assert.equal(behind[0].getAttribute("aria-hidden"), "true");
+T("one card per piece of work, all of them in the stack", () => {
+  draw(`dkReset(); S.status="IDLE"; S.shift=null; dkRender([
+    { id:"r1", task:"Copy" }, { id:"r2", task:"Design" }, { id:"r3", task:"Embed" }]);`);
+  assert.equal(deck().querySelectorAll(".dk-card").length, 3);
+  assert.equal(deck().querySelectorAll(".dk-card.is-front").length, 1);
+  assert.equal(deck().querySelectorAll(".dk-dots i").length, 3);
 });
 
-/* Four kinds, one card. The action is the only part that changes, and it
-   has to route where the list rows route: finishing a baton IS a handoff. */
-T("an assignment offers Done", () => {
-  draw(`dkReset(); dkRender([{ id:"r1", task:"Copy", fromName:"Ada" }]);`);
-  assert.equal(front().querySelectorAll(".adeck-done").length, 1);
+/* THE COLLAPSE. Four kinds, one pair of buttons. */
+T("every kind of work wears the same two buttons", () => {
+  const kinds = ["{}", '{ cg:"c1", canBack:true }', '{ wfNodeRunId:"run1:n1:1" }'];
+  kinds.forEach(k => {
+    draw(rowJs(k));
+    assert.equal(front().querySelectorAll(".dk-start").length, 1, "no Start task for " + k);
+    assert.equal(front().querySelectorAll(".dk-done").length, 1, "no Done for " + k);
+    assert.equal(front().querySelectorAll(".dk-bt").length, 2, "more than two buttons for " + k);
+  });
 });
 
-T("a campaign baton offers the campaign's own moves, never Done", () => {
-  draw(`dkReset(); dkRender([{ id:"r1", task:"Copy", cg:"c1", canBack:true, fromName:"Ada" }]);`);
-  assert.equal(front().querySelectorAll(".adeck-done").length, 0, "a baton was offered Done");
-  assert.equal(front().querySelectorAll(".adeck-pass").length, 1);
-  assert.equal(front().querySelectorAll(".adeck-sendback").length, 1);
-  assert.equal(front().querySelectorAll(".adeck-view").length, 1);
-  assert.ok(front().textContent.includes("campaign"));
+T("Pass forward, Open and Work this stop are gone", () => {
+  draw(rowJs('{ cg:"c1", canBack:true, multi:"2 of 3" }'));
+  const txt = front().textContent;
+  ["Pass forward", "Approve", "Open", "Work this stop"].forEach(w =>
+    assert.ok(!txt.includes(w), "the card still says " + w));
 });
 
-T("a multi-approval baton says Approve rather than Pass forward", () => {
-  draw(`dkReset(); dkRender([{ id:"r1", task:"Copy", cg:"c1", multi:"2 of 3", fromName:"Ada" }]);`);
-  assert.ok(front().querySelector(".adeck-pass").textContent.includes("Approve"));
+/* §4a: the LEFT button is the one that changes, and only with state. */
+T("Start task becomes Send back once the work is running", () => {
+  draw(rowJs());
+  assert.equal(front().querySelectorAll(".dk-send").length, 0,
+    "Send back was offered before the work had been opened");
+  run(`S.status = "ACTIVE"; S.shift = { client:"Store Epsilon", startedAt: 1,
+    segs: [{ task:"Write the spring launch email", itemId:"r1", startedAt: 1, endedAt: null, via:"task" }],
+    breaks: [] };
+    dkRender([{ id:"r1", task:"Write the spring launch email", store:"Store Epsilon", fromName:"Sandy" }]);`);
+  assert.equal(front().querySelectorAll(".dk-send").length, 1, "running work cannot be sent back");
+  assert.equal(front().querySelectorAll(".dk-start").length, 0, "running work was offered Start task");
+  assert.equal(front().querySelectorAll(".dk-done").length, 1, "Done left when Send back arrived");
 });
 
-T("a workflow stop is worked at its stop, not marked done", () => {
-  draw(`dkReset(); dkRender([{ id:"r1", task:"Copy", wfNodeRunId:"run1:n1:1", fromName:"Ada" }]);`);
-  assert.equal(front().querySelectorAll(".adeck-done").length, 0);
-  assert.equal(front().querySelectorAll(".adeck-wf").length, 1);
+T("running work says so, and paused work says how long it had", () => {
+  run(`S.status = "ACTIVE"; S.shift = { client:"A", startedAt: 0,
+    segs: [{ task:"Copy", itemId:"r1", startedAt: 0, endedAt: 60000, via:"task" },
+           { task:"Design", itemId:"r2", startedAt: 60000, endedAt: null, via:"task" }], breaks: [] };
+    dkRender([{ id:"r2", task:"Design" }, { id:"r1", task:"Copy" }]);`);
+  const cards = [...deck().querySelectorAll(".dk-card")];
+  assert.ok(cards[0].textContent.includes("Running"), "the running card is not marked");
+  assert.ok(cards[1].textContent.includes("Paused"), "the paused card does not say so");
+  assert.ok(/1m/.test(cards[1].textContent), "the paused card lost its accumulated time");
 });
 
-/* Offering an action that can only fail is what turned one stuck row into
-   three rounds of screenshots. The orphan card says what happened and who
-   can fix it, and offers nothing. */
+/* The comp's card is full because its fixture is full. Inventing rows here
+   would put words on screen that nobody wrote. */
+T("brief, checklist and attachments appear only when the work carries them", () => {
+  draw(rowJs());
+  assert.equal(front().querySelectorAll(".dk-blk").length, 0, "empty blocks were drawn anyway");
+  draw(rowJs(`{ note:"Lead with the restock.",
+    checklist:[{text:"Subject lines",done:true},{text:"Body copy",done:false}],
+    attachments:[{name:"Brief.docx",meta:"248 KB",url:"https://x/y"}] }`));
+  assert.ok(front().textContent.includes("Lead with the restock"));
+  assert.equal(front().querySelectorAll(".dk-chk").length, 2);
+  assert.equal(front().querySelectorAll(".dk-chk.is-done").length, 1);
+  assert.equal(front().querySelectorAll(".dk-file").length, 1);
+  assert.ok(front().textContent.includes("248 KB"));
+});
+
 T("work whose type was deleted gets no button at all, and says why", () => {
-  draw(`dkReset(); dkRender([{ id:"r1", task:"Copy", orphanType:"Brief", fromName:"Ada" }]);`);
-  assert.equal(front().querySelectorAll("button").length, 0, "an orphan was offered an action");
+  draw(rowJs('{ orphanType:"Brief" }'));
+  assert.equal(front().querySelectorAll(".dk-bt").length, 0, "an orphan was offered an action");
   assert.ok(front().textContent.includes("Brief"), "the missing type is not named");
-  assert.ok(front().textContent.includes("Work page"), "nobody is told where it can be cleared");
+  assert.ok(front().textContent.includes("Work page"));
 });
 
 T("overdue is stated as overdue, not as a due date", () => {
-  draw(`dkReset(); dkRender([{ id:"r1", task:"Copy", dueDate:"2000-01-01", fromName:"Ada" }]);`);
-  assert.ok(front().querySelector(".adeck-due.is-late"), "a late card is not marked late");
+  draw(rowJs('{ dueDate:"2000-01-01" }'));
+  assert.ok(front().querySelector(".dk-pill.dk-late"), "a late card is not marked late");
   assert.ok(front().textContent.includes("Overdue"));
 });
 
 T("the arrows move one card and stop at both ends", () => {
-  draw(`dkReset(); dkRender([
+  draw(`dkReset(); S.status="IDLE"; S.shift=null; dkRender([
     { id:"r1", task:"Copy" }, { id:"r2", task:"Design" }, { id:"r3", task:"Embed" }]);`);
-  const arrows = () => [...deck().querySelectorAll(".adeck-arrow")];
+  const arrows = () => [...deck().querySelectorAll(".dk-ab")];
   assert.equal(arrows()[0].disabled, true, "Previous is live on the first card");
-  assert.equal(arrows()[1].disabled, false);
   run(`dkGo(1)`);
   assert.ok(front().textContent.includes("Design"));
   run(`dkGo(1)`);
@@ -176,25 +204,83 @@ T("the arrows move one card and stop at both ends", () => {
   assert.ok(front().textContent.includes("Embed"), "the deck ran past its own end");
 });
 
-/* The same distinction the list makes, and for the same reason: an empty
-   deck that says "nothing assigned" when the truth is "this account is in
-   no organization" is a screen nobody can debug. */
-T("an empty deck says WHY it is empty", () => {
+T("a dot jumps straight to its card", () => {
+  draw(`dkReset(); S.status="IDLE"; S.shift=null; dkRender([
+    { id:"r1", task:"Copy" }, { id:"r2", task:"Design" }, { id:"r3", task:"Embed" }]);`);
+  run(`dkTo(2)`);
+  assert.ok(front().textContent.includes("Embed"));
+  assert.ok(deck().querySelectorAll(".dk-dots i")[2].classList.contains("on"));
+});
+
+/* Same three-way distinction the list makes, and for the same reason. */
+T("an empty deck is a CARD that says why it is empty", () => {
   run(`assignedEmptyReason = null;`);
-  assert.ok(draw(`dkReset(); dkRender([]);`).includes("Nothing assigned right now"));
+  draw(`dkReset(); dkRender([]);`);
+  assert.ok(deck().querySelector(".dk-card"), "the column collapsed instead of holding a card");
+  assert.ok(deck().textContent.includes("No tasks assigned"));
   run(`assignedEmptyReason = "no-org";`);
   assert.ok(draw(`dkRender([]);`).includes("not in an organization"));
   run(`assignedEmptyReason = "org-error";`);
   assert.ok(draw(`dkRender([]);`).includes("could not load it"));
+  run(`assignedEmptyReason = null;`);
 });
 
-T("a finished card leaves and the next one takes the front", () => {
-  draw(`dkReset(); dkRender([{ id:"r1", task:"Copy" }, { id:"r2", task:"Design" }]);`);
-  assert.ok(front().textContent.includes("Copy"));
-  // the snapshot comes back without it, exactly as a real Done would
-  draw(`dkRender([{ id:"r2", task:"Design" }]);`);
-  assert.ok(front().textContent.includes("Design"));
-  assert.ok(deck().innerHTML.includes("1 <i>/</i> 1"));
+/* ---------- Start task moves the clock (spec §3) ---------- */
+T("Start task clocks in, with the card's own store and task, and no sheet", () => {
+  run(`dkReset(); S.status = "IDLE"; S.shift = null; S.history = [];
+       dkStart({ id:"r1", task:"Copy", store:"Store Epsilon" });`);
+  assert.equal(run(`S.status`), "ACTIVE");
+  assert.equal(run(`S.shift.client`), "Store Epsilon");
+  assert.equal(run(`S.shift.segs.length`), 1);
+  assert.equal(run(`S.shift.segs[0].itemId`), "r1");
+  assert.equal(run(`S.shift.segs[0].task`), "Copy");
+  assert.equal(run(`S.shift.segs[0].endedAt`), null);
+});
+
+T("starting another task pauses the one running rather than losing it", () => {
+  run(`dkStart({ id:"r2", task:"Design", store:"Store Beta" });`);
+  assert.equal(run(`S.shift.segs.length`), 2);
+  assert.equal(run(`S.shift.segs[0].endedAt === null`), false, "the first task was never closed");
+  assert.equal(run(`clkOpenItemId(S.shift)`), "r2");
+  assert.equal(run(`clkPaused(S.shift, Date.now()).map(p => p.itemId).join(",")`), "r1");
+});
+
+T("starting the task already running does nothing", () => {
+  const before = run(`S.shift.segs.length`);
+  run(`dkStart({ id:"r2", task:"Design" });`);
+  assert.equal(run(`S.shift.segs.length`), before, "a second segment was opened for the same task");
+});
+
+/* §5: the invariant. ACTIVE with no open segment crashes the next Pause. */
+T("finishing leaves an IDLE segment open, never nothing", () => {
+  run(`dkIdleAfter({ id:"r2", task:"Design" });`);
+  const open = run(`JSON.stringify(openSeg(S.shift) || null)`);
+  assert.ok(open !== "null", "the shift was left ACTIVE with no open segment");
+  assert.equal(run(`openSeg(S.shift).itemId`), null);
+  assert.equal(run(`openSeg(S.shift).task`), null);
+  assert.equal(run(`clkIsIdle(S.shift)`), true);
+});
+
+T("finishing a task that is not the one running leaves the clock alone", () => {
+  const before = run(`S.shift.segs.length`);
+  run(`dkIdleAfter({ id:"r1", task:"Copy" });`);
+  assert.equal(run(`S.shift.segs.length`), before);
+});
+
+T("Start task while on a break ends the break and starts the work", () => {
+  run(`S.status = "ON_BREAK";
+       S.shift.segs[S.shift.segs.length - 1].endedAt = 1;
+       S.shift.breaks.push({ reason:"Lunch", startedAt: 1, endedAt: null });
+       dkStart({ id:"r3", task:"Embed" });`);
+  assert.equal(run(`S.status`), "ACTIVE");
+  assert.equal(run(`openBreak(S.shift) ? 1 : 0`), 0, "the break was left open");
+  assert.equal(run(`clkOpenItemId(S.shift)`), "r3");
+});
+
+T("an orphan cannot be started, because nothing can be done with it", () => {
+  const before = run(`S.shift.segs.length`);
+  run(`dkStart({ id:"r9", task:"Ghost", orphanType:"Brief" });`);
+  assert.equal(run(`S.shift.segs.length`), before, "a segment was opened for unreachable work");
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
