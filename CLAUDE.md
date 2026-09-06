@@ -5,6 +5,25 @@ Pages at `ezclockn.com`. Firebase (Auth + Firestore) is the only backend.
 Read `README.md` for the feature tour and the file-by-file map; this file
 is the stuff that bites you if you don't know it.
 
+## Memory between sessions
+
+Sessions do not remember each other. Everything this app got wrong was
+found by somebody USING it, and more than one of those was found twice —
+so what a session learns is written down before the session ends.
+
+- **`docs/lessons.md`** is the log: every bug that cost real time, with
+  the cause, the rule it produced, and the guard that keeps it. Read the
+  entry for an area BEFORE you change that area, and read its "Failure
+  shapes" list before writing anything — nearly every bug here is an
+  instance of one of the seven.
+- **After fixing a bug, add an entry and a test.** The test keeps the
+  fix; the entry keeps the reason, which is the half a test cannot
+  state. A fix without both is a fix the next session undoes.
+- `.claude/hooks/session-memory.sh` prints that digest and the branch
+  state into every new session, so none of this depends on anybody
+  thinking to look. `.claude/hooks/session-start.sh` installs the test
+  dependencies in the background at the same time.
+
 ## Hard rules
 
 These are enforced by `tests/repo-guards.test.mjs` — CI fails if you break
@@ -97,7 +116,7 @@ shift clock digit for digit and the second ring would say nothing.
 ```
 cd tests
 npm ci          # once
-npm test        # 409 assertions, node + jsdom, seconds
+npm test        # 418 assertions, node + jsdom, seconds
 npm run test:rules   # 248 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -130,7 +149,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 657 pass as of this writing — a
+reaches through an org boundary. All 666 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys

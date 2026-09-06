@@ -6,7 +6,7 @@
 
    Same runner shape as the other suites: PASS/FAIL lines, exit 1 on any
    failure. Pure node - no emulator, no DOM, no Firebase. */
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { strict as assert } from "node:assert";
@@ -139,6 +139,33 @@ T("every collectionGroup query has an index declared for it", () => {
     }
   });
   assert.deepEqual(missing, [], "collection-group queries with no declared index: " + missing.join(", "));
+});
+
+/* ---- the memory rule --------------------------------------------------
+   CLAUDE.md > "Memory between sessions": sessions do not remember each
+   other, so docs/lessons.md carries what each one learned and the
+   SessionStart hooks put it in front of the next one. That mechanism is
+   only worth anything while all three pieces still point at each other -
+   a renamed hook or a deleted log fails silently and nobody notices until
+   a bug already fixed comes back. */
+T("the session-memory mechanism is wired end to end", () => {
+  const lessons = text("docs/lessons.md");
+  assert.ok(/^## Failure shapes/m.test(lessons),
+    "docs/lessons.md has lost its Failure shapes section - the hook reads it by that heading");
+  assert.ok(/^## Entries/m.test(lessons),
+    "docs/lessons.md has lost its Entries section - the hook reads it by that heading");
+  assert.ok(text("CLAUDE.md").includes("docs/lessons.md"),
+    "CLAUDE.md no longer points at docs/lessons.md");
+
+  const settings = JSON.parse(text(".claude/settings.json"));
+  const cmds = (settings.hooks?.SessionStart || [])
+    .flatMap(g => (g.hooks || []).map(h => h.command || ""));
+  ["session-memory.sh", "session-start.sh"].forEach(name => {
+    assert.ok(cmds.some(c => c.endsWith(name)),
+      name + " is not registered in .claude/settings.json");
+    const mode = statSync(join(root, ".claude/hooks/" + name)).mode;
+    assert.ok(mode & 0o111, ".claude/hooks/" + name + " is not executable");
+  });
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
