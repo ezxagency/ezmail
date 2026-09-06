@@ -78,8 +78,18 @@ await page.addInitScript(() => {
 
 const errs = [];
 page.on("pageerror", e => errs.push(String(e.message).slice(0, 160)));
-await page.goto(base + "/index.html", { waitUntil: "load" });
+/* WITH THE FLAG IN THE URL, not set by hand afterwards. The harness used
+   to add the ui-next class itself, which meant five slices were
+   photographed without ever proving that ?ui=next does anything. */
+await page.goto(base + "/index.html?ui=next#/", { waitUntil: "load" });
 await page.waitForTimeout(400);
+
+const flagged = await page.evaluate(() => document.body.classList.contains("ui-next"));
+if (!flagged){
+  console.log("FAIL: ?ui=next did not turn the redesign on");
+  await browser.close(); server.close(); process.exit(1);
+}
+console.log("?ui=next is on from the URL alone");
 
 const shoot = async (name) => {
   await page.waitForTimeout(350);
@@ -93,7 +103,6 @@ await page.evaluate(() => {
   const d = new Date(now), mid = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const dayAt = (back, h) => new Date(mid.getFullYear(), mid.getMonth(), mid.getDate() - back, h).getTime();
 
-  document.body.classList.add("ui-next");
   document.getElementById("loginScreen").classList.add("hidden");
   const app = document.getElementById("appScreen");
   app.classList.remove("hidden");
@@ -146,9 +155,21 @@ await page.evaluate(() => {
 });
 await shoot("next-idle");
 
-// ---- and the classic dashboard, which must not have moved at all ----
+// ---- and the classic dashboard, reached the way a person reaches it ----
+await page.goto(base + "/index.html?ui=classic#/", { waitUntil: "load" });
+await page.waitForTimeout(300);
+if (await page.evaluate(() => document.body.classList.contains("ui-next"))){
+  console.log("FAIL: ?ui=classic did not turn the redesign off");
+  await browser.close(); server.close(); process.exit(1);
+}
 await page.evaluate(() => {
-  document.body.classList.remove("ui-next");
+  document.getElementById("loginScreen").classList.add("hidden");
+  const app = document.getElementById("appScreen");
+  app.classList.remove("hidden");
+  app.classList.add("panes", "has-tasks");
+  isAdmin = false; isMember = false;
+  S.worker = "Prashanna";
+  document.getElementById("assignedTasksSection").classList.remove("hidden");
   const H = 3600000, now = Date.now();
   S.status = "ACTIVE";
   S.shift = { client: "Store Epsilon", startedAt: now - 3 * H,

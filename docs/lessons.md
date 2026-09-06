@@ -183,6 +183,18 @@ screen is. Anything that changes how something LOOKS gets looked at.
 Firebase stubbed, sets the state by hand and photographs it — on shift,
 clocked out, and classic, which must not move.
 
+**The flag that turned it on was never tested.** Five slices of the
+redesign were photographed by adding the `ui-next` class BY HAND in the
+harness. Every one looked right. Nothing ever proved that `?ui=next` —
+the thing a person actually types — does anything at all. The flag did
+work, but that was luck, not verification: the check that would have
+caught it breaking did not exist.
+*Rule:* test the switch, not just the thing it switches. A feature
+reached by a URL is not verified until something loads that URL.
+*Guard:* `tests/flag.test.mjs` boots real URLs and lets `config.js` run
+untouched; `npm run shots` now navigates to `?ui=next` and refuses to
+photograph anything if the class is absent.
+
 ### Process
 
 **Walk the whole flow before declaring it done.** The A-to-Z run found
