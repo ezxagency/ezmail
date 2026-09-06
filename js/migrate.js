@@ -250,8 +250,13 @@ function migrateCampaignBlueprint(campaign, opts){
    because writes still go to that collection. A row that read from one
    place and wrote to another under the wrong id would finish the wrong
    task, which is the worst bug this cutover could have. */
-function itemToQueueRow(item){
+function itemToQueueRow(item, type){
   const f = item.fields || {};
+  // the kind of work, and the stage it is at. Both come from the type, so
+  // a queue of Items groups by "Video" rather than by nothing, and a row
+  // that stays after you finish a stop VISIBLY moves to the next one -
+  // without this, passing the baton to yourself looks like a dead button.
+  const stage = type && (type.statuses || []).find(x => x.key === item.status);
   const src = String(item.importedFrom || "");
   const sourceId = src.startsWith("assignment:") ? src.slice("assignment:".length) : null;
   return {
@@ -263,7 +268,8 @@ function itemToQueueRow(item){
     // receipt stamp took the Item's own stamp down with it.
     fromAssignment: !!sourceId,
     toUid: (item.assigneeIds || [])[0] || null,
-    store: f.store || "",
+    store: f.store || (type && type.name) || "",
+    stage: stage ? (stage.label || stage.key) : null,
     // the migrated task type keeps its own `task` field; every other kind
     // of work carries its name in the Item title, and a row with a blank
     // title is a row nobody can act on

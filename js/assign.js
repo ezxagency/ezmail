@@ -541,6 +541,12 @@ function watchAssignedTasksFromItems(){
     assignedEmptyReason = null;
     const uid = auth.currentUser.uid;
     const items = db.collection("orgs").doc(s.orgId).collection("items");
+    // the types, so a row can say what KIND of work it is and what stage
+    // it is at. Loaded once per subscription rather than per snapshot.
+    let typesById = {};
+    itemTypesLoad().then(list => {
+      (list || []).forEach(t => { typesById[t.id] = t; });
+    }).catch(e => console.error(e));
     unsub = items
       .where("facets", "array-contains", "assignee:" + uid)
       .onSnapshot(snap => {
@@ -555,7 +561,7 @@ function watchAssignedTasksFromItems(){
              cannot find is worse than work nobody mentioned. */
           if (item.typeId === MIGRATE_CAMPAIGN_TYPE.id) return;
           if (item.status === "done") return;
-          rows.push(itemToQueueRow(item));
+          rows.push(itemToQueueRow(item, typesById[item.typeId]));
         });
         assignedRowsLanded(rows, unseen => {
           // BOTH places. The assignment is still the document Done writes
@@ -774,7 +780,7 @@ function renderAssignedList(rows){
           return `
           <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
             <button type="button" class="atask-head" data-tid="${esc(r.id)}" aria-expanded="${tOpen}">
-              <span class="atask-name">${esc(r.task)}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.wfNodeRunId ? `<span class="atask-cgchip">workflow</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
+              <span class="atask-name">${esc(r.task)}${r.stage ? `<span class="atask-cgchip">${esc(r.stage)}</span>` : ""}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.wfNodeRunId ? `<span class="atask-cgchip">workflow</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
               <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(dueWithTime(r)) : ""}</span>
               ${CARET_SVG("atask-caret")}
             </button>

@@ -167,12 +167,15 @@ await T("the assigned query finds it for the holder", async () => {
   assert.equal(snap.docs[0].data().typeId, "video");
 });
 
-await T("its queue row is titled, not blank", async () => {
+await T("its queue row is titled, and says what kind and what stage", async () => {
   const item = Object.assign({ id: itemId }, await get("orgs/" + ORG + "/items/" + itemId));
-  const row = run(`itemToQueueRow(${JSON.stringify(item)})`);
+  const type = Object.assign({ id: "video" }, await get("orgs/" + ORG + "/itemTypes/video"));
+  const row = run(`itemToQueueRow(${JSON.stringify(item)}, ${JSON.stringify(type)})`);
   assert.equal(row.task, "Video #23");
   assert.equal(row.fromAssignment, false, "there is no assignment behind app-created work");
   assert.equal(row.itemId, itemId);
+  assert.equal(row.store, "Video", "the row does not say what kind of work it is");
+  assert.equal(row.stage, "Scripting", "the row does not say what stage it is at");
 });
 
 /* ---------- finishing passes the baton ---------- */
@@ -192,8 +195,12 @@ await T("MARK DONE passes it to the next person", async () => {
   assert.equal(r.how, "advanced");
   const item = await get("orgs/" + ORG + "/items/" + itemId);
   // stop 2 of the content pack is "Film it", also staff - so it stays with
-  // them, and the status moves. The baton moved; the person need not.
+  // them and the STAGE moves. Without the stage on the row that would look
+  // like a dead button, which is exactly how it was reported.
   assert.equal(item.status, "filming");
+  const type = Object.assign({ id: "video" }, await get("orgs/" + ORG + "/itemTypes/video"));
+  const row = run(`itemToQueueRow(${JSON.stringify(Object.assign({ id: itemId }, item))}, ${JSON.stringify(type)})`);
+  assert.equal(row.stage, "Filming", "the row still reads as the stage it just left");
 });
 
 await T("and again, to a different role, who is told", async () => {
@@ -204,6 +211,11 @@ await T("and again, to a different role, who is told", async () => {
   assert.equal(item.status, "editing");
   assert.deepEqual(plain(item.assigneeIds), ["lead1"], "it did not reach the editor");
   assert.ok(find("notifications", n => n.toUid === "lead1").length > before, "the editor was not told");
+
+  // and it is GONE from the queue of the person who finished it
+  const mine = await db.collection("orgs/" + ORG + "/items")
+    .where("facets", "array-contains", "assignee:staff1").get();
+  assert.equal(mine.size, 0, "it stayed on the dashboard of the person who passed it on");
 });
 
 await T("the trail records who finished each stop", async () => {
