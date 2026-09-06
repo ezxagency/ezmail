@@ -56,7 +56,7 @@ ctx.console = console;
  // org.js calls dirInvalidate() from here: the harness only proves
  // anything if it carries the same shared scope the browser builds
  "js/notify.js",
- "js/packs.js", "js/org.js", "js/work.js"].forEach(f =>
+ "js/packs.js", "js/handoff.js", "js/org.js", "js/work.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 
 const run = expr => vm.runInContext(expr, ctx);
@@ -360,6 +360,56 @@ T("one group is not a grouping", () => {
        orgRender();`);
   assert.equal(doc.querySelector(".org-group-head"), null);
   assert.equal(doc.querySelectorAll(".org-typefold").length, 1);
+});
+
+/* ---------- the handoff track editor ----------
+   A track is only real if it compiles to a blueprint the engine accepts,
+   so the editor's job is to refuse everything that would not. */
+T("the track editor offers every role and every status of that type", () => {
+  run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", members: [], dir: {}, automations: [],
+    roles: [{ id: "owner", name: "Owner" }, { id: "manager", name: "Manager" }, { id: "staff", name: "Staff" }],
+    types: [{ id: "sponsor", name: "Sponsorship", fields: [],
+      statuses: [{ key: "talking", label: "Talking" }, { key: "agreed", label: "Agreed" }] }] };
+    orgTrackSheet(orgS.types[0]);`);
+  const roles = [...doc.querySelectorAll(".otk-role option")].map(o => o.value);
+  assert.ok(roles.includes("manager") && roles.includes("staff"));
+  assert.ok(roles.includes(run("HO_ANY")), "there is no way to say anyone");
+  const sts = [...doc.querySelectorAll(".otk-status option")].map(o => o.value);
+  assert.deepEqual(plain(sts), ["", "talking", "agreed"]);
+});
+
+T("an incomplete stop is refused with a reason, not saved", () => {
+  run(`orgTrackDraft = [{ label: "", roleId: "", status: "" }]; orgTrackSave(orgS.types[0]);`);
+  const err = doc.getElementById("otkErr").textContent;
+  assert.match(err, /needs a name/);
+  assert.match(err, /Who holds this stop/);
+});
+
+T("a valid track compiles to a blueprint the real engine accepts", () => {
+  // the whole claim of js/handoff.js, checked through the same validator
+  // the Workflows page publishes against
+  const bad = run(`
+    var _t = orgS.types[0];
+    var _bp = hoBuildBlueprint(_t, [{ label: "Agree", roleId: "manager", status: "agreed" },
+                                    { label: "Deliver", roleId: "staff" }], { id: "bp1", orgId: "orgA", now: 1 });
+    JSON.stringify(wfValidate(_bp));`);
+  assert.equal(bad, "[]");
+});
+
+T("the type shows its track, and offers to set one up when it has none", () => {
+  run(`orgS.types[0].track = [{ label: "Agree", roleId: "manager" }]; orgRender();`);
+  const body = doc.querySelector(".org-typefold").textContent;
+  assert.match(body, /Agree/);
+  assert.match(body, /Manager/);
+  assert.ok(doc.querySelector(".org-track"), "no way in to the editor");
+  run(`orgS.types[0].track = null; orgRender();`);
+  assert.match(doc.querySelector(".org-typefold").textContent, /No handoff/);
+  assert.match(doc.querySelector(".org-track").textContent, /Set up handoff/);
+});
+
+T("a staff member is not offered the handoff editor", () => {
+  run(`orgS.myRoleId = "staff"; orgRender();`);
+  assert.equal(doc.querySelector(".org-track"), null);
 });
 
 T("dropping the org cache drops the directory cache with it", () => {

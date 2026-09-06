@@ -1,6 +1,8 @@
 # Handoff — work that moves person to person
 
-Status: **spec only.** Nothing here is built.
+Status: **built.** `js/handoff.js` (28 assertions), org-scoped runs in
+`firestore.rules` (10), the track editor and the baton on the Work page
+(10 in jsdom). What is NOT built is listed at the bottom.
 
 Companion to `docs/platform-spec.md` (the Item model) and
 `docs/workflow-builder-spec.md` (the engine, which does not change).
@@ -204,3 +206,39 @@ Not blockers, but they change what gets built. Answers wanted before code.
 5. Stalled-run surfacing, and the failure modes above.
 
 Each step is shippable and none of them needs the server.
+
+
+---
+
+## What shipped, and what did not
+
+**Shipped.** A track — a straight line of stops, each held by a role —
+compiles to a real blueprint that `wfValidate()` accepts and `wfStartRun()`
+runs. Creating work of a tracked type starts its run. Holders are derived
+from current role membership on every read. Finishing a stop moves the work
+on, tells whoever is next (through the same assignment notification any
+handed work uses), and moves the status with it. The Work page shows whose
+turn it is, one control if it is yours, and the trail of where it has been.
+A stop nobody can act on is reported as **stuck**, by name, rather than
+looking like work in progress.
+
+**Decisions kept exactly as specced:** the run drives the status and the
+assignees (both controls go read-only while a run is active); only the
+holder advances, with an owner override recorded as an override; runs live
+under the org; advancing is a client transaction, so none of this needed
+the server.
+
+**Not built.**
+
+- **Named-person stops.** Open question 1 is still open — a stop names a
+  role, not "Priya, specifically". `hoHolders()` already honours an explicit
+  person if one is on the stop, so the data path exists; the editor does not
+  offer it.
+- **Backwards.** Open question 2 — a reviewer sending work back. The engine's
+  LOGIC nodes can express it; a straight track cannot draw it.
+- **Starting a run any other way** than creating the work.
+- **A stuck run is only visible on the work itself.** The spec wanted stalled
+  runs surfaced on the Organization page, where somebody would notice without
+  opening anything. That is the most valuable of these four.
+- **Packs ship no tracks yet.** Every pack could now carry one, which would
+  make a template arrive as a working pipeline rather than a set of stages.

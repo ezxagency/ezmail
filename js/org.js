@@ -297,7 +297,17 @@ function orgRender(){
                     (owner ? '<span class="org-row-go">Edit</span>' : '') +
                   '</button>').join("") + '</div>'
               : '<p class="org-note">Nothing happens by itself when one of these changes.</p>') +
-            (owner ? '<div class="org-actions"><button type="button" class="org-btn org-btn-sm org-type" ' +
+            '<p class="org-sub">Handoff</p>' +
+            ((t.track || []).length
+              ? '<div class="org-chips org-stages">' + (t.track || []).map((st, i) =>
+                  '<span class="org-chip">' + esc(st.label || ("Stop " + (i + 1))) +
+                    '<i>' + esc(st.roleId === HO_ANY ? "anyone" : orgRoleName(st.roleId)) + '</i></span>').join("") +
+                '</div>'
+              : '<p class="org-note">No handoff. Work of this kind sits where it is until somebody moves it by hand.</p>') +
+            (owner ? '<div class="org-actions">' +
+              '<button type="button" class="org-btn org-btn-sm org-track" data-track="' + esc(t.id) + '">' +
+                ((t.track || []).length ? "Edit handoff" : "Set up handoff") + '</button>' +
+              '<button type="button" class="org-btn org-btn-sm org-type" ' +
               'data-type="' + esc(t.id) + '">Edit this type</button></div>' : '') +
           '</div>' +
         '</details>';
@@ -425,6 +435,9 @@ function orgRender(){
   $("orgBody").querySelectorAll(".org-type").forEach(b => {
     if (b.disabled) return;
     b.onclick = () => orgTypeSheet((orgS.types || []).find(t => t.id === b.dataset.type) || null);
+  });
+  $("orgBody").querySelectorAll(".org-track").forEach(b => {
+    b.onclick = () => orgTrackSheet((orgS.types || []).find(t => t.id === b.dataset.track) || null);
   });
   $("orgBody").querySelectorAll(".org-member").forEach(b => {
     b.onclick = () => orgMemberSheet((orgS.members || []).find(m => m.uid === b.dataset.member) || null);
@@ -949,6 +962,124 @@ const orgAutoSummary = a => {
   const al = (ORG_AUTO_ACTIONS.find(x => x.kind === act) || {}).label || act || "do nothing";
   return "When " + (t ? t.label : "something happens") + " → " + al.toLowerCase();
 };
+
+/* ---------- the handoff track ----------
+   A straight line of stops, each held by a role. It compiles to a real
+   blueprint (js/handoff.js) that the real engine runs - the open canvas
+   comes later, and this is what a baton actually needs in the meantime. */
+
+let orgTrackDraft = [];
+
+function orgTrackSheet(type){
+  if (!type || !orgIsOwner()) return;
+  orgTrackDraft = JSON.parse(JSON.stringify(type.track || []));
+  if (!orgTrackDraft.length) orgTrackDraft.push({ label: "", roleId: "", status: "" });
+  orgTrackRender(type);
+}
+
+function orgTrackRender(type){
+  const roles = (orgS.roles || []);
+  const statuses = (type.statuses || []);
+  const rows = orgTrackDraft.map((st, i) =>
+    '<div class="org-stop" data-i="' + i + '">' +
+      '<span class="org-stop-n">' + (i + 1) + '</span>' +
+      '<div class="org-stop-body">' +
+        '<input class="otk-label" type="text" maxlength="40" placeholder="What happens here" value="' +
+          esc(st.label || "") + '">' +
+        '<div class="org-fieldrow">' +
+          '<select class="otk-role">' +
+            '<option value="">Who holds it…</option>' +
+            '<option value="' + esc(HO_ANY) + '"' + (st.roleId === HO_ANY ? " selected" : "") + '>Anyone</option>' +
+            roles.map(r => '<option value="' + esc(r.id) + '"' +
+              (r.id === st.roleId ? " selected" : "") + '>' + esc(r.name) + '</option>').join("") +
+          '</select>' +
+          '<select class="otk-status">' +
+            '<option value="">Leave the status alone</option>' +
+            statuses.map(x => '<option value="' + esc(x.key) + '"' +
+              (x.key === st.status ? " selected" : "") + '>Set to ' + esc(x.label) + '</option>').join("") +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" class="org-btn org-btn-sm org-btn-danger otk-del" aria-label="Remove stop">Remove</button>' +
+    '</div>').join("");
+
+  openSheet(
+    '<h3 class="sheet-title">Handoff for ' + esc(type.name || type.id) + '</h3>' +
+    '<p class="org-note">Work starts at the first stop and moves down as each one is finished. Whoever holds a stop is the person it is assigned to — so "assigned to me" comes to mean "my turn".</p>' +
+    '<div class="org-stops">' + rows + '</div>' +
+    '<button type="button" class="org-btn org-btn-sm" id="otkAdd" style="margin-top:10px">Add a stop</button>' +
+    '<div id="otkErr"></div>' +
+    '<div class="org-actions">' +
+      '<button type="button" class="org-btn" id="otkSave">Save handoff</button>' +
+      (type.workflowId ? '<button type="button" class="org-btn org-btn-danger" id="otkOff">Turn handoff off</button>' : '') +
+    '</div>',
+    () => {
+      const read = () => {
+        $("sheetBody").querySelectorAll(".org-stop").forEach(row => {
+          const i = +row.dataset.i;
+          orgTrackDraft[i] = {
+            label: row.querySelector(".otk-label").value.trim(),
+            roleId: row.querySelector(".otk-role").value,
+            status: row.querySelector(".otk-status").value
+          };
+        });
+      };
+      $("otkAdd").onclick = () => { read(); orgTrackDraft.push({ label: "", roleId: "", status: "" }); orgTrackRender(type); };
+      $("sheetBody").querySelectorAll(".otk-del").forEach(b => b.onclick = () => {
+        read();
+        orgTrackDraft.splice(+b.closest(".org-stop").dataset.i, 1);
+        if (!orgTrackDraft.length) orgTrackDraft.push({ label: "", roleId: "", status: "" });
+        orgTrackRender(type);
+      });
+      $("otkSave").onclick = () => { read(); orgTrackSave(type); };
+      if ($("otkOff")) $("otkOff").onclick = () => orgTrackOff(type);
+    });
+}
+
+async function orgTrackSave(type){
+  const roleIds = (orgS.roles || []).map(r => r.id).concat([HO_ANY]);
+  const statusKeys = (type.statuses || []).map(s => s.key);
+  const errs = hoTrackErrors(orgTrackDraft, roleIds, statusKeys);
+  if (errs.length) {
+    $("otkErr").innerHTML = '<p class="org-note" style="color:#e0a08a">' +
+      errs.map(e => esc((e.at >= 0 ? "Stop " + (e.at + 1) + ": " : "") + e.message)).join("<br>") + '</p>';
+    return;
+  }
+  const btn = $("otkSave");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    const bpId = type.workflowId || ("bp" + orgNewId());
+    const bp = hoBuildBlueprint(type, orgTrackDraft, { id: bpId, orgId: orgS.orgId, ownerId: orgUid(), now: Date.now() });
+    // the same validator the Workflows page publishes against: a track
+    // that would not run must not be saveable
+    const bad = wfValidate(bp);
+    if (bad.length) throw new Error(bad[0].msg);
+    await db.collection("orgs").doc(orgS.orgId).collection("blueprints").doc(bpId).set(bp);
+    const r = await itemTypeSave(Object.assign({}, type, { track: orgTrackDraft, workflowId: bpId }));
+    if (!r.ok) throw new Error(r.error || "save-failed");
+    orgInvalidate();
+    closeSheet();
+    toast("Handoff saved. New " + (type.name || "work") + " will travel it.");
+    enterOrgPage();
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false; btn.textContent = "Save handoff";
+    toast("Could not save the handoff.");
+  }
+}
+
+async function orgTrackOff(type){
+  // the blueprint is left where it is on purpose: work already travelling
+  // carries its own frozen copy, and deleting the original would only
+  // remove the record of what shape it was
+  try {
+    await itemTypeSave(Object.assign({}, type, { track: null, workflowId: null }));
+    orgInvalidate();
+    closeSheet();
+    toast("Handoff off. Work already moving keeps its track.");
+    enterOrgPage();
+  } catch (e) { console.error(e); toast("Could not turn it off."); }
+}
 
 /* ---------- a person ---------- */
 

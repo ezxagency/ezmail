@@ -47,3 +47,34 @@
 }
 .wk-errs p { margin: 0 0 4px; font-size: 13.5px; }
 .wk-errs p:last-child { margin-bottom: 0; }
+
+/* ---- the baton ---- */
+.wk-baton {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 13px 15px; border-radius: 10px; margin: 0 0 14px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.09);
+  border-left: 3px solid rgba(255,255,255,.22);
+}
+.wk-baton b { font-size: 14.5px; }
+.wk-baton small { font-size: 12.5px; opacity: .58; }
+/* only one state shouts, and it is the one that needs somebody to act */
+.wk-baton.mine { border-left-color: #3fb98f; background: rgba(63,185,143,.08); }
+.wk-baton.stuck { border-left-color: #d08a4e; background: rgba(208,138,78,.08); }
+.wk-baton.done { border-left-color: rgba(255,255,255,.3); opacity: .75; }
+
+.wk-trail { display: flex; flex-direction: column; margin: 0 0 14px; }
+.wk-leg { display: flex; align-items: flex-start; gap: 11px; padding: 7px 0; position: relative; }
+/* the line joining the stops says these happened in order */
+.wk-leg:not(:last-child)::before {
+  content: ""; position: absolute; left: 4.5px; top: 20px; bottom: -7px;
+  width: 1px; background: rgba(255,255,255,.13);
+}
+.wk-leg-dot {
+  flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 5px;
+  border: 1.5px solid rgba(255,255,255,.3); background: transparent;
+}
+.wk-leg.done .wk-leg-dot { background: rgba(255,255,255,.4); border-color: transparent; }
+.wk-leg-main { display: flex; flex-direction: column; min-width: 0; }
+.wk-leg-main b { font-size: 13.5px; font-weight: 600; }
+.wk-leg-main small { font-size: 11.5px; opacity: .5; }

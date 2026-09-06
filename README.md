@@ -41,6 +41,7 @@ js/   classic scripts sharing one global scope; loaded in order
   migrate.js        the shapes assignments and campaigns take as Items (pure)
   automation.js     trigger/condition/action over the event log (pure)
   packs.js          an industry as data: 8 starter packs + their validator (pure)
+  handoff.js        a linear track compiled to a real blueprint (pure)
   work.js           the Work page: every control generated from the ItemType
   org.js            the Organization page: tenancy, the roster, the roles editor
   render.js         dashboard render loop, rings, per-second tick

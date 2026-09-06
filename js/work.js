@@ -173,13 +173,20 @@ function wkItemSheet(item){
     '<label class="wk-check"><input type="checkbox" class="wk-assignee" value="' + esc(m.uid) + '"' +
     ((item && (item.assigneeIds || []).indexOf(m.uid) >= 0) ? " checked" : "") + '> ' + esc(orgPersonName(m.uid)) + '</label>').join("");
 
+  // a run drives the status and the people, so the controls for them go
+  // read-only rather than sitting there offering to disagree with it
+  const onTrack = !!(editing && item.workflowRunId);
+
   openSheet(
     '<h3 class="sheet-title">' + (editing ? esc(item.title) : "New " + esc((type.name || "item").toLowerCase())) + '</h3>' +
+    '<div id="wkHandoff"></div>' +
     '<label class="org-field"><span>Title *</span>' +
       '<input id="wkTitle" type="text" maxlength="200" value="' + esc(editing ? item.title : "") + '"></label>' +
     (type.fields || []).map(f => wkFieldHtml(f, editing ? (item.fields || {})[f.key] : undefined)).join("") +
-    '<div class="org-field"><span>People</span><div class="wk-multi">' + (assignees || '<p class="org-note">No one to assign yet.</p>') + '</div></div>' +
-    (editing ? '<div class="org-field"><span>Status</span><div class="wk-statuses">' + statusBtns + '</div></div>' : '') +
+    (onTrack
+      ? ''
+      : '<div class="org-field"><span>People</span><div class="wk-multi">' + (assignees || '<p class="org-note">No one to assign yet.</p>') + '</div></div>') +
+    (editing && !onTrack ? '<div class="org-field"><span>Status</span><div class="wk-statuses">' + statusBtns + '</div></div>' : '') +
     '<div class="org-actions">' +
       '<button type="button" class="org-btn" id="wkSave">' + (editing ? "Save" : "Create") + '</button>' +
       (editing ? '<button type="button" class="org-btn org-btn-danger" id="wkDelete">Delete</button>' : '') +
@@ -190,8 +197,83 @@ function wkItemSheet(item){
       if (editing && $("wkDelete")) $("wkDelete").onclick = () => wkDelete(item);
       document.querySelectorAll(".wk-status").forEach(b =>
         b.onclick = () => wkSetStatus(item, b.dataset.status));
+      if (onTrack) wkPaintHandoff(item, type);
     }
   );
+}
+
+/* ---------- the handoff, as the person sees it ----------
+   Whose turn it is, one control if it is yours, and where the work has
+   already been. Loaded after the sheet is open rather than before it,
+   because a sheet that waits on a read is a sheet that feels broken. */
+async function wkPaintHandoff(item, type){
+  const box = $("wkHandoff");
+  if (!box) return;
+  box.innerHTML = '<p class="org-note">Loading the handoff…</p>';
+  const h = await itemsHandoffLoad(item);
+  if (!box.isConnected) return;                 // they closed it while we read
+  if (!h) { box.innerHTML = '<p class="org-note">This work points at a handoff that is no longer there.</p>'; return; }
+
+  const uid = auth.currentUser ? auth.currentUser.uid : null;
+  const owner = (orgS && orgS.myRoleId === "owner");
+  const stops = hoActiveStops(h.nodeRuns);
+  const mine = stops.find(nr => hoMayAdvance(h.blueprint, nr, uid, h.members, false).ok) || null;
+  const holders = hoHolders(h.blueprint, h.nodeRuns, h.members);
+  const stalled = hoStalled(h.blueprint, h.nodeRuns, h.members);
+  const trail = hoTrail(h.blueprint, h.nodeRuns);
+  const label = nr => {
+    const n = ((h.blueprint && h.blueprint.nodes) || []).find(x => x.id === nr.nodeId);
+    return (n && n.config && n.config.label) || nr.nodeId;
+  };
+
+  const head = h.run.status === "completed"
+    ? '<div class="wk-baton done"><b>Finished</b><small>It reached the end of its handoff.</small></div>'
+    : stalled
+      // the silent failure, said out loud: a stop nobody can act on does
+      // not error, it just stops, and looks exactly like work in progress
+      ? '<div class="wk-baton stuck"><b>Stuck at ' + esc(stalled.label) + '</b>' +
+        '<small>Nobody holds ' + esc(stalled.role === HO_ANY ? "this stop" : orgRoleName(stalled.role)) +
+        ', so it cannot move. Put somebody in that role.</small></div>'
+      : mine
+        ? '<div class="wk-baton mine"><b>Your turn — ' + esc(label(mine)) + '</b>' +
+          '<small>Finish it and the work moves to whoever is next.</small></div>'
+        : '<div class="wk-baton"><b>With ' + esc(holders.map(orgPersonName).join(", ") || "nobody yet") + '</b>' +
+          '<small>' + esc(stops.length ? label(stops[0]) : "Waiting") + '</small></div>';
+
+  const trailHtml = trail.length
+    ? '<div class="wk-trail">' + trail.map(t =>
+        '<div class="wk-leg' + (t.status === "completed" ? " done" : "") + '">' +
+          '<span class="wk-leg-dot"></span>' +
+          '<span class="wk-leg-main"><b>' + esc(t.label) + '</b><small>' +
+            esc(t.status === "completed"
+              ? (t.by ? "done by " + orgPersonName(t.by) : "done")
+              : "here now") + '</small></span>' +
+        '</div>').join("") + '</div>'
+    : "";
+
+  box.innerHTML = head + trailHtml +
+    ((mine || (owner && stops.length && !stalled))
+      ? '<div class="org-actions"><button type="button" class="org-btn" id="wkAdvance">' +
+        (mine ? "Mark this done" : "Move it on (override)") + '</button></div>'
+      : "");
+
+  if ($("wkAdvance")) $("wkAdvance").onclick = () =>
+    wkAdvance(item, type, (mine || stops[0]).id, $("wkAdvance"));
+}
+
+async function wkAdvance(item, type, nodeRunId, btn){
+  btn.disabled = true; btn.textContent = "Passing it on…";
+  const r = await itemsAdvanceHandoff(item, type, nodeRunId, {});
+  if (!r.ok) {
+    btn.disabled = false; btn.textContent = "Mark this done";
+    toast(r.error === "not-yours" ? "This stop is not yours to move."
+      : r.error === "not-active" ? "Somebody already moved it on."
+      : "Could not move it on.");
+    return;
+  }
+  closeSheet();
+  toast(r.as === "override" ? "Moved on as owner." : "Done — it has moved to whoever is next.");
+  enterWorkPage();
 }
 
 // the engine hands back every problem at once, so the sheet shows every

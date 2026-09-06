@@ -208,6 +208,34 @@ service cloud.firestore {
       // an owner writes them: an automation is a standing instruction
       // that acts in everyone's name, so it belongs with the person who
       // already decides what roles may do.
+      /* ---- Handoff (docs/handoff-spec.md) ----
+         A blueprint is a shape the owner draws; a run is one piece of
+         work travelling it. Both hang under the org, because a customer's
+         pipeline cannot live in the top-level collections isTeam() guards.
+         Those stay exactly as they are, serving Ez Agency's own Workflows
+         page - this is additive, the same way tenancy arrived. */
+      match /blueprints/{bpId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update, delete: if isOrgOwner(orgId);
+      }
+      /* Runs and their stops are written by whoever advances the work,
+         which is any member holding the active stop. The rules cannot
+         re-derive what the engine decided - that would mean reimplementing
+         wfAdvance in the rules language, where it could disagree - so this
+         is the same knowingly-permissive posture as `items` above, and
+         narrows the same way when the server commit lands. The blast
+         radius is one org: nothing here reaches past its own tenant. */
+      match /runs/{runId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update: if isOrgMember(orgId);
+        allow delete: if isOrgOwner(orgId);
+      }
+      match /nodeRuns/{nrId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update: if isOrgMember(orgId);
+        allow delete: if isOrgOwner(orgId);
+      }
+
       match /automations/{autoId} {
         allow read: if isOrgMember(orgId);
         allow create, update, delete: if isOrgOwner(orgId);

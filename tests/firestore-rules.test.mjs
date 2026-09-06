@@ -201,6 +201,24 @@ await T("member: creates their own org and seats themselves as owner", assertSuc
   await setDoc(doc(member, "memberOf/member1"), { orgId: "orgM", at: 9 });
 })()));
 await T("member: designs a work type in their own org", assertSucceeds(setDoc(doc(member, "orgs/orgM/itemTypes/task"), { name: "Task", fields: [], statuses: [] })));
+
+// ================= HANDOFF: BLUEPRINTS AND RUNS =================
+// A customer's pipeline cannot live in the top-level collections isTeam()
+// guards, so it hangs under the org like everything else they own.
+await T("owner: draws a blueprint in their own org", assertSucceeds(setDoc(doc(admin, "orgs/orgA/blueprints/bp1"), { name: "Brief handoff", nodes: [], edges: [], status: "published" })));
+await T("member of the org: reads the blueprint", assertSucceeds(getDoc(doc(worker, "orgs/orgA/blueprints/bp1"))));
+await T("non-owner: draws a blueprint DENIED (a pipeline is a shape the owner sets)", assertFails(setDoc(doc(worker, "orgs/orgA/blueprints/evil"), { name: "E", nodes: [], edges: [] })));
+await T("another org cannot read this org's blueprint", assertFails(getDoc(doc(member, "orgs/orgA/blueprints/bp1"))));
+
+await T("member: starts a run and its first stop (advancing is a member action)", assertSucceeds((async () => {
+  await setDoc(doc(worker, "orgs/orgA/runs/run1"), { id: "run1", taskId: "it1", status: "running", orgId: "orgA", startedAt: 1 });
+  await setDoc(doc(worker, "orgs/orgA/nodeRuns/run1:s0:1"), { runId: "run1", nodeId: "s0", nodeType: "role", status: "in_progress", arrivedAt: 1 });
+})()));
+await T("member: reads the run they are travelling", assertSucceeds(getDoc(doc(worker, "orgs/orgA/runs/run1"))));
+await T("another org cannot read this org's run", assertFails(getDoc(doc(member, "orgs/orgA/runs/run1"))));
+await T("another org cannot read its stops either", assertFails(getDoc(doc(member, "orgs/orgA/nodeRuns/run1:s0:1"))));
+await T("non-owner: delete a run DENIED (history is not a member's to erase)", assertFails(deleteDoc(doc(worker, "orgs/orgA/runs/run1"))));
+await T("a stranger reaches none of it", assertFails(getDoc(doc(stranger, "orgs/orgA/runs/run1"))));
 await T("Ez Agency's admin cannot read the member's org", assertFails(getDoc(doc(admin, "orgs/orgM"))));
 
 // ================= THE DIRECTORY IS TENANT-SCOPED =================

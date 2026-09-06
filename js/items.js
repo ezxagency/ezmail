@@ -87,6 +87,9 @@ async function itemSave(type, item, intent, opts){
     // doing so made the same action mean two different things depending
     // on which screen you did it from.
     itemsNotifyAssigned(decision.events, decision.item);
+    // a new piece of work whose kind has a track starts travelling it
+    if (intent.kind === "create" && type && type.workflowId)
+      itemsStartHandoff(decision.item, type);
     return decision;
   } catch (e) {
     console.error(e);
@@ -132,9 +135,161 @@ async function itemTypeSave(type){
   await typesCol(s.orgId).doc(id).set({
     name: type.name, icon: type.icon || null, color: type.color || null,
     fields: type.fields || [], statuses: type.statuses || [],
+    // the track is the SOURCE an owner edits; workflowId names the
+    // blueprint generated from it. Both are carried, because a set()
+    // replaces the document and dropping either would quietly unhook a
+    // kind of work from the pipeline it is supposed to travel.
+    track: type.track || null,
     workflowId: type.workflowId || null, updatedAt: Date.now()
   });
   return { ok: true, id };
+}
+
+/* ---------- handoff: work that moves person to person ----------
+   docs/handoff-spec.md. js/handoff.js decides; this writes.
+
+   The two halves the model has always had and never used: an ItemType
+   names a blueprint, and an Item points at the run it is travelling. */
+
+const runsCol  = orgId => db.collection("orgs").doc(orgId).collection("runs");
+const stopsCol = orgId => db.collection("orgs").doc(orgId).collection("nodeRuns");
+const bpCol    = orgId => db.collection("orgs").doc(orgId).collection("blueprints");
+
+async function itemsBlueprintFor(orgId, type){
+  if (!type || !type.workflowId) return null;
+  try {
+    const d = await bpCol(orgId).doc(type.workflowId).get();
+    return d.exists ? Object.assign({ id: d.id }, d.data()) : null;
+  } catch (e) { console.error(e); return null; }
+}
+
+/* Start the run a new Item rides, if its kind of work has a track.
+   Fire-and-forget from the caller's point of view: the Item is already
+   committed and the person has already been told it saved, so a failure
+   to start the run must not turn that into an error they see. It leaves
+   the Item run-less, which is visible and recoverable, rather than
+   leaving them believing the save failed. */
+async function itemsStartHandoff(item, type){
+  const s = await orgEnsure();
+  if (!s || !item || !type || !type.workflowId) return null;
+  const bp = await itemsBlueprintFor(s.orgId, type);
+  if (!bp) { console.warn("Type " + type.id + " names a blueprint that is not there:", type.workflowId); return null; }
+
+  let started;
+  try {
+    started = wfStartRun({ blueprint: bp, runId: "rn" + itemNewId(), taskId: item.id,
+      task: item, orgId: s.orgId, now: Date.now() });
+  } catch (e) { console.error("Blueprint would not start:", e); return null; }
+
+  try {
+    const batch = db.batch();
+    batch.set(runsCol(s.orgId).doc(started.run.id), started.run);
+    started.nodeRuns.forEach(nr => batch.set(stopsCol(s.orgId).doc(nr.id), nr));
+    await batch.commit();
+  } catch (e) { console.error("Could not write the run:", e); return null; }
+
+  await itemsSyncFromRun(item, type, bp, started.run, started.nodeRuns);
+  return started;
+}
+
+/* Everything the screens read about a running handoff, in one place. */
+async function itemsHandoffLoad(item){
+  const s = await orgEnsure();
+  if (!s || !item || !item.workflowRunId) return null;
+  try {
+    const runDoc = await runsCol(s.orgId).doc(item.workflowRunId).get();
+    if (!runDoc.exists) return null;
+    const run = Object.assign({ id: runDoc.id }, runDoc.data());
+    const snap = await stopsCol(s.orgId).where("runId", "==", run.id).get();
+    const nodeRuns = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+    // the run carries its own frozen blueprint, so a track edited since
+    // cannot change the shape of work already travelling
+    return { run, nodeRuns, blueprint: run.blueprintSnapshot || null, members: s.members || [] };
+  } catch (e) { console.error(e); return null; }
+}
+
+/* Move the baton on. The read-decide-write is one transaction because
+   two people finishing the same stop at the same moment must not both
+   win - the second must find it already completed and say so, rather
+   than silently overwriting the first person's answer. */
+async function itemsAdvanceHandoff(item, type, nodeRunId, output){
+  const s = await orgEnsure();
+  if (!s || !item || !item.workflowRunId) return { ok: false, error: "no-run" };
+  const uid = auth.currentUser ? auth.currentUser.uid : null;
+  const isOwner = (s.myRoleId === "owner");
+  const runRef = runsCol(s.orgId).doc(item.workflowRunId);
+
+  let after = null, as = null;
+  try {
+    await db.runTransaction(async tx => {
+      const runDoc = await tx.get(runRef);
+      if (!runDoc.exists) throw new Error("no-run");
+      const run = Object.assign({ id: runDoc.id }, runDoc.data());
+      const bp = run.blueprintSnapshot;
+      const snap = await stopsCol(s.orgId).where("runId", "==", run.id).get();
+      const nodeRuns = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+
+      const nr = nodeRuns.find(x => x.id === nodeRunId);
+      if (!nr) throw new Error("no-stop");
+      const may = hoMayAdvance(bp, nr, uid, s.members || [], isOwner);
+      if (!may.ok) throw new Error(may.reason);
+      as = may.as;
+
+      const next = wfAdvance({ run, nodeRuns },
+        { type: "complete", nodeRunId, output: output || {} }, { now: Date.now() });
+
+      tx.set(runRef, next.run);
+      next.nodeRuns.forEach(x => {
+        // who actually pressed it, which the engine does not record and
+        // the trail is far less useful without
+        const stamped = (x.id === nodeRunId) ? Object.assign({}, x, { completedBy: uid, completedAs: as }) : x;
+        tx.set(stopsCol(s.orgId).doc(x.id), stamped);
+      });
+      after = next;
+    });
+  } catch (e) {
+    const m = String((e && e.message) || "");
+    if (m === "not-yours" || m === "not-active" || m === "no-stop" || m === "no-run") return { ok: false, error: m };
+    console.error(e);
+    return { ok: false, error: "failed" };
+  }
+
+  const bp = (after && after.run && after.run.blueprintSnapshot) || null;
+  await itemsSyncFromRun(item, type, bp, after.run, after.nodeRuns);
+  return { ok: true, as, run: after.run, nodeRuns: after.nodeRuns };
+}
+
+/* Make the Item tell the truth about where its work is.
+
+   The run drives the status and the assignees, never the other way
+   round - two ways to move the same work is two sources of truth, and
+   they disagree eventually. This goes through itemSave() like every
+   other change, which is deliberate: the baton arriving fires
+   item.assigned, so the person it just reached is told by the same
+   machinery that tells anyone handed work, and any rule watching the
+   status fires as it would have anyway. */
+async function itemsSyncFromRun(item, type, blueprint, run, nodeRuns){
+  const s = await orgEnsure();
+  if (!s || !item) return;
+  const holders = hoHolders(blueprint, nodeRuns, s.members || []);
+  const status = hoStatus(blueprint, nodeRuns);
+  let cur = item;
+
+  try {
+    if (item.workflowRunId !== run.id)
+      await itemsCol(s.orgId).doc(item.id).update({ workflowRunId: run.id });
+  } catch (e) { console.warn("Could not point the item at its run:", e); }
+
+  try {
+    if (status && cur.status !== status) {
+      const r = await itemSave(type, cur, { kind: "set_status", status });
+      if (r.ok && r.item) cur = r.item;
+    }
+    const now = (cur.assigneeIds || []).slice().sort().join(",");
+    if (holders.slice().sort().join(",") !== now) {
+      await itemSave(type, cur, { kind: "assign", assigneeIds: holders });
+    }
+  } catch (e) { console.warn("Could not sync the item to its run:", e); }
 }
 
 /* ---------- template packs ---------- */
