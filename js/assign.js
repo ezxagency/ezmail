@@ -531,9 +531,11 @@ function watchAssignedTasksFromItems(){
       // and someone who does have work would believe it. The old path
       // has never stopped working, so use it.
       console.warn("itemsRead is on, but this account is in no organization - using the assignments path");
+      assignedEmptyReason = "no-org";
       watchAssignedTasksFromAssignments();
       return;
     }
+    assignedEmptyReason = null;
     const uid = auth.currentUser.uid;
     const items = db.collection("orgs").doc(s.orgId).collection("items");
     unsub = items
@@ -581,6 +583,11 @@ function watchAssignedTasksFromItems(){
    (and toasts) without needing a reload ---------- */
 let assignedTasksSeen = null; // null = first snapshot hasn't landed yet
 let assignedOpenRows = [];    // last snapshot, so "All done" knows the group's ids
+/* WHY the queue is empty, when it is. "You're all caught up" is a lie if
+   the truth is that this account is in no organization and work assigned
+   to them cannot reach this list at all - and it is a lie nobody can
+   debug from the screen, which is how an afternoon gets spent on it. */
+let assignedEmptyReason = null;
 /* Everything that happens once a snapshot of MY open rows has landed,
    whichever collection produced them. Extracted when the read cutover
    gave this app a second source, because the alternative was two copies
@@ -709,8 +716,10 @@ function renderAssignedList(rows){
         <span class="atask-empty-mark">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.2 2.2L15.5 9"/><rect x="4.5" y="4" width="15" height="17" rx="2.4"/><path d="M9 4V2.8h6V4"/></svg>
         </span>
-        <b>No tasks assigned</b>
-        <span>You're all caught up. New tasks from the admin land here.</span>
+        <b>${assignedEmptyReason === "no-org" ? "You are not in an organization yet" : "No tasks assigned"}</b>
+        <span>${assignedEmptyReason === "no-org"
+          ? "Work assigned to you cannot reach this list until an owner adds you to their organization."
+          : "You're all caught up. New tasks from the admin land here."}</span>
       </li>`;
     return;
   }
