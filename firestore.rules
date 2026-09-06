@@ -43,6 +43,21 @@ service cloud.firestore {
     function inviteKind(token) {
       return inviteDoc(token).get('kind', 'team');
     }
+
+    /* Do I and this other person belong to the same organization?
+       memberOf is SELF-ASSERTED, so the pointer alone proves nothing -
+       isOrgMember() below re-checks that I am genuinely seated in the org
+       my own pointer names before it is trusted to authorize reaching
+       anybody. Three document reads, and repeated paths are cached. */
+    function myOrgId() {
+      return get(/databases/$(database)/documents/memberOf/$(request.auth.uid)).data.orgId;
+    }
+    function sharesMyOrg(uid) {
+      return uid != ''
+        && exists(/databases/$(database)/documents/memberOf/$(request.auth.uid))
+        && isOrgMember(myOrgId())
+        && exists(/databases/$(database)/documents/orgs/$(myOrgId())/members/$(uid));
+    }
     /* ---- Tenancy (docs/platform-spec.md, phase 1) ----
        An org is a tenant. Membership is a DOCUMENT, not an email in a
        list: orgs/{orgId}/members/{uid} both proves you belong and names
@@ -321,7 +336,23 @@ service cloud.firestore {
     // notify; only the target - a member by uid, or any admin via the
     // toRole:"admin" fan-in doc - may read it or mark it read.
     match /notifications/{id} {
-      allow create: if request.auth != null;
+      /* "Anyone signed in may notify anyone" was a statement about who
+         could hold an account: invite-only, approved by hand, so everyone
+         signed in was Ez Agency. The founder door falsified it - a
+         customer could have put arbitrary text into this team's bell,
+         which is a phishing surface even though it leaks nothing.
+
+         Three ways in now, and no fourth: Ez Agency's own team by the
+         legacy @mention and hand-off paths; anybody reaching somebody in
+         their OWN org; and the one message a person outside every org has
+         to be able to send - a fresh signup ringing the bell for approval,
+         pinned to that exact shape so it cannot carry anything else. */
+      allow create: if request.auth != null && (
+        isTeam()
+        || sharesMyOrg(request.resource.data.get('toUid', ''))
+        || (request.resource.data.get('toRole', '') == 'admin'
+            && request.resource.data.get('kind', '') == 'signup')
+      );
       allow read: if request.auth != null && (
         resource.data.toUid == request.auth.uid ||
         (resource.data.toRole == 'admin' && isAdmin())
@@ -343,8 +374,11 @@ service cloud.firestore {
       allow read: if request.auth != null && (resource.data.toUid == request.auth.uid || isAdmin() || isAssignerEmail());
       // workers may also create assignments addressed to THEMSELVES - that
       // is how accepting a comment-tag hand-off lands on their own queue
+      // same premise, same correction: accepting a hand-off onto your own
+      // queue is a TEAM action, and assignments is Ez Agency's own
+      // pre-tenancy collection that no customer has business writing to
       allow create: if request.auth != null && (isAdmin() || isAssignerEmail()
-        || request.resource.data.toUid == request.auth.uid);
+        || (isTeam() && request.resource.data.toUid == request.auth.uid));
       // the assignee's own updates are progress-only: they can finish,
       // undo, comment and stamp seen - never re-address the task to
       // someone else or rewrite what was asked of them

@@ -530,6 +530,46 @@ The general lesson is worth keeping: **every "any signed-in account" rule
 is a statement about who can hold an account.** That premise changed the
 day the founder door opened, and any rule resting on it had to be re-read.
 
+### The audit that followed
+
+Every rule in `firestore.rules` was re-read against the changed premise.
+Three rested on it; the rest hold for reasons that survive.
+
+**Corrected**
+
+- `directory` read — was `request.auth != null`. Now tenant-scoped (above).
+- `notifications` create — was `request.auth != null`. A customer could put
+  arbitrary text into Ez Agency's bell with `toRole: 'admin'`: no leak, but
+  a phishing surface. Now three ways in and no fourth — Ez Agency's team by
+  the legacy @mention and hand-off paths, anybody reaching somebody in
+  their own org, and a fresh signup ringing the approval bell, pinned to
+  `kind: 'signup'` so it cannot carry anything else.
+- `assignments` create — the self-addressed branch let anyone write into Ez
+  Agency's pre-tenancy queue. Accepting a hand-off is a team action, so it
+  now says so.
+
+**Checked and sound**
+
+- `blueprints`, `versions`, `runs`, `nodeRuns` — `isTeam()`, and a member is
+  deliberately not team.
+- `campaigns` — admin, or named in `memberUids`, which no customer is.
+- `users`, `appState` — own row, or admin.
+- `mail` — a non-admin may queue mail only to their own verified address,
+  with a key allowlist that stops `cc`/`bcc`/`replyTo` turning the
+  project's sender into a relay. This one was already written defensively.
+- `invites`, `clientReviews` — `allow get: if true` is the capability
+  pattern: the unguessable token in the link *is* the credential, and
+  listing is gated so tokens cannot be harvested.
+- `memberOf` — self-asserted and authorizes nothing on its own. Anything
+  trusting it must re-check the seat, which `sharesMyOrg()` does; there is
+  an assertion proving a lying pointer buys nothing.
+
+**Noted, not changed.** A burned invite exposes the `usedEmail`/`usedName`
+of whoever spent it to anyone still holding that token — pre-existing, and
+the holder is whoever it was sent to. And `notifications` remains a
+top-level collection when tenancy says it should hang under the org; the
+rule is correct now, but moving it is the cleaner shape.
+
 Still open: nothing is time-based, and billing, seats and a plan on the org
 document remain unwritten.
 

@@ -72,6 +72,20 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "orgs/orgN"), { name: "N Co", ownerUid: "member1", createdAt: 1 });
   await setDoc(doc(db, "orgs/orgN/members/member1"), { uid: "member1", roleId: "owner", joinedAt: 1 });
   await setDoc(doc(db, "orgs/orgN/members/worker2"), { uid: "worker2", roleId: "staff", joinedAt: 1 });
+  // a second customer in orgN, with the pointer that makes them reachable.
+  // member1's own pointer moves to orgM during the founder-door tests, so
+  // this is the actor the same-org cases run as.
+  await setDoc(doc(db, "users/member2"), { email: "colleague@other.com", role: "member", emailVerified: true });
+  await setDoc(doc(db, "orgs/orgN/members/member2"), { uid: "member2", roleId: "staff", joinedAt: 1 });
+  await setDoc(doc(db, "memberOf/member2"), { orgId: "orgN", at: 1 });
+  // ...and somebody whose pointer LIES: says orgA, is seated nowhere
+  await setDoc(doc(db, "users/liar1"), { email: "liar@evil.com", role: "member", emailVerified: true });
+  await setDoc(doc(db, "memberOf/liar1"), { orgId: "orgA", at: 1 });
+  // a third tenant's person, in orgB and nowhere else - the only clean
+  // "somebody in another org" in this fixture, since worker2 turns out to
+  // sit in orgA, orgB and orgN at once
+  await setDoc(doc(db, "users/outsider1"), { email: "out@third.com", role: "member", emailVerified: true });
+  await setDoc(doc(db, "orgs/orgB/members/outsider1"), { uid: "outsider1", roleId: "staff", joinedAt: 1 });
   // ---- tenancy (phase 1): two orgs that must never see each other, plus
   // two founded-but-unseated orgs for the founding-seat case ----
   await setDoc(doc(db, "orgs/orgA"), { name: "Org A", ownerUid: "admin1", createdAt: 1 });
@@ -109,6 +123,8 @@ const newbie3 = env.authenticatedContext("newbie3", { email: "nb3@x.com" }).fire
 const newbie4 = env.authenticatedContext("newbie4", { email: "nb4@x.com" }).firestore();
 // a customer: their own organization, and nothing of Ez Agency's
 const member = env.authenticatedContext("member1", { email: "founder@other.com" }).firestore();
+const member2 = env.authenticatedContext("member2", { email: "colleague@other.com" }).firestore();
+const liar = env.authenticatedContext("liar1", { email: "liar@evil.com" }).firestore();
 
 // ================= WORKER =================
 await T("worker: query own open assignments", assertSucceeds(getDocs(query(collection(worker, "assignments"), where("toUid", "==", "worker1"), where("done", "==", false)))));
@@ -207,6 +223,22 @@ await T("owner: stamping somebody who is NOT in their org DENIED", assertFails(s
 await T("owner: stamps orgId onto their own member", assertSucceeds(setDoc(doc(member, "directory/worker2"), { orgId: "orgN" }, { merge: true })));
 await T("owner: stamping orgId AND a name DENIED (a roster is not a rename)", assertFails(setDoc(doc(member, "directory/worker2"), { orgId: "orgN", name: "Hacked" }, { merge: true })));
 await T("owner: renaming their own member DENIED", assertFails(setDoc(doc(member, "directory/worker2"), { name: "Hacked" }, { merge: true })));
+
+// ================= WHO MAY RING WHOSE BELL =================
+// "Anyone signed in may notify anyone" was a statement about who could
+// hold an account. Once a customer can, it is a way to put text in this
+// team's bell - no leak, but a phishing surface.
+const NOTE = t => ({ kind: "automation", read: false, createdAt: 9, text: t, store: "", task: "" });
+await T("member: notify an Ez Agency worker DENIED", assertFails(setDoc(doc(member2, "notifications/x1"), { ...NOTE("click here"), toUid: "worker1" })));
+await T("member: ring the admin bell with arbitrary text DENIED", assertFails(setDoc(doc(member2, "notifications/x2"), { ...NOTE("reset your password"), toRole: "admin" })));
+await T("member: notify somebody in their OWN org", assertSucceeds(setDoc(doc(member2, "notifications/x3"), { ...NOTE("a swap needs covering"), toUid: "member1" })));
+await T("member: notify somebody in ANOTHER org DENIED", assertFails(setDoc(doc(member2, "notifications/x4"), { ...NOTE("hello"), toUid: "outsider1" })));
+await T("a LYING memberOf pointer buys nothing", assertFails(setDoc(doc(liar, "notifications/x5"), { ...NOTE("trust me"), toUid: "worker1" })));
+await T("worker(team): still notifies anyone, as the legacy paths need", assertSucceeds(setDoc(doc(worker, "notifications/x6"), { ...NOTE("@mention"), toUid: "worker2" })));
+await T("a fresh signup may still ring the approval bell", assertSucceeds(setDoc(doc(newbie3, "notifications/x7"), { toRole: "admin", kind: "signup", read: false, createdAt: 9, msg: "NB3 verified their email" })));
+await T("...but only in that exact shape", assertFails(setDoc(doc(newbie3, "notifications/x8"), { toRole: "admin", kind: "automation", read: false, createdAt: 9, text: "anything else" })));
+
+await T("member: writing into Ez Agency's assignments DENIED", assertFails(setDoc(doc(member2, "assignments/a9"), { toUid: "member2", store: "s", task: "t", createdAt: 9 })));
 
 // ================= WORKFLOW BLUEPRINTS =================
 await T("worker: read blueprints (runs board shows the track)", assertSucceeds(getDocs(query(collection(worker, "blueprints"), where("orgId", "==", "ez-agency")))));
