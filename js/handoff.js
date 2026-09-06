@@ -39,7 +39,7 @@ const HO_NUDGE_EVERY = HO_DAY;
 /* Everything wrong with a track, all at once - never the first error,
    for the same reason itemValidate() works that way: a form that
    reveals one problem per save is a form people abandon. */
-function hoTrackErrors(track, roleIds, statusKeys){
+function hoTrackErrors(track, roleIds, statusKeys, members){
   const out = [];
   const stops = track || [];
   const roles = new Set(roleIds || []);
@@ -61,6 +61,15 @@ function hoTrackErrors(track, roleIds, statusKeys){
     if (s && s.dueAfter !== undefined && s.dueAfter !== null && s.dueAfter !== "" &&
         (typeof s.dueAfter !== "number" || !(s.dueAfter > 0)))
       out.push({ at: i, message: "A time budget has to be a number of days above zero." });
+    // narrowing to nobody who is actually in the role is a stop that can
+    // never be held - the same silent stall as an empty role, arrived at
+    // from the other direction
+    if (s && (s.assignees || []).length && members) {
+      const inRole = (members || []).filter(m =>
+        s.roleId === HO_ANY || !s.roleId || m.roleId === s.roleId).map(m => m.uid);
+      if (!s.assignees.some(u => inRole.indexOf(u) >= 0))
+        out.push({ at: i, message: "Nobody you picked is in that role any more." });
+    }
   });
   return out;
 }
@@ -85,6 +94,9 @@ function hoBuildBlueprint(type, track, opts){
     // the role is the whole point: who holds it is derived from this at
     // read time, so the stop stays true as people join and leave
     config.role = s.roleId;
+    // the engine reads cfg.assignees as "who may act"; the role stays
+    // beside it so hoHolders can keep intersecting the two
+    if ((s.assignees || []).length) config.assignees = s.assignees.slice();
     // an extra key the engine ignores and this file reads. wfValidate
     // checks the config it knows about and permits the rest, which is
     // what lets a stop say what it MEANS in the type's own vocabulary
@@ -131,9 +143,13 @@ function hoTrackGaps(track, members){
   const out = [];
   (track || []).forEach((s, i) => {
     if (!s || !s.roleId) return;
-    if (s.roleId === HO_ANY) { if (!roster.length) out.push({ at: i, label: s.label, roleId: s.roleId }); return; }
-    if (!roster.some(m => m && m.roleId === s.roleId))
-      out.push({ at: i, label: s.label, roleId: s.roleId });
+    const inRole = s.roleId === HO_ANY
+      ? roster.map(m => m.uid)
+      : roster.filter(m => m && m.roleId === s.roleId).map(m => m.uid);
+    const held = (s.assignees || []).length
+      ? inRole.filter(u => s.assignees.indexOf(u) >= 0)
+      : inRole;
+    if (!held.length) out.push({ at: i, label: s.label, roleId: s.roleId });
   });
   return out;
 }
@@ -203,15 +219,23 @@ function hoHolders(blueprint, nodeRuns, members){
   hoActiveStops(nodeRuns).forEach(nr => {
     const node = hoNodeById(blueprint, nr.nodeId);
     const cfg = (node && node.config) || {};
-    // an explicit person on the stop wins over its role: the full builder
-    // can name one, and "Priya, specifically" must not be overruled by
-    // everyone who happens to share her role
+    /* A stop belongs to a ROLE, and may be narrowed to some of the people
+       in it. "The managers" or "these two managers" - never a bare list of
+       names divorced from a role.
+
+       That is what keeps holders derived rather than frozen: narrowing
+       says WHICH managers, so somebody who stops being a manager stops
+       holding the stop, without anybody editing the track. A flat list of
+       names would have kept them on it forever. */
+    const inRole = cfg.role === HO_ANY
+      ? roster.map(m => m.uid)
+      : cfg.role
+        ? roster.filter(m => m.roleId === cfg.role).map(m => m.uid)
+        : roster.map(m => m.uid);
     const named = (nr.assignees && nr.assignees.length) ? nr.assignees
       : (nr.assigneeId ? [nr.assigneeId] : []);
-    if (named.length) { named.forEach(u => out.push(u)); return; }
-    if (!cfg.role) return;
-    if (cfg.role === HO_ANY) { roster.forEach(m => out.push(m.uid)); return; }
-    roster.forEach(m => { if (m.roleId === cfg.role) out.push(m.uid); });
+    const holders = named.length ? inRole.filter(u => named.indexOf(u) >= 0) : inRole;
+    holders.forEach(u => out.push(u));
   });
   return [...new Set(out)].filter(Boolean);
 }

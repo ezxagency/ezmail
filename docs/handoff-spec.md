@@ -239,10 +239,18 @@ the server.
 
 **Not built.**
 
-- **Named-person stops.** Open question 1 is still open — a stop names a
-  role, not "Priya, specifically". `hoHolders()` already honours an explicit
-  person if one is on the stop, so the data path exists; the editor does not
-  offer it.
+- ~~**Named-person stops.**~~ **Shipped**, and answering open question 1 in
+  a better shape than the question assumed. A stop is not "a role OR a
+  person" — it is a role, optionally **narrowed to some of the people in
+  it**. Pick Manager, then tick two of the four managers.
+
+  Narrowing rather than replacing is the whole point: the stop still
+  belongs to the role, so somebody who stops being a manager stops holding
+  it without anyone editing the track. A bare list of names would have kept
+  them on it forever, which is exactly the frozen-holders mistake this spec
+  refused at the start. Ticking nobody means anyone in the role, so the
+  simple case stays simple, and a narrowing nobody satisfies any more is a
+  gap like any other empty stop.
 - **Backwards.** Open question 2 — a reviewer sending work back. The engine's
   LOGIC nodes can express it; a straight track cannot draw it.
 - **Starting a run any other way** than creating the work.

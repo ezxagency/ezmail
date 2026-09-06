@@ -116,6 +116,42 @@ T("holders are re-derived, never frozen", () => {
   assert.deepEqual(H.hoHolders(bp, st.nodeRuns, later), ["u2", "u7"]);
 });
 
+/* ---------- narrowing a stop to some of the role ---------- */
+const NARROW = [{ label: "Outreach", roleId: "staff", assignees: ["u2"] }];
+const nbp = H.hoBuildBlueprint(TYPE, NARROW, { id: "bp2", orgId: "o1", now: 1 });
+const nstart = () => WF.wfStartRun({ blueprint: nbp, runId: "r2", taskId: "i2", task: {}, orgId: "o1", now: 1 });
+
+T("a narrowed stop is held by only the people picked", () => {
+  // u2 and u3 are both staff; only u2 was named
+  assert.deepEqual(H.hoHolders(nbp, nstart().nodeRuns, MEMBERS), ["u2"]);
+});
+T("an unnarrowed stop is still held by the whole role", () => {
+  assert.deepEqual(H.hoHolders(bp, finish(start(), 2).nodeRuns, MEMBERS), ["u2", "u3"]);
+});
+T("somebody who leaves the role stops holding it, without editing the track", () => {
+  // this is why narrowing keeps the role rather than replacing it with a
+  // list of names - a bare list would have kept them on it forever
+  const moved = [{ uid: "u2", roleId: "manager" }, { uid: "u3", roleId: "staff" }];
+  assert.deepEqual(H.hoHolders(nbp, nstart().nodeRuns, moved), []);
+});
+T("a narrowing nobody satisfies is a gap", () => {
+  assert.equal(H.hoTrackGaps(NARROW, [{ uid: "u9", roleId: "staff" }]).length, 1);
+  assert.equal(H.hoTrackGaps(NARROW, MEMBERS).length, 0);
+});
+T("the editor is told when a narrowing has gone stale", () => {
+  const stale = H.hoTrackErrors(NARROW, ROLES, STATUSES, [{ uid: "u9", roleId: "staff" }]);
+  assert.match(stale.map(e => e.message).join(" "), /Nobody you picked is in that role/);
+  assert.equal(H.hoTrackErrors(NARROW, ROLES, STATUSES, MEMBERS).length, 0);
+});
+T("only the named people may move it on", () => {
+  const nr = H.hoActiveStops(nstart().nodeRuns)[0];
+  assert.equal(H.hoMayAdvance(nbp, nr, "u2", MEMBERS, false).ok, true);
+  assert.equal(H.hoMayAdvance(nbp, nr, "u3", MEMBERS, false).ok, false);  // staff, but not named
+});
+T("a narrowed track still compiles to a blueprint the engine accepts", () => {
+  assert.deepEqual(plain(WF.wfValidate(nbp)), []);
+});
+
 /* ---------- who may move it ---------- */
 const stopOf = st => H.hoActiveStops(st.nodeRuns)[0];
 T("the holder may move it on", () => {

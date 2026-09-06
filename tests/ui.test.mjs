@@ -407,6 +407,40 @@ T("the type shows its track, and offers to set one up when it has none", () => {
   assert.match(doc.querySelector(".org-track").textContent, /Set up handoff/);
 });
 
+T("picking a role offers the people in it, none ticked by default", () => {
+  run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", automations: [],
+    members: [{ uid: "u1", roleId: "manager" }, { uid: "u2", roleId: "staff" }, { uid: "u3", roleId: "staff" }],
+    dir: { u1: { name: "Ada" }, u2: { name: "Bo" }, u3: { name: "Cy" } },
+    roles: [{ id: "manager", name: "Manager" }, { id: "staff", name: "Staff" }],
+    types: [{ id: "sponsor", name: "Sponsorship", fields: [], statuses: [{ key: "agreed", label: "Agreed" }],
+      track: [{ label: "Outreach", roleId: "staff" }] }] };
+    orgTrackSheet(orgS.types[0]);`);
+  const boxes = [...doc.querySelectorAll(".otk-person")];
+  assert.deepEqual(plain(boxes.map(b => b.value)), ["u2", "u3"], "it offers the wrong role's people");
+  assert.ok(boxes.every(b => !b.checked));
+  assert.match(doc.querySelector(".otk-who-head").textContent, /Anyone in this role \(2\)/);
+});
+
+T("ticking some of them narrows the stop to those people", () => {
+  doc.querySelectorAll(".otk-person")[0].checked = true;
+  doc.getElementById("otkSave").onclick();
+  assert.deepEqual(plain(run("orgTrackDraft[0].assignees")), ["u2"]);
+});
+
+T("changing the role clears the picks, because they were another role's", () => {
+  run(`orgTrackDraft = [{ label: "Outreach", roleId: "staff", assignees: ["u2"] }]; orgTrackRender(orgS.types[0]);`);
+  const sel = doc.querySelector(".otk-role");
+  sel.value = "manager";
+  sel.onchange();
+  assert.deepEqual(plain(run("orgTrackDraft[0].assignees")), []);
+  assert.deepEqual(plain([...doc.querySelectorAll(".otk-person")].map(b => b.value)), ["u1"]);
+});
+
+T("a narrowed stop says so on the type", () => {
+  run(`orgS.types[0].track = [{ label: "Outreach", roleId: "staff", assignees: ["u2"] }]; orgRender();`);
+  assert.match(doc.querySelector(".org-typefold .org-chip u").textContent, /1 named/);
+});
+
 T("a stop can be given days, and the type shows the budget", () => {
   run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", dir: {}, automations: [],
     members: [{ uid: "u1", roleId: "manager" }],

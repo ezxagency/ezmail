@@ -308,6 +308,7 @@ function orgRender(){
                     '<span class="org-chip' + (gapAt.has(i) ? " gap" : "") + '">' +
                       esc(st.label || ("Stop " + (i + 1))) +
                       '<i>' + esc(st.roleId === HO_ANY ? "anyone" : orgRoleName(st.roleId)) + '</i>' +
+                      ((st.assignees || []).length ? '<u>' + st.assignees.length + ' named</u>' : "") +
                       (st.dueAfter ? '<u>' + Math.round(st.dueAfter / HO_DAY) + 'd</u>' : "") + '</span>').join("") +
                     '</div>' +
                     (gaps.length
@@ -1017,6 +1018,25 @@ function orgTrackRender(type){
           '<input class="otk-days" type="number" min="1" max="365" placeholder="Days" value="' +
             esc(st.dueAfter ? String(Math.round(st.dueAfter / HO_DAY)) : "") + '">' +
         '</div>' +
+        /* Narrowing WITHIN the role, never instead of it. "These two
+           managers" keeps the role, so somebody who stops being a manager
+           stops holding the stop without anyone editing the track - which
+           a bare list of names would have lost. */
+        (function(){
+          const people = st.roleId === HO_ANY ? (orgS.members || [])
+            : st.roleId ? (orgS.members || []).filter(m => m.roleId === st.roleId) : [];
+          if (!people.length) return "";
+          const on = st.assignees || [];
+          return '<div class="otk-who">' +
+            '<p class="otk-who-head">' + (on.length
+              ? esc("Only " + on.length + " of " + people.length)
+              : esc("Anyone in this role (" + people.length + ")")) + '</p>' +
+            people.map(m => '<label class="wk-check"><input type="checkbox" class="otk-person" value="' +
+              esc(m.uid) + '"' + (on.indexOf(m.uid) >= 0 ? " checked" : "") + '> ' +
+              esc(orgPersonName(m.uid)) + '</label>').join("") +
+            '<p class="org-note" style="margin:4px 0 0;font-size:11.5px">Tick nobody to mean anyone in the role.</p>' +
+          '</div>';
+        })() +
         (gapAt.has(i) ? '<p class="org-warn">Nobody is ' +
           esc(st.roleId === HO_ANY ? "in this organization" : orgRoleName(st.roleId)) +
           ', so work would stop here.</p>' : "") +
@@ -1040,9 +1060,11 @@ function orgTrackRender(type){
         $("sheetBody").querySelectorAll(".org-stop").forEach(row => {
           const i = +row.dataset.i;
           const days = parseFloat(row.querySelector(".otk-days").value);
+          const picked = [...row.querySelectorAll(".otk-person")].filter(c => c.checked).map(c => c.value);
           orgTrackDraft[i] = {
             label: row.querySelector(".otk-label").value.trim(),
             roleId: row.querySelector(".otk-role").value,
+            assignees: picked,
             status: row.querySelector(".otk-status").value,
             // days in the box, milliseconds in the model: the engine's
             // clock is in ms and a unit converted at the edge cannot drift
@@ -1051,6 +1073,13 @@ function orgTrackRender(type){
         });
       };
       $("otkAdd").onclick = () => { read(); orgTrackDraft.push({ label: "", roleId: "", status: "" }); orgTrackRender(type); };
+      // a different role means different people to choose from, so the row
+      // has to redraw - otherwise you would be ticking the last role's list
+      $("sheetBody").querySelectorAll(".otk-role").forEach(sel => sel.onchange = () => {
+        read();
+        orgTrackDraft[+sel.closest(".org-stop").dataset.i].assignees = [];
+        orgTrackRender(type);
+      });
       $("sheetBody").querySelectorAll(".otk-del").forEach(b => b.onclick = () => {
         read();
         orgTrackDraft.splice(+b.closest(".org-stop").dataset.i, 1);
@@ -1065,7 +1094,7 @@ function orgTrackRender(type){
 async function orgTrackSave(type){
   const roleIds = (orgS.roles || []).map(r => r.id).concat([HO_ANY]);
   const statusKeys = (type.statuses || []).map(s => s.key);
-  const errs = hoTrackErrors(orgTrackDraft, roleIds, statusKeys);
+  const errs = hoTrackErrors(orgTrackDraft, roleIds, statusKeys, orgS.members || []);
   if (errs.length) {
     $("otkErr").innerHTML = '<p class="org-note" style="color:#e0a08a">' +
       errs.map(e => esc((e.at >= 0 ? "Stop " + (e.at + 1) + ": " : "") + e.message)).join("<br>") + '</p>';
