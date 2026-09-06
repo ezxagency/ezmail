@@ -59,8 +59,11 @@ function sbPlan(shift, now, schedMs){
   return {
     start, elapsed, blocks, worked, brk,
     scheduled,
-    // overtime widens the bar rather than running off the end of it:
-    // the schedule stops being the whole span and becomes a mark on it
+    /* The bar's width on screen never changes. What changes is what that
+       width MEANS: past the schedule the span becomes the elapsed time, so
+       the scheduled part squeezes down to scheduled/elapsed of the bar and
+       overtime takes the rest, growing as the day runs on. At 7h on a 6h
+       shift the schedule is six sevenths and overtime the last seventh. */
     span: scheduled ? Math.max(scheduled, elapsed) : elapsed,
     remaining: scheduled ? Math.max(0, scheduled - elapsed) : 0,
     over: scheduled ? Math.max(0, elapsed - scheduled) : 0
