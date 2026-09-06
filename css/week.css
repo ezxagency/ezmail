@@ -7,6 +7,10 @@
 .ui-next #weekRow{
   display:flex;align-items:flex-end;gap:clamp(16px,3vw,64px);
   margin-top:16px;
+  /* the band spans the whole window; the row is the MAIN column's width,
+     so the streak pill lands at the end of the row rather than stranded
+     in the middle of the page */
+  max-width:860px;
   font-family:var(--wk);
 }
 

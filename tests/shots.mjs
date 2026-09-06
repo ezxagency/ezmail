@@ -1,0 +1,166 @@
+/* SCREENSHOTS — the dashboard in an actual browser.
+
+     cd tests && npm run shots        # writes tests/.shots/*.png
+
+   Not part of `npm test`: it needs a browser, so it stays a thing you
+   run when you have changed how something LOOKS.
+
+   It exists because the pure suites and the jsdom ones both passed on a
+   deck whose front card was translucent enough to read the card behind
+   it through, a scrubber legend sitting on top of its own timestamps,
+   and a note rendering in capitals because it inherited text-transform
+   from the bar it replaced. Every one of those is invisible to an
+   assertion about markup and obvious in a picture.
+
+   Firebase is stubbed before any script runs, so nothing dials out and
+   no account is needed: the page boots, then the state is set by hand
+   and the real render functions are called. That is the compromise -
+   the CSS and the markup are the real ones, the DATA is a fixture. */
+import { chromium } from "playwright";
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { extname, join, normalize } from "node:path";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, "..");
+const OUT = join(here, ".shots");
+mkdirSync(OUT, { recursive: true });
+
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
+  ".png": "image/png", ".webp": "image/webp", ".json": "application/json" };
+
+const server = createServer(async (req, res) => {
+  const rel = normalize(decodeURIComponent(req.url.split("?")[0])).replace(/^(\.\.[/\\])+/, "");
+  try {
+    const body = await readFile(join(root, rel === "/" ? "index.html" : rel));
+    res.writeHead(200, { "content-type": TYPES[extname(rel)] || "application/octet-stream" });
+    res.end(body);
+  } catch { res.writeHead(404); res.end("not found"); }
+});
+await new Promise(r => server.listen(0, "127.0.0.1", r));
+const base = "http://127.0.0.1:" + server.address().port;
+
+const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+});
+const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+
+/* Everything the page reaches for at load, and nothing more. A stub that
+   resolved with DATA would be a second fixture nobody can see; these all
+   answer "nothing there" so the screen is drawn from what is set below. */
+await page.addInitScript(() => {
+  const col = {
+    doc: () => docStub, where: () => col, orderBy: () => col, limit: () => col,
+    onSnapshot: () => () => {}, add: () => Promise.resolve({ id: "x" }),
+    get: () => Promise.resolve({ forEach(){}, empty: true, size: 0, docs: [] })
+  };
+  const docStub = {
+    collection: () => col, onSnapshot: () => () => {},
+    get: () => Promise.resolve({ exists: false, data: () => ({}) }),
+    set: () => Promise.resolve(), update: () => Promise.resolve(), delete: () => Promise.resolve()
+  };
+  const fs = () => ({ collection: () => col, collectionGroup: () => col, doc: () => docStub,
+    batch: () => ({ set(){}, update(){}, delete(){}, commit: () => Promise.resolve() }),
+    runTransaction: fn => fn({ get: () => Promise.resolve({ exists: false, data: () => ({}) }), set(){}, update(){} }) });
+  fs.FieldValue = { serverTimestamp: () => 0, delete: () => null,
+    arrayUnion: (...a) => a, arrayRemove: (...a) => a };
+  window.firebase = {
+    initializeApp(){}, firestore: fs,
+    auth: () => ({ currentUser: { uid: "u1", email: "prashanna@ez.com" },
+      onAuthStateChanged(){}, signOut: () => Promise.resolve() }),
+    functions: () => ({ httpsCallable: () => () => Promise.resolve({ data: {} }) })
+  };
+  window.Drawflow = function(){ return { start(){}, on(){}, addNode(){}, clear(){} }; };
+});
+
+const errs = [];
+page.on("pageerror", e => errs.push(String(e.message).slice(0, 160)));
+await page.goto(base + "/index.html", { waitUntil: "load" });
+await page.waitForTimeout(400);
+
+const shoot = async (name) => {
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: join(OUT, name + ".png") });
+  console.log("  " + name + ".png");
+};
+
+// ---- on shift, four pieces of work assigned ----
+await page.evaluate(() => {
+  const H = 3600000, now = Date.now();
+  const d = new Date(now), mid = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dayAt = (back, h) => new Date(mid.getFullYear(), mid.getMonth(), mid.getDate() - back, h).getTime();
+
+  document.body.classList.add("ui-next");
+  document.getElementById("loginScreen").classList.add("hidden");
+  const app = document.getElementById("appScreen");
+  app.classList.remove("hidden");
+  app.classList.add("panes", "has-tasks");
+
+  isAdmin = false; isMember = false;
+  S.worker = "Prashanna";
+  S.status = "ACTIVE";
+  S.shift = { client: "Store Epsilon", startedAt: now - 3 * H - 17 * 60000,
+    segs: [
+      { task: "Copy", startedAt: now - 3 * H - 17 * 60000, endedAt: now - 2 * H, client: "Store Epsilon" },
+      { task: "Design review", startedAt: now - 80 * 60000, endedAt: null }
+    ],
+    breaks: [{ reason: "Lunch", startedAt: now - 2 * H, endedAt: now - 80 * 60000 }] };
+  S.history = [1, 2, 3, 4].map(b => ({
+    client: "Store Epsilon", startedAt: dayAt(b, 9), endedAt: dayAt(b, 9 + (9 - b)),
+    netMs: (9 - b) * H, breakMs: 0,
+    segs: [{ task: b % 2 ? "Copy" : "Embed", startedAt: dayAt(b, 9), endedAt: dayAt(b, 12) }], breaks: [] }));
+
+  orgS = { orgId: "orgA", org: { name: "Ez Agency" }, myRoleId: "staff",
+    members: [{ uid: "u1", roleId: "staff", shiftMinutes: 360 }],
+    roles: [{ id: "staff", name: "Staff", permissions: ["item:update:assigned"] }],
+    types: [], dir: { u1: { name: "Prashanna" } } };
+
+  document.querySelectorAll(".drawer-item").forEach(a => a.classList.remove("hidden"));
+  document.getElementById("drawerTeam").classList.add("hidden");
+  document.getElementById("drawerOrg").classList.add("hidden");
+  document.querySelector('.drawer-item[data-route=""]').classList.add("active");
+
+  render();
+  rlSync();
+  document.getElementById("assignedTasksSection").classList.remove("hidden");
+  const t = (id, task, store, due, extra) => Object.assign(
+    { id, task, store, dueDate: due, fromName: "Ada", createdAt: Date.now() - 86400000 }, extra || {});
+  const rows = [
+    t("r1", "Copy", "Store Epsilon", "2026-09-04", { note: "Second pass on the launch email — subject lines only." }),
+    t("r2", "Design review", "Store Beta", "2026-09-02"),
+    t("r3", "Embed", "Studio North", null, { cg: "c1", canBack: true }),
+    t("r4", "Final QA", "Store Zeta", "2026-09-10", { wfNodeRunId: "run1:n1:1" })
+  ];
+  dkRender(rows);
+  renderAssignedBrief(rows);
+});
+await shoot("next-on-shift");
+
+// ---- clocked out, nothing assigned: the state a new person opens on ----
+await page.evaluate(() => {
+  S.status = "IDLE"; S.shift = null;
+  render(); dkRender([]); renderAssignedBrief([]);
+});
+await shoot("next-idle");
+
+// ---- and the classic dashboard, which must not have moved at all ----
+await page.evaluate(() => {
+  document.body.classList.remove("ui-next");
+  const H = 3600000, now = Date.now();
+  S.status = "ACTIVE";
+  S.shift = { client: "Store Epsilon", startedAt: now - 3 * H,
+    segs: [{ task: "Design review", startedAt: now - 80 * 60000, endedAt: null }],
+    breaks: [{ reason: "Lunch", startedAt: now - 2 * H, endedAt: now - 80 * 60000 }] };
+  const rows = [{ id: "r1", task: "Copy", store: "Store Epsilon",
+    dueDate: "2026-09-04", fromName: "Ada", createdAt: Date.now() }];
+  render(); renderAssignedList(rows); renderAssignedBrief(rows);
+});
+await shoot("classic-unchanged");
+
+console.log(errs.length ? "\nPAGE ERRORS:\n  " + errs.slice(0, 8).join("\n  ") : "\nno page errors");
+await browser.close();
+server.close();
+process.exit(errs.length ? 1 : 0);

@@ -141,6 +141,13 @@ throws on a missing document exactly as Firestore does, because a fake
 that quietly succeeded would hide the very bugs it is here to catch. It
 found two the hour it was written.
 
+`npm run shots` is not part of `npm test` and is not an assertion: it
+boots the real page in Chromium with Firebase stubbed, sets the state by
+hand and photographs it (`tests/.shots/`). It exists because three
+slices of the redesign shipped green and visibly wrong — see
+`docs/lessons.md` > "Looking at it". Anything that changes how something
+LOOKS gets looked at.
+
 `packs.test.mjs` is the odd one out and worth understanding. It validates
 every pack in `js/packs.js` against the REAL engines, and then proves the
 validator actually refuses things — because a validator that always says

@@ -9,7 +9,13 @@
   display:block;
   width:100%;
   font-family:var(--wk);
+  /* the classic bar is one uppercase line; this one is a sentence in
+     places, and inheriting that turned its note into SHOUTING */
+  text-transform:none;
 }
+/* clear of the clock captions above it: without this the bar's own
+   "Today · 6h shift" line reads as a third caption under TASK CLOCK */
+.ui-next .app.panes .shiftbar{padding-top:3.2vh}
 
 .sb-head{
   display:flex;align-items:baseline;justify-content:space-between;gap:16px;
@@ -62,7 +68,7 @@
 .sb-t-end{right:0;left:auto}
 /* rides the playhead, so it reads as that dot's own label */
 .sb-t-live{transform:translateX(-50%);color:var(--wk-green);font-weight:700}
-.sb-note{position:absolute;left:0;top:0;color:var(--wk-white-60)}
+.sb-note{position:absolute;left:0;top:0;color:var(--wk-white-60);letter-spacing:.02em}
 
 .sb-legend{position:absolute;right:0;top:0;display:flex;gap:16px}
 .sb-key{display:flex;align-items:center;gap:6px;letter-spacing:.06em}
@@ -71,5 +77,10 @@
 .sb-key i.sb-break{background:#0c0d11;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
 .sb-key i.sb-rest{background:rgba(255,255,255,.22)}
 
-/* the legend is the first thing worth dropping when the column narrows */
+/* The legend is the first thing worth dropping when the bar is narrow -
+   and what makes it narrow is the COLUMN it sits in, not the window. In
+   the three-pane desktop layout the scrubber lives in the left rail
+   column at ~26% of the viewport, where the legend lands on top of the
+   timestamps however wide the screen is. */
+.ui-next .app.panes .sb-legend{display:none}
 @media (max-width:1279px){ .sb-legend{display:none} }

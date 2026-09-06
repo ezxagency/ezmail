@@ -168,6 +168,21 @@ A typo in a cleanup path takes everything after it down: `ReferenceError:
 list is not defined` on sign-out, where the function had declared `box`,
 killed the rest of sign-out.
 
+### Looking at it
+
+**Three slices shipped green and wrong.** The deck's front card was
+translucent enough to read the card behind it straight through its own
+title. The scrubber's legend sat on top of its own timestamps, because
+the thing that makes that bar narrow is the COLUMN it lives in, not the
+window — so a viewport media query never fired. And the bar's note
+rendered in capitals, inheriting `text-transform` from the one-line
+readout it replaced. Every pure and jsdom assertion passed on all three.
+*Rule:* an assertion can prove the markup is right and cannot prove the
+screen is. Anything that changes how something LOOKS gets looked at.
+*Guard:* `cd tests && npm run shots` boots the real page in Chromium with
+Firebase stubbed, sets the state by hand and photographs it — on shift,
+clocked out, and classic, which must not move.
+
 ### Process
 
 **Walk the whole flow before declaring it done.** The A-to-Z run found

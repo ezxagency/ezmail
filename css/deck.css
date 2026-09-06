@@ -19,13 +19,17 @@
   position:absolute;left:0;right:0;top:0;
   padding:18px 18px 16px;
   border-radius:16px;
-  background:rgba(28,30,38,.82);
+  /* OPAQUE, and that is not a style choice: a translucent front card let
+     the title of the card behind it read straight through the middle of
+     this one's, which looked like a rendering fault */
+  background:#1b1d25;
   border:1px solid rgba(255,255,255,.10);
   box-shadow:0 18px 40px rgba(0,0,0,.42);
-  backdrop-filter:blur(14px);
-  /* depth: each card behind sits lower, narrower and dimmer */
-  transform:translateY(calc(var(--d) * 10px)) scale(calc(1 - var(--d) * .04));
-  opacity:calc(1 - var(--d) * .34);
+  /* depth: each card behind sits lower, to the right, and dimmer - offset
+     on BOTH axes so the stack reads as a deck rather than as one card
+     with a shadow */
+  transform:translate(calc(var(--d) * 14px), calc(var(--d) * 12px)) scale(calc(1 - var(--d) * .035));
+  opacity:calc(1 - var(--d) * .42);
   z-index:calc(10 - var(--d));
   transition:transform .34s var(--pz-spring), opacity .28s var(--pz-ease);
   pointer-events:none;
@@ -34,7 +38,7 @@
 
 /* finished: it leaves to the left, because the deck moves forward */
 .adeck-card.is-going{
-  transform:translateX(-26px) scale(.97);
+  transform:translate(-26px, 0) scale(.97);
   opacity:0;
   transition:transform .22s var(--pz-ease), opacity .22s var(--pz-ease);
 }

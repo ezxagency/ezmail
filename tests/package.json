@@ -2,13 +2,15 @@
   "scripts": {
     "test": "node repo-guards.test.mjs && node permissions.test.mjs && node item-engine.test.mjs && node migrate.test.mjs && node automation.test.mjs && node packs.test.mjs && node handoff.test.mjs && node workflow-engine.test.mjs && node workflow-effects.test.mjs && node workflow-templates.test.mjs && node workflow-versions.test.mjs && node workflow-builder-handshake.test.mjs && node ui.test.mjs && node scrubber.test.mjs && node deck.test.mjs && node week.test.mjs && node rail.test.mjs && node hero.test.mjs && node flow.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-ez \"node firestore-rules.test.mjs\"",
-    "test:all": "npm test && npm run test:rules"
+    "test:all": "npm test && npm run test:rules",
+    "shots": "node shots.mjs"
   },
   "dependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
     "firebase": "^12.17.0"
   },
   "devDependencies": {
-    "jsdom": "^30.0.1"
+    "jsdom": "^30.0.1",
+    "playwright": "^1.56.0"
   }
 }
