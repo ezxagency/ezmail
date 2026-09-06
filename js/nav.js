@@ -98,7 +98,8 @@ document.addEventListener("keydown", e => {
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (r === "team" && !isAdmin) return;
-  if (r === "org" && !isAdmin) return;
+  if (r === "org" && !isAdmin && !isMember) return;
+  if ((r === "campaigns" || r === "workflow") && isMember) return;
   if (r === "history" && isAdmin) return;
   go(r);
 });
@@ -108,7 +109,12 @@ function applyRoute(){
   // role guards: a deep link to a page you can't use lands on the dashboard.
   // History is personal, so it's everyone's page EXCEPT admin's - their own
   // record lives inside Team's History section instead.
-  if ((r === "team" && !isAdmin) || (r === "org" && !isAdmin) || (r === "history" && isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
+  if ((r === "team" && !isAdmin)
+      || (r === "org" && !isAdmin && !isMember)
+      // a member has no business on Ez Agency's own pages, and the rules
+      // would refuse the reads anyway - bounce before the errors
+      || ((r === "campaigns" || r === "workflow") && isMember)
+      || (r === "history" && isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
     a.classList.toggle("active", (a.dataset.route || "") === r));

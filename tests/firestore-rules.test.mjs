@@ -52,6 +52,14 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, "invites/inv2"), { createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: "worker1", usedAt: 2 });
   await setDoc(doc(db, "invites/inv4"), { createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null });
   await setDoc(doc(db, "invites/inv5"), { createdBy: "admin1", createdAt: 1, expiresAt: 2, usedBy: null, usedAt: null });
+  // inv1/inv2/inv4/inv5 deliberately carry NO kind: they are the shape
+  // every invite had before founder links existed, and they must keep
+  // working as team invites
+  await setDoc(doc(db, "invites/invF"), { kind: "founder", createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "invites/invF2"), { kind: "founder", createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null });
+  await setDoc(doc(db, "invites/invTeam"), { kind: "team", createdBy: "admin1", createdAt: 1, expiresAt: 9999999999999, usedBy: null, usedAt: null });
+  // somebody already through the founder door, running their own org
+  await setDoc(doc(db, "users/member1"), { email: "founder@other.com", role: "member", emailVerified: true });
   // ---- tenancy (phase 1): two orgs that must never see each other, plus
   // two founded-but-unseated orgs for the founding-seat case ----
   await setDoc(doc(db, "orgs/orgA"), { name: "Org A", ownerUid: "admin1", createdAt: 1 });
@@ -85,6 +93,10 @@ const worker = env.authenticatedContext("worker1", { email: "w1@x.com" }).firest
 const anon = env.unauthenticatedContext().firestore();
 const stranger = env.authenticatedContext("stranger1", { email: "stranger@evil.com" }).firestore();
 const unverified = env.authenticatedContext("unverified1", { email: "new@x.com" }).firestore();
+const newbie3 = env.authenticatedContext("newbie3", { email: "nb3@x.com" }).firestore();
+const newbie4 = env.authenticatedContext("newbie4", { email: "nb4@x.com" }).firestore();
+// a customer: their own organization, and nothing of Ez Agency's
+const member = env.authenticatedContext("member1", { email: "founder@other.com" }).firestore();
 
 // ================= WORKER =================
 await T("worker: query own open assignments", assertSucceeds(getDocs(query(collection(worker, "assignments"), where("toUid", "==", "worker1"), where("done", "==", false)))));
@@ -130,6 +142,38 @@ await T("signup with someone else's spent invite DENIED", assertFails(setDoc(doc
 await T("signup with an EXPIRED invite DENIED (links last 24h)", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "pending", createdAt: 9, emailVerified: false, invite: "inv5", name: "NB2", phone: "" })));
 await T("signup straight to role worker DENIED even with an invite", assertFails(setDoc(doc(newbie2, "users/newbie2"), { email: "nb2@x.com", role: "worker", createdAt: 9, emailVerified: true, invite: "inv4", name: "NB2", phone: "" })));
 await T("burning an invite in someone ELSE's name DENIED", assertFails(updateDoc(doc(newbie2, "invites/inv4"), { usedBy: "worker1", usedAt: 9 })));
+
+// ================= THE FOUNDER DOOR =================
+// A founder link makes a member: somebody running their OWN organization,
+// who waits on nobody's approval. The link's KIND is what decides, so the
+// two doors cannot be walked through in each other's place.
+await T("founder link: creates a MEMBER account", assertSucceeds(setDoc(doc(newbie3, "users/newbie3"), { email: "nb3@x.com", role: "member", createdAt: 9, emailVerified: false, verifyCode: "111111", verifyCodeAt: 9, invite: "invF", name: "NB3", phone: "" })));
+await T("founder link cannot make a PENDING account (wrong door)", assertFails(setDoc(doc(newbie4, "users/newbie4"), { email: "nb4@x.com", role: "pending", createdAt: 9, emailVerified: false, invite: "invF2", name: "NB4", phone: "" })));
+await T("team link cannot make a MEMBER account (wrong door)", assertFails(setDoc(doc(newbie4, "users/newbie4"), { email: "nb4@x.com", role: "member", createdAt: 9, emailVerified: false, invite: "invTeam", name: "NB4", phone: "" })));
+await T("a kindless invite cannot make a MEMBER either", assertFails(setDoc(doc(newbie4, "users/newbie4"), { email: "nb4@x.com", role: "member", createdAt: 9, emailVerified: false, invite: "inv4", name: "NB4", phone: "" })));
+await T("member signup with NO invite DENIED", assertFails(setDoc(doc(newbie4, "users/newbie4"), { email: "nb4@x.com", role: "member", createdAt: 9, emailVerified: false, name: "NB4", phone: "" })));
+// the backward-compatibility guarantee: every link minted before founder
+// links existed carries no kind, and still opens the door it always did
+await T("a kindless invite still makes a pending hire (nothing was broken)", assertSucceeds(setDoc(doc(newbie4, "users/newbie4"), { email: "nb4@x.com", role: "pending", createdAt: 9, emailVerified: false, invite: "inv4", name: "NB4", phone: "" })));
+
+// A member is NOT team. isTeam() guards Ez Agency's own pre-tenancy data,
+// none of which is org-scoped - so this is the boundary that stops a
+// customer reading another company's work, and the whole reason a founder
+// is not simply handed the "worker" role.
+await T("member: read Ez Agency blueprints DENIED", assertFails(getDoc(doc(member, "blueprints/bp1"))));
+await T("member: read Ez Agency runs DENIED", assertFails(getDoc(doc(member, "runs/r1"))));
+await T("member: read Ez Agency nodeRuns DENIED", assertFails(getDoc(doc(member, "nodeRuns/nr1"))));
+await T("member: list Ez Agency clientReviews DENIED", assertFails(getDocs(collection(member, "clientReviews"))));
+await T("member: read an org they do not belong to DENIED", assertFails(getDoc(doc(member, "orgs/orgA"))));
+
+// ...but their own tenant is entirely theirs.
+await T("member: creates their own org and seats themselves as owner", assertSucceeds((async () => {
+  await setDoc(doc(member, "orgs/orgM"), { name: "Their Co", ownerUid: "member1", createdAt: 9 });
+  await setDoc(doc(member, "orgs/orgM/members/member1"), { uid: "member1", roleId: "owner", joinedAt: 9 });
+  await setDoc(doc(member, "memberOf/member1"), { orgId: "orgM", at: 9 });
+})()));
+await T("member: designs a work type in their own org", assertSucceeds(setDoc(doc(member, "orgs/orgM/itemTypes/task"), { name: "Task", fields: [], statuses: [] })));
+await T("Ez Agency's admin cannot read the member's org", assertFails(getDoc(doc(admin, "orgs/orgM"))));
 
 // ================= WORKFLOW BLUEPRINTS =================
 await T("worker: read blueprints (runs board shows the track)", assertSucceeds(getDocs(query(collection(worker, "blueprints"), where("orgId", "==", "ez-agency")))));

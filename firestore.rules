@@ -18,6 +18,31 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'worker'];
     }
+    /* 'member' is deliberately NOT in that list. A member is somebody
+       running their OWN organization on this platform - a customer, not
+       Ez Agency staff - and isTeam() guards Ez Agency's own pre-tenancy
+       data: blueprints, runs, nodeRuns, client reviews. None of that is
+       org-scoped, so a member who counted as team would read another
+       company's work. Their access is their org membership and nothing
+       else. */
+
+    // An invite is a capability: the token is the secret, the doc is the
+    // ledger. Factored because signup now reads it three ways, and three
+    // hand-copied get() chains is three chances to check one thing less.
+    function inviteDoc(token) {
+      return get(/databases/$(database)/documents/invites/$(token)).data;
+    }
+    function inviteLive(token) {
+      return exists(/databases/$(database)/documents/invites/$(token))
+        && inviteDoc(token).usedBy == null
+        && inviteDoc(token).expiresAt is int
+        && inviteDoc(token).expiresAt > request.time.toMillis();
+    }
+    // Invites minted before founder links existed carry no kind at all,
+    // so the default here is what keeps every one of them working.
+    function inviteKind(token) {
+      return inviteDoc(token).get('kind', 'team');
+    }
     /* ---- Tenancy (docs/platform-spec.md, phase 1) ----
        An org is a tenant. Membership is a DOCUMENT, not an email in a
        list: orgs/{orgId}/members/{uid} both proves you belong and names
@@ -213,14 +238,21 @@ service cloud.firestore {
       // signup is INVITE-ONLY: a pending account can only be born naming a
       // live, unused invite doc. Anyone can still create a Firebase Auth
       // login, but without the link it can never become a member here.
+      // Two doors, and the invite decides which one a signup came through.
+      // A 'team' link makes a pending Ez Agency hire, waiting on approval.
+      // A 'founder' link makes a member, who approves nothing and goes
+      // straight to creating their own organization - the whole point
+      // being that onboarding a customer is a link, not a code change.
+      // Neither can be reached without a live, unused, unexpired token.
       allow create: if request.auth != null && request.auth.uid == uid
         && ((request.resource.data.role == 'pending'
              && request.resource.data.invite is string
-             && exists(/databases/$(database)/documents/invites/$(request.resource.data.invite))
-             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.usedBy == null
-             // links go stale on their own: 24 hours from minting
-             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.expiresAt is int
-             && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.expiresAt > request.time.toMillis())
+             && inviteLive(request.resource.data.invite)
+             && inviteKind(request.resource.data.invite) == 'team')
+            || (request.resource.data.role == 'member'
+             && request.resource.data.invite is string
+             && inviteLive(request.resource.data.invite)
+             && inviteKind(request.resource.data.invite) == 'founder')
             || (request.resource.data.role == 'admin' && isDesignatedAdminEmail()));
       allow update: if request.auth != null && (
         isAdmin() ||

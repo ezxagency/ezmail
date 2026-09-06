@@ -21,24 +21,34 @@ async function teamInviteSheet(){
   rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const now = Date.now();
   const linkFor = id => location.origin + location.pathname + "?invite=" + id;
-  const mint = async () => {
+  /* Two kinds of link, and the kind is what signup reads to decide which
+     account it is making. "team" is the original: a hire who lands in the
+     approval queue below. "founder" makes somebody who runs their own
+     organization on this platform - no approval, straight to creating it.
+     Onboarding a customer is this link, not a code change. */
+  const mint = async (kind) => {
     const ref = db.collection("invites").doc();
-    await ref.set({ createdBy: (auth.currentUser && auth.currentUser.uid) || "",
+    await ref.set({ kind, createdBy: (auth.currentUser && auth.currentUser.uid) || "",
       createdAt: Date.now(), expiresAt: Date.now() + 24 * 3600000, usedBy: null, usedAt: null });
     return ref.id;
   };
   openSheet(`
     <h2>Invite someone</h2>
-    <p class="hint">Only a person holding an invite link can create an account. Each link works exactly once and lasts 24 hours — they sign up with their name, email and phone, verify their email, and land below for your approval.</p>
-    <button class="btn btn-go" id="invNew">Create a new invite link</button>
+    <p class="hint">Only a person holding a link can create an account. Each one works exactly once and lasts 24 hours.</p>
+    <button class="btn btn-go" id="invNew">Invite someone to this team</button>
+    <p class="hint" style="margin:6px 0 14px;font-size:11.5px">They sign up, verify their email, and land below for your approval.</p>
+    <button class="btn btn-ghost" id="invNewFounder">Invite a company to start their own</button>
+    <p class="hint" style="margin:6px 0 0;font-size:11.5px">They skip your approval entirely and land on creating their own organization. They can never see anything of yours.</p>
     ${rows.length ? `<p class="fpage-section-title" style="margin:18px 0 10px">Open invites (${rows.length})</p>` + rows.map(r => {
       const expired = !r.expiresAt || r.expiresAt <= now;
+      const founder = (r.kind || "team") === "founder";
       return `
       <div style="margin:0 0 12px${expired ? ";opacity:.55" : ""}">
+        <p class="hint" style="margin:0 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase">${founder ? "Founder link" : "Team invite"}</p>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="text" readonly value="${esc(linkFor(r.id))}" style="flex:1;min-width:0;padding:11px 12px;font-size:13px">
           <button type="button" class="btn btn-ghost btn-sm" style="width:auto;flex:none" data-copy="${esc(r.id)}" ${expired ? "disabled" : ""}>Copy</button>
-          <button type="button" class="icon-btn" style="flex:none;width:34px;height:34px" data-renew="${esc(r.id)}" aria-label="Replace with a fresh link" title="Replace with a fresh 24-hour link">
+          <button type="button" class="icon-btn" style="flex:none;width:34px;height:34px" data-renew="${esc(r.id)}" data-kind="${founder ? "founder" : "team"}" aria-label="Replace with a fresh link" title="Replace with a fresh 24-hour link">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M3.5 8a9 9 0 1 1-1 5.5"/><path d="M3 3v5h5"/></svg>
           </button>
           <button type="button" class="assign-del" style="flex:none" data-revoke="${esc(r.id)}" aria-label="Revoke invite" title="Revoke invite">
@@ -49,19 +59,22 @@ async function teamInviteSheet(){
       </div>`;
     }).join("") : ""}
   `, () => {
-    $("invNew").onclick = async () => {
-      $("invNew").disabled = true;
+    const mintAndCopy = async (btnId, kind) => {
+      $(btnId).disabled = true;
       try {
-        const id = await mint();
+        const id = await mint(kind);
         const copied = await copyText(linkFor(id));
-        toast(copied ? "Invite created — link copied" : "Invite created");
+        const what = kind === "founder" ? "Founder link" : "Invite";
+        toast(copied ? what + " created — link copied" : what + " created");
         teamInviteSheet();
       } catch (e) {
         console.error(e);
-        toast("Couldn't create the invite — deploy the updated Firestore rules first");
-        $("invNew").disabled = false;
+        toast("Couldn't create the link — deploy the updated Firestore rules first");
+        $(btnId).disabled = false;
       }
     };
+    $("invNew").onclick = () => mintAndCopy("invNew", "team");
+    $("invNewFounder").onclick = () => mintAndCopy("invNewFounder", "founder");
     $("sheetBody").querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
       toast(await copyText(linkFor(b.dataset.copy)) ? "Link copied" : "Copy failed");
     });
@@ -71,7 +84,9 @@ async function teamInviteSheet(){
       b.disabled = true;
       try {
         await db.collection("invites").doc(b.dataset.renew).delete();
-        const id = await mint();
+        // same slot, same kind: replacing a founder link must not quietly
+        // hand back an ordinary team invite
+        const id = await mint(b.dataset.kind || "team");
         const copied = await copyText(linkFor(id));
         toast(copied ? "Fresh link minted — copied" : "Fresh link minted");
         teamInviteSheet();

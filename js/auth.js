@@ -26,17 +26,37 @@ async function resolveRole(user){
   let doc = await ref.get();
   const shouldBeAdmin = ADMIN_EMAILS.includes((user.email || "").toLowerCase());
   if (!doc.exists) {
-    // new signups wait for admin approval; designated admin emails skip it
-    const role = shouldBeAdmin ? "admin" : "pending";
+    /* WHICH DOOR did they come through? The link decides, and it has to be
+       read before anything is written, because it picks which of two
+       different accounts this is:
+
+         team    -> a pending Ez Agency hire, waiting on approval (as ever)
+         founder -> a member: somebody who runs their OWN organization here,
+                    approves with nobody, and lands on creating it
+
+       A member is deliberately not a "worker". isTeam() in firestore.rules
+       guards Ez Agency's own pre-tenancy data - blueprints, runs, client
+       reviews - none of which is org-scoped, so a customer counted as team
+       would be reading another company's work. Their access is their org
+       membership and nothing besides. */
+    let linkKind = "team";
+    if (!shouldBeAdmin && inviteToken) {
+      try {
+        const inv = await db.collection("invites").doc(inviteToken).get();
+        if (inv.exists) linkKind = (inv.data() || {}).kind || "team";
+      } catch (e) { console.error(e); }   // unreadable link: treat as an ordinary one
+    }
+    const role = shouldBeAdmin ? "admin" : (linkKind === "founder" ? "member" : "pending");
+    const invited = role === "pending" || role === "member";
     // fail with words, not a permission error - the rules would refuse
     // an inviteless create anyway
-    if (role === "pending" && !inviteToken) throw new Error("INVITE_REQUIRED");
+    if (invited && !inviteToken) throw new Error("INVITE_REQUIRED");
     // Google already proved they own the address; a password signup could
     // have typed anyone's email into that form, so that one earns its own
     // proof before admin approval even gets a look at it
     const isPasswordAcct = user.providerData.some(p => p.providerId === "password");
     const base = { email: user.email, role, createdAt: Date.now(), emailVerified: !isPasswordAcct };
-    if (role === "pending"){
+    if (invited){
       base.invite = inviteToken;
       base.name = signupInfo.name || user.displayName || "";
       base.phone = signupInfo.phone || "";
@@ -52,7 +72,7 @@ async function resolveRole(user){
       // already burned or revoked
       throw new Error(err && err.code === "permission-denied" ? "INVITE_USED" : (err && err.message) || "create-failed");
     }
-    if (role === "pending"){
+    if (invited){
       // one link, one account: burn the invite and forget the token
       db.collection("invites").doc(base.invite).update({
         usedBy: user.uid, usedAt: Date.now(),
@@ -61,8 +81,10 @@ async function resolveRole(user){
       try { localStorage.removeItem("ez-invite"); } catch (e) {}
       inviteToken = null;
       // Google accounts skip the verify screen, so their "new member" bell
-      // rings now; password accounts ring it after the code checks out
-      if (!isPasswordAcct) notifyAdminsNewSignup(base.name, user.email);
+      // rings now; password accounts ring it after the code checks out.
+      // Only a pending hire needs approving, so only that rings it - a
+      // founder is nobody here's to approve.
+      if (!isPasswordAcct && role === "pending") notifyAdminsNewSignup(base.name, user.email);
     }
     if (isPasswordAcct) queueVerifyCodeEmail(user.email, base.verifyCode).catch(e => console.error(e));
     doc = await ref.get();
@@ -85,11 +107,21 @@ async function resolveRole(user){
    here instead of duplicating the setup. */
 function enterFullApp(user, role){
   isAdmin = role === "admin";
+  isMember = role === "member";
   canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
   $("drawerTeam").classList.toggle("hidden", !isAdmin);
-  // Organization is admin-only for the same reason Team is: it decides
-  // who may do what, and the router guards the route to match
-  $("drawerOrg").classList.toggle("hidden", !isAdmin);
+  /* Organization is where somebody creates and runs their own tenant, so
+     it belongs to whoever has one to run: the Ez Agency admin, and every
+     member. It is NOT gated on ADMIN_EMAILS any more - that list means
+     "works for the company that runs this platform", which is a different
+     thing from "owns this organization", and conflating the two is what
+     left a customer unable to reach the page that manages their own org.
+     Inside the page, owner-only controls gate on the org role instead. */
+  $("drawerOrg").classList.toggle("hidden", !(isAdmin || isMember));
+  // Campaigns and Workflows are Ez Agency's own pre-tenancy tools, and
+  // read data the rules refuse a member. Hidden, not shown-and-broken.
+  $("drawerCampaigns").classList.toggle("hidden", isMember);
+  $("drawerWorkflow").classList.toggle("hidden", isMember);
   // admin's own record lives inside Team's History section now - a
   // separate personal-history page is only useful to everyone else
   $("drawerHistory").classList.toggle("hidden", isAdmin);

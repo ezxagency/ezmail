@@ -38,6 +38,31 @@ Hiding a button is not security. If you remove someone's access, change
 both, or they keep full access to anything they can reach with a direct
 Firestore call. Guard 3 above fails the build if the two lists disagree.
 
+**`ADMIN_EMAILS` is not "owns this organization".** It means "works for
+the company that runs this platform" — a different thing, and conflating
+them is what once left a customer unable to reach the page managing their
+own org. Ownership is an org role (`orgIsOwner()`), which is data. The
+email list stays for Ez Agency's own legacy pages and nothing else.
+
+## Three roles, two doors
+
+`users/{uid}.role` is about **Ez Agency's own team**, and it decides which
+door a signup came through:
+
+- `admin` / `worker` — Ez Agency staff. `isTeam()` in the rules, which
+  guards the pre-tenancy data: blueprints, runs, nodeRuns, clientReviews.
+- `member` — a customer running their own organization here. Deliberately
+  **not** in `isTeam()`: none of that legacy data is org-scoped, so a
+  member who counted as team would read another company's work. A member's
+  access is their org membership and nothing besides.
+- `pending` — signed up, waiting on approval. Reaches nothing.
+
+An invite's `kind` picks the door: `team` (the original — a hire who lands
+in the approval queue) or `founder` (a member, who approves with nobody and
+goes straight to creating their org). Invites minted before founder links
+existed carry no `kind` at all, and `inviteKind()` defaults them to `team`
+so every one of them still works.
+
 ## Load order is the architecture
 
 `js/` files are **classic scripts sharing one global scope** — no modules,
@@ -73,7 +98,7 @@ shift clock digit for digit and the second ring would say nothing.
 cd tests
 npm ci          # once
 npm test        # 283 assertions, node + jsdom, seconds
-npm run test:rules   # 204 rules assertions (needs Java + firebase-tools)
+npm run test:rules   # 218 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
@@ -95,7 +120,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 487 pass as of this writing — a
+reaches through an org boundary. All 501 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## Deploys
@@ -105,7 +130,7 @@ failure is a real regression, not a flake.
   what rule 2 is about.
 - **Firestore rules + indexes**: `.github/workflows/deploy-rules.yml` ships
   them on any push to `main` that touches `firestore.rules` or
-  `firestore.indexes.json` — but only after the 204-assertion suite passes
+  `firestore.indexes.json` — but only after the 218-assertion suite passes
   against the edited rules. Never paste rules into the Firebase console by
   hand; the console and the repo drift apart the moment you do, and the
   repo is the version that gets tested.

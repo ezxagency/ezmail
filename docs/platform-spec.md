@@ -481,6 +481,39 @@ must not survive into multi-tenant. It ends when `commit()` moves server-side.
 Phases 1 and 2 are the bulk. After phase 3 the pace increases sharply,
 because 4 and 5 are configuration over machinery that already exists.
 
+## The self-serve door
+
+Tenancy made a second company *possible*; it did not make one able to sign
+up. Three separate bolts stood in the way, and only one of them was the
+one everybody notices:
+
+1. **Signup** required an invite token minted on Ez Agency's Team page.
+2. **Approval** — even with a token, the account sat `pending`.
+3. **The Organization page** was gated on `ADMIN_EMAILS`, so an owner who
+   was not Ez Agency staff could not reach the page managing their own org.
+
+Bolt 3 was the conflation this spec has warned about from phase 1:
+`ADMIN_EMAILS` means "works for the company that runs the platform", and it
+had been standing in for "owns this organization". Those are different
+facts about different people, and only the second is data.
+
+The door is now **invite-only self-serve**: a founder link is minted on the
+Team page, and whoever opens it becomes a `member` — their own org, no
+approval, no code change. Deliberately not open signup: an open door on
+this Firebase project is an abuse and cost surface that wants rate limiting
+first, and invite-only is the right shape while the first customers are
+being found by hand anyway.
+
+The load-bearing detail is that a member is **not** a `worker`. `isTeam()`
+guards Ez Agency's own pre-tenancy collections — blueprints, runs,
+nodeRuns, clientReviews — none of which carry an `orgId`. A founder handed
+the worker role would have read another company's work. That boundary is
+five rules assertions, because it is the one mistake here that would be a
+real breach rather than a bug.
+
+Still open: nothing is time-based, and billing, seats and a plan on the org
+document remain unwritten.
+
 ## Open decisions
 
 - **ES modules for new code.** `<script type="module">` needs no bundler and

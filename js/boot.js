@@ -3,6 +3,12 @@
    ============================================================ */
 let workerStarted = false;
 let isAdmin = false;
+/* A member runs their OWN organization here - a customer, not Ez Agency
+   staff. They are not an admin and not a worker, and the difference is
+   load-bearing: Campaigns and Workflows read Ez Agency's own pre-tenancy
+   data, which firestore.rules refuses them, so those pages are hidden
+   rather than shown and then failing. */
+let isMember = false;
 // module-level so the card's dot menu can decide whether to offer "Assign
 // task" - the bottom nav no longer carries that entry
 let canAssignTasks = false;
