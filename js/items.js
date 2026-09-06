@@ -550,11 +550,27 @@ async function itemsDeliverNotify(step, item){
   const text = step.message || (item.title + " needs attention");
   const base = { fromUid: from, kind: "automation", read: false, createdAt: Date.now(),
     text, store: (item.fields || {}).store || "", task: item.title || "" };
+
+  // A role is resolved to PEOPLE before anything is written. The bell
+  // queries toUid, and firestore.rules only lets the addressee read it -
+  // so a doc addressed to "lead" would be written, permitted to nobody,
+  // and read by no one. "admin" is the one exception: that is the legacy
+  // email-list admin, not an org role, and its own toRole doc is what the
+  // admin bell already watches.
+  const s = await orgEnsure();
+  const uids = autoNotifyTargets(step, s && s.members, from);
+  const legacyAdmin = step.toRole === "admin";
+  if (!uids.length && !legacyAdmin) {
+    // worth saying out loud: a rule firing at an empty role is the kind of
+    // nothing that looks exactly like working
+    console.warn("Automation notified role '" + step.toRole + "', which nobody holds.");
+    return;
+  }
   try {
     const batch = db.batch();
-    if (step.toRole) batch.set(db.collection("notifications").doc(),
-      Object.assign({ toRole: step.toRole === "admin" ? "admin" : step.toRole }, base));
-    (step.toUids || []).forEach(uid => batch.set(db.collection("notifications").doc(),
+    if (legacyAdmin) batch.set(db.collection("notifications").doc(),
+      Object.assign({ toRole: "admin" }, base));
+    uids.forEach(uid => batch.set(db.collection("notifications").doc(),
       Object.assign({ toUid: uid }, base)));
     await batch.commit();
   } catch (e) { console.warn("Could not deliver an automation notification:", e); }

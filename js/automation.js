@@ -116,7 +116,28 @@ function autoPlan(args){
 
 /* Node test hook — the browser never defines `module`, so this block is
    invisible there; tests/automation.test.mjs requires this file. */
+/* Who a notify action actually reaches. A rule says "tell the shift
+   leads"; this turns that into the people holding that role right now.
+
+   It exists because the notification system addresses PEOPLE. A document
+   addressed to a role is one nothing queries and - in firestore.rules -
+   nobody is permitted to read, so a rule that looked like it worked
+   would fire forever into a void. Resolving here keeps that fact in one
+   place instead of teaching the bell, the rules and the inbox a second
+   way to be addressed.
+
+   The actor is excluded. Telling somebody the thing they just did
+   happened is noise, and noise is how a useful rule becomes a muted
+   one. */
+function autoNotifyTargets(step, members, actorUid){
+  const out = [];
+  ((step && step.toUids) || []).forEach(u => out.push(u));
+  if (step && step.toRole)
+    (members || []).forEach(m => { if (m && m.roleId === step.toRole) out.push(m.uid); });
+  return [...new Set(out)].filter(u => u && u !== actorUid);
+}
+
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { AUTO_MAX_DEPTH, AUTO_ACTION_KINDS, autoTriggerMatches,
+  module.exports = { AUTO_MAX_DEPTH, AUTO_ACTION_KINDS, autoNotifyTargets, autoTriggerMatches,
     autoConditionsPass, autoActionToStep, autoPlan };
 }

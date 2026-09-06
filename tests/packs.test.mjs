@@ -227,5 +227,5 @@ T("new item types arrive with no workflow attached", () => {
     assert.equal(t.doc.workflowId, null));
 });
 
-console.log("\n" + pass + " passed, " + fail + " failed");
+console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

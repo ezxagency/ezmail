@@ -162,5 +162,43 @@ T("a rule writing a genuinely new value DOES produce an event", () => {
   assert.equal(r.events[0].verb, "item.updated");
 });
 
+/* ---------- who a notify actually reaches ----------
+   The bell queries toUid and firestore.rules only lets the addressee
+   read it, so a notification addressed to a ROLE is one nobody can see.
+   Resolving the role to people is what makes every pack's notify rule
+   real rather than decorative. */
+const MEM = [{ uid: "u1", roleId: "manager" }, { uid: "u2", roleId: "lead" },
+             { uid: "u3", roleId: "lead" }, { uid: "u4", roleId: "staff" }];
+
+T("a role becomes the people holding it", () => {
+  assert.deepEqual(A.autoNotifyTargets({ toRole: "lead" }, MEM, "zz"), ["u2", "u3"]);
+});
+T("a role nobody holds reaches nobody, rather than erroring", () => {
+  assert.deepEqual(A.autoNotifyTargets({ toRole: "cfo" }, MEM, "zz"), []);
+});
+T("the person who caused it is never told about it", () => {
+  // the commonest way a useful rule becomes a muted one
+  assert.deepEqual(A.autoNotifyTargets({ toRole: "lead" }, MEM, "u2"), ["u3"]);
+});
+T("explicit uids and a role merge without duplicates", () => {
+  assert.deepEqual(A.autoNotifyTargets({ toRole: "lead", toUids: ["u1", "u2"] }, MEM, "zz"),
+    ["u1", "u2", "u3"]);
+});
+T("no members, no targets - and no crash", () => {
+  assert.deepEqual(A.autoNotifyTargets({ toRole: "lead" }, null, "zz"), []);
+  assert.deepEqual(A.autoNotifyTargets({}, MEM, "zz"), []);
+});
+T("every pack notify role is one a pack member could actually hold", () => {
+  // the end-to-end property: a pack's rules name roles the same pack creates,
+  // so applying a pack gives every rule in it somebody to reach
+  const P = require("../js/packs.js");
+  P.PACKS.forEach(pack => (pack.automations || []).forEach(a =>
+    (a.actions || []).filter(x => x.kind === "notify" && x.toRole).forEach(x => {
+      const seated = pack.roles.map(r => ({ uid: "x" + r.id, roleId: r.id }));
+      assert.ok(A.autoNotifyTargets({ toRole: x.toRole }, seated, "zz").length,
+        pack.key + ': "' + a.name + '" notifies ' + x.toRole + ", which nobody in the pack holds");
+    })));
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

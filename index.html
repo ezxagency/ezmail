@@ -21,24 +21,24 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=154">
-<link rel="stylesheet" href="css/dashboard.css?v=154">
-<link rel="stylesheet" href="css/drawer.css?v=154">
-<link rel="stylesheet" href="css/pages.css?v=154">
-<link rel="stylesheet" href="css/sheets.css?v=154">
-<link rel="stylesheet" href="css/tables.css?v=154">
-<link rel="stylesheet" href="css/responsive.css?v=154">
-<link rel="stylesheet" href="css/pomodoro.css?v=154">
-<link rel="stylesheet" href="css/personal.css?v=154">
-<link rel="stylesheet" href="css/campaigns.css?v=154">
-<link rel="stylesheet" href="css/assign.css?v=154">
+<link rel="stylesheet" href="css/base.css?v=155">
+<link rel="stylesheet" href="css/dashboard.css?v=155">
+<link rel="stylesheet" href="css/drawer.css?v=155">
+<link rel="stylesheet" href="css/pages.css?v=155">
+<link rel="stylesheet" href="css/sheets.css?v=155">
+<link rel="stylesheet" href="css/tables.css?v=155">
+<link rel="stylesheet" href="css/responsive.css?v=155">
+<link rel="stylesheet" href="css/pomodoro.css?v=155">
+<link rel="stylesheet" href="css/personal.css?v=155">
+<link rel="stylesheet" href="css/campaigns.css?v=155">
+<link rel="stylesheet" href="css/assign.css?v=155">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.60/dist/drawflow.min.css">
-<link rel="stylesheet" href="css/workflow.css?v=154">
-<link rel="stylesheet" href="css/org.css?v=154">
-<link rel="stylesheet" href="css/work.css?v=154">
-<link rel="stylesheet" href="css/login.css?v=154">
+<link rel="stylesheet" href="css/workflow.css?v=155">
+<link rel="stylesheet" href="css/org.css?v=155">
+<link rel="stylesheet" href="css/work.css?v=155">
+<link rel="stylesheet" href="css/login.css?v=155">
 <!-- last on purpose: the premium layer standardizes motion over everything -->
-<link rel="stylesheet" href="css/premium.css?v=154">
+<link rel="stylesheet" href="css/premium.css?v=155">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -662,38 +662,38 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=154"></script>
+<script src="js/config.js?v=155"></script>
 <!-- pure grammar, no deps: authorization answers must stay testable -->
-<script src="js/permissions.js?v=154"></script>
+<script src="js/permissions.js?v=155"></script>
 <!-- the universal work object: types, values, facets, one chokepoint -->
-<script src="js/item-engine.js?v=154"></script>
+<script src="js/item-engine.js?v=155"></script>
 <!-- and its Firestore glue, kept dumb so phase 3 can swap its middle -->
 <!-- the shapes today's collections take as Items; pure, used by items.js -->
-<script src="js/migrate.js?v=154"></script>
-<script src="js/items.js?v=154"></script>
-<script src="js/render.js?v=154"></script>
-<script src="js/ui.js?v=154"></script>
-<script src="js/shift.js?v=154"></script>
-<script src="js/email.js?v=154"></script>
-<script src="js/nav.js?v=154"></script>
-<script src="js/boot.js?v=154"></script>
-<script src="js/team.js?v=154"></script>
-<script src="js/assign.js?v=154"></script>
-<script src="js/notify.js?v=154"></script>
-<script src="js/campaigns.js?v=154"></script>
-<script src="js/auth.js?v=154"></script>
-<script src="js/personal.js?v=154"></script>
-<script src="js/pomodoro.js?v=154"></script>
-<script src="js/workflow-engine.js?v=154"></script>
+<script src="js/migrate.js?v=155"></script>
+<script src="js/items.js?v=155"></script>
+<script src="js/render.js?v=155"></script>
+<script src="js/ui.js?v=155"></script>
+<script src="js/shift.js?v=155"></script>
+<script src="js/email.js?v=155"></script>
+<script src="js/nav.js?v=155"></script>
+<script src="js/boot.js?v=155"></script>
+<script src="js/team.js?v=155"></script>
+<script src="js/assign.js?v=155"></script>
+<script src="js/notify.js?v=155"></script>
+<script src="js/campaigns.js?v=155"></script>
+<script src="js/auth.js?v=155"></script>
+<script src="js/personal.js?v=155"></script>
+<script src="js/pomodoro.js?v=155"></script>
+<script src="js/workflow-engine.js?v=155"></script>
 <!-- trigger, condition, action. AFTER the workflow engine on purpose:
      it evaluates conditions with wfEvalCondition, and in this app the
      script order IS the dependency graph -->
-<script src="js/automation.js?v=154"></script>
+<script src="js/automation.js?v=155"></script>
 <!-- an industry as a JSON file. LAST of the pure modules on purpose:
      it validates packs against the field types, the permission grammar
      and the action kinds the three files above define -->
-<script src="js/packs.js?v=154"></script>
-<script src="js/workflow.js?v=154"></script>
-<script src="js/org.js?v=154"></script>
-<script src="js/work.js?v=154"></script>
-<script src="js/premium.js?v=154"></script>
+<script src="js/packs.js?v=155"></script>
+<script src="js/workflow.js?v=155"></script>
+<script src="js/org.js?v=155"></script>
+<script src="js/work.js?v=155"></script>
+<script src="js/premium.js?v=155"></script>
