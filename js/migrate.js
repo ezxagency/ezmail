@@ -289,6 +289,8 @@ function itemToQueueRow(item, type){
 }
 
 if (typeof module !== "undefined" && module.exports){
+  module.exports.MIGRATE_TASK_TYPE = MIGRATE_TASK_TYPE;
+  module.exports.MIGRATE_CAMPAIGN_TYPE = MIGRATE_CAMPAIGN_TYPE;
   module.exports.itemToQueueRow = itemToQueueRow;
   module.exports.migrateCampaignBlueprint = migrateCampaignBlueprint;
   module.exports.migrateStageBudget = migrateStageBudget;

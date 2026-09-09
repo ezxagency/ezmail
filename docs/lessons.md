@@ -118,6 +118,44 @@ rules". Finishing now routes on the row: a handoff advances its stop,
 untracked work takes the status its type calls done, and the toast says
 which rather than claiming "done" for all three.
 
+**A form that hides a control still reads it back.**
+The Work page's item sheet draws no People checkboxes for work on a
+handoff, because the run decides who holds it. Save then read those
+checkboxes back - none - and sent `assign: []`, un-seating the baton
+holder on every edit. The type editor did the same in the other
+direction: it rebuilt the type from the four fields it showed and
+`set()` dropped `track` and `workflowId`, turning the handoff off for any
+type whose fields were ever edited.
+*Rule:* a save that rebuilds a whole document carries every field it
+does not show, or it does not rebuild. `itemSave()` now re-reads the
+document before the engine rebuilds it, so a side write in between (the
+overdue chase, a run stamping its id) survives a save from a page-old
+copy - the general form of "A rebuild from a stale in-memory copy".
+*Guard:* `tests/ui.test.mjs` presses Save on a tracked item and on an
+edited type; `tests/flow.test.mjs` stamps a document behind a page's back
+and saves from the old copy.
+
+**Two things that mint the same id in the same collection.**
+The "Just tasks" pack shipped a type with id `task`. That is the id the
+Assign composer's mirror reads (`MIGRATE_TASK_TYPE`), so in an org that
+applied the pack first, the mirror found the pack's type, its statuses
+had no `open`, validation refused every row, and a `console.warn` was the
+only trace. Nobody's assignments reached the new queue.
+*Rule:* an id that two writers can choose is a collision waiting on
+order. Reserve the legacy ids and test that nothing else claims them.
+*Guard:* `tests/packs.test.mjs` checks every pack type against the
+migrate ids; `tests/flow.test.mjs` applies the pack in a fresh org and
+then mirrors an assignment.
+
+**Sign-out reset the shift and forgot the organization.**
+`auth.js` cleared `S`, the queue rows and the directory on sign-out, and
+never `orgInvalidate()`. `orgEnsure()` hands back whatever it holds, so
+the next account on the same device answered "which org, which role,
+which permissions" with the previous person's - the client half of the
+two gates disagreeing with the server half.
+*Rule:* anything cached from a signed-in account is reset in the ONE
+sign-out branch, and the repo guard reads that branch for the resets.
+
 ### Permissions and tenancy
 
 **Answer the authorization question the way the rules answer it.**

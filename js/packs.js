@@ -204,7 +204,11 @@ const PACKS = [
     blurb: "One kind of work and three stages. Start here and add what you find you need.",
     roles: [pkRole("manager", "Manager", "manager"), pkRole("staff", "Team", "staff")],
     itemTypes: [
-      { id: "task", name: "Task", statuses: pkStatus("To do", "Doing", "Done"),
+      // NOT "task": that id belongs to MIGRATE_TASK_TYPE, the type the
+      // Assign composer mirrors into. Sharing it made the mirror read this
+      // type's statuses, fail validation on "open", and drop every
+      // assignment silently in an org that had applied this pack.
+      { id: "simpletask", name: "Task", statuses: pkStatus("To do", "Doing", "Done"),
         fields: [pkField("due", "Due", "date"), pkField("detail", "Detail", "longtext"),
                  pkField("priority", "Priority", "select", { options: ["High", "Normal", "Low"] })] }
     ],
@@ -345,7 +349,7 @@ function packValidate(pack){
         else if (known && !known.has(act.status))
           bad(w, 'sets status "' + act.status + '" which ' + t.typeId + " does not have");
       }
-      if (act.kind === "set_field" && !act.path) bad(w, "set_field with no field");
+      if (act.kind === "set_field" && !act.key) bad(w, "set_field with no field");
     });
   });
 

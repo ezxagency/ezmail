@@ -436,6 +436,59 @@ await T("an orphan cannot be finished, so the queue must not offer to", async ()
   assert.equal(refused.error, "no-type");
 });
 
+/* ---------- a NEW org that applies "Just tasks" first, then assigns ----------
+   Order matters here and is the whole bug: the pack lands before the
+   composer has ever mirrored anything, so the pack's type is what the
+   mirror finds under the id it reads. */
+const ORG_B = "orgB";
+await db.collection("orgs").doc(ORG_B).set({ name: "Second Co", ownerUid: "owner2", createdAt: 1 });
+await db.collection("orgs").doc(ORG_B).collection("members").doc("owner2").set({ uid: "owner2", roleId: "owner", joinedAt: 1 });
+await db.collection("orgs").doc(ORG_B).collection("members").doc("hand2").set({ uid: "hand2", roleId: "staff", joinedAt: 1 });
+await db.collection("orgs").doc(ORG_B).collection("roles").doc("owner").set({ name: "Owner", permissions: ["*:*:org"] });
+await db.collection("memberOf").doc("owner2").set({ orgId: ORG_B, at: 1 });
+
+await T("in a fresh org, the simple pack leaves the composer mirror's type id alone", async () => {
+  AUTH.currentUser = { uid: "owner2", email: "owner2@x.com" };
+  run(`orgInvalidate(); itemsTaskTypeCache = null;`);
+  const r = await runAsync(`return await itemsApplyPack("simple");`);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.ok(r.created.itemTypes >= 1, "the pack wrote no type at all");
+  const taken = await get("orgs/" + ORG_B + "/itemTypes/task");
+  assert.equal(taken, undefined, "the pack's Task type sits under the id the mirror reads");
+});
+
+await T("and an assignment made afterwards still reaches the queue as an Item", async () => {
+  run(`orgInvalidate(); itemsTaskTypeCache = null;`);
+  await runAsync(`await itemsMirrorAssignments([{ id: "b1", row: {
+    toUid: "hand2", toName: "Hand", store: "Alpha", task: "Copy", note: "", createdAt: 5,
+    done: false, doneAt: null, dueDate: null, dueTime: "", groupId: null, groupSize: 1, seenAt: null } }]);`);
+  const items = find("orgs/" + ORG_B + "/items", it => /b1$/.test(it.id));
+  assert.equal(items.length, 1, "the mirror refused the row - the queue would never show it");
+  assert.equal(items[0].status, "open");
+  assert.ok((items[0].facets || []).includes("assignee:hand2"));
+  // back to the first org for everything that follows
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate(); itemsTaskTypeCache = null;`);
+});
+
+/* ---------- a save from a stale copy must not erase a side write ---------- */
+await T("saving from a page-old copy keeps a stamp written in between", async () => {
+  run(`orgInvalidate();`);
+  const type = await get("orgs/" + ORG + "/itemTypes/simpletask");
+  const created = await runAsync(`return await itemSave(${JSON.stringify(Object.assign({ id: "simpletask" }, type))}, null,
+    { kind: "create", title: "Late thing", fields: {}, assigneeIds: ["staff1"] });`);
+  assert.ok(created.ok, JSON.stringify(created));
+  const stale = plain(created.item);
+  // the overdue chase stamps the document behind the page's back
+  await db.collection("orgs").doc(ORG).collection("items").doc(stale.id).update({ nudgedAt: 777 });
+  const saved = await runAsync(`return await itemSave(${JSON.stringify(Object.assign({ id: "simpletask" }, type))},
+    ${JSON.stringify(stale)}, { kind: "update", title: "Late thing, renamed" });`);
+  assert.ok(saved.ok, JSON.stringify(saved));
+  const after = await get("orgs/" + ORG + "/items/" + stale.id);
+  assert.equal(after.title, "Late thing, renamed");
+  assert.equal(after.nudgedAt, 777, "the rename from a stale copy erased the chase stamp");
+});
+
 await T("starting over clears the work and the runs, and nothing else", async () => {
   const typesBefore = find("orgs/" + ORG + "/itemTypes").length;
   const rolesBefore = find("orgs/" + ORG + "/roles").length;

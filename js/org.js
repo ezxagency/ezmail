@@ -907,7 +907,11 @@ async function orgTypeSave(){
 
   const btn = $("orgTypeSave");
   btn.disabled = true; btn.textContent = "Saving…";
-  const r = await itemTypeSave({ id: orgTypeDraft.id, name, statuses, fields });
+  // track and workflowId ride along: itemTypeSave() replaces the whole
+  // document, and leaving them off here turned the handoff off for every
+  // type whose fields were ever edited
+  const r = await itemTypeSave({ id: orgTypeDraft.id, name, statuses, fields,
+    track: orgTypeDraft.track || null, workflowId: orgTypeDraft.workflowId || null });
   if (!r.ok) { btn.disabled = false; btn.textContent = "Save type"; toast("Could not save the type."); return; }
   closeSheet();
   toast(orgTypeDraft.id ? "Type saved." : "Type created.");
@@ -1543,7 +1547,16 @@ async function orgAutomationSave(rule){
 
   const conditions = [];
   const ck = ($("oaCondKey").value || "").trim();
-  if (ck) conditions.push({ source: "field", path: ck, op: "==", value: ($("oaCondVal").value || "").trim() });
+  if (ck) {
+    // the evaluator compares with ===, and a checkbox holds true, a
+    // number holds 42: a value stored as the string typed into the box
+    // could never equal either, so the rule never fired and nothing said
+    // why. Coerce through the field's own type when the trigger names one.
+    const raw = ($("oaCondVal").value || "").trim();
+    const ct = trigger.typeId ? (orgS.types || []).find(t => t.id === trigger.typeId) : null;
+    const cf = ct ? itemFieldDef(ct, ck) : null;
+    conditions.push({ source: "field", path: ck, op: "==", value: cf ? itemCoerce(cf, raw) : raw });
+  }
 
   const kind = $("oaAction").value;
   let action = null;

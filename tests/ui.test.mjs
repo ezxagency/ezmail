@@ -644,6 +644,42 @@ T("an unloaded roster says nothing about hours; an empty one says so", () => {
     "a genuinely unset schedule went unmentioned");
 });
 
+/* ---------- two saves that once threw away what they were not showing ---------- */
+await TA("saving a tracked item does not un-assign the baton holder", () => {
+  const calls = [];
+  ctx.__calls = calls;
+  run(`itemSave = async (type, item, intent) => { __calls.push(intent); return { ok: true, item }; };
+    itemsHandoffLoad = async () => null; wkPaintHandoff = async () => {};
+    wkTypes = [{ id: "video", name: "Video", workflowId: "bp1", statuses: [{key:"open",label:"Open"},{key:"done",label:"Done"}], fields: [] }];
+    wkTypeId = "video"; wkRows = [{ id: "v1", typeId: "video", title: "Spring cut", fields: {}, status: "open",
+      assigneeIds: ["u2"], workflowRunId: "run1" }];
+    wkItemSheet(wkRows[0]); document.getElementById("wkSave").click();`);
+  return new Promise(res => setTimeout(res, 20)).then(() => {
+    assert.ok(calls.some(c => c.kind === "update"), "no update intent was sent");
+    assert.ok(!calls.some(c => c.kind === "assign"),
+      "Save sent an assign intent for a tracked item - with the people the run chose read back as nobody");
+    run(`closeSheet();`);
+  });
+});
+
+await TA("editing a type keeps the handoff it already had", () => {
+  let saved = null;
+  ctx.__typeSave = t => { saved = t; };
+  run(`itemTypeSave = async t => { __typeSave(t); return { ok: true, id: t.id }; };
+    enterOrgPage = () => {};   // the real one reloads the org, which the tests after this one hold by hand
+    orgTypeSheet({ id: "video", name: "Video", statuses: [{key:"open",label:"Open"}], fields: [],
+      track: [{ roleId: "staff", label: "Cut" }], workflowId: "bp1" });
+    document.getElementById("orgTypeName").value = "Video edit";
+    document.getElementById("orgTypeSave").click();`);
+  return new Promise(res => setTimeout(res, 20)).then(() => {
+    assert.ok(saved, "the type was never saved");
+    assert.equal(saved.name, "Video edit");
+    assert.equal(saved.workflowId, "bp1", "renaming the type turned its handoff off");
+    assert.deepEqual(plain(saved.track), [{ roleId: "staff", label: "Cut" }]);
+    run(`closeSheet();`);
+  });
+});
+
 T("hours outside a day are not treated as a schedule", () => {
   run(`orgS.members = [{ uid: "u1", roleId: "owner", shiftMinutes: 5000 }];`);
   assert.ok(sbDraw().includes("No shift length set"),

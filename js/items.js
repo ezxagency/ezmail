@@ -68,56 +68,75 @@ async function itemSave(type, item, intent, opts){
   const uid = auth.currentUser ? auth.currentUser.uid : null;
   if (!uid) return { ok: false, error: "no-actor" };
 
-  // THE SWAP THE CHOKEPOINT WAS BUILT FOR. Everything above and below
-  // this line is unchanged whichever way it goes: same arguments in, same
-  // { ok, item, events } out, so work.js never learns where the decision
-  // was made. That was the whole claim in phase 2, and this is it being
-  // true rather than asserted.
-  if (CONFIG.serverCommit) return itemSaveViaServer(s.orgId, type, item, intent);
-
-  const perms = await itemActorPermissions();
-  const decision = itemCommit({
-    type, item, intent,
-    actor: { uid, orgId: s.orgId },
-    allow: (resource, action, ctx) => permCan(perms, resource, action, ctx),
-    now: Date.now(),
-    id: item ? item.id : itemNewId()
-  });
-  if (!decision.ok) return decision;
-
-  // A no-op decided nothing, so it writes nothing - not even an
-  // updatedAt. Churn that reaches the database is churn every watcher,
-  // every automation and every audit reader has to learn to ignore.
-  if (!decision.events.length && decision.item === item) return decision;
-
-  try {
-    const batch = db.batch();
-    const id = (decision.item && decision.item.id) || (item && item.id);
-    if (decision.item === null) batch.delete(itemsCol(s.orgId).doc(id));
-    else batch.set(itemsCol(s.orgId).doc(id), Object.assign({}, decision.item, { id }));
-    // the item and its events land together or not at all: an event
-    // describing a change that did not happen is worse than no log
-    decision.events.forEach(ev => batch.set(eventsCol(s.orgId).doc(), ev));
-    await batch.commit();
-    // Automations run AFTER the write, on the events it produced, and
-    // never block the answer the person is waiting for. A rule that
-    // fails is this feature's problem; the change they made already
-    // landed and they have already been told so.
-    itemsRunAutomations(decision.events, decision.item, (opts && opts.depth) || 0);
-    // Being handed work is news in its own right. It should not depend on
-    // somebody having written a rule about it - and it did not, on the
-    // Assign composer, which has always told people. The Work page not
-    // doing so made the same action mean two different things depending
-    // on which screen you did it from.
-    itemsNotifyAssigned(decision.events, decision.item);
-    // a new piece of work whose kind has a track starts travelling it
-    if (intent.kind === "create" && type && type.workflowId)
-      itemsStartHandoff(decision.item, type);
-    return decision;
-  } catch (e) {
-    console.error(e);
-    return { ok: false, error: "write-failed" };
+  // The engine rebuilds the WHOLE document from `item`, so `item` has to
+  // be what the database holds now, not what a page loaded a while ago.
+  // A side write in between (the overdue chase stamping nudgedAt, a run
+  // recording workflowRunId) was erased by the next save from a stale
+  // copy - docs/lessons.md, "A rebuild from a stale in-memory copy wipes
+  // a side update". One read per save closes that for every caller.
+  if (item && item.id) {
+    try {
+      const snap = await itemsCol(s.orgId).doc(item.id).get();
+      if (snap.exists) item = Object.assign({ id: item.id }, snap.data());
+    } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
   }
+
+  let decision;
+  if (CONFIG.serverCommit) {
+    // THE SWAP THE CHOKEPOINT WAS BUILT FOR: the decision is made on the
+    // server, and everything after this block is the same either way -
+    // same { ok, item, events } shape, same side effects. Returning here
+    // instead once meant the server path silently ran no automations,
+    // told no assignee and started no handoff.
+    decision = await itemSaveViaServer(s.orgId, type, item, intent);
+    if (!decision.ok) return decision;
+  } else {
+    const perms = await itemActorPermissions();
+    decision = itemCommit({
+      type, item, intent,
+      actor: { uid, orgId: s.orgId },
+      allow: (resource, action, ctx) => permCan(perms, resource, action, ctx),
+      now: Date.now(),
+      id: item ? item.id : itemNewId()
+    });
+    if (!decision.ok) return decision;
+
+    // A no-op decided nothing, so it writes nothing - not even an
+    // updatedAt. Churn that reaches the database is churn every watcher,
+    // every automation and every audit reader has to learn to ignore.
+    if (!decision.events.length && decision.item === item) return decision;
+
+    try {
+      const batch = db.batch();
+      const id = (decision.item && decision.item.id) || (item && item.id);
+      if (decision.item === null) batch.delete(itemsCol(s.orgId).doc(id));
+      else batch.set(itemsCol(s.orgId).doc(id), Object.assign({}, decision.item, { id }));
+      // the item and its events land together or not at all: an event
+      // describing a change that did not happen is worse than no log
+      decision.events.forEach(ev => batch.set(eventsCol(s.orgId).doc(), ev));
+      await batch.commit();
+    } catch (e) {
+      console.error(e);
+      return { ok: false, error: "write-failed" };
+    }
+  }
+  if (!(decision.events || []).length) return decision;
+
+  // Automations run AFTER the write, on the events it produced, and
+  // never block the answer the person is waiting for. A rule that
+  // fails is this feature's problem; the change they made already
+  // landed and they have already been told so.
+  itemsRunAutomations(decision.events, decision.item, (opts && opts.depth) || 0);
+  // Being handed work is news in its own right. It should not depend on
+  // somebody having written a rule about it - and it did not, on the
+  // Assign composer, which has always told people. The Work page not
+  // doing so made the same action mean two different things depending
+  // on which screen you did it from.
+  itemsNotifyAssigned(decision.events, decision.item);
+  // a new piece of work whose kind has a track starts travelling it
+  if (intent.kind === "create" && type && type.workflowId)
+    itemsStartHandoff(decision.item, type);
+  return decision;
 }
 
 /* Send the intent to the server and hand back exactly the shape the local
@@ -581,8 +600,11 @@ async function itemsSyncFromRun(item, type, blueprint, run, nodeRuns){
 async function itemsChaseOverdue(){
   const s = await orgEnsure();
   if (!s) return { ok: false, error: "no-org" };
-  const role = (s.roles || []).find(r => r.id === s.myRoleId);
-  if (!role || permGrantScope(role.permissions || [], "item", "update") !== "org")
+  // through itemActorPermissions(), which knows an owner's seat is the
+  // grant - a private roles lookup here silently never chased for an
+  // owner whose roles/owner document was missing
+  const perms = await itemActorPermissions();
+  if (permGrantScope(perms, "item", "update") !== "org")
     return { ok: false, error: "not-mine-to-chase" };
 
   const now = Date.now();
@@ -696,13 +718,6 @@ async function itemsByFacet(facet, limit){
   const snap = await itemsCol(s.orgId)
     .where("facets", "array-contains", facet)
     .limit(limit || 50).get();
-  return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-}
-
-async function itemsRecent(limit){
-  const s = await orgEnsure();
-  if (!s) return [];
-  const snap = await itemsCol(s.orgId).orderBy("updatedAt", "desc").limit(limit || 50).get();
   return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
 }
 
@@ -1070,13 +1085,11 @@ async function itemsDeliverNotify(step, item){
   // A role is resolved to PEOPLE before anything is written. The bell
   // queries toUid, and firestore.rules only lets the addressee read it -
   // so a doc addressed to "lead" would be written, permitted to nobody,
-  // and read by no one. "admin" is the one exception: that is the legacy
-  // email-list admin, not an org role, and its own toRole doc is what the
-  // admin bell already watches.
+  // and read by no one. Rules are written against ORG roles only (the
+  // editor offers nothing else), so there is no admin special case.
   const s = await orgEnsure();
   const uids = autoNotifyTargets(step, s && s.members, from);
-  const legacyAdmin = step.toRole === "admin";
-  if (!uids.length && !legacyAdmin) {
+  if (!uids.length) {
     // worth saying out loud: a rule firing at an empty role is the kind of
     // nothing that looks exactly like working
     console.warn("Automation notified role '" + step.toRole + "', which nobody holds.");
@@ -1084,8 +1097,6 @@ async function itemsDeliverNotify(step, item){
   }
   try {
     const batch = db.batch();
-    if (legacyAdmin) batch.set(db.collection("notifications").doc(),
-      Object.assign({ toRole: "admin" }, base));
     uids.forEach(uid => batch.set(db.collection("notifications").doc(),
       Object.assign({ toUid: uid }, base)));
     await batch.commit();

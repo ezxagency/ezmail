@@ -233,9 +233,17 @@ if (!FB_READY){
       // drop the signed-out uid too, so a stray save() can never write the
       // blank state above over the previous user's stored shift history
       Store.setUser(null, null);
+      isMember = false;
       assignRows = null; assignLogBox = null;
       teamHistoryRows = null; teamPageDocs = null;
       notifDir = null;
+      // the org, its roles and the caches built from it belong to the
+      // account that just left. Kept, the next sign-in on this device
+      // answered "which org, which role" with the previous person's -
+      // and the client's permission grants with it
+      orgInvalidate(); orgWhyNone = null;
+      itemsTaskTypeCache = null; itemsAutomationsCache = null;
+      wkTypes = null; wkRows = []; wkOrphans = [];
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
       $("assignLaunch").classList.add("hidden");

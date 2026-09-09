@@ -148,6 +148,18 @@ T("every collectionGroup query has an index declared for it", () => {
    only worth anything while all three pieces still point at each other -
    a renamed hook or a deleted log fails silently and nobody notices until
    a bug already fixed comes back. */
+T("sign-out forgets the organization and the caches built from it", () => {
+  // orgS, the type cache and the Work page's rows belong to the account
+  // that left. Kept, the next sign-in on a shared device answered "which
+  // org, which role" - and so the client's permission grants - with the
+  // previous person's. auth.js's sign-out branch is the one place that
+  // resets session state, so that is where this looks.
+  const auth = text("js/auth.js");
+  const signOut = auth.slice(auth.indexOf("if (!user) {"), auth.indexOf("try {", auth.indexOf("if (!user) {")));
+  ["orgInvalidate()", "itemsTaskTypeCache = null", "itemsAutomationsCache = null", "wkTypes = null", "isMember = false"]
+    .forEach(s => assert.ok(signOut.includes(s), "sign-out no longer does: " + s));
+});
+
 T("the session-memory mechanism is wired end to end", () => {
   const lessons = text("docs/lessons.md");
   assert.ok(/^## Failure shapes/m.test(lessons),
