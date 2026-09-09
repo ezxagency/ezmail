@@ -2055,6 +2055,7 @@ function wfActionEmailHTML(run, p){
 
 /* ---------- my stops (and the open pool) ---------- */
 let wfStopsMine = [], wfStopsPool = [], wfWatchersOn = false;
+let wfStopsError = null;   // a read that failed, so the empty state can say so instead of "nothing waiting"
 let wfRunCache = new Map();
 
 function wfWatchStops(){
@@ -2070,15 +2071,17 @@ function wfWatchStops(){
   // NEEDS the composite index nodeRuns(assigneeId ASC, status ASC)
   const u1 = db.collection("nodeRuns")
     .where("assigneeId", "==", me).where("status", "==", "in_progress")
-    .onSnapshot(s => { wfStopsMine = grab(s); wfRenderStops(); }, e => console.error(e));
+    .onSnapshot(s => { wfStopsError = null; wfStopsMine = grab(s); wfRenderStops(); },
+                e => { console.error(e); wfStopsError = e; wfRenderStops(); });
   // role-based stops have no assignee yet: a shared pool any teammate may
   // take (the same trusted-team tradeoff assignments already makes)
   const u2 = db.collection("nodeRuns")
     .where("status", "==", "in_progress")
-    .onSnapshot(s => { wfStopsPool = grab(s).filter(r => !r.assigneeId); wfRenderStops(); }, e => console.error(e));
+    .onSnapshot(s => { wfStopsError = null; wfStopsPool = grab(s).filter(r => !r.assigneeId); wfRenderStops(); },
+                e => { console.error(e); wfStopsError = e; wfRenderStops(); });
   onSessionEnd(() => {
     u1(); u2();
-    wfWatchersOn = false; wfStopsMine = []; wfStopsPool = []; wfRunCache = new Map();
+    wfWatchersOn = false; wfStopsMine = []; wfStopsPool = []; wfStopsError = null; wfRunCache = new Map();
   });
 }
 
@@ -2110,7 +2113,12 @@ function wfRenderStops(){
   const host = $("wfStops");
   if (!host) return;
   if (!wfStopsMine.length && !wfStopsPool.length){
-    host.innerHTML = isAdmin ? "" : `
+    // "nothing to show" and "could not reach it" are different answers,
+    // and the first is a lie when the read failed - docs/lessons.md
+    host.innerHTML = wfStopsError ? `
+      <div class="fpage-panel">
+        <div class="empty">Could not load your stops (${esc((wfStopsError.code || wfStopsError.message || "read failed").toString())}). Check your connection and refresh.</div>
+      </div>` : isAdmin ? "" : `
       <div class="fpage-panel">
         <div class="empty">
           <span class="empty-icon">

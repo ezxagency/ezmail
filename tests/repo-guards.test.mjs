@@ -83,7 +83,10 @@ T("every css/ and js/ file on disk is referenced by index.html", () => {
    worse than no copy: the client and the server would quietly enforce
    different rules, and the client is the one you can see. Same shape as
    the timeclock-v2.html rule above, and for the same reason. */
-["item-engine.js", "permissions.js"].forEach(f => {
+const sharedFiles = readdirSync(join(root, "functions/shared")).filter(f => /\.js$/.test(f));
+T("functions/shared/ holds the engine files, and only copies of js/", () =>
+  assert.ok(sharedFiles.includes("item-engine.js") && sharedFiles.includes("permissions.js"), sharedFiles.join(",")));
+sharedFiles.forEach(f => {
   T("functions/shared/" + f + " is byte-for-byte identical to js/" + f, () => {
     assert.ok(bytes("js/" + f).equals(bytes("functions/shared/" + f)),
       "the server's copy has drifted - re-run: cp js/" + f + " functions/shared/" + f);

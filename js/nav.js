@@ -95,9 +95,11 @@ document.addEventListener("keydown", e => {
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if ($("sheet").classList.contains("on")) return;
   if (typeof cxIsOpen === "function" && cxIsOpen()) return;
-  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "team", "6": "workflow" };
+  // the same digits the drawer prints beside each item - all eight of them
+  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "team", "6": "workflow", "7": "work", "8": "org" };
   if (!(e.key in map)) return;
   const r = map[e.key];
+  if (routeRetired(r)) return;
   if (r === "team" && !isAdmin) return;
   if (r === "org" && !isAdmin && !isMember) return;
   if ((r === "campaigns" || r === "workflow") && isMember) return;

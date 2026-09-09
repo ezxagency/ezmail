@@ -107,7 +107,11 @@ function hoBuildBlueprint(type, track, opts){
     prev = id;
   });
 
-  // every path must reach an end or the blueprint will not validate
+  // every path must reach an end or the blueprint will not validate. The
+  // node is an action only because that is the end-shape the validator
+  // accepts: the org glue (js/items.js) applies the engine's run and stops
+  // and discards its effects, so this notify never sends. The people on
+  // the last stop are told by item.assigned when it reaches them.
   nodes.push({ id: "done", type: "action", position: { x: 0, y: (stops.length + 1) * 160 },
     config: { actionType: "notify", label: "Finished",
               params: { message: ((type && type.name) || "Work") + " finished its handoff." } } });

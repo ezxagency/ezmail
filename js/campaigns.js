@@ -49,7 +49,8 @@ const cgBudgetLabel = s => {
 let cgRows = null;        // every campaign this account may see; null = loading
 let cgBatonSeen = null;   // "id:cur" pairs already on screen; null = first snapshot
 let cgLiveOpen = false;   // the Live section's disclosure survives re-renders
-let cgView = localStorage.getItem("cgView") || "list";   // admin: list | board
+let cgView = "list";   // admin: list | board
+try { cgView = localStorage.getItem("cgView") || "list"; } catch (e) {}   // a blocked storage must not stop the file loading
 
 const cgStage = c => c.stages && c.stages[c.cur] ? c.stages[c.cur] : null;
 const cgOwnersOf = s => s ? (s.owners || (s.uid ? [{ uid: s.uid, uname: s.uname }] : [])) : [];
