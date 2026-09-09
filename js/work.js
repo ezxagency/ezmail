@@ -436,7 +436,10 @@ async function wkSave(item){
   if (!item) r = await itemSave(type, null, { kind: "create", title, fields, assigneeIds });
   else {
     r = await itemSave(type, item, { kind: "update", title, fields });
-    if (r.ok) r = await itemSave(type, r.item, { kind: "assign", assigneeIds });
+    // a run drives the people on a tracked item and the sheet drew no
+    // checkboxes for it - reading them back as "nobody" un-assigned the
+    // baton holder on every Save
+    if (r.ok && !item.workflowRunId) r = await itemSave(type, r.item, { kind: "assign", assigneeIds });
   }
   btn.disabled = false; btn.textContent = item ? "Save" : "Create";
   if (!r.ok) {

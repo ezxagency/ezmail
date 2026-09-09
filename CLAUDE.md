@@ -27,7 +27,8 @@ so what a session learns is written down before the session ends.
 ## Hard rules
 
 These are enforced by `tests/repo-guards.test.mjs` — CI fails if you break
-one, so you don't have to remember them.
+one, so you don't have to remember them. (Rule 4 is the one convention
+no test states.)
 
 1. **`timeclock-v2.html` is a byte-for-byte copy of `index.html`.** After
    editing the HTML: `cp index.html timeclock-v2.html`. Two files, one app.
@@ -38,13 +39,11 @@ one, so you don't have to remember them.
    `isDesignatedAdminEmail()` / `isAssignerEmail()` in `firestore.rules`.**
    See "Two gates" below for why this one matters most.
 4. **No bundler, no framework, no npm at runtime.** Edit, refresh, push.
-   `tests/` and `functions/` are the only places with dependencies, and
-   `functions/` is server code that never ships to a browser.
-5. **`functions/shared/*.js` are byte-for-byte copies of `js/*.js`.**
-   Cloud Functions deploys only its own directory, so the pure engine is
-   copied in beside it. After editing either: `cp js/<f> functions/shared/`.
-   A drifted copy means the client and the server enforce different
-   rules — and the client is the one you can see.
+   `tests/` is the only place with dependencies. (A Cloud Function that
+   would have run the item engine server-side lived in `functions/`; it
+   was never deployed and was deleted on 2026-09-09. If it comes back,
+   its copies of `js/item-engine.js` and `js/permissions.js` need a
+   byte-for-byte guard again.)
 
 ## Two gates, one truth
 
@@ -129,13 +128,12 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 523 assertions, node + jsdom, seconds
+npm test        # 493 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
-`npm test` covers the workflow engine, effects, templates, versioning, the
-builder handshake, the permission grammar, the item engine, automations,
+`npm test` covers the workflow engine, the permission grammar, the item engine, automations,
 the template packs, the repo guards, and — in jsdom, with the real files
 loaded into one shared global scope exactly as `index.html` arranges
 them — the generated UI. That last suite exists because the pure ones
@@ -169,7 +167,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 774 pass as of this writing — a
+reaches through an org boundary. All 744 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -202,7 +200,7 @@ queue has always produced into one card at a time — the wheel, the arrows
 or the arrow keys move one card per notch, and the next two peek behind.
 Four kinds of work wear the SAME card and only the action changes, which
 is the part `tests/deck.test.mjs` spends most of its assertions on: an
-assignment offers Done, a baton offers the campaign's own moves, a
+assignment offers Done, a
 workflow stop routes to its stop, and work whose type was deleted offers
 nothing and says why. `dkPick()` is the pure half, and it exists because
 finishing the front card removes it from the snapshot — what shows next
@@ -237,7 +235,7 @@ list to the work still on the deck, which also means an unloaded queue
 offers nothing rather than offering work nobody can complete.
 
 The deck reads the shift as well as the queue — the Running pill, Paused ·
-23m, and whether the left button says Start task or Send back — but it is
+23m, and whether the left button says Start task or Put down — but it is
 only DRAWN when the assignments snapshot fires. `dkRefresh()` is the
 redraw for the other half, and `render()` is its one caller.
 
@@ -265,7 +263,7 @@ suite is not a thing to seek permission for, it is a thing to fix.
   what rule 2 is about.
 - **Firestore rules + indexes**: `.github/workflows/deploy-rules.yml` ships
   them on any push to `main` that touches `firestore.rules` or
-  `firestore.indexes.json` — but only after the 248-assertion suite passes
+  `firestore.indexes.json` — but only after the 259-assertion suite passes
   against the edited rules. Never paste rules into the Firebase console by
   hand; the console and the repo drift apart the moment you do, and the
   repo is the version that gets tested.

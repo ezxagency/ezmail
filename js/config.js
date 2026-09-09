@@ -20,16 +20,6 @@ const CONFIG = {
 
   pauseReasons: ["Lunch", "Travel", "Meeting", "Other"],
 
-  // PHASE 3 SWITCH (docs/platform-spec.md). false = itemCommit() runs in
-  // this browser; true = the intent goes to the commitItem Cloud Function
-  // and the engine runs where the caller cannot reach it.
-  // Leave it false until that function is actually deployed: flipping it
-  // first sends every write at a callable that is not there. Turning it
-  // on is step one of two - narrowing the items rule to reject client
-  // writes is what finally closes the door, and doing THAT first would
-  // break every write in the other direction.
-  serverCommit: false,
-
   // READ CUTOVER (docs/platform-spec.md, phase 2). false = the task queue
   // reads the assignments collection, as it always has. true = it reads
   // Items and adapts them back to the same row shape, so not one line of
@@ -196,11 +186,17 @@ const currentStore = sh => {
   return sh.client;
 };
 
+/* Time per (store, task). An IDLE segment (task: null - clocked in with
+   nothing running, which finishing a deck task leaves you in) is skipped
+   AFTER its store is carried forward: idle time is not a task, and the
+   invariant says sum(task segs) is the time spent on work. Emitting it
+   here once crashed every consumer that labels a task, clock-out first. */
 function taskTally(sh, now = Date.now()){
   const m = new Map();
   let store = sh.client;
   (sh.segs||[]).forEach(s => {
     if (s.client) store = s.client;
+    if (s.task == null) return;
     const key = store + " " + s.task;
     const cur = m.get(key) || { store, task: s.task, ms: 0 };
     cur.ms += segMs(s, now);
@@ -251,13 +247,3 @@ function applyUiFlag(){
 }
 applyUiFlag();
 
-/* Pages the new dashboard does not have.
-   docs/dashboard-v6-spec.md §12a: the whole app is one chain of stages,
-   so Campaigns - the older, pre-tenancy version of that same idea - is
-   retired into it. The cut is scoped to the flag ON PURPOSE: taking the
-   baton page away from a team whose replacement is not built yet would
-   cost them work and buy nothing. Classic keeps it until the flag goes.
-   Nothing is deleted. The collection, its documents and its rules are
-   untouched; only the way in is closed. */
-const UI_NEXT_RETIRED = ["campaigns"];
-const routeRetired = r => uiNextOn() && UI_NEXT_RETIRED.indexOf(r || "") >= 0;

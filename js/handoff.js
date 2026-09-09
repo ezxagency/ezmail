@@ -74,10 +74,9 @@ function hoTrackErrors(track, roleIds, statusKeys, members){
   return out;
 }
 
-/* A track becomes trigger -> role -> role -> ... -> done, which is the
-   same shape migrateCampaignBlueprint() produces from a campaign chain.
-   Same shape on purpose: two generators disagreeing about what a linear
-   pipeline looks like would be two things to keep in step. */
+/* A track becomes trigger -> role -> role -> ... -> done: the one
+   generator of a linear pipeline. (A second one, from campaign chains,
+   wrote to a collection nothing listed and was cut with the page.) */
 function hoBuildBlueprint(type, track, opts){
   const o = opts || {};
   const stops = (track || []).filter(Boolean);
@@ -108,7 +107,11 @@ function hoBuildBlueprint(type, track, opts){
     prev = id;
   });
 
-  // every path must reach an end or the blueprint will not validate
+  // every path must reach an end or the blueprint will not validate. The
+  // node is an action only because that is the end-shape the validator
+  // accepts: the org glue (js/items.js) applies the engine's run and stops
+  // and discards its effects, so this notify never sends. The people on
+  // the last stop are told by item.assigned when it reaches them.
   nodes.push({ id: "done", type: "action", position: { x: 0, y: (stops.length + 1) * 160 },
     config: { actionType: "notify", label: "Finished",
               params: { message: ((type && type.name) || "Work") + " finished its handoff." } } });

@@ -131,7 +131,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
    space-between alone pushed the label across to the far side */
 .af-opt-main{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .af-opt-meta{flex:none;font-size:11px;color:var(--wk-white-60);letter-spacing:.04em}
-.af-opt-none{margin:0;padding:14px 12px;font-family:var(--wk);font-size:13px;color:var(--wk-white-60)}
 /* multi-select: the panel stays open, so each row carries its own state */
 .af-check{
   flex:none;width:17px;height:17px;border-radius:5px;
@@ -188,23 +187,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
 .hist .h-c{font-family:var(--wk);font-weight:600;font-size:16px;letter-spacing:.02em;color:var(--wk-white);overflow-wrap:anywhere}
 .hist .h-d{font-family:var(--wk);font-size:11.5px;color:var(--wk-white-60);margin-top:3px;overflow-wrap:anywhere}
 .hist .h-h{font-family:var(--wk);font-size:15px;font-weight:600;white-space:nowrap;color:var(--wk-white)}
-
-/* A batch assigned in one go renders as one thread: the shared brief (note,
-   due date, who) told once up top, then each store · task pair on its own
-   tick-able line under a lighter dashed rule so the sub-items read as parts
-   of the thread rather than more threads. */
-.hist li.assign-group{flex-direction:column;align-items:stretch;gap:0}
-.ag-head{display:flex;justify-content:space-between;gap:14px;align-items:baseline}
-.ag-head > div{min-width:0}
-.ag-head > .btn{align-self:center;flex:none}
-.ag-items{list-style:none;margin:12px 0 0;padding:0}
-.hist .ag-items li{border-bottom:0;border-top:1px dashed rgba(255,255,255,.16);padding:8px 0;align-items:center}
-.ag-item-name{font-family:var(--wk);font-size:13px;color:var(--wk-white-70);overflow-wrap:anywhere;min-width:0}
-.hist .ag-items .ag-tick{padding:9px 12px;font-size:11px}
-/* a line's own due date, when lines in the group differ; overdue goes red */
-.ag-item-due{display:block;font-size:10.5px;color:var(--wk-white-60);margin-top:2px}
-.hist .ag-items li.is-late .ag-item-due,
-.hist .ag-items li.is-late .ag-item-name{color:#ff8a7e}
 
 /* Fixed layout with declared column widths, so the table always fits its
    container and long values wrap into a taller row instead of pushing the

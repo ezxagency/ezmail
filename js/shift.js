@@ -66,7 +66,7 @@ function askSwitch(){
   const curStore = currentStore(S.shift);
   openSheet(`
     <h2>Switch task</h2>
-    <p class="hint">Still on the clock — this only splits your time. Currently on <b>${esc(cur)}</b> for ${humanDur(segMs(seg))} at <b>${esc(curStore)}</b>.</p>
+    <p class="hint">Still on the clock — this only splits your time. ${cur ? `Currently on <b>${esc(cur)}</b>` : "Nothing running"} for ${humanDur(segMs(seg))} at <b>${esc(curStore)}</b>.</p>
     <label class="fld"><span>New task <b class="req">*</b></span></label>
     <div class="chips">${chipGroup(CONFIG.tasks, true)}</div>
     <label class="fld" id="tkOtherWrap" style="display:none"><span>Task name <b class="req">*</b></span>
@@ -148,7 +148,10 @@ async function resume(){
   const now = Date.now();
   const b = openBreak(S.shift); b.endedAt = now;
   const last = [...S.shift.segs].pop();
-  S.shift.segs.push({ task: last.task, startedAt: now, endedAt: null, via: "resume" });
+  // itemId rides along: the resumed segment is the SAME work, so the task
+  // clock keeps summing it and the deck keeps calling it running. Without
+  // it a break turned a running card back into "Start task".
+  S.shift.segs.push({ task: last.task, itemId: last.itemId || null, startedAt: now, endedAt: null, via: "resume" });
   S.status = "ACTIVE";
   await save(); render();
 }
@@ -390,6 +393,7 @@ async function exportExcel(){
     let store = r.client;
     (r.segs||[]).filter(s=>s.endedAt).forEach(s => {
       if (s.client) store = s.client;
+      if (s.task == null) return;   // idle: nothing to bill a row to
       detail.push({
         "Date": dayStamp(r.startedAt),
         "Team Member": r.worker,

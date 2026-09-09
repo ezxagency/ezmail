@@ -86,7 +86,11 @@ async function resolveRole(user){
       // founder is nobody here's to approve.
       if (!isPasswordAcct && role === "pending") notifyAdminsNewSignup(base.name, user.email);
     }
-    if (isPasswordAcct) queueVerifyCodeEmail(user.email, base.verifyCode).catch(e => console.error(e));
+    // queueAppEmail never throws - it answers { ok } - so a .catch here
+    // caught nothing and a failed first send landed the person on "enter
+    // the code from your email" with no email and no message
+    if (isPasswordAcct) queueVerifyCodeEmail(user.email, base.verifyCode)
+      .then(ok => { if (!ok) toast("Couldn't send the code — tap Resend"); });
     doc = await ref.get();
   } else if (shouldBeAdmin && doc.data().role !== "admin") {
     // an existing account whose email was just added to ADMIN_EMAILS -
@@ -118,12 +122,6 @@ function enterFullApp(user, role){
      left a customer unable to reach the page that manages their own org.
      Inside the page, owner-only controls gate on the org role instead. */
   $("drawerOrg").classList.toggle("hidden", !(isAdmin || isMember));
-  // Campaigns and Workflows are Ez Agency's own pre-tenancy tools, and
-  // read data the rules refuse a member. Hidden, not shown-and-broken.
-  // ...and retired outright under the new dashboard, where a task moving
-  // along its work type's track IS the campaign - see routeRetired()
-  $("drawerCampaigns").classList.toggle("hidden", isMember || routeRetired("campaigns"));
-  $("drawerWorkflow").classList.toggle("hidden", isMember);
   // admin's own record lives inside Team's History section now - a
   // separate personal-history page is only useful to everyone else
   $("drawerHistory").classList.toggle("hidden", isAdmin);
@@ -233,9 +231,17 @@ if (!FB_READY){
       // drop the signed-out uid too, so a stray save() can never write the
       // blank state above over the previous user's stored shift history
       Store.setUser(null, null);
+      isMember = false;
       assignRows = null; assignLogBox = null;
       teamHistoryRows = null; teamPageDocs = null;
       notifDir = null;
+      // the org, its roles and the caches built from it belong to the
+      // account that just left. Kept, the next sign-in on this device
+      // answered "which org, which role" with the previous person's -
+      // and the client's permission grants with it
+      orgInvalidate(); orgWhyNone = null;
+      itemsTaskTypeCache = null; itemsAutomationsCache = null;
+      wkTypes = null; wkRows = []; wkOrphans = [];
       $("bandSignOut").classList.add("hidden");
       $("adminAccessBtn").classList.add("hidden");
       $("assignLaunch").classList.add("hidden");

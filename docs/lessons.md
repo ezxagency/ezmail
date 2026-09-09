@@ -118,6 +118,44 @@ rules". Finishing now routes on the row: a handoff advances its stop,
 untracked work takes the status its type calls done, and the toast says
 which rather than claiming "done" for all three.
 
+**A form that hides a control still reads it back.**
+The Work page's item sheet draws no People checkboxes for work on a
+handoff, because the run decides who holds it. Save then read those
+checkboxes back - none - and sent `assign: []`, un-seating the baton
+holder on every edit. The type editor did the same in the other
+direction: it rebuilt the type from the four fields it showed and
+`set()` dropped `track` and `workflowId`, turning the handoff off for any
+type whose fields were ever edited.
+*Rule:* a save that rebuilds a whole document carries every field it
+does not show, or it does not rebuild. `itemSave()` now re-reads the
+document before the engine rebuilds it, so a side write in between (the
+overdue chase, a run stamping its id) survives a save from a page-old
+copy - the general form of "A rebuild from a stale in-memory copy".
+*Guard:* `tests/ui.test.mjs` presses Save on a tracked item and on an
+edited type; `tests/flow.test.mjs` stamps a document behind a page's back
+and saves from the old copy.
+
+**Two things that mint the same id in the same collection.**
+The "Just tasks" pack shipped a type with id `task`. That is the id the
+Assign composer's mirror reads (`MIGRATE_TASK_TYPE`), so in an org that
+applied the pack first, the mirror found the pack's type, its statuses
+had no `open`, validation refused every row, and a `console.warn` was the
+only trace. Nobody's assignments reached the new queue.
+*Rule:* an id that two writers can choose is a collision waiting on
+order. Reserve the legacy ids and test that nothing else claims them.
+*Guard:* `tests/packs.test.mjs` checks every pack type against the
+migrate ids; `tests/flow.test.mjs` applies the pack in a fresh org and
+then mirrors an assignment.
+
+**Sign-out reset the shift and forgot the organization.**
+`auth.js` cleared `S`, the queue rows and the directory on sign-out, and
+never `orgInvalidate()`. `orgEnsure()` hands back whatever it holds, so
+the next account on the same device answered "which org, which role,
+which permissions" with the previous person's - the client half of the
+two gates disagreeing with the server half.
+*Rule:* anything cached from a signed-in account is reset in the ONE
+sign-out branch, and the repo guard reads that branch for the resets.
+
 ### Permissions and tenancy
 
 **Answer the authorization question the way the rules answer it.**
@@ -137,6 +175,31 @@ Ownership is an org role, which is data.
 The pre-tenancy collections are not org-scoped, so a member who counted
 as team would read another company's work.
 
+### Messaging
+
+**Every writer of a row has to feed the mirror, not just the first one.**
+`itemsMirrorAssignments()` had one caller: the composer's create path.
+Accepting a hand-off, reclaiming a declined one and editing an existing
+assignment all wrote `assignments` and nothing else - while the
+dashboard reads Items. "Added to your queue" was true of a collection
+nobody looks at. The mirror now updates a row it already holds rather
+than re-creating it, so an edit keeps the run and the stamps the Item
+carried.
+*Rule:* when a collection gains a mirror, grep every writer of the
+original, not the one you were looking at.
+*Guard:* `tests/flow.test.mjs` accepts a hand-off and edits an
+assignment against the fake, and looks for the Item.
+
+**An offer the rules will refuse is not an offer.**
+A member's Done sheet promised "@tag someone and they get a hand-off".
+The fan-out batched the offer with a `toRole:"admin"` doc the rules deny
+a member, so the batch died and the offer with it; and had it landed,
+Accept writes to `assignments`, which the rules keep for Ez Agency's
+team. Two refusals deep, all silent. Members now get a plain comment
+box and the dispatcher writes nothing for them.
+*Rule:* before drawing a control, know that the server will accept
+what it does - for THIS role, not the one you tested with.
+
 ### The UI
 
 **An empty list must say why it is empty.**
@@ -154,6 +217,25 @@ handoff that changes nothing on screen. The row has to show the change.
 **Name the thing, do not describe its absence.**
 "The work type is missing" sends somebody to devtools. Name the type,
 name who can fix it.
+
+**A new kind of row breaks every consumer written before it existed.**
+The redesign's IDLE segment (`task: null`) was added to the shift and
+proved in `clock.test.mjs`, which reads segments the new way. Nothing
+re-ran the OLD readers with the new data. `taskTally()` emitted an
+entry with a null task; `taskLabel()` called `.toUpperCase()` on it;
+and the wrap-up sheet - Clock out - threw before it opened, for anyone
+who had finished a deck task that day. The dock read "Resume · null".
+Three private copies of the tally loop in `js/team.js` would have
+crashed the Excel export the same way. And `resume()` rebuilt the
+segment without its `itemId`, so a lunch break turned running work back
+into "Start task".
+*Rule:* when a data shape gains a new case, grep for every reader of
+the OLD shape and run it against the new one. The pure suite for the
+new reader proves nothing about the old readers.
+*Guard:* `tests/shift.test.mjs` drives clock-out, the dock, the report,
+switch and resume with an idle segment in the shift. `taskTally()` is
+the one place idle is skipped, and `js/team.js` now calls it rather
+than keeping copies that would each need the same fix.
 
 ### Load order and globals
 
@@ -208,7 +290,7 @@ second one's caller. Here the deck is drawn from the queue and reads the
 shift, so `render()` — the one function that sees a shift change — asks
 it to redraw.
 *Guard:* `tests/deck.test.mjs` starts a task and re-renders, asserting the
-left button became **Send back**; a second assertion reads `js/render.js`
+left button became **Put down**; a second assertion reads `js/render.js`
 and fails if nothing there calls `dkRefresh()`, because a redraw nobody
 calls is written-never-read.
 
@@ -221,6 +303,68 @@ would have stayed untested.
 *Rule:* if an action is called in a test, it has to reach its end. An
 async action that throws mid-way fails nothing by default.
 *Guard:* the harness stubs `render()`, so the whole of `dkStart` runs.
+
+### Cuts
+
+**Campaigns was cut, not migrated (2026-09-09).**
+docs/dashboard-v6-spec.md §12a decided it; the owner confirmed it. The
+page, its stylesheet, the public client-review page and every hook -
+the queue's baton rows, the team pane's campaign rows, the composer's
+load count, the notification click, the retired-route flag - are gone.
+The `campaigns`, `campaignTemplates` and `clientReviews` DATA and their
+rules are untouched, and "Import campaigns" on the Organization page
+still brings old campaigns into Work at the stage they were on. The
+deck's "Send back", whose only implementation was the campaigns page,
+became "Put down": it closes the task's segment into an idle one, which
+the clock math (`clkTaskTotal`) already sums back when the card is
+started again.
+
+**The legacy Workflows page went with it.**
+Same decision, same day: the drawflow builder, the runs board and the
+effect dispatcher read top-level `blueprints`/`runs`/`nodeRuns`, Ez
+Agency's pre-tenancy collections, and the org handoff (a track compiled
+by `js/handoff.js`, run by `js/items.js`) is the one pipeline now.
+`js/workflow-engine.js` stays: the handoff runs on it. The four suites
+that loaded the page verbatim went with the page; the engine's own suite
+stays. The "Take it / Not me" offer and "Work this stop" row had one
+taker each and are gone; a claimed stop's assignment is a plain row.
+The legacy rules and data are untouched.
+
+**The Cloud Function was deleted, not kept as a switch.**
+`functions/commitItem` would have run the item engine server-side. It
+was never deployed (Blaze was never turned on), `CONFIG.serverCommit`
+was never flipped, and the switch's own path had drifted - it skipped
+automations, notifications and the handoff start until this audit. A
+door nobody can open is a door that rots. It is gone with its deploy
+workflow, its copies of the engine, the guard that kept the copies
+honest, and the SDK every page load fetched for it. `docs/platform-spec.md`
+still describes the phase; if it comes back, it comes back with tests.
+
+### Infrastructure
+
+**The test that never ran was green for months.**
+`ci.yml` ran one step per suite, so a suite added to `package.json` and
+not to the workflow ran on every laptop and never in CI. Eight were
+missing - the whole redesign and the flag test the lessons file itself
+holds up as the guard. A list copied into a second place is a second
+place to forget.
+*Rule:* CI runs `npm test`, the same command a person runs, and nothing
+else names the suites.
+
+**Quirks mode, for the app's whole life.**
+`index.html` had no doctype: a BOM, then `<meta charset>`. Every browser
+laid the app out in quirks mode, and so did every jsdom test and every
+screenshot, so nothing could notice. Adding it is a layout change to
+look at, not a formality - `npm run shots` before and after.
+
+**Two units for one field.**
+The legacy builder saved `dueAfter` in hours; the engine adds it to
+`now` as milliseconds; the org track editor and the migration already
+spoke milliseconds. Nothing read the legacy deadline, so it was wrong
+for as long as it existed without anyone seeing 48ms. The builder now
+converts at the edge, as the track editor does.
+*Rule:* a number that crosses a file boundary carries its unit in its
+name or its comment, and one producer is checked against the reader.
 
 ### Process
 

@@ -17,7 +17,7 @@
 .drawer :where(button):not([disabled]):active{transform:scale(.98)}
 #appScreen :where(.pomo-side,.panel-menu,.admin-icon-btn,.menu-btn,.band-signout,
   .pt-check,.pt-del,.pt-add-btn,.drawer-signout):not([disabled]):active,
-.sheet :where(.cg-link-x,.pswitch,.toast-act):not([disabled]):active{transform:scale(.9)}
+.sheet :where(.pswitch,.toast-act):not([disabled]):active{transform:scale(.9)}
 /* anything that presses must travel smoothly, not snap */
 #appScreen :where(button),.sheet :where(button),.drawer :where(button){
   transition-property:transform,background,color,border-color,box-shadow,opacity;

@@ -1,4 +1,6 @@
-﻿<meta charset="utf-8">
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Shift Card</title>
 <meta name="theme-color" content="#161922">
@@ -13,38 +15,32 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-<!-- only used when CONFIG.serverCommit is on; loaded always so the flip is one line -->
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-functions-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.60/dist/drawflow.min.js"></script>
 <link rel="preload" as="image" href="assets/bg-marble-mobile.webp" media="(max-width:1023px)">
 <link rel="preload" as="image" href="assets/bg-marble.webp" media="(min-width:1024px)">
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=194">
-<link rel="stylesheet" href="css/dashboard.css?v=194">
-<link rel="stylesheet" href="css/drawer.css?v=194">
-<link rel="stylesheet" href="css/pages.css?v=194">
-<link rel="stylesheet" href="css/sheets.css?v=194">
-<link rel="stylesheet" href="css/tables.css?v=194">
-<link rel="stylesheet" href="css/responsive.css?v=194">
-<link rel="stylesheet" href="css/pomodoro.css?v=194">
-<link rel="stylesheet" href="css/personal.css?v=194">
-<link rel="stylesheet" href="css/campaigns.css?v=194">
-<link rel="stylesheet" href="css/assign.css?v=194">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.60/dist/drawflow.min.css">
-<link rel="stylesheet" href="css/workflow.css?v=194">
-<link rel="stylesheet" href="css/org.css?v=194">
-<link rel="stylesheet" href="css/work.css?v=194">
-<link rel="stylesheet" href="css/scrubber.css?v=194">
-<link rel="stylesheet" href="css/deck.css?v=194">
-<link rel="stylesheet" href="css/week.css?v=194">
-<link rel="stylesheet" href="css/rail.css?v=194">
-<link rel="stylesheet" href="css/hero.css?v=194">
-<link rel="stylesheet" href="css/v6.css?v=194">
-<link rel="stylesheet" href="css/login.css?v=194">
+<link rel="stylesheet" href="css/base.css?v=203">
+<link rel="stylesheet" href="css/dashboard.css?v=203">
+<link rel="stylesheet" href="css/drawer.css?v=203">
+<link rel="stylesheet" href="css/pages.css?v=203">
+<link rel="stylesheet" href="css/sheets.css?v=203">
+<link rel="stylesheet" href="css/tables.css?v=203">
+<link rel="stylesheet" href="css/responsive.css?v=203">
+<link rel="stylesheet" href="css/pomodoro.css?v=203">
+<link rel="stylesheet" href="css/personal.css?v=203">
+<link rel="stylesheet" href="css/assign.css?v=203">
+<link rel="stylesheet" href="css/org.css?v=203">
+<link rel="stylesheet" href="css/work.css?v=203">
+<link rel="stylesheet" href="css/scrubber.css?v=203">
+<link rel="stylesheet" href="css/deck.css?v=203">
+<link rel="stylesheet" href="css/week.css?v=203">
+<link rel="stylesheet" href="css/rail.css?v=203">
+<link rel="stylesheet" href="css/hero.css?v=203">
+<link rel="stylesheet" href="css/v6.css?v=203">
+<link rel="stylesheet" href="css/login.css?v=203">
 <!-- last on purpose: the premium layer standardizes motion over everything -->
-<link rel="stylesheet" href="css/premium.css?v=194">
+<link rel="stylesheet" href="css/premium.css?v=203">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -510,31 +506,20 @@
         <span class="drawer-txt">History<small>Closed shifts &amp; exports</small></span>
         <kbd class="drawer-kbd">3</kbd>
       </a>
-      <a class="drawer-item" id="drawerCampaigns" href="#/campaigns" data-route="campaigns">
-        <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><path d="M7.2 12h2.6M14.2 12h2.6"/></svg></span>
-        <span class="drawer-txt">Campaigns<small>The baton-pass pipeline</small></span>
-        <span class="drawer-badge hidden" id="cgNavBadge">0</span>
-        <kbd class="drawer-kbd">4</kbd>
-      </a>
       <a class="drawer-item hidden" id="drawerTeam" href="#/team" data-route="team">
         <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg></span>
         <span class="drawer-txt">Team<small>Roster &amp; approvals</small></span>
-        <kbd class="drawer-kbd">5</kbd>
-      </a>
-      <a class="drawer-item" id="drawerWorkflow" href="#/workflow" data-route="workflow">
-        <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1.5"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M12 7.5V11M12 11H5.5v5M12 11h6.5v5"/></svg></span>
-        <span class="drawer-txt">Workflows<small>Blueprints &amp; runs</small></span>
-        <kbd class="drawer-kbd">6</kbd>
+        <kbd class="drawer-kbd">4</kbd>
       </a>
       <a class="drawer-item" id="drawerWork" href="#/work" data-route="work">
         <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2.5"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/><path d="M3 12h18"/></svg></span>
         <span class="drawer-txt">Work<small>Everything in flight</small></span>
-        <kbd class="drawer-kbd">7</kbd>
+        <kbd class="drawer-kbd">5</kbd>
       </a>
       <a class="drawer-item hidden" id="drawerOrg" href="#/org" data-route="org">
         <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20.5V9l6-3.5V20.5"/><path d="M9 20.5V4l6 3.5v13"/><path d="M15 20.5V11l6 3.5v6"/><path d="M2 20.5h20"/></svg></span>
         <span class="drawer-txt">Organization<small>People &amp; roles</small></span>
-        <kbd class="drawer-kbd">8</kbd>
+        <kbd class="drawer-kbd">6</kbd>
       </a>
     </nav>
 
@@ -585,22 +570,6 @@
     </div>
   </div>
 
-  <div class="admin-page fpage hidden" id="campaignsScreen">
-    <div class="admin-page-inner">
-      <div class="admin-page-head">
-        <div>
-          <p class="fpage-eyebrow">Pipeline</p>
-          <h1 class="admin-page-title">Campaigns</h1>
-        </div>
-        <button type="button" class="page-back" data-back>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
-          Back
-        </button>
-      </div>
-      <div id="campaignsBody"></div>
-    </div>
-  </div>
-
   <div class="admin-page hidden" id="teamScreen">
     <div class="admin-page-inner">
       <div class="admin-page-head">
@@ -618,22 +587,6 @@
       <div id="teamToday"></div>
       <div id="teamHistorySection"></div>
       <ul class="hist" id="teamPending"></ul>
-    </div>
-  </div>
-
-  <div class="admin-page fpage hidden" id="workflowScreen">
-    <div class="admin-page-inner">
-      <div class="admin-page-head">
-        <div>
-          <p class="fpage-eyebrow">Blueprints &amp; runs</p>
-          <h1 class="admin-page-title">Workflows</h1>
-        </div>
-        <button type="button" class="page-back" data-back>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
-          Back
-        </button>
-      </div>
-      <div id="workflowBody"></div>
     </div>
   </div>
 
@@ -680,48 +633,46 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=194"></script>
-<script src="js/clock.js?v=194"></script>
+<script src="js/config.js?v=203"></script>
+<script src="js/clock.js?v=203"></script>
 <!-- pure grammar, no deps: authorization answers must stay testable -->
-<script src="js/permissions.js?v=194"></script>
+<script src="js/permissions.js?v=203"></script>
 <!-- the universal work object: types, values, facets, one chokepoint -->
-<script src="js/item-engine.js?v=194"></script>
+<script src="js/item-engine.js?v=203"></script>
 <!-- and its Firestore glue, kept dumb so phase 3 can swap its middle -->
 <!-- the shapes today's collections take as Items; pure, used by items.js -->
-<script src="js/migrate.js?v=194"></script>
-<script src="js/items.js?v=194"></script>
-<script src="js/render.js?v=194"></script>
-<script src="js/scrubber.js?v=194"></script>
-<script src="js/deck.js?v=194"></script>
-<script src="js/week.js?v=194"></script>
-<script src="js/hero.js?v=194"></script>
-<script src="js/ui.js?v=194"></script>
-<script src="js/shift.js?v=194"></script>
-<script src="js/email.js?v=194"></script>
-<script src="js/nav.js?v=194"></script>
-<script src="js/rail.js?v=194"></script>
-<script src="js/boot.js?v=194"></script>
-<script src="js/team.js?v=194"></script>
-<script src="js/assign.js?v=194"></script>
-<script src="js/notify.js?v=194"></script>
-<script src="js/campaigns.js?v=194"></script>
-<script src="js/auth.js?v=194"></script>
-<script src="js/personal.js?v=194"></script>
-<script src="js/pomodoro.js?v=194"></script>
-<script src="js/workflow-engine.js?v=194"></script>
+<script src="js/migrate.js?v=203"></script>
+<script src="js/items.js?v=203"></script>
+<script src="js/render.js?v=203"></script>
+<script src="js/scrubber.js?v=203"></script>
+<script src="js/deck.js?v=203"></script>
+<script src="js/week.js?v=203"></script>
+<script src="js/hero.js?v=203"></script>
+<script src="js/ui.js?v=203"></script>
+<script src="js/shift.js?v=203"></script>
+<script src="js/email.js?v=203"></script>
+<script src="js/nav.js?v=203"></script>
+<script src="js/rail.js?v=203"></script>
+<script src="js/boot.js?v=203"></script>
+<script src="js/team.js?v=203"></script>
+<script src="js/assign.js?v=203"></script>
+<script src="js/notify.js?v=203"></script>
+<script src="js/auth.js?v=203"></script>
+<script src="js/personal.js?v=203"></script>
+<script src="js/pomodoro.js?v=203"></script>
+<script src="js/workflow-engine.js?v=203"></script>
 <!-- trigger, condition, action. AFTER the workflow engine on purpose:
      it evaluates conditions with wfEvalCondition, and in this app the
      script order IS the dependency graph -->
-<script src="js/automation.js?v=194"></script>
+<script src="js/automation.js?v=203"></script>
 <!-- work that moves person to person: a linear track compiled into a real
      blueprint the engine above runs. BEFORE packs, because a pack ships
      tracks and compiles them with this -->
-<script src="js/handoff.js?v=194"></script>
+<script src="js/handoff.js?v=203"></script>
 <!-- an industry as a JSON file. LAST of the pure modules on purpose:
      it validates packs against the field types, the permission grammar
      and the action kinds the three files above define -->
-<script src="js/packs.js?v=194"></script>
-<script src="js/workflow.js?v=194"></script>
-<script src="js/org.js?v=194"></script>
-<script src="js/work.js?v=194"></script>
-<script src="js/premium.js?v=194"></script>
+<script src="js/packs.js?v=203"></script>
+<script src="js/org.js?v=203"></script>
+<script src="js/work.js?v=203"></script>
+<script src="js/premium.js?v=203"></script>

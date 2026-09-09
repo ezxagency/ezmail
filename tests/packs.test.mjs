@@ -57,6 +57,16 @@ T("no two packs define the same kind of work", () => {
   const shared = Object.entries(seen).filter(([, v]) => v.length > 1);
   assert.equal(shared.length, 0, "shared type ids: " + JSON.stringify(shared));
 });
+T("no pack type wears the id the Assign composer mirrors into", () => {
+  // itemsEnsureTaskType() reads itemTypes/{MIGRATE_TASK_TYPE.id}. A pack
+  // type under the same id was read back as the mirror's type, its
+  // statuses did not include "open", validation refused every mirrored
+  // row, and assignments vanished from the queue of anyone in that org.
+  const MG = require("../js/migrate.js");
+  const reserved = [MG.MIGRATE_TASK_TYPE.id, MG.MIGRATE_CAMPAIGN_TYPE.id];
+  P.PACKS.forEach(p => (p.itemTypes || []).forEach(t =>
+    assert.ok(!reserved.includes(t.id), p.key + " defines type '" + t.id + "', which the legacy mirror owns")));
+});
 T("every pack's own types trace back to it", () => {
   P.PACKS.forEach(p => (p.itemTypes || []).forEach(t =>
     assert.equal((P.packForType({ id: t.id }) || {}).key, p.key)));

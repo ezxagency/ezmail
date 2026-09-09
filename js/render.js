@@ -20,7 +20,8 @@ function render(){
     const seg = openSeg(S.shift);
     $("bandState").textContent = "Clocked in · " + currentStore(S.shift).toUpperCase();
     $("shiftMeta").textContent = "Net working";
-    $("taskMeta").textContent = seg ? seg.task : "Current task";
+    // an idle segment has no task: say so rather than printing nothing
+    $("taskMeta").textContent = seg && seg.task ? seg.task : "Nothing running";
   } else {
     const b = openBreak(S.shift);
     $("bandState").textContent = "On break · " + (b.reason||"Break").toUpperCase()
@@ -30,7 +31,7 @@ function render(){
   }
 
   renderDock();
-  // the card's own state - Running, Paused, Start task vs Send back - is
+  // the card's own state - Running, Paused, Start task vs Put down - is
   // read off the shift, and the shift just changed
   if (uiNextOn()) dkRefresh();
   renderPunches();
@@ -65,7 +66,7 @@ function renderDock(){
     d.append(row);
   } else {
     const last = [...(S.shift.segs||[])].pop();
-    d.append(mk("Resume · " + (last ? last.task : "work"), "btn-go", resume, "clock"));
+    d.append(mk(last && last.task ? "Resume · " + last.task : "Resume", "btn-go", resume, "clock"));
     d.append(mk("Clock out", "btn-ghost btn-sm", askWrapUp, "stop"));
   }
   // inside the dock on purpose: its grid area is the only place on this

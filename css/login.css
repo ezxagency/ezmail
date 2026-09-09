@@ -1,5 +1,4 @@
 /* ---------- login / admin (unchanged legacy palette) ---------- */
-.hidden{display:none!important}
 /* Centred with auto margins on the child rather than align/justify-content:
    when the card is taller than the viewport, centre-alignment overflows in
    BOTH directions and the top of the card gets clipped out of the scroll

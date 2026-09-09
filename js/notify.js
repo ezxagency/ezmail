@@ -163,6 +163,13 @@ function parseMentions(text, dir){
 async function dispatchMentionNotifications(comment, assignmentId, row){
   const me = auth.currentUser;
   if (!me) return;
+  /* A member runs their own organization. Their finished task is not Ez
+     Agency's news, and firestore.rules refuses them the toRole:"admin"
+     doc - which, in one batch with the @mention offers, took the offers
+     down with it. The offer itself is no better: Accept writes to
+     `assignments`, Ez Agency's own collection, which a member may not
+     create in. So nothing here is theirs to send. */
+  if (isMember) return;
   const base = {
     fromUid: me.uid,
     fromName: S.worker || (me.email ? me.email.split("@")[0] : "Someone"),
@@ -201,6 +208,19 @@ async function handoffAccept(n){
   const now = Date.now();
   const nref = db.collection("notifications").doc(n.id);
   const aref = db.collection("assignments").doc();
+  const acceptedRow = {
+    toUid: me.uid, toName: myName,
+    fromName: n.fromName || "teammate", fromEmail: "",
+    store: n.store || "", task: n.task || "",
+    note: n.text || "",
+    // both a chip the queue shows at a glance and a full sentence in the
+    // expanded body - accepting shouldn't leave the "who gave me this"
+    // answer buried behind a tap
+    transferredFrom: n.fromName || "a teammate",
+    snote: "Transferred from " + (n.fromName || "a teammate"),
+    dueDate: null, createdAt: now, done: false, doneAt: null,
+    groupId: null, groupSize: 1, seenAt: null
+  };
   // transactional so the same offer answered from two devices can't land
   // the task twice - the second answer is told it came too late
   await db.runTransaction(async tx => {
@@ -208,20 +228,11 @@ async function handoffAccept(n){
     if (!doc.exists || doc.data().status !== "pending")
       throw new Error("This offer was already answered");
     tx.update(nref, { status: "accepted" });
-    tx.set(aref, {
-      toUid: me.uid, toName: myName,
-      fromName: n.fromName || "teammate", fromEmail: "",
-      store: n.store || "", task: n.task || "",
-      note: n.text || "",
-      // both a chip the queue shows at a glance and a full sentence in the
-      // expanded body - accepting shouldn't leave the "who gave me this"
-      // answer buried behind a tap
-      transferredFrom: n.fromName || "a teammate",
-      snote: "Transferred from " + (n.fromName || "a teammate"),
-      dueDate: null, createdAt: now, done: false, doneAt: null,
-      groupId: null, groupSize: 1, seenAt: null
-    });
+    tx.set(aref, acceptedRow);
   });
+  // the dashboard reads Items, so a row that lands only in `assignments`
+  // is a row "Added to your queue" would lie about
+  itemsMirrorAssignments([{ id: aref.id, row: acceptedRow }]);
   if (!isAdmin) await db.collection("notifications").add({
     toRole: "admin", kind: "handoff-news",
     msg: `${myName} accepted ${n.fromName || "a teammate"}'s hand-off — ${[n.store, n.task].filter(Boolean).join(" · ") || "a task"}`,
@@ -261,6 +272,15 @@ async function handoffReclaim(n){
   const now = Date.now();
   const nref = db.collection("notifications").doc(n.id);
   const aref = db.collection("assignments").doc();
+  const reclaimedRow = {
+    toUid: me.uid, toName: myName,
+    fromName: n.fromName || "teammate", fromEmail: "",
+    store: n.store || "", task: n.task || "",
+    note: n.text || "",
+    snote: (n.fromName || "A teammate") + " declined the hand-off — back on your queue",
+    dueDate: null, createdAt: now, done: false, doneAt: null,
+    groupId: null, groupSize: 1, seenAt: null
+  };
   await db.runTransaction(async tx => {
     const doc = await tx.get(nref);
     if (!doc.exists || doc.data().status !== "pending")
@@ -270,16 +290,9 @@ async function handoffReclaim(n){
     // ['accepted','declined'], so this reuses that instead of needing a
     // rules change for a third value
     tx.update(nref, { status: "accepted" });
-    tx.set(aref, {
-      toUid: me.uid, toName: myName,
-      fromName: n.fromName || "teammate", fromEmail: "",
-      store: n.store || "", task: n.task || "",
-      note: n.text || "",
-      snote: (n.fromName || "A teammate") + " declined the hand-off — back on your queue",
-      dueDate: null, createdAt: now, done: false, doneAt: null,
-      groupId: null, groupSize: 1, seenAt: null
-    });
+    tx.set(aref, reclaimedRow);
   });
+  itemsMirrorAssignments([{ id: aref.id, row: reclaimedRow }]);
   toast("Added back to your queue");
 }
 
@@ -351,17 +364,11 @@ function openNotifCenter(){
       ${rows.map((n, i) => {
         const isDeclineNotice = n.kind === "handoff-declined";
         const isHandoffLike = n.kind === "handoff" || isDeclineNotice;
-        const isWfStop = n.kind === "wf-stop";
         const head = n.msg ? esc(n.msg)
-          : isWfStop ? "A task stopped at you — " + esc([n.taskTitle, n.stop].filter(Boolean).join(" · ") || "a workflow stop")
-          : n.kind === "campaign" ? "A campaign moved"
           : isDeclineNotice ? esc(n.fromName || "Someone") + " declined — " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task")
           : esc(n.fromName || "Someone") + " finished " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task");
         const pending = isHandoffLike && n.status === "pending" && n.toUid === meUid;
-        // a workflow stop is an offer too: Take it claims the stop and
-        // lands it on the queue (workflow.js owns the claim transaction)
-        const wfPending = isWfStop && n.status === "pending" && n.toUid === meUid;
-        const decided = (isHandoffLike || isWfStop) && n.status && n.status !== "pending";
+        const decided = isHandoffLike && n.status && n.status !== "pending";
         return `
         <li class="notif-item${n.read ? "" : " is-unread"}" data-i="${i}">
           <div>
@@ -375,16 +382,12 @@ function openNotifCenter(){
             <div class="hf-acts">
               <button type="button" class="hf-btn hf-acc" data-hf="acc" data-i="${i}">Accept</button>
               <button type="button" class="hf-btn hf-dec" data-hf="dec" data-i="${i}">Decline</button>
-            </div>`) : wfPending ? `
-            <div class="hf-acts">
-              <button type="button" class="hf-btn hf-acc" data-hf="wfacc" data-i="${i}">Take it</button>
-              <button type="button" class="hf-btn hf-dec" data-hf="wfdec" data-i="${i}">Not me</button>
-            </div>` : ""}
+            </div>`) : ""}
           </div>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </li>`;
       }).join("")}
-    </ul>` : `<div class="empty">Nothing here yet. Task comments that tag you and campaign handoffs land here — and stay.</div>`;
+    </ul>` : `<div class="empty">Nothing here yet. Task comments that tag you and hand-offs land here — and stay.</div>`;
 
     // lands the task on screen right away instead of leaving it to whatever
     // page happened to be open behind the sheet when it was answered
@@ -404,8 +407,6 @@ function openNotifCenter(){
       try {
         if (b.dataset.hf === "acc"){ await handoffAccept(n); goToDash(); }
         else if (b.dataset.hf === "reclaim"){ await handoffReclaim(n); goToDash(); }
-        else if (b.dataset.hf === "wfacc"){ await wfClaimFromNotification(n); goToDash(); }
-        else if (b.dataset.hf === "wfdec"){ await wfDeclineStopNotif(n); openNotifCenter(); }
         else { await handoffDecline(n); openNotifCenter(); }
       } catch (err) {
         console.error(err);
@@ -427,16 +428,6 @@ function openNotifCenter(){
     body.querySelectorAll(".notif-item").forEach(li => li.onclick = () => {
       const n = rows[Number(li.dataset.i)];
       closeSheet();
-      // a workflow stop lives on the Workflows page (claimed ones also sit
-      // on the dashboard queue)
-      if (n && n.kind === "wf-stop"){ go("workflow"); return; }
-      // campaign news lands on the campaign itself, not just the list page
-      if (n && n.kind === "campaign"){
-        go("campaigns");
-        if (n.campaignId && typeof cgOpenDetail === "function")
-          setTimeout(() => cgOpenDetail(n.campaignId), 80);
-        return;
-      }
       if (isAdmin){ go("team"); return; }
       go("");
       // desktop non-admins keep the queue in the side pane - open it

@@ -438,23 +438,23 @@ function orgRender(){
       '<div class="org-list">' + autoHtml + '</div>' +
       '<p class="org-note">A rule watches for something happening and does one thing about it, every time, without anyone remembering to.</p>' +
     '</section>' +
-    (owner ? '<section class="org-sec">' +
+    // Ez Agency's admin only: every row here reads assignments, campaigns
+    // or users, which the rules keep for the platform's own team. Drawn for
+    // a customer owner it was a button that could only fail.
+    (owner && isAdmin ? '<section class="org-sec">' +
       '<div class="org-sec-head"><h3>Bring existing work across</h3></div>' +
       '<div class="org-list">' +
         '<button type="button" class="org-row" id="orgImportTasks"><span class="org-row-main">' +
           '<b>Import assigned tasks</b><small>Copies every assignment into Work as a Task</small>' +
         '</span><span class="org-row-go">Import</span></button>' +
         '<button type="button" class="org-row" id="orgImportCampaigns"><span class="org-row-main">' +
-          '<b>Import campaigns</b><small>Copies every campaign into Work, at the stage it is on</small>' +
+          '<b>Import campaigns</b><small>Copies every campaign the retired page left behind into Work, at the stage it was on</small>' +
         '</span><span class="org-row-go">Import</span></button>' +
         '<button type="button" class="org-row" id="orgSeatTeam"><span class="org-row-main">' +
           '<b>Add the whole team</b><small>Seats everyone who already has an account — admins as Managers, workers as Staff</small>' +
         '</span><span class="org-row-go">Seat</span></button>' +
-        '<button type="button" class="org-row" id="orgImportChains"><span class="org-row-main">' +
-          '<b>Turn campaign chains into workflows</b><small>Each saved chain becomes a draft blueprint you can review and publish</small>' +
-        '</span><span class="org-row-go">Convert</span></button>' +
       '</div>' +
-      '<p class="org-note">Nothing is deleted or changed — the Assign composer and Campaigns page keep working exactly as they do now. Safe to run more than once: anything already brought across is skipped.</p>' +
+      '<p class="org-note">Nothing is deleted or changed — the Assign composer keeps working exactly as it does now. Safe to run more than once: anything already brought across is skipped.</p>' +
     '</section>' : '') +
     (owner ? '<section class="org-sec">' +
       '<div class="org-sec-head"><h3>Start over</h3></div>' +
@@ -485,10 +485,9 @@ function orgRender(){
   if (owner && $("orgAddType")) $("orgAddType").onclick = () => orgTypeSheet(null);
   if (owner && $("orgPackBtn")) $("orgPackBtn").onclick = () => orgPackSheet();
   if (owner && $("orgWipeWork")) $("orgWipeWork").onclick = () => orgWipeWork($("orgWipeWork"));
-  if (owner && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
-  if (owner && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
-  if (owner && $("orgImportChains")) $("orgImportChains").onclick = () => orgRunImport("chain", $("orgImportChains"));
-  if (owner && $("orgSeatTeam")) $("orgSeatTeam").onclick = () => orgSeatTeam($("orgSeatTeam"));
+  if (owner && isAdmin && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
+  if (owner && isAdmin && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
+  if (owner && isAdmin && $("orgSeatTeam")) $("orgSeatTeam").onclick = () => orgSeatTeam($("orgSeatTeam"));
   if (owner && $("orgAddAuto")) $("orgAddAuto").onclick = () => orgAutomationSheet(null);
   $("orgBody").querySelectorAll(".org-auto").forEach(b => {
     if (b.disabled) return;
@@ -746,7 +745,7 @@ async function orgRunImport(kind, btn){
   const was = btn.querySelector(".org-row-go").textContent;
   btn.disabled = true;
   btn.querySelector(".org-row-go").textContent = "Working…";
-  const r = kind === "chain" ? await itemsImportChains() : await itemsImport(kind);
+  const r = await itemsImport(kind);
   btn.disabled = false;
   btn.querySelector(".org-row-go").textContent = was;
   if (!r.ok) {
@@ -907,7 +906,11 @@ async function orgTypeSave(){
 
   const btn = $("orgTypeSave");
   btn.disabled = true; btn.textContent = "Saving…";
-  const r = await itemTypeSave({ id: orgTypeDraft.id, name, statuses, fields });
+  // track and workflowId ride along: itemTypeSave() replaces the whole
+  // document, and leaving them off here turned the handoff off for every
+  // type whose fields were ever edited
+  const r = await itemTypeSave({ id: orgTypeDraft.id, name, statuses, fields,
+    track: orgTypeDraft.track || null, workflowId: orgTypeDraft.workflowId || null });
   if (!r.ok) { btn.disabled = false; btn.textContent = "Save type"; toast("Could not save the type."); return; }
   closeSheet();
   toast(orgTypeDraft.id ? "Type saved." : "Type created.");
@@ -1543,7 +1546,16 @@ async function orgAutomationSave(rule){
 
   const conditions = [];
   const ck = ($("oaCondKey").value || "").trim();
-  if (ck) conditions.push({ source: "field", path: ck, op: "==", value: ($("oaCondVal").value || "").trim() });
+  if (ck) {
+    // the evaluator compares with ===, and a checkbox holds true, a
+    // number holds 42: a value stored as the string typed into the box
+    // could never equal either, so the rule never fired and nothing said
+    // why. Coerce through the field's own type when the trigger names one.
+    const raw = ($("oaCondVal").value || "").trim();
+    const ct = trigger.typeId ? (orgS.types || []).find(t => t.id === trigger.typeId) : null;
+    const cf = ct ? itemFieldDef(ct, ck) : null;
+    conditions.push({ source: "field", path: ck, op: "==", value: cf ? itemCoerce(cf, raw) : raw });
+  }
 
   const kind = $("oaAction").value;
   let action = null;

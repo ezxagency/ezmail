@@ -1,4 +1,4 @@
-/* Emulator test matrix for ../firestore.rules - 119 allow/deny assertions
+/* Emulator test matrix for ../firestore.rules - 259 allow/deny assertions
    across five actors: admin, assigner (worker role + special email),
    worker, pending stranger, an unverified fresh signup, and the
    unauthenticated client-link holder.

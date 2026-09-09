@@ -265,7 +265,7 @@ function renderTodaysWork(docs){
   if (!box) return;
   const now = Date.now();
   const rows = docs
-    .map(d => ({ name: d.state.worker || d.raw.email || "Unnamed", work: todaysWorkFor(d.state, now) }))
+    .map(d => ({ id: d.id, doc: d, name: d.state.worker || d.raw.email || "Unnamed", work: todaysWorkFor(d.state, now) }))
     .filter(r => r.work);
 
   if (!rows.length){
@@ -296,7 +296,7 @@ function renderTodaysWork(docs){
         <tbody>
           ${rows.map(r => {
             const w = r.work;
-            return `<tr>
+            return `<tr data-uid="${esc(r.id)}" title="Open ${esc(r.name)}">
               <td data-label="Member" class="work-name">${esc(r.name)}</td>
               <td data-label="Status" class="nowrap"><span class="work-status is-${w.state}">${WORK_STATE[w.state]}</span></td>
               <td data-label="In" class="nowrap">${clock(w.firstIn)}</td>
@@ -316,6 +316,12 @@ function renderTodaysWork(docs){
     </div>`;
   const tw = $("twAssign");
   if (tw) tw.onclick = () => openComposer();
+  // the member sheet - their record, email summary, Excel, Remove Member -
+  // had no way in at all: viewWorker() existed and nothing called it
+  box.querySelectorAll("tr[data-uid]").forEach(tr => {
+    const r = rows.find(x => x.id === tr.dataset.uid);
+    if (r) tr.onclick = () => viewWorker(r.doc.raw, r.doc.state, r.id);
+  });
 }
 
 // Team is a full page (not a sheet) - admin gets the whole viewport to
@@ -974,70 +980,35 @@ function renderTeamPane(){
   const counts = $("teamPanelCounts"), latest = $("teamPanelLatest"), table = $("teamPanelTable");
   if (!counts || !latest || !table) return;
   const rows = assignRows || [];
-  // campaigns share the pane: the admin's watchCampaigns holds every doc,
-  // so the merge is pure render-time - one campaign reads as one thread
-  const cgs = (typeof cgRows !== "undefined" && cgRows) ? cgRows : [];
-  const cgLate = c => {
-    if (c.status !== "active") return false;
-    const s = cgStage(c);
-    return !!((s && s.dueAt && s.dueAt < Date.now()) || (c.dueDate && c.dueDate < todayISO()));
-  };
-  const cgSeenAll = c => {
-    const s = cgStage(c);
-    const own = s ? cgOwnersOf(s) : [];
-    return own.length > 0 && own.every(o => ((s.seenBy || [])).includes(o.uid));
-  };
 
   // The three states are counted as a partition, not overlapping sets - an
   // overdue task is not also counted as open, or the numbers don't add up to
   // the table you see after Proceed. Counted per thread, same as the table
   // shows them, so a six-task group reads as one thing everywhere.
   const threads = groupAssignments(rows);
-  const doneCount = threads.filter(t => threadState(t) === "done").length
-    + cgs.filter(c => c.status === "live").length;
-  const late = threads.filter(t => threadState(t) === "late").length
-    + cgs.filter(cgLate).length;
-  const openNow = threads.filter(t => threadState(t) === "open").length
-    + cgs.filter(c => c.status === "active" && !cgLate(c)).length;
+  const doneCount = threads.filter(t => threadState(t) === "done").length;
+  const late = threads.filter(t => threadState(t) === "late").length;
+  const openNow = threads.filter(t => threadState(t) === "open").length;
 
   // Same pips the expanded table uses, so the collapsed card reads as its
   // legend rather than as a separate vocabulary. Zeroes stay in place but
   // dimmed, so the row keeps a stable shape and the eye lands on what's live.
-  counts.innerHTML = (rows.length || cgs.length || teamPendingCount)
+  counts.innerHTML = (rows.length || teamPendingCount)
     ? `<ul class="team-stats">${teamStatPip(doneCount, "done", "done")}${teamStatPip(late, "overdue", "late")}${teamStatPip(openNow, "open", "open")}</ul>`
       + (teamPendingCount ? `<p class="team-approve">${teamPendingCount} waiting for approval</p>` : "")
     : `<p class="team-approve">No assignments yet.</p>`;
 
-  // latest completion: newest of a finished assignment and a shipped campaign
+  // latest completion
   const done = rows.filter(r => r.done && r.doneAt).sort((a,b) => b.doneAt - a.doneAt)[0];
-  const shipped = cgs.filter(c => c.status === "live" && c.liveAt).sort((a,b) => b.liveAt - a.liveAt)[0];
-  if (shipped && (!done || shipped.liveAt > done.doneAt)){
-    latest.innerHTML = `<div class="team-latest-who">${esc(shipped.title)} went LIVE</div>
-       <div class="team-latest-what">${esc(shipped.store || "campaign")}<span class="team-latest-when"> · ${whenLabel(shipped.liveAt)}</span></div>`;
-  } else latest.innerHTML = done
+  latest.innerHTML = done
     ? `<div class="team-latest-who">${esc(done.toName || "Someone")} finished ${esc(done.task || "a task")}</div>
        <div class="team-latest-what">${esc(done.store || "—")}<span class="team-latest-when"> · ${whenLabel(done.doneAt)}</span></div>`
     : `<div class="team-latest-none">Nothing finished yet. Completed tasks land here.</div>`;
 
-  if (!rows.length && !cgs.length){
+  if (!rows.length){
     table.innerHTML = `<tbody><tr><td class="team-table-empty">No assignments yet.</td></tr></tbody>`;
     return;
   }
-  const cgRowsHtml = cgs.map(c => {
-    const s = cgStage(c);
-    const st = c.status === "live" ? "done" : cgLate(c) ? "late" : "open";
-    const seen = c.status === "active" && cgSeenAll(c)
-      ? `<span class="seen-eye" title="Seen by the stage owner${cgOwnersOf(s).length > 1 ? "s" : ""}" aria-label="Seen">${EYE_GLYPH}</span>` : "";
-    const due = (s && s.dueAt) ? dayStamp(s.dueAt) : (c.dueDate || "—");
-    return `<tr>
-      <td class="team-td-user">${esc(c.status === "live" ? "—" : cgOwnerNames(s) || "—")}</td>
-      <td>${esc(c.store || "—")}</td>
-      <td>${esc(c.title)}${s && c.status === "active" ? ` <span class="thread-count">${esc(s.name)}</span>` : ""}</td>
-      <td class="nowrap"><span class="team-dot is-${st}" title="${STATUS_LABEL[st]}" aria-label="${STATUS_LABEL[st]}">${STATUS_GLYPH[st]}</span>${seen}</td>
-      <td class="team-td-muted">${s && s.enteredAt ? dayStamp(s.enteredAt) : (c.createdAt ? dayStamp(c.createdAt) : "—")}</td>
-      <td class="team-td-muted">${esc(due)}</td>
-    </tr>`;
-  }).join("");
   table.innerHTML = `
     <thead><tr>
       <th>User</th><th>Store</th><th>Task</th><th>Status</th><th>Assigned</th><th>Due</th>
@@ -1055,7 +1026,6 @@ function renderTeamPane(){
           <td class="team-td-muted">${threadDueCell(t)}</td>
         </tr>`;
       }).join("")}
-      ${cgRowsHtml}
     </tbody>`;
 }
 
@@ -1109,14 +1079,14 @@ function fillWorkerSheet(ws, name, email, hist){
   const hrs = +(totalMs / 3600000).toFixed(2);
   const avgRating = hist.length ? hist.reduce((t,r) => t + r.rating, 0) / hist.length : 0;
 
+  // one tally, the same one the dashboard and the report use - a private
+  // copy here once counted idle segments the shared one had learned to skip
   const tally = new Map();
   hist.forEach(shift => {
-    let store = shift.client;
-    (shift.segs || []).filter(s => s.endedAt).forEach(s => {
-      if (s.client) store = s.client;
-      const key = store + " " + s.task;
-      const cur = tally.get(key) || { store, task: s.task, ms: 0 };
-      cur.ms += segMs(s);
+    taskTally(shift, shift.endedAt).forEach(t => {
+      const key = t.store + " " + t.task;
+      const cur = tally.get(key) || { store: t.store, task: t.task, ms: 0 };
+      cur.ms += t.ms;
       tally.set(key, cur);
     });
   });
@@ -1433,14 +1403,14 @@ function fillReportMemberSheet(ws, member, mstat, logRange){
   ws.addRow([]);
 
   const hist = member.hist || [];
+  // one tally, the same one the dashboard and the report use - a private
+  // copy here once counted idle segments the shared one had learned to skip
   const tally = new Map();
   hist.forEach(shift => {
-    let store = shift.client;
-    (shift.segs || []).filter(s => s.endedAt).forEach(s => {
-      if (s.client) store = s.client;
-      const key = store + " " + s.task;
-      const cur = tally.get(key) || { store, task: s.task, ms: 0 };
-      cur.ms += segMs(s);
+    taskTally(shift, shift.endedAt).forEach(t => {
+      const key = t.store + " " + t.task;
+      const cur = tally.get(key) || { store: t.store, task: t.task, ms: 0 };
+      cur.ms += t.ms;
       tally.set(key, cur);
     });
   });

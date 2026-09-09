@@ -52,6 +52,14 @@ T("all ?v= values in index.html are the same", () => {
 /* ---- references resolve ----------------------------------------------
    A renamed or deleted file that the HTML still points at is a 404 the
    browser swallows silently: the page loads, the feature is just gone. */
+T("reset-password.html carries the same ?v= as index.html", () => {
+  // it loads css/base.css and css/login.css - the same files - and sat
+  // 140 versions behind, serving a stale login palette to anyone resetting
+  const v = new Set(text("index.html").match(/\?v=(\d+)/g));
+  const rp = new Set(text("reset-password.html").match(/\?v=(\d+)/g) || []);
+  assert.deepEqual([...rp], [...v], "reset-password.html is at " + [...rp] + ", index.html at " + [...v]);
+});
+
 T("every referenced css/js file exists on disk", () => {
   const missing = refs.filter(r => { try { text(r.path); return false; } catch { return true; } })
                       .map(r => r.path);
@@ -67,19 +75,6 @@ T("every css/ and js/ file on disk is referenced by index.html", () => {
   const wired = new Set(refs.map(r => r.path));
   const orphans = onDisk.filter(p => !wired.has(p));
   assert.equal(orphans.length, 0, "on disk but never loaded: " + orphans.join(", "));
-});
-
-/* ---- the server runs the same engine, or it runs a different product ----
-   Cloud Functions deploys only the functions/ directory, so the pure
-   files the browser loads are copied in beside it. A copy that drifts is
-   worse than no copy: the client and the server would quietly enforce
-   different rules, and the client is the one you can see. Same shape as
-   the timeclock-v2.html rule above, and for the same reason. */
-["item-engine.js", "permissions.js"].forEach(f => {
-  T("functions/shared/" + f + " is byte-for-byte identical to js/" + f, () => {
-    assert.ok(bytes("js/" + f).equals(bytes("functions/shared/" + f)),
-      "the server's copy has drifted - re-run: cp js/" + f + " functions/shared/" + f);
-  });
 });
 
 /* ---- the manual-sync tradeoff, made automatic -------------------------
@@ -148,6 +143,18 @@ T("every collectionGroup query has an index declared for it", () => {
    only worth anything while all three pieces still point at each other -
    a renamed hook or a deleted log fails silently and nobody notices until
    a bug already fixed comes back. */
+T("sign-out forgets the organization and the caches built from it", () => {
+  // orgS, the type cache and the Work page's rows belong to the account
+  // that left. Kept, the next sign-in on a shared device answered "which
+  // org, which role" - and so the client's permission grants - with the
+  // previous person's. auth.js's sign-out branch is the one place that
+  // resets session state, so that is where this looks.
+  const auth = text("js/auth.js");
+  const signOut = auth.slice(auth.indexOf("if (!user) {"), auth.indexOf("try {", auth.indexOf("if (!user) {")));
+  ["orgInvalidate()", "itemsTaskTypeCache = null", "itemsAutomationsCache = null", "wkTypes = null", "isMember = false"]
+    .forEach(s => assert.ok(signOut.includes(s), "sign-out no longer does: " + s));
+});
+
 T("the session-memory mechanism is wired end to end", () => {
   const lessons = text("docs/lessons.md");
   assert.ok(/^## Failure shapes/m.test(lessons),

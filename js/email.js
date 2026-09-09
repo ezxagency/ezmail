@@ -159,87 +159,17 @@ async function queueVerifyCodeEmail(to, code){
   return (await queueAppEmail(to, "Your Ez Clock In verification code", verifyCodeEmailHTML(code))).ok;
 }
 
-/* Send the summary. Two transports, tried in order:
-
-   1. EmailJS (CONFIG.emailjs) — a plain REST call from the browser, free
-      tier, no billing account. The dashboard template is just a shell
-      ({{to_email}} / {{subject}} / {{{content}}}); the real HTML is built
-      here and passed through raw.
-   2. Firestore `mail` queue — for projects running the Trigger Email
-      extension instead. The doc's delivery state is watched so the toast
-      tells the truth: sent, failed, or parked until delivery is enabled.
-
-   Resolves when there is something worth telling the user. */
+/* Send the summary through the one transport every app email uses
+   (queueAppEmail: EmailJS, else the Firestore mail queue), and tell the
+   person what happened. This used to carry a second copy of the EmailJS
+   call and a delivery watcher for the mail queue that nothing could
+   reach once the EmailJS keys were pasted in. */
 async function queueSummaryEmail(opts){   // { to, name, rows, rangeLabel }
   const subject = `Shift summary — ${opts.name} · ${opts.rangeLabel}`;
   const html = summaryEmailHTML(opts.name, opts.rangeLabel, opts.rows);
-
-  const ej = (typeof CONFIG !== "undefined" && CONFIG.emailjs) || {};
-  if (ej.publicKey && ej.serviceId && ej.templateId){
-    try {
-      const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          service_id: ej.serviceId,
-          template_id: ej.templateId,
-          user_id: ej.publicKey,
-          template_params: { to_email: opts.to, subject, content: html }
-        })
-      });
-      if (res.ok){ toast("Summary emailed to " + opts.to); return true; }
-      const why = (await res.text()).slice(0, 90);
-      toast("Email failed — " + (why || "EmailJS rejected the request"));
-      return false;
-    } catch (e) {
-      console.error(e);
-      toast("Email failed — couldn't reach EmailJS (network?)");
-      return false;
-    }
-  }
-
-  if (!FB_READY || !db){ toast("Email needs Firebase configured"); return false; }
-  let ref;
-  try {
-    ref = await db.collection("mail").add({
-      to: [opts.to],
-      message: { subject, html },
-      // our own audit trail; the extension ignores this field
-      summary: {
-        forName: opts.name,
-        requestedBy: (auth.currentUser && auth.currentUser.email) || "",
-        rangeLabel: opts.rangeLabel,
-        shifts: opts.rows.length,
-        createdAt: Date.now()
-      }
-    });
-  } catch (e) {
-    console.error(e);
-    // name the actual blocker: nine times out of ten it is the missing
-    // `mail` rule, which is a 30-second paste in the Firebase console
-    toast(e && e.code === "permission-denied"
-      ? "Firestore rules are blocking the mail queue — add the mail rule from the README, then retry"
-      : "Couldn't queue the email — " + ((e && e.message) || "try again"));
-    return false;
-  }
-  return new Promise(resolve => {
-    let done = false;
-    const finish = (ok, msg) => {
-      if (done) return;
-      done = true; unsub(); clearTimeout(timer);
-      toast(msg);
-      resolve(ok);
-    };
-    const unsub = ref.onSnapshot(snap => {
-      const d = snap.data() && snap.data().delivery;
-      if (!d || !d.state) return;
-      if (d.state === "SUCCESS") finish(true, "Summary emailed to " + opts.to);
-      if (d.state === "ERROR") finish(false, "Email failed — " + ((d.error && String(d.error).slice(0, 80)) || "check the mail extension"));
-    }, () => {});
-    // no state after a while = extension not (yet) installed; the doc waits
-    const timer = setTimeout(() =>
-      finish(true, "Summary queued — it sends once email delivery is enabled"), 12000);
-  });
+  const r = await queueAppEmail(opts.to, subject, html);
+  toast(r.ok ? "Summary emailed to " + opts.to : "Email failed — " + r.reason);
+  return r.ok;
 }
 
 const summaryISO = ts => {

@@ -177,68 +177,6 @@ if (typeof module !== "undefined" && module.exports){
    first stop; old work is not retconned into having done so.
    ============================================================ */
 
-const MIGRATE_DAY = 86400000, MIGRATE_HOUR = 3600000;
-
-// the same arithmetic campaigns.js already does on a stage's budget
-const migrateStageBudget = st => {
-  const ms = (st.days || 0) * MIGRATE_DAY + (st.hours || 0) * MIGRATE_HOUR;
-  return ms > 0 ? ms : null;
-};
-const migrateStageOwners = st =>
-  (st.owners || (st.uid ? [{ uid: st.uid, uname: st.uname }] : []))
-    .map(o => o.uid).filter(Boolean);
-
-/* campaign -> Blueprint, in OUR schema (the shape the engine consumes
-   and the builder saves), never the canvas vendor's. Returns null for a
-   chain with no stages, which is not a workflow and should not pretend. */
-function migrateCampaignBlueprint(campaign, opts){
-  const stages = (campaign.stages || []).filter(Boolean);
-  if (!stages.length) return null;
-  const o = opts || {};
-
-  const nodes = [{ id: "trigger", type: "trigger", position: { x: 0, y: 0 },
-                   config: { label: "New " + (campaign.title || "campaign") } }];
-  const edges = [];
-  let prev = "trigger";
-
-  stages.forEach((st, i) => {
-    const id = "s" + i;
-    const people = migrateStageOwners(st);
-    const budget = migrateStageBudget(st);
-    const config = { label: st.name || ("Stage " + (i + 1)) };
-    if (people.length) config.assignees = people;
-    // several owners meant every one of them had to approve, and that is
-    // the rule the engine now has a name for
-    if (people.length > 1) config.completionPolicy = "all";
-    // a stage with nobody on it still needs an answer to "who works
-    // here", or the blueprint cannot be published
-    if (!people.length) config.role = st.role || "anyone";
-    if (budget) config.dueAfter = budget;
-
-    nodes.push({ id, type: "role", position: { x: 0, y: (i + 1) * 160 }, config });
-    edges.push({ id: "e" + i, from: prev, to: id });
-    prev = id;
-  });
-
-  // every path has to reach an end, and a finished baton pass has always
-  // ended by telling the people on it
-  nodes.push({ id: "done", type: "action", position: { x: 0, y: (stages.length + 1) * 160 },
-               config: { actionType: "notify", label: "Everyone: it is finished",
-                         params: { message: (campaign.title || "Campaign") + " is complete." } } });
-  edges.push({ id: "e_done", from: prev, to: "done" });
-
-  return {
-    id: o.id || null,
-    orgId: o.orgId || null,
-    ownerId: o.ownerId || null,
-    name: (campaign.title || "Campaign") + " chain",
-    version: 1,
-    status: "draft",
-    nodes, edges,
-    createdAt: o.now || 0, updatedAt: o.now || 0
-  };
-}
-
 /* ---------- and back again ----------
    The queue, the brief and the team log all render a row shape the
    assignments collection has always produced. Reading from Items means
@@ -289,8 +227,7 @@ function itemToQueueRow(item, type){
 }
 
 if (typeof module !== "undefined" && module.exports){
+  module.exports.MIGRATE_TASK_TYPE = MIGRATE_TASK_TYPE;
+  module.exports.MIGRATE_CAMPAIGN_TYPE = MIGRATE_CAMPAIGN_TYPE;
   module.exports.itemToQueueRow = itemToQueueRow;
-  module.exports.migrateCampaignBlueprint = migrateCampaignBlueprint;
-  module.exports.migrateStageBudget = migrateStageBudget;
-  module.exports.migrateStageOwners = migrateStageOwners;
 }

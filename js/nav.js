@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", campaigns: "campaignsScreen", team: "teamScreen", workflow: "workflowScreen", work: "workScreen", org: "orgScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", team: "teamScreen", work: "workScreen", org: "orgScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -95,12 +95,12 @@ document.addEventListener("keydown", e => {
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if ($("sheet").classList.contains("on")) return;
   if (typeof cxIsOpen === "function" && cxIsOpen()) return;
-  const map = { "1": "", "2": "mission", "3": "history", "4": "campaigns", "5": "team", "6": "workflow" };
+  // the same digits the drawer prints beside each item - all eight of them
+  const map = { "1": "", "2": "mission", "3": "history", "4": "team", "5": "work", "6": "org" };
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (r === "team" && !isAdmin) return;
   if (r === "org" && !isAdmin && !isMember) return;
-  if ((r === "campaigns" || r === "workflow") && isMember) return;
   if (r === "history" && isAdmin) return;
   go(r);
 });
@@ -112,11 +112,6 @@ function applyRoute(){
   // record lives inside Team's History section instead.
   if ((r === "team" && !isAdmin)
       || (r === "org" && !isAdmin && !isMember)
-      // a member has no business on Ez Agency's own pages, and the rules
-      // would refuse the reads anyway - bounce before the errors
-      || ((r === "campaigns" || r === "workflow") && isMember)
-      // a deep link to a page this dashboard no longer has
-      || routeRetired(r)
       || (r === "history" && isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
@@ -126,9 +121,7 @@ function applyRoute(){
   closeDrawer();
   if (r === "mission") renderMissionPage();
   else if (r === "history") renderHistoryPage();
-  else if (r === "campaigns") enterCampaignsPage();
   else if (r === "team") loadTeamScreen();
-  else if (r === "workflow") enterWorkflowPage();
   else if (r === "work") enterWorkPage();
   else if (r === "org") enterOrgPage();
 }
@@ -196,7 +189,7 @@ function missionActionsHTML(){
             <button class="btn btn-break btn-sm" id="msPause">Pause</button>
             <button class="btn btn-ghost btn-sm" id="msOut">Clock out</button>`;
   const last = [...(S.shift.segs || [])].pop();
-  return `<button class="btn btn-go btn-sm" id="msResume">Resume · ${esc(last ? last.task : "work")}</button>
+  return `<button class="btn btn-go btn-sm" id="msResume">${last && last.task ? "Resume · " + esc(last.task) : "Resume"}</button>
           <button class="btn btn-ghost btn-sm" id="msOut">Clock out</button>`;
 }
 
