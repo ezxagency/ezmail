@@ -277,6 +277,21 @@ reached by a URL is not verified until something loads that URL.
 untouched; `npm run shots` now navigates to `?ui=next` and refuses to
 photograph anything if the class is absent.
 
+### Cuts
+
+**Campaigns was cut, not migrated (2026-09-09).**
+docs/dashboard-v6-spec.md §12a decided it; the owner confirmed it. The
+page, its stylesheet, the public client-review page and every hook -
+the queue's baton rows, the team pane's campaign rows, the composer's
+load count, the notification click, the retired-route flag - are gone.
+The `campaigns`, `campaignTemplates` and `clientReviews` DATA and their
+rules are untouched, and "Import campaigns" on the Organization page
+still brings old campaigns into Work at the stage they were on. The
+deck's "Send back", whose only implementation was the campaigns page,
+became "Put down": it closes the task's segment into an idle one, which
+the clock math (`clkTaskTotal`) already sums back when the card is
+started again.
+
 ### Infrastructure
 
 **The test that never ran was green for months.**

@@ -162,7 +162,7 @@ await page.evaluate(() => {
       ] }),
     t("r2", "Second pass on the sprint backlog", "Studio North", "2026-09-02", {
       note: "Re-cut the backlog into two-week blocks. Anything that slipped twice gets dropped or reassigned." }),
-    t("r3", "Approve the final artwork", "Store Delta", "2026-09-08", { cg: "c1", canBack: true })
+    t("r3", "Approve the final artwork", "Store Delta", "2026-09-08", {})
   ];
   dkRender(rows);
   renderAssignedBrief(rows);

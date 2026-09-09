@@ -129,7 +129,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 528 assertions, node + jsdom, seconds
+npm test        # 526 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -169,7 +169,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 787 pass as of this writing — a
+reaches through an org boundary. All 785 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -202,7 +202,7 @@ queue has always produced into one card at a time — the wheel, the arrows
 or the arrow keys move one card per notch, and the next two peek behind.
 Four kinds of work wear the SAME card and only the action changes, which
 is the part `tests/deck.test.mjs` spends most of its assertions on: an
-assignment offers Done, a baton offers the campaign's own moves, a
+assignment offers Done, a
 workflow stop routes to its stop, and work whose type was deleted offers
 nothing and says why. `dkPick()` is the pure half, and it exists because
 finishing the front card removes it from the snapshot — what shows next

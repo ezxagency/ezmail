@@ -14,8 +14,7 @@
 // name (both come from single-line inputs), so it is a safe separator
 const pairKey = (store, task) => store + "\n" + task;
 
-// makes "17:30" read as "5:30 PM" wherever a due time is shown in prose -
-// campaigns.js reuses it for stage due times
+// makes "17:30" read as "5:30 PM" wherever a due time is shown in prose
 function afTimeLabel(hhmm){
   const p = String(hhmm).split(":").map(Number);
   if (p.length !== 2 || p.some(isNaN)) return hhmm;
@@ -68,7 +67,7 @@ const cxPairCount = () => cx ? cx.who.length * cx.stores.length * cx.tasks.lengt
 const cxReady = () => !!cx && cx.who.length > 0 && cx.stores.length > 0
   && cx.tasks.length > 0 && cx.note.trim().length >= 3;
 
-/* Members carry their open-task count (assignments + live campaign batons),
+/* Members carry their open-task count,
    so the deck shows who is loaded before more lands on them. Stores and
    tasks come from CONFIG plus everything actually assigned before, so both
    lists learn instead of going stale. */
@@ -78,10 +77,6 @@ async function cxLoadOptions(){
 
   const openBy = new Map();
   rows.forEach(r => { if (!r.done && r.toUid) openBy.set(r.toUid, (openBy.get(r.toUid) || 0) + 1); });
-  (typeof cgRows !== "undefined" && cgRows ? cgRows : [])
-    .filter(c => c.status === "active")
-    .forEach(c => cgOwnersOf(cgStage(c)).forEach(o =>
-      openBy.set(o.uid, (openBy.get(o.uid) || 0) + 1)));
 
   const members = [];
   try {
@@ -714,21 +709,16 @@ function watchAssignedTasksFromAssignments(){
   });
 }
 
-/* ---------- one queue, two sources ----------
-   The dashboard card renders assignments AND campaign batons as one list -
-   same store groups, same due sorting. Assignments stay the only thing in
-   assignedOpenRows (the seenAt stamping and Done flow depend on that);
-   batons come in as view-only rows from cgBatonRows() at render time and
-   are re-merged whenever EITHER watcher fires. The pane is the non-admin's
-   second block and stays up even empty - the dashboard keeping both cards
-   reads calmer than one wide card that reshapes whenever the queue drains.
-   An admin's third column is already the Team card, so theirs still only
-   mounts when there is something in it. */
+/* ---------- the queue ----------
+   The pane is the non-admin's second block and stays up even empty - the
+   dashboard keeping both cards reads calmer than one wide card that
+   reshapes whenever the queue drains. An admin's third column is already
+   the Team card, so theirs still only mounts when there is something in
+   it. */
 function renderAssignedQueue(){
   const box = $("assignedTasksSection"), list = $("assignedTasksList");
   if (!box || !list || !auth || !auth.currentUser) return;
-  const batons = (typeof cgBatonRows === "function") ? cgBatonRows() : [];
-  const rows = assignedOpenRows.concat(batons);
+  const rows = assignedOpenRows.slice();
   rows.sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
   const app = $("appScreen");
   const count = $("assignedCount");
@@ -803,29 +793,21 @@ function renderAssignedList(rows){
         ${items.map(r => {
           const late = r.dueDate && r.dueDate < today;
           const tOpen = assignedOpenTasks.has(r.id);
-          // a baton row is the same row, but finishing it IS the handoff -
-          // its buttons route to the campaign, never to markAssignmentDone.
-          // A workflow-stop row works the same way: completing it must
-          // collect the stop's declared outputs and advance the run, so it
-          // routes to the workflow stop sheet (which closes this row itself)
+          // A workflow-stop row: completing it must collect the stop's
+          // declared outputs and advance the run, so it routes to the
+          // workflow stop sheet (which closes this row itself)
           const acts = r.orphanType
             // no button at all, because there is no action. Saying so is
             // the whole content of this row.
             ? `<p class="atask-broken">Its kind of work (<b>${esc(r.orphanType)}</b>) was deleted, so nothing can be done with it here. An owner can clear it on the Work page.</p>`
-            : r.cg
-            ? `<button type="button" class="btn btn-go btn-sm atask-pass" data-cg="${esc(r.cg)}">${r.multi ? "Approve" : "Pass forward"}</button>
-               ${r.canBack ? `<button type="button" class="btn btn-ghost btn-sm atask-sendback" data-cg="${esc(r.cg)}">Send back</button>` : ""}
-               <button type="button" class="btn btn-ghost btn-sm atask-view" data-cg="${esc(r.cg)}">Open</button>`
             : r.wfNodeRunId
               ? `<button type="button" class="btn btn-go btn-sm atask-wf" data-wf="${esc(r.wfNodeRunId)}">Work this stop</button>`
               : `<button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>`;
-          const meta = r.cg
-            ? `From ${esc(r.fromName || "admin")}${r.createdAt ? " · your stage since " + dayStamp(r.createdAt) : ""}${r.multi ? " · " + esc(r.multi) : ""} · ${r.dueDate ? "due " + esc(dueWithTime(r)) : "no due date"}`
-            : `From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(dueWithTime(r)) : "no due date"}`;
+          const meta = `From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(dueWithTime(r)) : "no due date"}`;
           return `
           <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
             <button type="button" class="atask-head" data-tid="${esc(r.id)}" aria-expanded="${tOpen}">
-              <span class="atask-name">${esc(r.task)}${r.stage ? `<span class="atask-cgchip">${esc(r.stage)}</span>` : ""}${r.cg ? `<span class="atask-cgchip">campaign</span>` : ""}${r.wfNodeRunId ? `<span class="atask-cgchip">workflow</span>` : ""}${r.orphanType ? `<span class="atask-cgchip is-broken">needs an owner</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
+              <span class="atask-name">${esc(r.task)}${r.stage ? `<span class="atask-cgchip">${esc(r.stage)}</span>` : ""}${r.wfNodeRunId ? `<span class="atask-cgchip">workflow</span>` : ""}${r.orphanType ? `<span class="atask-cgchip is-broken">needs an owner</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
               <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(dueWithTime(r)) : ""}</span>
               ${CARET_SVG("atask-caret")}
             </button>
@@ -841,8 +823,6 @@ function renderAssignedList(rows){
     </li>`;
   }).join("");
 
-  // collapse/expand re-renders go through the merged queue, so batons
-  // don't vanish on the first tap
   list.querySelectorAll(".store-head").forEach(b => b.onclick = () => {
     const s = stores[Number(b.dataset.si)];
     if (assignedClosedStores.has(s)) assignedClosedStores.delete(s); else assignedClosedStores.add(s);
@@ -857,9 +837,6 @@ function renderAssignedList(rows){
   list.querySelectorAll(".atask-wf").forEach(b => b.onclick = () => {
     if (typeof wfOpenStopById === "function") wfOpenStopById(b.dataset.wf);
   });
-  list.querySelectorAll(".atask-pass").forEach(b => b.onclick = () => cgPassSheet(b.dataset.cg));
-  list.querySelectorAll(".atask-sendback").forEach(b => b.onclick = () => cgBackSheet(b.dataset.cg));
-  list.querySelectorAll(".atask-view").forEach(b => b.onclick = () => cgOpenDetail(b.dataset.cg));
 }
 
 // the other half of a Done toast: one mistap shouldn't be a conversation

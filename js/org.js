@@ -448,13 +448,13 @@ function orgRender(){
           '<b>Import assigned tasks</b><small>Copies every assignment into Work as a Task</small>' +
         '</span><span class="org-row-go">Import</span></button>' +
         '<button type="button" class="org-row" id="orgImportCampaigns"><span class="org-row-main">' +
-          '<b>Import campaigns</b><small>Copies every campaign into Work, at the stage it is on</small>' +
+          '<b>Import campaigns</b><small>Copies every campaign the retired page left behind into Work, at the stage it was on</small>' +
         '</span><span class="org-row-go">Import</span></button>' +
         '<button type="button" class="org-row" id="orgSeatTeam"><span class="org-row-main">' +
           '<b>Add the whole team</b><small>Seats everyone who already has an account — admins as Managers, workers as Staff</small>' +
         '</span><span class="org-row-go">Seat</span></button>' +
       '</div>' +
-      '<p class="org-note">Nothing is deleted or changed — the Assign composer and Campaigns page keep working exactly as they do now. Safe to run more than once: anything already brought across is skipped.</p>' +
+      '<p class="org-note">Nothing is deleted or changed — the Assign composer keeps working exactly as it does now. Safe to run more than once: anything already brought across is skipped.</p>' +
     '</section>' : '') +
     (owner ? '<section class="org-sec">' +
       '<div class="org-sec-head"><h3>Start over</h3></div>' +

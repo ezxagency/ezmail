@@ -1,8 +1,7 @@
 # EZ Clock In
 
 A static, no-build shift tracker for Ez Agency: clock in/out with per-task
-segments, a live team view with task assignment, a campaigns baton-pass
-pipeline, WhatsApp shift reports, Excel exports, email verification and
+segments, a live team view with task assignment, WhatsApp shift reports, Excel exports, email verification and
 summaries, and a personal Pomodoro focus mode (plus a private Personal
 task-list mode). Firebase (Auth + Firestore) is the only backend;
 everything else is hand-rolled vanilla HTML/CSS/JS served as-is (GitHub
@@ -14,7 +13,6 @@ Pages).
 index.html          app shell: login, dashboard, drawer, feature pages
 timeclock-v2.html   synced copy of index.html (keep identical)
 reset-password.html standalone password-reset landing page
-client-review.html  unauthenticated public page for a client to review a campaign link
 
 css/  loaded in order; the order IS the cascade, never shuffle it
   base.css          design tokens, reset
@@ -27,7 +25,6 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   responsive.css    landscape + desktop grid + height tiers
   pomodoro.css      focus mode, the 12 theme veils, settings controls
   personal.css      Personal mode's private task list
-  campaigns.css     campaigns baton-pass pipeline page + its sheets
   workflow.css      the legacy Workflows page: builder canvas, runs board
   org.css           the Organization page: roster rows + the permission grid
   work.css          the Work page: type tabs, status controls, generated form
@@ -46,7 +43,7 @@ js/   classic scripts sharing one global scope; loaded in order
   permissions.js    resource:action:scope grammar - pure, no DOM, no Firestore
   item-engine.js    the universal work object: types, values, facets, commit()
   items.js          its Firestore glue - deliberately dumb, decides nothing
-  migrate.js        the shapes assignments and campaigns take as Items (pure)
+  migrate.js        the shapes assignments (and old campaigns) take as Items (pure)
   automation.js     trigger/condition/action over the event log (pure)
   packs.js          an industry as data: 8 starter packs + their validator (pure)
   handoff.js        a linear track compiled to a real blueprint (pure)
@@ -66,7 +63,6 @@ js/   classic scripts sharing one global scope; loaded in order
   team.js           team page, assignment log, team pane, team Excel export
   assign.js         the assign composer, my-tasks watcher, notifications
   notify.js         directory + in-app notifications, @mention autocomplete
-  campaigns.js      campaigns baton-pass pipeline: stages, approvals, client links
   auth.js           role resolution, sign-in/out wiring, login UI, email verification
   personal.js       Personal mode's private per-account task list
   pomodoro.js       focus timer engine, Web Audio soundscapes, settings
@@ -127,7 +123,7 @@ slip before it ships rather than after.
 ```
 cd tests
 npm ci               # once
-npm test             # 528 assertions, node + jsdom, seconds
+npm test             # 526 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```

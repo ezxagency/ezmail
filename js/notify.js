@@ -367,7 +367,6 @@ function openNotifCenter(){
         const isWfStop = n.kind === "wf-stop";
         const head = n.msg ? esc(n.msg)
           : isWfStop ? "A task stopped at you — " + esc([n.taskTitle, n.stop].filter(Boolean).join(" · ") || "a workflow stop")
-          : n.kind === "campaign" ? "A campaign moved"
           : isDeclineNotice ? esc(n.fromName || "Someone") + " declined — " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task")
           : esc(n.fromName || "Someone") + " finished " + esc([n.store, n.task].filter(Boolean).join(" · ") || "a task");
         const pending = isHandoffLike && n.status === "pending" && n.toUid === meUid;
@@ -397,7 +396,7 @@ function openNotifCenter(){
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </li>`;
       }).join("")}
-    </ul>` : `<div class="empty">Nothing here yet. Task comments that tag you and campaign handoffs land here — and stay.</div>`;
+    </ul>` : `<div class="empty">Nothing here yet. Task comments that tag you and hand-offs land here — and stay.</div>`;
 
     // lands the task on screen right away instead of leaving it to whatever
     // page happened to be open behind the sheet when it was answered
@@ -443,15 +442,6 @@ function openNotifCenter(){
       // a workflow stop lives on the Workflows page (claimed ones also sit
       // on the dashboard queue)
       if (n && n.kind === "wf-stop"){ go("workflow"); return; }
-      // campaign news lands on the campaign itself, not just the list page
-      if (n && n.kind === "campaign"){
-        // the page is retired under the new dashboard (applyRoute bounces
-        // it), but the campaign sheet itself still opens anywhere
-        if (!routeRetired("campaigns")) go("campaigns");
-        if (n.campaignId && typeof cgOpenDetail === "function")
-          setTimeout(() => cgOpenDetail(n.campaignId), 80);
-        return;
-      }
       if (isAdmin){ go("team"); return; }
       go("");
       // desktop non-admins keep the queue in the side pane - open it

@@ -148,7 +148,7 @@
 /* 304 : 104 in the comp - the primary is not an equal half */
 .dk-bt-go{flex:304;background:var(--wk-white);color:#12131a;box-shadow:0 10px 20px rgba(0,0,0,.26)}
 .dk-bt-gh{flex:104;background:rgba(255,255,255,.11);color:var(--wk-white);border:1.5px solid rgba(255,255,255,.32)}
-.dk-foot .dk-bt-gh.dk-send{flex:304}
+.dk-foot .dk-bt-gh.dk-down{flex:304}
 .dk-foot .dk-bt-go.dk-done{flex:104}
 .dk-bt:hover{transform:translateY(-2px)}
 .dk-bt:active{transform:scale(.984)}

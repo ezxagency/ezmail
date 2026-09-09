@@ -34,7 +34,6 @@ const dom = new JSDOM(`<!doctype html><html><body>
     ${drawerItem("", "Dashboard", "Clocks &amp; controls", false)}
     ${drawerItem("mission", "Daily Mission", "Today's shift, live", false)}
     ${drawerItem("history", "History", "Closed shifts", false)}
-    ${drawerItem("campaigns", "Campaigns", "The baton-pass pipeline", false)}
     ${drawerItem("team", "Team", "Roster &amp; approvals", true)}
     ${drawerItem("workflow", "Workflows", "Blueprints &amp; runs", false)}
     ${drawerItem("work", "Work", "Everything in flight", false)}
@@ -63,9 +62,9 @@ const shown = () => items().filter(a => !a.classList.contains("hidden"));
 run(`rlSync()`);
 
 T("the rail carries one seat per drawer item, in the drawer's order", () => {
-  assert.equal(items().length, 9);
+  assert.equal(items().length, 8);
   assert.deepEqual(items().map(a => a.dataset.route),
-    ["", "mission", "history", "campaigns", "team", "workflow", "work", "org", "ledger"]);
+    ["", "mission", "history", "team", "workflow", "work", "org", "ledger"]);
 });
 
 /* Six icons in the comp, eight routes in the app. Work is staff-visible
@@ -82,7 +81,6 @@ T("the labels are the rail's short ones, not the drawer's sentences", () => {
   const txt = r => items().find(a => a.dataset.route === r).querySelector(".rail-txt").textContent;
   assert.equal(txt(""), "Home");
   assert.equal(txt("mission"), "Mission", "\"Daily Mission\" does not fit a 116px column");
-  assert.equal(txt("campaigns"), "Links");
   assert.equal(txt("workflow"), "Flows");
 });
 
@@ -102,7 +100,7 @@ T("the icons come from the drawer, so there is one set to maintain", () => {
 /* THE POINT OF THE FILE. Role gating happens once, on the drawer. */
 T("a page hidden from this person is hidden in the rail too", () => {
   assert.deepEqual(shown().map(a => a.dataset.route),
-    ["", "mission", "history", "campaigns", "workflow", "work", "ledger"]);
+    ["", "mission", "history", "workflow", "work", "ledger"]);
   assert.ok(items().find(a => a.dataset.route === "team").classList.contains("hidden"));
   assert.ok(items().find(a => a.dataset.route === "org").classList.contains("hidden"));
 });
@@ -110,7 +108,7 @@ T("a page hidden from this person is hidden in the rail too", () => {
 T("a page unhidden later shows up on the next sync, with no rebuild", () => {
   run(`document.querySelector('.drawer-item[data-route="team"]').classList.remove("hidden"); rlSync();`);
   assert.ok(!items().find(a => a.dataset.route === "team").classList.contains("hidden"));
-  assert.equal(items().length, 9, "the rail rebuilt itself and lost its identity");
+  assert.equal(items().length, 8, "the rail rebuilt itself and lost its identity");
 });
 
 T("the active page is marked, and only that one", () => {
@@ -141,26 +139,6 @@ T("syncing before the drawer exists is quiet, not a crash", () => {
     vm.runInContext(readFileSync(join(here, "..", f), "utf8"), c2, { filename: f }));
   vm.runInContext(`rlSync()`, c2);
   assert.equal(bare.window.document.querySelectorAll(".rail-item").length, 0);
-});
-
-/* ---- pages the new dashboard retires ----
-   docs/dashboard-v6-spec.md §12a. The cut is scoped to the flag: taking
-   the baton page from a team whose replacement is not built would cost
-   them work and buy nothing, so classic keeps it. */
-T("Campaigns is retired under ui-next and kept under classic", () => {
-  run(`document.body.classList.add("ui-next")`);
-  assert.equal(run(`routeRetired("campaigns")`), true);
-  run(`document.body.classList.remove("ui-next")`);
-  assert.equal(run(`routeRetired("campaigns")`), false,
-    "the classic dashboard lost its Campaigns page");
-});
-
-T("nothing else is retired by accident", () => {
-  run(`document.body.classList.add("ui-next")`);
-  ["", "mission", "history", "team", "workflow", "work", "org"].forEach(r =>
-    assert.equal(run(`routeRetired(${JSON.stringify(r)})`), false, r + " was retired"));
-  assert.equal(run(`routeRetired(null)`), false);
-  run(`document.body.classList.remove("ui-next")`);
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

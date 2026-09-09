@@ -121,7 +121,7 @@ T("one card per piece of work, all of them in the stack", () => {
 
 /* THE COLLAPSE. Four kinds, one pair of buttons. */
 T("every kind of work wears the same two buttons", () => {
-  const kinds = ["{}", '{ cg:"c1", canBack:true }', '{ wfNodeRunId:"run1:n1:1" }'];
+  const kinds = ["{}", '{ wfNodeRunId:"run1:n1:1" }'];
   kinds.forEach(k => {
     draw(rowJs(k));
     assert.equal(front().querySelectorAll(".dk-start").length, 1, "no Start task for " + k);
@@ -131,24 +131,24 @@ T("every kind of work wears the same two buttons", () => {
 });
 
 T("Pass forward, Open and Work this stop are gone", () => {
-  draw(rowJs('{ cg:"c1", canBack:true, multi:"2 of 3" }'));
+  draw(rowJs('{ wfNodeRunId:"run1:n1:1", multi:"2 of 3" }'));
   const txt = front().textContent;
   ["Pass forward", "Approve", "Open", "Work this stop"].forEach(w =>
     assert.ok(!txt.includes(w), "the card still says " + w));
 });
 
 /* §4a: the LEFT button is the one that changes, and only with state. */
-T("Start task becomes Send back once the work is running", () => {
+T("Start task becomes Put down once the work is running", () => {
   draw(rowJs());
-  assert.equal(front().querySelectorAll(".dk-send").length, 0,
-    "Send back was offered before the work had been opened");
+  assert.equal(front().querySelectorAll(".dk-down").length, 0,
+    "Put down was offered before the work had been opened");
   run(`S.status = "ACTIVE"; S.shift = { client:"Store Epsilon", startedAt: 1,
     segs: [{ task:"Write the spring launch email", itemId:"r1", startedAt: 1, endedAt: null, via:"task" }],
     breaks: [] };
     dkRender([{ id:"r1", task:"Write the spring launch email", store:"Store Epsilon", fromName:"Sandy" }]);`);
-  assert.equal(front().querySelectorAll(".dk-send").length, 1, "running work cannot be sent back");
+  assert.equal(front().querySelectorAll(".dk-down").length, 1, "running work cannot be put down");
   assert.equal(front().querySelectorAll(".dk-start").length, 0, "running work was offered Start task");
-  assert.equal(front().querySelectorAll(".dk-done").length, 1, "Done left when Send back arrived");
+  assert.equal(front().querySelectorAll(".dk-done").length, 1, "Done left when Put down arrived");
 });
 
 T("running work says so, and paused work says how long it had", () => {

@@ -12,7 +12,7 @@
    buttons, because §12a collapsed four kinds into one: the whole
    app is a chain of stages, so Done means "finish my stage" and
    the work moves itself. Only the LEFT button changes, and only
-   with state: Start task before the work is running, Send back
+   with state: Start task before the work is running, Put down
    once it is.
 
    dkPick() is the pure half. When a card is finished it leaves
@@ -96,13 +96,17 @@ function dkFinish(r){
   if (card) card.classList.add("is-going");
   dkIdleAfter(r);
   if (r.wfNodeRunId && typeof wfOpenStopById === "function") return wfOpenStopById(r.wfNodeRunId);
-  if (r.cg && typeof cgPassSheet === "function") return cgPassSheet(r.cg);
   return markAssignmentDone(r.id);
 }
 
-function dkBack(r){
-  if (r.cg && typeof cgBackSheet === "function") return cgBackSheet(r.cg);
-  toast("This work has nobody before you to send it back to.");
+/* §4: the paused row. Putting work down closes its segment and opens an
+   idle one; the card keeps its time (clkTaskTotal sums by itemId) and
+   Start task picks it back up. This is the left button while running -
+   it replaced "Send back", whose only implementation was the campaigns
+   page, cut with it. */
+async function dkPutDown(r){
+  await dkIdleAfter(r);
+  toast("Put down — pick it back up any time");
 }
 
 /* ---------- the card ---------- */
@@ -158,7 +162,7 @@ function dkFoot(r){
   }
   const running = dkRunning(r);
   const left = running
-    ? '<button type="button" class="dk-bt dk-bt-gh dk-send">' + DK_ICO.back + 'Send back</button>'
+    ? '<button type="button" class="dk-bt dk-bt-gh dk-down">' + DK_ICO.back + 'Put down</button>'
     : '<button type="button" class="dk-bt dk-bt-go dk-start">' + DK_ICO.clock + 'Start task</button>';
   const right = '<button type="button" class="dk-bt ' + (running ? "dk-bt-go" : "dk-bt-gh")
     + ' dk-done">' + DK_ICO.tick + 'Done</button>';
@@ -266,7 +270,7 @@ function dkRender(rows){
   host.querySelectorAll("[data-dot]").forEach(d => d.onclick = () => dkTo(Number(d.dataset.dot)));
   host.querySelectorAll(".dk-start").forEach(b => b.onclick = () => dkStart(row));
   host.querySelectorAll(".dk-done").forEach(b => b.onclick = () => dkFinish(row));
-  host.querySelectorAll(".dk-send").forEach(b => b.onclick = () => dkBack(row));
+  host.querySelectorAll(".dk-down").forEach(b => b.onclick = () => dkPutDown(row));
   host.querySelectorAll(".dk-file").forEach(b => b.onclick = () => {
     const f = (row.attachments || [])[Number(b.dataset.file)];
     if (f && f.url) window.open(f.url, "_blank", "noopener");

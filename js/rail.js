@@ -20,7 +20,7 @@
    here falls back to the first word of the drawer's own label, so a page
    added later appears in the rail without being registered twice. */
 const RL_LABELS = {
-  "": "Home", mission: "Mission", history: "History", campaigns: "Links",
+  "": "Home", mission: "Mission", history: "History",
   team: "Team", workflow: "Flows", work: "Work", org: "Org"
 };
 
