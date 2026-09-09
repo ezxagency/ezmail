@@ -42,7 +42,7 @@ async function startWorkerApp(){
   // which crashes the next Switch/Pause tap
   if (S.status === "ON_BREAK" && S.shift && !openBreak(S.shift)){
     const last = [...S.shift.segs].pop();
-    if (last) S.shift.segs.push({ task: last.task, startedAt: Date.now(), endedAt: null, via: "resume" });
+    if (last) S.shift.segs.push({ task: last.task, itemId: last.itemId || null, startedAt: Date.now(), endedAt: null, via: "resume" });
     S.status = last ? "ACTIVE" : "IDLE";
   }
 

@@ -196,11 +196,17 @@ const currentStore = sh => {
   return sh.client;
 };
 
+/* Time per (store, task). An IDLE segment (task: null - clocked in with
+   nothing running, which finishing a deck task leaves you in) is skipped
+   AFTER its store is carried forward: idle time is not a task, and the
+   invariant says sum(task segs) is the time spent on work. Emitting it
+   here once crashed every consumer that labels a task, clock-out first. */
 function taskTally(sh, now = Date.now()){
   const m = new Map();
   let store = sh.client;
   (sh.segs||[]).forEach(s => {
     if (s.client) store = s.client;
+    if (s.task == null) return;
     const key = store + " " + s.task;
     const cur = m.get(key) || { store, task: s.task, ms: 0 };
     cur.ms += segMs(s, now);

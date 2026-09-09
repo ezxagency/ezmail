@@ -196,7 +196,7 @@ function missionActionsHTML(){
             <button class="btn btn-break btn-sm" id="msPause">Pause</button>
             <button class="btn btn-ghost btn-sm" id="msOut">Clock out</button>`;
   const last = [...(S.shift.segs || [])].pop();
-  return `<button class="btn btn-go btn-sm" id="msResume">Resume · ${esc(last ? last.task : "work")}</button>
+  return `<button class="btn btn-go btn-sm" id="msResume">${last && last.task ? "Resume · " + esc(last.task) : "Resume"}</button>
           <button class="btn btn-ghost btn-sm" id="msOut">Clock out</button>`;
 }
 

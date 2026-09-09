@@ -1109,14 +1109,14 @@ function fillWorkerSheet(ws, name, email, hist){
   const hrs = +(totalMs / 3600000).toFixed(2);
   const avgRating = hist.length ? hist.reduce((t,r) => t + r.rating, 0) / hist.length : 0;
 
+  // one tally, the same one the dashboard and the report use - a private
+  // copy here once counted idle segments the shared one had learned to skip
   const tally = new Map();
   hist.forEach(shift => {
-    let store = shift.client;
-    (shift.segs || []).filter(s => s.endedAt).forEach(s => {
-      if (s.client) store = s.client;
-      const key = store + " " + s.task;
-      const cur = tally.get(key) || { store, task: s.task, ms: 0 };
-      cur.ms += segMs(s);
+    taskTally(shift, shift.endedAt).forEach(t => {
+      const key = t.store + " " + t.task;
+      const cur = tally.get(key) || { store: t.store, task: t.task, ms: 0 };
+      cur.ms += t.ms;
       tally.set(key, cur);
     });
   });
@@ -1433,14 +1433,14 @@ function fillReportMemberSheet(ws, member, mstat, logRange){
   ws.addRow([]);
 
   const hist = member.hist || [];
+  // one tally, the same one the dashboard and the report use - a private
+  // copy here once counted idle segments the shared one had learned to skip
   const tally = new Map();
   hist.forEach(shift => {
-    let store = shift.client;
-    (shift.segs || []).filter(s => s.endedAt).forEach(s => {
-      if (s.client) store = s.client;
-      const key = store + " " + s.task;
-      const cur = tally.get(key) || { store, task: s.task, ms: 0 };
-      cur.ms += segMs(s);
+    taskTally(shift, shift.endedAt).forEach(t => {
+      const key = t.store + " " + t.task;
+      const cur = tally.get(key) || { store: t.store, task: t.task, ms: 0 };
+      cur.ms += t.ms;
       tally.set(key, cur);
     });
   });

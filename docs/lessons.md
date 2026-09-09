@@ -155,6 +155,25 @@ handoff that changes nothing on screen. The row has to show the change.
 "The work type is missing" sends somebody to devtools. Name the type,
 name who can fix it.
 
+**A new kind of row breaks every consumer written before it existed.**
+The redesign's IDLE segment (`task: null`) was added to the shift and
+proved in `clock.test.mjs`, which reads segments the new way. Nothing
+re-ran the OLD readers with the new data. `taskTally()` emitted an
+entry with a null task; `taskLabel()` called `.toUpperCase()` on it;
+and the wrap-up sheet - Clock out - threw before it opened, for anyone
+who had finished a deck task that day. The dock read "Resume · null".
+Three private copies of the tally loop in `js/team.js` would have
+crashed the Excel export the same way. And `resume()` rebuilt the
+segment without its `itemId`, so a lunch break turned running work back
+into "Start task".
+*Rule:* when a data shape gains a new case, grep for every reader of
+the OLD shape and run it against the new one. The pure suite for the
+new reader proves nothing about the old readers.
+*Guard:* `tests/shift.test.mjs` drives clock-out, the dock, the report,
+switch and resume with an idle segment in the shift. `taskTally()` is
+the one place idle is skipped, and `js/team.js` now calls it rather
+than keeping copies that would each need the same fix.
+
 ### Load order and globals
 
 `js/` files are classic scripts in ONE global scope; the `<script>`
