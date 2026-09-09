@@ -81,16 +81,12 @@ async function itemSave(type, item, intent, opts){
     } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
   }
 
+  // The decision is made here, in the browser, by the same pure engine
+  // the tests run. (A Cloud Function that would have made it server-side
+  // was never deployed - Blaze was never turned on - and was deleted
+  // rather than kept as a switch nothing could flip.)
   let decision;
-  if (CONFIG.serverCommit) {
-    // THE SWAP THE CHOKEPOINT WAS BUILT FOR: the decision is made on the
-    // server, and everything after this block is the same either way -
-    // same { ok, item, events } shape, same side effects. Returning here
-    // instead once meant the server path silently ran no automations,
-    // told no assignee and started no handoff.
-    decision = await itemSaveViaServer(s.orgId, type, item, intent);
-    if (!decision.ok) return decision;
-  } else {
+  {
     const perms = await itemActorPermissions();
     decision = itemCommit({
       type, item, intent,
@@ -138,30 +134,6 @@ async function itemSave(type, item, intent, opts){
     itemsStartHandoff(decision.item, type);
   return decision;
 }
-
-/* Send the intent to the server and hand back exactly the shape the local
-   path returns. The mapping matters: the engine's own vocabulary has to
-   survive the round trip, or every caller needs a second set of error
-   branches for the server case - and the ones that got it wrong would
-   only show up in production. */
-async function itemSaveViaServer(orgId, type, item, intent){
-  try {
-    const call = firebase.app().functions("us-central1").httpsCallable("commitItem");
-    const res = await call({ orgId, typeId: type.id, itemId: item ? item.id : null, intent });
-    return res.data;
-  } catch (e) {
-    const msg = (e && e.message) || "";
-    // "invalid" carries the per-field problems the form paints, so it is
-    // passed through rather than flattened into a generic failure
-    if (msg === "invalid") return { ok: false, error: "invalid", details: (e && e.details) || [] };
-    if (e && e.code === "functions/permission-denied") return { ok: false, error: "denied" };
-    if (msg === "unknown-status" || msg === "unknown-intent") return { ok: false, error: msg };
-    console.error(e);
-    return { ok: false, error: "write-failed" };
-  }
-}
-
-/* ---------- reads ---------- */
 
 async function itemTypesLoad(){
   const s = await orgEnsure();

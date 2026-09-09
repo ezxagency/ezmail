@@ -303,6 +303,16 @@ stays. The "Take it / Not me" offer and "Work this stop" row had one
 taker each and are gone; a claimed stop's assignment is a plain row.
 The legacy rules and data are untouched.
 
+**The Cloud Function was deleted, not kept as a switch.**
+`functions/commitItem` would have run the item engine server-side. It
+was never deployed (Blaze was never turned on), `CONFIG.serverCommit`
+was never flipped, and the switch's own path had drifted - it skipped
+automations, notifications and the handoff start until this audit. A
+door nobody can open is a door that rots. It is gone with its deploy
+workflow, its copies of the engine, the guard that kept the copies
+honest, and the SDK every page load fetched for it. `docs/platform-spec.md`
+still describes the phase; if it comes back, it comes back with tests.
+
 ### Infrastructure
 
 **The test that never ran was green for months.**

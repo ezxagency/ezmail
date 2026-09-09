@@ -20,16 +20,6 @@ const CONFIG = {
 
   pauseReasons: ["Lunch", "Travel", "Meeting", "Other"],
 
-  // PHASE 3 SWITCH (docs/platform-spec.md). false = itemCommit() runs in
-  // this browser; true = the intent goes to the commitItem Cloud Function
-  // and the engine runs where the caller cannot reach it.
-  // Leave it false until that function is actually deployed: flipping it
-  // first sends every write at a callable that is not there. Turning it
-  // on is step one of two - narrowing the items rule to reject client
-  // writes is what finally closes the door, and doing THAT first would
-  // break every write in the other direction.
-  serverCommit: false,
-
   // READ CUTOVER (docs/platform-spec.md, phase 2). false = the task queue
   // reads the assignments collection, as it always has. true = it reads
   // Items and adapts them back to the same row shape, so not one line of

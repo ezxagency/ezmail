@@ -27,7 +27,8 @@ so what a session learns is written down before the session ends.
 ## Hard rules
 
 These are enforced by `tests/repo-guards.test.mjs` — CI fails if you break
-one, so you don't have to remember them.
+one, so you don't have to remember them. (Rule 4 is the one convention
+no test states.)
 
 1. **`timeclock-v2.html` is a byte-for-byte copy of `index.html`.** After
    editing the HTML: `cp index.html timeclock-v2.html`. Two files, one app.
@@ -38,13 +39,11 @@ one, so you don't have to remember them.
    `isDesignatedAdminEmail()` / `isAssignerEmail()` in `firestore.rules`.**
    See "Two gates" below for why this one matters most.
 4. **No bundler, no framework, no npm at runtime.** Edit, refresh, push.
-   `tests/` and `functions/` are the only places with dependencies, and
-   `functions/` is server code that never ships to a browser.
-5. **`functions/shared/*.js` are byte-for-byte copies of `js/*.js`.**
-   Cloud Functions deploys only its own directory, so the pure engine is
-   copied in beside it. After editing either: `cp js/<f> functions/shared/`.
-   A drifted copy means the client and the server enforce different
-   rules — and the client is the one you can see.
+   `tests/` is the only place with dependencies. (A Cloud Function that
+   would have run the item engine server-side lived in `functions/`; it
+   was never deployed and was deleted on 2026-09-09. If it comes back,
+   its copies of `js/item-engine.js` and `js/permissions.js` need a
+   byte-for-byte guard again.)
 
 ## Two gates, one truth
 
@@ -129,7 +128,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 488 assertions, node + jsdom, seconds
+npm test        # 485 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -168,7 +167,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 747 pass as of this writing — a
+reaches through an org boundary. All 744 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
