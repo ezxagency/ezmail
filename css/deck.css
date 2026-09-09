@@ -66,6 +66,11 @@
      card behind still read through the brief */
   background:rgba(44,40,36,.975);
 }
+/* Blurred out of legibility for the same reason: the stage is only wide
+   enough to show ~55px of a neighbour, and 55px of a sentence looks like
+   a rendering fault. Blurred, it looks like what it is - another card
+   behind this one. */
+.dk-card:not(.is-front){filter:blur(3.5px)}
 .dk-card *{user-select:none}
 .dk-card.is-front .dk-body{user-select:text}
 .dk-card.is-going{opacity:0 !important;transition:opacity .22s var(--pz-ease)}

@@ -275,6 +275,19 @@ function dkRender(rows){
   dkBind(host);
   dkLayout();
   dkStartTicking();
+  // the chips under the dock are this shift's paused tasks narrowed to the
+  // work still on the deck, so a change here changes them too
+  if (typeof hrRefresh === "function") hrRefresh();
+}
+
+/* The deck is drawn from a SNAPSHOT of the assignments, but the card also
+   reflects the SHIFT: the Running pill, Paused - 23m, and which button the
+   left seat holds. Starting a task writes the shift and never touches the
+   assignments, so nothing told the deck to redraw - and the card went on
+   offering Start task on work that was already running. render() calls
+   this, which is the only place that sees both. */
+function dkRefresh(){
+  if (typeof $ === "function" && $("assignedDeck")) dkRender(dkRows);
 }
 
 /* The spring runs on animation frames, and there is exactly one place that
@@ -306,7 +319,10 @@ function dkLayout(){
     const sc = 1 - Math.min(a, 3) * 0.055;
     c.style.transform = "translateX(-50%) translate3d(" + x.toFixed(2) + "px,0," + z + "px) "
       + "rotateY(" + rot.toFixed(2) + "deg) scale(" + sc.toFixed(3) + ")";
-    c.style.opacity = a > 3.2 ? "0" : String(Math.max(0, 1 - a * 0.34));
+    // 0.34 left a neighbour at 66%, and the sliver that clears the front
+    // card is its MIDDLE, not its edge - so words from the next task read
+    // beside the one you are on. Depth is the signal; text is not.
+    c.style.opacity = a > 3.2 ? "0" : String(Math.max(0, 1 - a * 0.52));
     c.style.zIndex = String(100 - Math.round(a * 10));
     c.style.pointerEvents = a < 0.5 ? "auto" : "none";
   });

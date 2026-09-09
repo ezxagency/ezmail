@@ -129,7 +129,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 515 assertions, node + jsdom, seconds
+npm test        # 523 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -228,10 +228,18 @@ Fifth piece: the **ground and the chips**. The comp's background is the
 same marble under a heavy even veil rather than the classic left-to-right
 gradient, which exists to keep white text legible over the bright half of
 the photo — a problem the darker treatment does not have. And "pick up
-where you left off" (`js/hero.js`) names the last real work this person
-did, from `S.history`. Those chips are deliberately NOT buttons yet:
-what a tap should do is undecided, and something that looks pressable and
-does nothing is worse than something that plainly is not.
+where you left off" (`js/hero.js`) is this shift's PAUSED tasks: work
+with a closed segment that is not the one running now, each chip naming
+the task and the time already spent on it, and pressing one opens a fresh
+segment for it. `clkPaused()` says what was put down; it cannot know what
+was FINISHED, since "done" lives on the Item — so `hrOffer()` narrows the
+list to the work still on the deck, which also means an unloaded queue
+offers nothing rather than offering work nobody can complete.
+
+The deck reads the shift as well as the queue — the Running pill, Paused ·
+23m, and whether the left button says Start task or Send back — but it is
+only DRAWN when the assignments snapshot fires. `dkRefresh()` is the
+redraw for the other half, and `render()` is its one caller.
 
 The rings are deliberately NOT affected. They keep their fixed 8h lap
 because they answer "how long have you been at it", not "how much of

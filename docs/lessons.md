@@ -195,6 +195,33 @@ reached by a URL is not verified until something loads that URL.
 untouched; `npm run shots` now navigates to `?ui=next` and refuses to
 photograph anything if the class is absent.
 
+**A card drawn from a snapshot ignored the shift.** The deck redraws
+when the assignments snapshot fires. Start task writes the SHIFT — a new
+segment in `appState/{uid}` — and touches no assignment, so nothing ever
+told the deck to redraw. The card went on offering **Start task** on work
+that was already running, and the Running pill never appeared; the clock
+had moved and the only screen that says what you are working on had not.
+Every deck assertion passed, because each one rendered once and looked at
+the result.
+*Rule:* when a view is fed by one source and reads a second, name the
+second one's caller. Here the deck is drawn from the queue and reads the
+shift, so `render()` — the one function that sees a shift change — asks
+it to redraw.
+*Guard:* `tests/deck.test.mjs` starts a task and re-renders, asserting the
+left button became **Send back**; a second assertion reads `js/render.js`
+and fails if nothing there calls `dkRefresh()`, because a redraw nobody
+calls is written-never-read.
+
+**A stub that was missing swallowed the rest of the function.** The deck
+harness never defined `render()`, so every `dkStart()` in it threw the
+moment it finished its real work — silently, as a rejected promise. The
+assertions still passed: the state they checked was already set on the
+line before. Anything the action did AFTER that point was untested and
+would have stayed untested.
+*Rule:* if an action is called in a test, it has to reach its end. An
+async action that throws mid-way fails nothing by default.
+*Guard:* the harness stubs `render()`, so the whole of `dkStart` runs.
+
 ### Process
 
 **Walk the whole flow before declaring it done.** The A-to-Z run found

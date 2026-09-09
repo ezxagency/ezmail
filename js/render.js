@@ -30,6 +30,9 @@ function render(){
   }
 
   renderDock();
+  // the card's own state - Running, Paused, Start task vs Send back - is
+  // read off the shift, and the shift just changed
+  if (uiNextOn()) dkRefresh();
   renderPunches();
   if (uiNextOn()) wrRefresh();
   updateDrawerIdentity();

@@ -92,6 +92,13 @@ ctx.console = console;
  "js/team.js", "js/assign.js", "js/deck.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 
+/* render() lives in js/render.js, which this harness does not load - and
+   without it dkStart() threw the moment it finished its work, quietly, as
+   a rejected promise. Every assertion below still passed, because the
+   state was already set: exactly the kind of silence that lets a bug
+   AFTER that line go untested. Stubbed so the action runs to its end. */
+vm.runInContext(`function render(){}`, ctx);
+
 const run = expr => vm.runInContext(expr, ctx);
 const deck = () => dom.window.document.getElementById("assignedDeck");
 const draw = js => { run(js); return deck().innerHTML; };
@@ -275,6 +282,30 @@ T("Start task while on a break ends the break and starts the work", () => {
   assert.equal(run(`S.status`), "ACTIVE");
   assert.equal(run(`openBreak(S.shift) ? 1 : 0`), 0, "the break was left open");
   assert.equal(run(`clkOpenItemId(S.shift)`), "r3");
+});
+
+/* The bug this exists for: Start task writes the SHIFT and never touches
+   the assignments, so the snapshot watcher that draws the deck never
+   fired. The card went on offering Start task on work that was already
+   running, and the Running pill never appeared. dkRefresh() is the redraw
+   that closes that gap, and render() is what calls it. */
+T("the card follows the shift, not only the snapshot", () => {
+  run(`dkReset(); S.status="IDLE"; S.shift=null;
+       dkRender([{ id:"r1", task:"Copy", store:"Alpha" }]);`);
+  assert.ok(front().querySelector(".dk-start"), "should start out offering Start task");
+  run(`dkStart(dkRows[0]);`);
+  run(`dkRefresh();`);
+  assert.ok(front().querySelector(".dk-send"),
+    "the card still offers Start task on work that is already running");
+  assert.ok(front().querySelector(".dk-live"), "the Running pill never appeared");
+});
+
+/* Written, never read - shape 3. dkRefresh() existing proves nothing if
+   nothing calls it, and the only caller is in another file. */
+T("render() is wired to that redraw", () => {
+  const src = readFileSync(join(here, "..", "js", "render.js"), "utf8");
+  assert.ok(/dkRefresh\(\)/.test(src),
+    "js/render.js never asks the deck to redraw, so the card goes stale again");
 });
 
 T("an orphan cannot be started, because nothing can be done with it", () => {

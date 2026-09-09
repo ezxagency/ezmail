@@ -112,10 +112,18 @@ await page.evaluate(() => {
   isAdmin = false; isMember = false;
   S.worker = "Prashanna";
   S.status = "ACTIVE";
+  /* Segments carry the ITEM they were spent on, which is what makes two of
+     these tasks PAUSED rather than merely past - and the chips under the
+     dock are that list. A fixture without itemIds photographed a row that
+     can never draw. */
   S.shift = { client: "Store Epsilon", startedAt: now - 3 * H - 17 * 60000,
     segs: [
-      { task: "Copy", startedAt: now - 3 * H - 17 * 60000, endedAt: now - 2 * H, client: "Store Epsilon" },
-      { task: "Design review", startedAt: now - 80 * 60000, endedAt: null }
+      { task: "Write the spring launch email", itemId: "r1", client: "Store Epsilon",
+        startedAt: now - 3 * H - 17 * 60000, endedAt: now - 2 * H },
+      { task: "Second pass on the sprint backlog", itemId: "r2", client: "Studio North",
+        startedAt: now - 80 * 60000, endedAt: now - 46 * 60000 },
+      { task: "Approve the final artwork", itemId: "r3", client: "Store Delta",
+        startedAt: now - 46 * 60000, endedAt: null }
     ],
     breaks: [{ reason: "Lunch", startedAt: now - 2 * H, endedAt: now - 80 * 60000 }] };
   S.history = [1, 2, 3, 4].map(b => ({
@@ -159,6 +167,12 @@ await page.evaluate(() => {
   renderAssignedBrief(rows);
 });
 await shoot("next-on-shift");
+
+// ---- the same shift, close on the dock: the paused chips are the point ----
+await page.evaluate(() => {
+  const d = document.querySelector(".dock") || document.getElementById("dock");
+  if (d) d.scrollIntoView({ block: "center" });
+});
 
 // ---- clocked out, nothing assigned: the state a new person opens on ----
 await page.evaluate(() => {
