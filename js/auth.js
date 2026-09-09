@@ -86,7 +86,11 @@ async function resolveRole(user){
       // founder is nobody here's to approve.
       if (!isPasswordAcct && role === "pending") notifyAdminsNewSignup(base.name, user.email);
     }
-    if (isPasswordAcct) queueVerifyCodeEmail(user.email, base.verifyCode).catch(e => console.error(e));
+    // queueAppEmail never throws - it answers { ok } - so a .catch here
+    // caught nothing and a failed first send landed the person on "enter
+    // the code from your email" with no email and no message
+    if (isPasswordAcct) queueVerifyCodeEmail(user.email, base.verifyCode)
+      .then(ok => { if (!ok) toast("Couldn't send the code — tap Resend"); });
     doc = await ref.get();
   } else if (shouldBeAdmin && doc.data().role !== "admin") {
     // an existing account whose email was just added to ADMIN_EMAILS -

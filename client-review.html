@@ -182,7 +182,10 @@ async function decide(status){
       $("rvLinks").innerHTML = links.map(l => {
         let host = l.url;
         try { host = new URL(l.url).hostname.replace(/^www\./, ""); } catch {}
-        return `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(host)}${l.stage ? `<span>from ${esc(l.stage)}</span>` : ""}</a></li>`;
+        // esc() keeps the attribute intact; it does not keep a javascript:
+        // URL out of an href. Only web links are links here.
+        const safe = /^https?:\/\//i.test(l.url || "");
+        return `<li><a href="${safe ? esc(l.url) : "#"}" target="_blank" rel="noopener noreferrer">${esc(host)}${l.stage ? `<span>from ${esc(l.stage)}</span>` : ""}</a></li>`;
       }).join("");
     }
     show("stMain");

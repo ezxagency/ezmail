@@ -112,7 +112,9 @@ export function makeDb(){
   function colRef(path){
     let n = 0;
     return Object.assign(query(path, [], false), {
-      doc(id){ return docRef(path + "/" + (id || ("auto" + (++n) + "_" + Math.random().toString(36).slice(2, 8)))); }
+      doc(id){ return docRef(path + "/" + (id || ("auto" + (++n) + "_" + Math.random().toString(36).slice(2, 8)))); },
+      // the real one: a new auto-id document, written, its ref returned
+      async add(data){ const ref = this.doc(); await ref.set(data); return ref; }
     });
   }
 

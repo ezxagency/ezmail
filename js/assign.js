@@ -459,8 +459,13 @@ async function cxSubmit(){
           seenAt: null
         };
         const old = oldByKey.get(pairKey(pr.store, pr.task));
-        if (old){ oldByKey.delete(pairKey(pr.store, pr.task)); batch.update(col.doc(old.id), base); }
-        else {
+        if (old){
+          oldByKey.delete(pairKey(pr.store, pr.task));
+          batch.update(col.doc(old.id), base);
+          // the edit has to reach the Item the assignee's dashboard reads,
+          // or a changed note or due date shows only on the admin's screen
+          written.push({ id: old.id, row: { ...old, ...base } });
+        } else {
           // the ref is made first so its id can be kept: the Item model
           // mirrors these rows under ids derived from exactly this one
           const ref = col.doc();
@@ -918,7 +923,7 @@ function markAssignmentDone(id){
   const row = assignedOpenRows.find(r => r.id === id) || {};
   openSheet(`
     <h2>Task complete</h2>
-    <p class="hint"><b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team. Tag someone with @ and they get an Accept / Decline hand-off in their inbox.</p>
+    <p class="hint"><b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team.${isMember ? "" : " Tag someone with @ and they get an Accept / Decline hand-off in their inbox."}</p>
     <div class="mention-wrap">
       <textarea id="doneNote" placeholder="e.g. Drafts are up — @Jack please review"></textarea>
       <div class="af-panel mention-pop" id="mentionPop" hidden></div>
@@ -926,7 +931,9 @@ function markAssignmentDone(id){
     <button class="btn btn-go" id="doneSend">Mark done</button>
     <button class="btn btn-ghost btn-sm" id="doneCancel">Cancel</button>
   `, () => {
-    wireMentionBox($("doneNote"), $("mentionPop"));
+    // the @ autocomplete offers a hand-off, and a member's hand-off has
+    // nowhere to land (see dispatchMentionNotifications) - so no offer
+    if (!isMember) wireMentionBox($("doneNote"), $("mentionPop"));
     $("doneCancel").onclick = closeSheet;
     $("doneSend").onclick = () => finishAssignment(id, row, $("doneNote").value.trim());
     $("doneNote").focus();
@@ -1036,6 +1043,9 @@ async function deleteWorker(uid, name){
   try {
     await db.collection("appState").doc(uid).delete();
     await db.collection("users").doc(uid).delete();
+    // the comment above promised this and the code never did it: a removed
+    // person stayed @-mentionable
+    await db.collection("directory").doc(uid).delete().catch(e => console.warn(e));
     const asg = await db.collection("assignments").where("toUid", "==", uid).get();
     if (!asg.empty){
       const batch = db.batch();

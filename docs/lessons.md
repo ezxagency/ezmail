@@ -175,6 +175,31 @@ Ownership is an org role, which is data.
 The pre-tenancy collections are not org-scoped, so a member who counted
 as team would read another company's work.
 
+### Messaging
+
+**Every writer of a row has to feed the mirror, not just the first one.**
+`itemsMirrorAssignments()` had one caller: the composer's create path.
+Accepting a hand-off, reclaiming a declined one and editing an existing
+assignment all wrote `assignments` and nothing else - while the
+dashboard reads Items. "Added to your queue" was true of a collection
+nobody looks at. The mirror now updates a row it already holds rather
+than re-creating it, so an edit keeps the run and the stamps the Item
+carried.
+*Rule:* when a collection gains a mirror, grep every writer of the
+original, not the one you were looking at.
+*Guard:* `tests/flow.test.mjs` accepts a hand-off and edits an
+assignment against the fake, and looks for the Item.
+
+**An offer the rules will refuse is not an offer.**
+A member's Done sheet promised "@tag someone and they get a hand-off".
+The fan-out batched the offer with a `toRole:"admin"` doc the rules deny
+a member, so the batch died and the offer with it; and had it landed,
+Accept writes to `assignments`, which the rules keep for Ez Agency's
+team. Two refusals deep, all silent. Members now get a plain comment
+box and the dispatcher writes nothing for them.
+*Rule:* before drawing a control, know that the server will accept
+what it does - for THIS role, not the one you tested with.
+
 ### The UI
 
 **An empty list must say why it is empty.**

@@ -471,6 +471,61 @@ await T("and an assignment made afterwards still reaches the queue as an Item", 
   run(`orgInvalidate(); itemsTaskTypeCache = null;`);
 });
 
+/* ---------- the composer's edit path reaches the mirror ---------- */
+await T("editing an assignment updates its Item rather than replacing it", async () => {
+  run(`orgInvalidate(); itemsTaskTypeCache = null;`);
+  const row = { toUid: "staff1", toName: "Grace", store: "Alpha", task: "Copy", note: "first draft", createdAt: 5,
+    done: false, doneAt: null, dueDate: null, dueTime: "", groupId: null, groupSize: 1, seenAt: null };
+  await runAsync(`await itemsMirrorAssignments([{ id: "e1", row: ${JSON.stringify(row)} }]);`);
+  const before = find("orgs/" + ORG + "/items", it => /e1$/.test(it.id));
+  assert.equal(before.length, 1);
+  // a run stamped behind the composer's back, which a re-create would lose
+  await db.collection("orgs").doc(ORG).collection("items").doc(before[0].id).update({ workflowRunId: "runX" });
+  await runAsync(`await itemsMirrorAssignments([{ id: "e1", row: ${JSON.stringify(Object.assign({}, row, { note: "second draft", dueDate: "2030-01-02" }))} }]);`);
+  const after = find("orgs/" + ORG + "/items", it => /e1$/.test(it.id));
+  assert.equal(after.length, 1, "the edit made a second Item");
+  assert.equal(after[0].fields.note, "second draft", "the edited note never reached the Item");
+  assert.equal(after[0].fields.dueDate, "2030-01-02");
+  assert.equal(after[0].workflowRunId, "runX", "the edit rebuilt the Item and dropped its run");
+});
+
+/* ---------- accepting a hand-off lands on the dashboard that reads Items ---------- */
+await T("an accepted hand-off is mirrored into the queue", async () => {
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate(); itemsTaskTypeCache = null; S.worker = "Grace"; isAdmin = false; isMember = false;`);
+  await db.collection("notifications").doc("n1").set({ toUid: "staff1", kind: "handoff", status: "pending",
+    fromName: "Ada", store: "Beta", task: "Design", text: "please take this", createdAt: 1, read: false });
+  try {
+    await runAsync(`await handoffAccept({ id: "n1", fromName: "Ada", store: "Beta", task: "Design", text: "please take this" });`);
+    const asg = find("assignments", a => a.toUid === "staff1" && a.task === "Design");
+    assert.equal(asg.length, 1, "no assignment was written");
+    const item = await until(() => find("orgs/" + ORG + "/items", it => it.title === "Beta · Design")[0], "the mirrored Item");
+    assert.ok((item.facets || []).includes("assignee:staff1"), "the Item is not addressed to the accepter");
+  } finally {
+    AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+    run(`orgInvalidate(); itemsTaskTypeCache = null;`);
+  }
+});
+
+/* ---------- a member's completion tells nobody it cannot reach ---------- */
+await T("a member's @mention writes no notification at all", async () => {
+  run(`isMember = true; isAdmin = false;`);
+  const before = find("notifications").length;
+  await runAsync(`await dispatchMentionNotifications("done - @Grace please review", "x1", { store: "A", task: "T" });`);
+  assert.equal(find("notifications").length, before,
+    "a member's completion wrote a notification the rules would refuse or an offer nobody can accept");
+  run(`isMember = false;`);
+});
+
+await T("a team member's @mention still makes the offer", async () => {
+  run(`isMember = false; isAdmin = false; notifDir = null;`);
+  await db.collection("directory").doc("staff1").set({ uid: "staff1", name: "Grace", email: "s@x.com", orgId: ORG });
+  const before = find("notifications").length;
+  await runAsync(`await dispatchMentionNotifications("done - @Grace please review", "x1", { store: "A", task: "T" });`);
+  const offers = find("notifications", n => n.kind === "handoff" && n.toUid === "staff1");
+  assert.ok(find("notifications").length > before && offers.length >= 1, "the offer to Grace was not written");
+});
+
 /* ---------- a save from a stale copy must not erase a side write ---------- */
 await T("saving from a page-old copy keeps a stamp written in between", async () => {
   run(`orgInvalidate();`);

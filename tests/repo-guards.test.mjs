@@ -52,6 +52,14 @@ T("all ?v= values in index.html are the same", () => {
 /* ---- references resolve ----------------------------------------------
    A renamed or deleted file that the HTML still points at is a 404 the
    browser swallows silently: the page loads, the feature is just gone. */
+T("reset-password.html carries the same ?v= as index.html", () => {
+  // it loads css/base.css and css/login.css - the same files - and sat
+  // 140 versions behind, serving a stale login palette to anyone resetting
+  const v = new Set(text("index.html").match(/\?v=(\d+)/g));
+  const rp = new Set(text("reset-password.html").match(/\?v=(\d+)/g) || []);
+  assert.deepEqual([...rp], [...v], "reset-password.html is at " + [...rp] + ", index.html at " + [...v]);
+});
+
 T("every referenced css/js file exists on disk", () => {
   const missing = refs.filter(r => { try { text(r.path); return false; } catch { return true; } })
                       .map(r => r.path);

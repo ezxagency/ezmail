@@ -938,15 +938,35 @@ async function itemsMirrorAssignments(written){
     const allow = (r, a, c) => permCan(perms, r, a, c);
     const actor = { uid, orgId: s.orgId };
 
+    // a row the mirror already holds (an edit from the composer) is
+    // UPDATED, so the Item keeps the run, the stamp and the history a
+    // fresh create would have thrown away
+    const existing = await Promise.all(written.map(w =>
+      itemsCol(s.orgId).doc(migrateItemId("assignment", w.id)).get().then(d => d.exists ? Object.assign({ id: d.id }, d.data()) : null)));
     const batch = db.batch();
     let n = 0;
-    written.forEach(w => {
+    written.forEach((w, i) => {
       const id = migrateItemId("assignment", w.id);
-      const decision = itemCommit({ type, item: null, intent: migrateAssignmentIntent(w.row),
-        actor, allow, now: w.row.createdAt || Date.now(), id });
+      const create = migrateAssignmentIntent(w.row);
+      const now = w.row.createdAt || Date.now();
+      let decision, events = [];
+      if (existing[i]) {
+        decision = itemCommit({ type, item: existing[i], actor, allow, now: Date.now(),
+          intent: { kind: "update", title: create.title, fields: create.fields } });
+        if (decision.ok) {
+          events = decision.events;
+          const re = itemCommit({ type, item: decision.item, actor, allow, now: Date.now(),
+            intent: { kind: "assign", assigneeIds: create.assigneeIds } });
+          if (re.ok) { events = events.concat(re.events); decision = re; }
+        }
+        if (decision.ok && !events.length) return;   // nothing changed
+      } else {
+        decision = itemCommit({ type, item: null, intent: create, actor, allow, now, id });
+        events = decision.ok ? decision.events : [];
+      }
       if (!decision.ok) { console.warn("mirror refused", w.id, decision.error, decision.details); return; }
       batch.set(itemsCol(s.orgId).doc(id), Object.assign({}, decision.item, { id, importedFrom: migrateSource("assignment", w.id) }));
-      decision.events.forEach(ev => batch.set(eventsCol(s.orgId).doc(), ev));
+      events.forEach(ev => batch.set(eventsCol(s.orgId).doc(), ev));
       n++;
     });
     if (n) await batch.commit();

@@ -265,7 +265,7 @@ function renderTodaysWork(docs){
   if (!box) return;
   const now = Date.now();
   const rows = docs
-    .map(d => ({ name: d.state.worker || d.raw.email || "Unnamed", work: todaysWorkFor(d.state, now) }))
+    .map(d => ({ id: d.id, doc: d, name: d.state.worker || d.raw.email || "Unnamed", work: todaysWorkFor(d.state, now) }))
     .filter(r => r.work);
 
   if (!rows.length){
@@ -296,7 +296,7 @@ function renderTodaysWork(docs){
         <tbody>
           ${rows.map(r => {
             const w = r.work;
-            return `<tr>
+            return `<tr data-uid="${esc(r.id)}" title="Open ${esc(r.name)}">
               <td data-label="Member" class="work-name">${esc(r.name)}</td>
               <td data-label="Status" class="nowrap"><span class="work-status is-${w.state}">${WORK_STATE[w.state]}</span></td>
               <td data-label="In" class="nowrap">${clock(w.firstIn)}</td>
@@ -316,6 +316,12 @@ function renderTodaysWork(docs){
     </div>`;
   const tw = $("twAssign");
   if (tw) tw.onclick = () => openComposer();
+  // the member sheet - their record, email summary, Excel, Remove Member -
+  // had no way in at all: viewWorker() existed and nothing called it
+  box.querySelectorAll("tr[data-uid]").forEach(tr => {
+    const r = rows.find(x => x.id === tr.dataset.uid);
+    if (r) tr.onclick = () => viewWorker(r.doc.raw, r.doc.state, r.id);
+  });
 }
 
 // Team is a full page (not a sheet) - admin gets the whole viewport to
