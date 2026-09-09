@@ -62,4 +62,6 @@ body{
   background:#F8F9FA;
   color:var(--ink);font-family:var(--body);overscroll-behavior:none;-webkit-font-smoothing:antialiased;
 }
-
+/* the app-wide toggle every screen and every script relies on - it lived
+   in login.css, the 21st stylesheet, for no reason anybody could name */
+.hidden{display:none!important}

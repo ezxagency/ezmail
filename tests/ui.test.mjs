@@ -62,6 +62,8 @@ ctx.console = console;
 
 const run = expr => vm.runInContext(expr, ctx);
 const doc = dom.window.document;
+// js/boot.js declares these before org.js loads; the same scope here
+run(`var isAdmin = false, isMember = false;`);
 
 /* ---------- a type using every one of the eleven ---------- */
 run(`
@@ -187,12 +189,23 @@ T("the org page renders roles, types and people", () => {
     assert.ok(html.includes(word), "missing from the page: " + word));
 });
 
-T("an owner is offered the import, and it says nothing is deleted", () => {
-  run(`orgS.myRoleId = "owner"; orgRender();`);
+T("Ez Agency's admin, as owner, is offered the import, and it says nothing is deleted", () => {
+  run(`orgS.myRoleId = "owner"; isAdmin = true; orgRender();`);
   const body = doc.getElementById("orgBody");
   assert.ok(body.querySelector("#orgImportTasks"), "no task import");
   assert.ok(body.querySelector("#orgImportCampaigns"), "no campaign import");
   assert.ok(body.innerHTML.includes("Nothing is deleted"), "the promise is not on screen");
+  run(`isAdmin = false;`);
+});
+
+/* Every row in that section reads assignments, campaigns or users - Ez
+   Agency's own pre-tenancy collections, which the rules refuse a customer.
+   Drawn for a founder-door owner it was a button that could only fail. */
+T("a customer owner is NOT offered the import", () => {
+  run(`orgS.myRoleId = "owner"; isAdmin = false; orgRender();`);
+  const body = doc.getElementById("orgBody");
+  assert.equal(body.querySelector("#orgImportTasks"), null, "a customer was offered an import the rules refuse");
+  assert.equal(body.querySelector("#orgSeatTeam"), null, "a customer was offered 'Add the whole team', which reads users/");
 });
 
 T("a non-owner sees no editing controls, and cannot start an import", () => {

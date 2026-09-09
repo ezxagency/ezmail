@@ -24,6 +24,6 @@ sed -n '/^## Failure shapes/,/^---/p' docs/lessons.md 2>/dev/null \
 echo
 echo "Entries on file (open docs/lessons.md for the detail):"
 awk '/^## Entries/,0' docs/lessons.md 2>/dev/null \
-  | grep -oE '^\*\*[^*]+\*\*' | sed 's/\*\*//g;s/`//g;s/^/  - /'
+  | { grep -oE '^\*\*[^*]+\*\*' || true; } | sed 's/\*\*//g;s/`//g;s/^/  - /'
 echo
 echo "=== end ==="

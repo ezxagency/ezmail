@@ -110,10 +110,10 @@ function wfTplAcceptance(){
       ] } },
       wfTplRole("n_r2a", "Visual pass", "designer", 60, 640),
       wfTplRole("n_r2b", "Copy pass", "copywriter", 320, 640),
-      { id: "n_v1", type: "vault", position: { x: 180, y: 800 }, config: { vaultName: "Lane assets", storeWhat: "the finished pieces", visibility: "team" } },
+      { id: "n_v1", type: "vault", position: { x: 180, y: 800 }, config: { vaultName: "Lane assets", storeWhat: "the finished pieces" } },
       wfTplRole("n_r3", "Generalist draft", "designer", 580, 320),
       wfTplRole("n_r4", "Generalist polish", "designer", 580, 480),
-      { id: "n_v2", type: "vault", position: { x: 580, y: 640 }, config: { vaultName: "Else assets", storeWhat: "the fallback piece", visibility: "team" } },
+      { id: "n_v2", type: "vault", position: { x: 580, y: 640 }, config: { vaultName: "Else assets", storeWhat: "the fallback piece" } },
       wfTplRole("n_rf", "Final review", "lead", 340, 960),
       { id: "n_a1", type: "action", position: { x: 340, y: 1110 }, config: { actionType: "notify", params: { message: "Track finished" } } }
     ],
@@ -170,7 +170,7 @@ function wfTplStudio(){
       ] } },
       wfTplRole("r_design", "Design it", "designer", 160, 490),
       wfTplRole("r_copy", "Write it", "copywriter", 440, 490),
-      { id: "v1", type: "vault", position: { x: 300, y: 650 }, config: { vaultName: "Deliverables", storeWhat: "the finished design and copy", visibility: "team" } },
+      { id: "v1", type: "vault", position: { x: 300, y: 650 }, config: { vaultName: "Deliverables", storeWhat: "the finished design and copy" } },
       wfTplRole("r_qa", "QA sign-off", "lead", 300, 800),
       { id: "a1", type: "action", position: { x: 300, y: 950 }, config: { actionType: "notify", params: { message: "Ready for the client" } } }
     ],
@@ -648,7 +648,7 @@ function wfDefaultConfig(type){
     { id: wfId("b"), label: "Else", isElse: true }
   ] };
   if (type === "logic") return { condition: null };
-  if (type === "vault") return { vaultName: "", storeWhat: "", visibility: "team" };
+  if (type === "vault") return { vaultName: "", storeWhat: "" };
   if (type === "action") return { actionType: "notify", params: {} };
   return {};
 }
@@ -1418,7 +1418,7 @@ function wfSheetRole(oid){
     <label class="fld ${draftState.assignmentType === "person" ? "" : "hidden"}" id="wfcPersonFld"><span>Person</span>
       <select id="wfcAssignee"><option value="">Loading people…</option></select></label>
     <label class="fld"><span>Instructions</span><textarea id="wfcInstr" maxlength="600" placeholder="What should they do at this stop?">${esc(c.instructions || "")}</textarea></label>
-    <label class="fld"><span>Due after (hours, optional)</span><input type="number" id="wfcDue" min="1" max="720" value="${c.dueAfter == null ? "" : esc(String(c.dueAfter))}" placeholder="e.g. 48"></label>
+    <label class="fld"><span>Due after (hours, optional)</span><input type="number" id="wfcDue" min="1" max="720" value="${c.dueAfter == null ? "" : esc(String(Math.round(c.dueAfter / 3600000)))}" placeholder="e.g. 48"></label>
     <label class="fld"><span>This stop records (readable by later rules)</span></label>
     <div class="wf-rowlist" id="wfcOuts"></div>
     <button type="button" class="wf-addrow" id="wfcAddOut">+ Add a recorded value</button>
@@ -1445,7 +1445,11 @@ function wfSheetRole(oid){
       c.assigneeId = draftState.assignmentType === "person" ? ($("wfcAssignee").value || null) : null;
       c.instructions = $("wfcInstr").value.trim();
       const due = $("wfcDue").value;
-      c.dueAfter = due === "" ? null : Math.max(1, Number(due));
+      // stored in MILLISECONDS, the engine's unit (nr.dueAt = now + dueAfter):
+      // the sheet speaks hours and converts at the edge, as the org track
+      // editor does with days. Stored as hours, a 48-hour budget was a
+      // deadline 48ms after arrival.
+      c.dueAfter = due === "" ? null : Math.max(1, Number(due)) * 3600000;
       c.outputs = outputs.filter(o => o.key);
       const reqPicked = $("wfcReq").querySelector('.chip[aria-pressed="true"]');
       c.requiresOutput = !reqPicked || reqPicked.dataset.v === "yes";
@@ -1589,20 +1593,13 @@ function wfSheetVault(oid){
     <p class="hint">A storage checkpoint — the deliverable is saved and stamped here, then the task KEEPS MOVING. Not an end.</p>
     <label class="fld"><span>Vault name</span><input type="text" id="wfcVName" maxlength="60" value="${esc(c.vaultName || "")}" placeholder="e.g. Final assets"></label>
     <label class="fld"><span>What gets stored</span><input type="text" id="wfcVWhat" maxlength="120" value="${esc(c.storeWhat || "")}" placeholder="e.g. the approved design files"></label>
-    <div class="chips" id="wfcVVis">
-      <button type="button" class="chip" data-v="team" aria-pressed="${(c.visibility || "team") === "team"}">Everyone on the run</button>
-      <button type="button" class="chip" data-v="admins" aria-pressed="${c.visibility === "admins"}">Admins only</button>
-    </div>
     ${wfWaitForHTML(oid)}
     <button class="btn btn-go" id="wfcSave">Done</button>
   `, () => {
-    wireChipsIn($("wfcVVis"), () => {});
     wfWaitForWire();
     $("wfcSave").onclick = () => {
       c.vaultName = $("wfcVName").value.trim();
       c.storeWhat = $("wfcVWhat").value.trim();
-      const vis = $("wfcVVis").querySelector('.chip[aria-pressed="true"]');
-      c.visibility = vis && vis.dataset.v === "admins" ? "admins" : "team";
       wfWaitForRead(oid);
       wfSheetSave(oid);
     };
@@ -1681,9 +1678,10 @@ function wfSheetAction(oid){
    so two branches finishing at once can't double-fire a join:
    the loser's transaction retries, sees the join already fired,
    and lands (or surfaces "already handled" if its own stop got
-   taken). Effects run strictly AFTER commit, and each one is
-   stamped dispatched on its nodeRun so a crash-retry can't
-   double-send.
+   taken). Effects run strictly AFTER commit, once, in the same
+   call - at most once, and a tab that dies between the commit
+   and the dispatch loses them: nothing rescans for undispatched
+   stops. The stamp on the nodeRun makes that loss visible.
    ============================================================ */
 
 /* ---------- starting a run (admin) ---------- */
@@ -1767,7 +1765,7 @@ async function wfAdvanceTx(runId, nodeRunId, output){
     // transactions can't query - the run doc carries its nodeRun refs
     const snaps = await Promise.all((run.nodeRunIds || []).map(id => tx.get(db.collection("nodeRuns").doc(id))));
     const nodeRuns = snaps.filter(s => s.exists).map(s => s.data());
-    const next = wfAdvance({ run, nodeRuns }, { type: "complete", nodeRunId, output }, { now: Date.now() });
+    const next = wfAdvance({ run, nodeRuns }, { type: "complete", nodeRunId, output, by: auth.currentUser.uid }, { now: Date.now() });
     const prevById = new Map(nodeRuns.map(n => [n.id, JSON.stringify(n)]));
     next.nodeRuns.forEach(nr => {
       const before = prevById.get(nr.id);
@@ -1835,7 +1833,7 @@ async function wfClaimStop(runId, nodeRunId, notifId){
     const cfg = node ? node.config || {} : {};
     let due = null;
     if (cfg.dueAfter){
-      const d = new Date(Date.now() + Number(cfg.dueAfter) * 3600000);
+      const d = new Date(Date.now() + Number(cfg.dueAfter));
       due = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
     }
     tx.update(nrRef, { assigneeId: me.uid, claim: { assignmentId: aRef.id, uid: me.uid, at: Date.now() } });
@@ -1898,8 +1896,8 @@ async function wfOpenStopById(nodeRunId){
    effect that belongs to a nodeRun gets its outcome stamped there as
    dispatch[type] = { state: "dispatched"|"failed"|"skipped", reason?, at }
    - the runs-board timeline renders these, so a failed send is VISIBLE,
-   not swallowed. A retry (crash between commit and stamp, transaction
-   rerun) checks the stamp first, so nothing double-sends. */
+   not swallowed. There is no retry: a crash between commit and dispatch
+   loses the effect, and the missing stamp is how the board shows it. */
 async function wfDispatchEffects(state, effects){
   for (const ef of (effects || [])){
     const nr = ef.nodeRunId ? state.nodeRuns.find(x => x.id === ef.nodeRunId) : null;

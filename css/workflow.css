@@ -356,7 +356,6 @@
 .wf-cond-grid{display:flex;gap:8px}
 .wf-cond-grid > label{flex:1;min-width:0}
 .wf-cond select,.wf-cond input{padding:12px;font-size:14px}
-.wf-cond-none{font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);margin:0}
 
 /* narrow screens: shorter canvas, palette scrolls */
 @media (max-width:640px){

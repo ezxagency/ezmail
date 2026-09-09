@@ -20,7 +20,7 @@ import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readdirSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,9 +43,18 @@ const server = createServer(async (req, res) => {
 await new Promise(r => server.listen(0, "127.0.0.1", r));
 const base = "http://127.0.0.1:" + server.address().port;
 
-const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
-});
+/* A hardcoded build path rots the day Playwright bumps its browser. Take
+   an explicit CHROMIUM_PATH, else the newest Chromium on disk under the
+   Playwright browsers dir, else let Playwright resolve its own. */
+const chromiumPath = (() => {
+  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
+  const dir = process.env.PLAYWRIGHT_BROWSERS_PATH || "/opt/pw-browsers";
+  try {
+    return readdirSync(dir).filter(d => /^chromium-\d+$/.test(d)).sort().reverse()
+      .map(d => join(dir, d, "chrome-linux", "chrome")).find(p => existsSync(p));
+  } catch { return undefined; }
+})();
+const browser = await chromium.launch(chromiumPath ? { executablePath: chromiumPath } : {});
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
 
 /* Everything the page reaches for at load, and nothing more. A stub that

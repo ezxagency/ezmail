@@ -277,6 +277,32 @@ reached by a URL is not verified until something loads that URL.
 untouched; `npm run shots` now navigates to `?ui=next` and refuses to
 photograph anything if the class is absent.
 
+### Infrastructure
+
+**The test that never ran was green for months.**
+`ci.yml` ran one step per suite, so a suite added to `package.json` and
+not to the workflow ran on every laptop and never in CI. Eight were
+missing - the whole redesign and the flag test the lessons file itself
+holds up as the guard. A list copied into a second place is a second
+place to forget.
+*Rule:* CI runs `npm test`, the same command a person runs, and nothing
+else names the suites.
+
+**Quirks mode, for the app's whole life.**
+`index.html` had no doctype: a BOM, then `<meta charset>`. Every browser
+laid the app out in quirks mode, and so did every jsdom test and every
+screenshot, so nothing could notice. Adding it is a layout change to
+look at, not a formality - `npm run shots` before and after.
+
+**Two units for one field.**
+The legacy builder saved `dueAfter` in hours; the engine adds it to
+`now` as milliseconds; the org track editor and the migration already
+spoke milliseconds. Nothing read the legacy deadline, so it was wrong
+for as long as it existed without anyone seeing 48ms. The builder now
+converts at the edge, as the track editor does.
+*Rule:* a number that crosses a file boundary carries its unit in its
+name or its comment, and one producer is checked against the reader.
+
 ### Process
 
 **Walk the whole flow before declaring it done.** The A-to-Z run found

@@ -28,13 +28,21 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   pomodoro.css      focus mode, the 12 theme veils, settings controls
   personal.css      Personal mode's private task list
   campaigns.css     campaigns baton-pass pipeline page + its sheets
+  workflow.css      the legacy Workflows page: builder canvas, runs board
   org.css           the Organization page: roster rows + the permission grid
   work.css          the Work page: type tabs, status controls, generated form
+  scrubber.css      the shift bar under the clocks (redesign)
+  deck.css          the assigned deck, one card at a time (redesign)
+  week.css          this week's hours and streak under the wordmark (redesign)
+  rail.css          the left icon rail that replaces the hamburger (redesign)
+  hero.css          "pick up where you left off" chips (redesign)
+  v6.css            the redesign's ground and layout, all under body.ui-next
   login.css         Shift Card login screen (legacy palette)
   premium.css       motion/gesture polish layer, loaded last on purpose
 
 js/   classic scripts sharing one global scope; loaded in order
   config.js         CONFIG, Firebase init, Firestore-backed Store, state, utils
+  clock.js          the segment arithmetic (task time by itemId) - pure
   permissions.js    resource:action:scope grammar - pure, no DOM, no Firestore
   item-engine.js    the universal work object: types, values, facets, commit()
   items.js          its Firestore glue - deliberately dumb, decides nothing
@@ -45,6 +53,11 @@ js/   classic scripts sharing one global scope; loaded in order
   work.js           the Work page: every control generated from the ItemType
   org.js            the Organization page: tenancy, the roster, the roles editor
   render.js         dashboard render loop, rings, per-second tick
+  scrubber.js       the shift bar: sbPlan() pure, sbRender() draws it
+  deck.js           the assigned deck: dkPick() pure, the stack and its physics
+  week.js           this week's hours, seven day bars, the streak (from S.history)
+  hero.js           the last real work this person did, as chips
+  rail.js           the icon rail, built from the drawer's own items
   ui.js             sheet + toast + chip primitives
   shift.js          clock-in/switch/pause/out flows, reports, Excel export
   email.js          writes to the Firestore mail collection for the Trigger Email extension
@@ -57,6 +70,8 @@ js/   classic scripts sharing one global scope; loaded in order
   auth.js           role resolution, sign-in/out wiring, login UI, email verification
   personal.js       Personal mode's private per-account task list
   pomodoro.js       focus timer engine, Web Audio soundscapes, settings
+  workflow-engine.js the blueprint/run engine - pure, shared with handoff tracks
+  workflow.js       the legacy Workflows page: drawflow builder, runs board, effects
   premium.js        tab-swipe, sheet drag-to-close, swipe-to-delete, haptics
 
 assets/             images (marble backgrounds, logo)
@@ -112,8 +127,8 @@ slip before it ships rather than after.
 ```
 cd tests
 npm ci               # once
-npm test             # 235 assertions, node + jsdom, seconds
-npm run test:rules   # 204 rules assertions (needs Java + firebase-tools)
+npm test             # 527 assertions, node + jsdom, seconds
+npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
@@ -127,7 +142,7 @@ push to `main` is the release.
 Firestore **rules and indexes** deploy themselves:
 `.github/workflows/deploy-rules.yml` ships them on any push to `main` that
 touches `firestore.rules` or `firestore.indexes.json`, and only after the
-119-assertion suite passes against the edited rules. It needs a
+259-assertion suite passes against the edited rules. It needs a
 `FIREBASE_SERVICE_ACCOUNT` secret (Settings → Secrets and variables →
 Actions); without it the workflow verifies the rules and skips the deploy
 with a warning instead of failing.

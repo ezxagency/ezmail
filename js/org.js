@@ -438,7 +438,10 @@ function orgRender(){
       '<div class="org-list">' + autoHtml + '</div>' +
       '<p class="org-note">A rule watches for something happening and does one thing about it, every time, without anyone remembering to.</p>' +
     '</section>' +
-    (owner ? '<section class="org-sec">' +
+    // Ez Agency's admin only: every row here reads assignments, campaigns
+    // or users, which the rules keep for the platform's own team. Drawn for
+    // a customer owner it was a button that could only fail.
+    (owner && isAdmin ? '<section class="org-sec">' +
       '<div class="org-sec-head"><h3>Bring existing work across</h3></div>' +
       '<div class="org-list">' +
         '<button type="button" class="org-row" id="orgImportTasks"><span class="org-row-main">' +
@@ -450,9 +453,6 @@ function orgRender(){
         '<button type="button" class="org-row" id="orgSeatTeam"><span class="org-row-main">' +
           '<b>Add the whole team</b><small>Seats everyone who already has an account — admins as Managers, workers as Staff</small>' +
         '</span><span class="org-row-go">Seat</span></button>' +
-        '<button type="button" class="org-row" id="orgImportChains"><span class="org-row-main">' +
-          '<b>Turn campaign chains into workflows</b><small>Each saved chain becomes a draft blueprint you can review and publish</small>' +
-        '</span><span class="org-row-go">Convert</span></button>' +
       '</div>' +
       '<p class="org-note">Nothing is deleted or changed — the Assign composer and Campaigns page keep working exactly as they do now. Safe to run more than once: anything already brought across is skipped.</p>' +
     '</section>' : '') +
@@ -485,10 +485,9 @@ function orgRender(){
   if (owner && $("orgAddType")) $("orgAddType").onclick = () => orgTypeSheet(null);
   if (owner && $("orgPackBtn")) $("orgPackBtn").onclick = () => orgPackSheet();
   if (owner && $("orgWipeWork")) $("orgWipeWork").onclick = () => orgWipeWork($("orgWipeWork"));
-  if (owner && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
-  if (owner && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
-  if (owner && $("orgImportChains")) $("orgImportChains").onclick = () => orgRunImport("chain", $("orgImportChains"));
-  if (owner && $("orgSeatTeam")) $("orgSeatTeam").onclick = () => orgSeatTeam($("orgSeatTeam"));
+  if (owner && isAdmin && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
+  if (owner && isAdmin && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
+  if (owner && isAdmin && $("orgSeatTeam")) $("orgSeatTeam").onclick = () => orgSeatTeam($("orgSeatTeam"));
   if (owner && $("orgAddAuto")) $("orgAddAuto").onclick = () => orgAutomationSheet(null);
   $("orgBody").querySelectorAll(".org-auto").forEach(b => {
     if (b.disabled) return;
@@ -746,7 +745,7 @@ async function orgRunImport(kind, btn){
   const was = btn.querySelector(".org-row-go").textContent;
   btn.disabled = true;
   btn.querySelector(".org-row-go").textContent = "Working…";
-  const r = kind === "chain" ? await itemsImportChains() : await itemsImport(kind);
+  const r = await itemsImport(kind);
   btn.disabled = false;
   btn.querySelector(".org-row-go").textContent = was;
   if (!r.ok) {

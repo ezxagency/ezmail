@@ -27,38 +27,14 @@ jobs:
         working-directory: tests
         run: npm ci
 
-      # Each suite is its own step so a red X names the failure in the
-      # GitHub UI without anyone opening the log.
-      - name: Repo guards (cp rule, ?v= rule, admin/rules email sync)
-        run: node tests/repo-guards.test.mjs
-      - name: Permissions grammar
-        run: node tests/permissions.test.mjs
-      - name: Items (types, facets, the chokepoint)
-        run: node tests/item-engine.test.mjs
-      - name: Migration mapping
-        run: node tests/migrate.test.mjs
-      - name: Automations
-        run: node tests/automation.test.mjs
-      - name: Template packs (every shipped pack is usable)
-        run: node tests/packs.test.mjs
-      - name: Handoff (a track is a blueprint the real engine runs)
-        run: node tests/handoff.test.mjs
-      - name: Workflow engine
-        run: node tests/workflow-engine.test.mjs
-      - name: Workflow effects
-        run: node tests/workflow-effects.test.mjs
-      - name: Workflow templates
-        run: node tests/workflow-templates.test.mjs
-      - name: Workflow versions
-        run: node tests/workflow-versions.test.mjs
-      - name: Workflow builder handshake
-        run: node tests/workflow-builder-handshake.test.mjs
-      - name: Generated UI (jsdom)
-        run: node tests/ui.test.mjs
-      - name: A to Z (the whole flow, against an in-memory Firestore)
-        run: node tests/flow.test.mjs
+      # ONE step, the same command a contributor runs. A step per suite
+      # rotted: eight suites (every redesign test and the flag test) were
+      # green locally and never ran here.
+      - name: npm test (every suite, in tests/package.json's order)
+        working-directory: tests
+        run: npm test
 
-  # The 204 allow/deny assertions in tests/firestore-rules.test.mjs. Needs
+  # The allow/deny matrix in tests/firestore-rules.test.mjs. Needs
   # Java for the emulator jar, which is why this never ran by hand.
   rules:
     name: Firestore rules (emulator)
@@ -82,6 +58,6 @@ jobs:
         run: npm i -g firebase-tools
 
       # cwd must be tests/ - the suite reads ../firestore.rules
-      - name: 204 allow/deny assertions
+      - name: Firestore rules allow/deny matrix
         working-directory: tests
         run: firebase emulators:exec --only firestore --project demo-ez "node firestore-rules.test.mjs"

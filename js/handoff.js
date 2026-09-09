@@ -74,10 +74,9 @@ function hoTrackErrors(track, roleIds, statusKeys, members){
   return out;
 }
 
-/* A track becomes trigger -> role -> role -> ... -> done, which is the
-   same shape migrateCampaignBlueprint() produces from a campaign chain.
-   Same shape on purpose: two generators disagreeing about what a linear
-   pipeline looks like would be two things to keep in step. */
+/* A track becomes trigger -> role -> role -> ... -> done: the one
+   generator of a linear pipeline. (A second one, from campaign chains,
+   wrote to a collection nothing listed and was cut with the page.) */
 function hoBuildBlueprint(type, track, opts){
   const o = opts || {};
   const stops = (track || []).filter(Boolean);
