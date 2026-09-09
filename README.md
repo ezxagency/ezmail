@@ -25,7 +25,6 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   responsive.css    landscape + desktop grid + height tiers
   pomodoro.css      focus mode, the 12 theme veils, settings controls
   personal.css      Personal mode's private task list
-  workflow.css      the legacy Workflows page: builder canvas, runs board
   org.css           the Organization page: roster rows + the permission grid
   work.css          the Work page: type tabs, status controls, generated form
   scrubber.css      the shift bar under the clocks (redesign)
@@ -67,7 +66,6 @@ js/   classic scripts sharing one global scope; loaded in order
   personal.js       Personal mode's private per-account task list
   pomodoro.js       focus timer engine, Web Audio soundscapes, settings
   workflow-engine.js the blueprint/run engine - pure, shared with handoff tracks
-  workflow.js       the legacy Workflows page: drawflow builder, runs board, effects
   premium.js        tab-swipe, sheet drag-to-close, swipe-to-delete, haptics
 
 assets/             images (marble backgrounds, logo)
@@ -123,7 +121,7 @@ slip before it ships rather than after.
 ```
 cd tests
 npm ci               # once
-npm test             # 526 assertions, node + jsdom, seconds
+npm test             # 488 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```

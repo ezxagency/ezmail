@@ -292,6 +292,17 @@ became "Put down": it closes the task's segment into an idle one, which
 the clock math (`clkTaskTotal`) already sums back when the card is
 started again.
 
+**The legacy Workflows page went with it.**
+Same decision, same day: the drawflow builder, the runs board and the
+effect dispatcher read top-level `blueprints`/`runs`/`nodeRuns`, Ez
+Agency's pre-tenancy collections, and the org handoff (a track compiled
+by `js/handoff.js`, run by `js/items.js`) is the one pipeline now.
+`js/workflow-engine.js` stays: the handoff runs on it. The four suites
+that loaded the page verbatim went with the page; the engine's own suite
+stays. The "Take it / Not me" offer and "Work this stop" row had one
+taker each and are gone; a claimed stop's assignment is a plain row.
+The legacy rules and data are untouched.
+
 ### Infrastructure
 
 **The test that never ran was green for months.**

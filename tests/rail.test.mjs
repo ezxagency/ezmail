@@ -35,7 +35,6 @@ const dom = new JSDOM(`<!doctype html><html><body>
     ${drawerItem("mission", "Daily Mission", "Today's shift, live", false)}
     ${drawerItem("history", "History", "Closed shifts", false)}
     ${drawerItem("team", "Team", "Roster &amp; approvals", true)}
-    ${drawerItem("workflow", "Workflows", "Blueprints &amp; runs", false)}
     ${drawerItem("work", "Work", "Everything in flight", false)}
     ${drawerItem("org", "Organization", "People &amp; roles", true)}
     ${drawerItem("ledger", "Ledger Book", "Something added later", false)}
@@ -62,9 +61,9 @@ const shown = () => items().filter(a => !a.classList.contains("hidden"));
 run(`rlSync()`);
 
 T("the rail carries one seat per drawer item, in the drawer's order", () => {
-  assert.equal(items().length, 8);
+  assert.equal(items().length, 7);
   assert.deepEqual(items().map(a => a.dataset.route),
-    ["", "mission", "history", "team", "workflow", "work", "org", "ledger"]);
+    ["", "mission", "history", "team", "work", "org", "ledger"]);
 });
 
 /* Six icons in the comp, eight routes in the app. Work is staff-visible
@@ -81,7 +80,6 @@ T("the labels are the rail's short ones, not the drawer's sentences", () => {
   const txt = r => items().find(a => a.dataset.route === r).querySelector(".rail-txt").textContent;
   assert.equal(txt(""), "Home");
   assert.equal(txt("mission"), "Mission", "\"Daily Mission\" does not fit a 116px column");
-  assert.equal(txt("workflow"), "Flows");
 });
 
 /* A page added to the drawer later must appear here without anybody
@@ -100,7 +98,7 @@ T("the icons come from the drawer, so there is one set to maintain", () => {
 /* THE POINT OF THE FILE. Role gating happens once, on the drawer. */
 T("a page hidden from this person is hidden in the rail too", () => {
   assert.deepEqual(shown().map(a => a.dataset.route),
-    ["", "mission", "history", "workflow", "work", "ledger"]);
+    ["", "mission", "history", "work", "ledger"]);
   assert.ok(items().find(a => a.dataset.route === "team").classList.contains("hidden"));
   assert.ok(items().find(a => a.dataset.route === "org").classList.contains("hidden"));
 });
@@ -108,7 +106,7 @@ T("a page hidden from this person is hidden in the rail too", () => {
 T("a page unhidden later shows up on the next sync, with no rebuild", () => {
   run(`document.querySelector('.drawer-item[data-route="team"]').classList.remove("hidden"); rlSync();`);
   assert.ok(!items().find(a => a.dataset.route === "team").classList.contains("hidden"));
-  assert.equal(items().length, 8, "the rail rebuilt itself and lost its identity");
+  assert.equal(items().length, 7, "the rail rebuilt itself and lost its identity");
 });
 
 T("the active page is marked, and only that one", () => {

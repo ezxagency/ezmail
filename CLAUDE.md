@@ -129,13 +129,12 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 526 assertions, node + jsdom, seconds
+npm test        # 488 assertions, node + jsdom, seconds
 npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
-`npm test` covers the workflow engine, effects, templates, versioning, the
-builder handshake, the permission grammar, the item engine, automations,
+`npm test` covers the workflow engine, the permission grammar, the item engine, automations,
 the template packs, the repo guards, and — in jsdom, with the real files
 loaded into one shared global scope exactly as `index.html` arranges
 them — the generated UI. That last suite exists because the pure ones
@@ -169,7 +168,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 785 pass as of this writing — a
+reaches through an org boundary. All 747 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag

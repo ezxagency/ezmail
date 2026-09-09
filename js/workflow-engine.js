@@ -3,7 +3,7 @@
    Firestore, no globals from the rest of the app: everything in
    here takes plain objects in and returns plain objects out, so
    the same file runs unchanged in the browser (classic script,
-   loaded before js/workflow.js) and under Node for unit tests
+   loaded before js/handoff.js and js/items.js) and under Node for unit tests
    (tests/workflow-engine.test.mjs).
    BLUEPRINT vs RUN is the load-bearing split (see
    docs/workflow-builder-spec.md): a blueprint is the drawing an

@@ -122,9 +122,6 @@ function enterFullApp(user, role){
      left a customer unable to reach the page that manages their own org.
      Inside the page, owner-only controls gate on the org role instead. */
   $("drawerOrg").classList.toggle("hidden", !(isAdmin || isMember));
-  // Workflows is Ez Agency's own pre-tenancy tool, and reads data the
-  // rules refuse a member. Hidden, not shown-and-broken.
-  $("drawerWorkflow").classList.toggle("hidden", isMember);
   // admin's own record lives inside Team's History section now - a
   // separate personal-history page is only useful to everyone else
   $("drawerHistory").classList.toggle("hidden", isAdmin);

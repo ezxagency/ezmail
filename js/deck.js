@@ -95,7 +95,6 @@ function dkFinish(r){
   const card = document.querySelector(".dk-card.is-front");
   if (card) card.classList.add("is-going");
   dkIdleAfter(r);
-  if (r.wfNodeRunId && typeof wfOpenStopById === "function") return wfOpenStopById(r.wfNodeRunId);
   return markAssignmentDone(r.id);
 }
 

@@ -793,21 +793,16 @@ function renderAssignedList(rows){
         ${items.map(r => {
           const late = r.dueDate && r.dueDate < today;
           const tOpen = assignedOpenTasks.has(r.id);
-          // A workflow-stop row: completing it must collect the stop's
-          // declared outputs and advance the run, so it routes to the
-          // workflow stop sheet (which closes this row itself)
           const acts = r.orphanType
             // no button at all, because there is no action. Saying so is
             // the whole content of this row.
             ? `<p class="atask-broken">Its kind of work (<b>${esc(r.orphanType)}</b>) was deleted, so nothing can be done with it here. An owner can clear it on the Work page.</p>`
-            : r.wfNodeRunId
-              ? `<button type="button" class="btn btn-go btn-sm atask-wf" data-wf="${esc(r.wfNodeRunId)}">Work this stop</button>`
-              : `<button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>`;
+            : `<button type="button" class="btn btn-go btn-sm atask-done" data-id="${r.id}">Done</button>`;
           const meta = `From ${esc(r.fromName || r.fromEmail || "admin")}${r.createdAt ? " · assigned " + dayStamp(r.createdAt) : ""} · ${r.dueDate ? "due " + esc(dueWithTime(r)) : "no due date"}`;
           return `
           <li class="atask${tOpen ? " is-open" : ""}${late ? " is-late" : ""}">
             <button type="button" class="atask-head" data-tid="${esc(r.id)}" aria-expanded="${tOpen}">
-              <span class="atask-name">${esc(r.task)}${r.stage ? `<span class="atask-cgchip">${esc(r.stage)}</span>` : ""}${r.wfNodeRunId ? `<span class="atask-cgchip">workflow</span>` : ""}${r.orphanType ? `<span class="atask-cgchip is-broken">needs an owner</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
+              <span class="atask-name">${esc(r.task)}${r.stage ? `<span class="atask-cgchip">${esc(r.stage)}</span>` : ""}${r.orphanType ? `<span class="atask-cgchip is-broken">needs an owner</span>` : ""}${r.transferredFrom ? `<span class="atask-cgchip">from ${esc(r.transferredFrom)}</span>` : ""}</span>
               <span class="atask-due">${r.dueDate ? (late ? "overdue · " : "due ") + esc(dueWithTime(r)) : ""}</span>
               ${CARET_SVG("atask-caret")}
             </button>
@@ -834,9 +829,6 @@ function renderAssignedList(rows){
     renderAssignedQueue();
   });
   list.querySelectorAll(".atask-done").forEach(b => b.onclick = () => markAssignmentDone(b.dataset.id));
-  list.querySelectorAll(".atask-wf").forEach(b => b.onclick = () => {
-    if (typeof wfOpenStopById === "function") wfOpenStopById(b.dataset.wf);
-  });
 }
 
 // the other half of a Done toast: one mistap shouldn't be a conversation

@@ -121,7 +121,7 @@ T("one card per piece of work, all of them in the stack", () => {
 
 /* THE COLLAPSE. Four kinds, one pair of buttons. */
 T("every kind of work wears the same two buttons", () => {
-  const kinds = ["{}", '{ wfNodeRunId:"run1:n1:1" }'];
+  const kinds = ["{}", '{ transferredFrom:"Ada" }'];
   kinds.forEach(k => {
     draw(rowJs(k));
     assert.equal(front().querySelectorAll(".dk-start").length, 1, "no Start task for " + k);
@@ -131,7 +131,7 @@ T("every kind of work wears the same two buttons", () => {
 });
 
 T("Pass forward, Open and Work this stop are gone", () => {
-  draw(rowJs('{ wfNodeRunId:"run1:n1:1", multi:"2 of 3" }'));
+  draw(rowJs('{ transferredFrom:"Ada" }'));
   const txt = front().textContent;
   ["Pass forward", "Approve", "Open", "Work this stop"].forEach(w =>
     assert.ok(!txt.includes(w), "the card still says " + w));
