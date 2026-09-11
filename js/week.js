@@ -18,6 +18,7 @@
    ============================================================ */
 
 const WR_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const WR_DAY_MS = 8 * 3600000;   // one full bar = an 8-hour day
 
 const wrPad = n => String(n).padStart(2, "0");
 const wrKey = ts => {
@@ -84,8 +85,16 @@ function wrPlan(history, openShift, now){
     cursor.setDate(cursor.getDate() - 1);
   }
 
+  /* Full height is a FULL DAY, not the week's best day. Scaled to the
+     best day, a twenty-minute Tuesday in an otherwise empty week fills
+     the whole band and reads as a full shift - the bar answered "how
+     does this day compare to the others" when the question is "how
+     much of a day was this". Same fixed 8h lap as the shift ring
+     (SHIFT_CYCLE_MS in js/render.js); a longer day tops out at full. */
+  days.forEach(x => { x.frac = Math.min(1, x.ms / WR_DAY_MS); });
+
   const total = days.reduce((t, x) => t + x.ms, 0);
-  return { days, total, max: Math.max(1, ...days.map(x => x.ms)), streak, todayKey };
+  return { days, total, streak, todayKey };
 }
 
 /* ---------- the half that touches the document ---------- */
@@ -95,13 +104,13 @@ const WR_FLAME = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 /* A day with no hours is a FLAT LINE, not a short bar: "nothing" and "a
    little" must not look like neighbours on the same scale. */
 const WR_FLAT = 6;      // px
-const WR_TALL = 58;     // px, the week's best day
+const WR_TALL = 58;     // px, a full 8-hour day
 
 function wrRender(host){
   if (!host) return;
   const plan = wrPlan(S.history, S.shift, Date.now());
   const bars = plan.days.map(d => {
-    const h = d.ms > 0 ? Math.max(WR_FLAT + 4, Math.round((d.ms / plan.max) * WR_TALL)) : WR_FLAT;
+    const h = d.ms > 0 ? Math.max(WR_FLAT + 4, Math.round(d.frac * WR_TALL)) : WR_FLAT;
     return '<span class="wrow-day is-' + d.state + '"'
       + (d.ms > 0 ? ' title="' + esc(humanDur(d.ms)) + '"' : "")
       + '><i class="wrow-bar" style="height:' + h + 'px"></i>'

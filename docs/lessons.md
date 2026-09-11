@@ -304,6 +304,20 @@ would have stayed untested.
 async action that throws mid-way fails nothing by default.
 *Guard:* the harness stubs `render()`, so the whole of `dkStart` runs.
 
+**A bar scaled to the week's best day lied about every short week.** The
+week row drew each day as a share of the week's TALLEST day, so a
+twenty-minute Tuesday in an otherwise empty week filled the whole band
+and read as a full shift. The fixture that photographed it had an
+eight-hour day in it, so the picture looked right; the person's real
+week did not. The bar answered "how does this day compare to the others"
+when the question on the screen is "how much of a day was this".
+*Rule:* a bar that stands for time has a fixed unit for full height —
+here the same 8h lap as the shift ring — and does not rescale to its
+neighbours. Relative scaling is for comparing categories, not for hours.
+*Guard:* `tests/week.test.mjs` proves a lone twenty-minute day is a
+sliver and a ten-hour day tops out at full, and the jsdom half measures
+the drawn height of a one-hour bar.
+
 ### Cuts
 
 **Campaigns was cut, not migrated (2026-09-09).**

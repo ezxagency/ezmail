@@ -48,7 +48,21 @@ T("hours land on the day the shift STARTED, and add up", () => {
   const p = wrPlan([shift(1, 7), shift(2, 6), shift(2, 2)], null, NOW);
   assert.deepEqual(byLabel(p), ["M0", "T7", "W8", "T0", "F0", "S0", "S0"]);
   assert.equal(p.total, 15 * H);
-  assert.equal(p.max, 8 * H);
+});
+
+/* Full height is an 8-hour DAY, not the week's best day. Scaled to the
+   best day, a twenty-minute Tuesday in an otherwise empty week filled the
+   whole band and looked like a full shift. */
+T("a bar's height is its share of an 8-hour day, not of the week's best day", () => {
+  const p = wrPlan([shift(1, 2), shift(2, 8), shift(3, 10), { startedAt: at(4, 9), endedAt: at(4, 9.5), netMs: 20 * 60000 }], null, NOW);
+  // the 1st is a Tuesday: Monday is empty and each shift lands one column on
+  assert.equal(p.days[0].frac, 0, "an empty Monday");
+  assert.equal(p.days[1].frac, 0.25, "two hours is a quarter of a day");
+  assert.equal(p.days[2].frac, 1, "eight hours is the full bar");
+  assert.equal(p.days[3].frac, 1, "a ten-hour day tops out at full, not past it");
+  assert.ok(p.days[4].frac > 0 && p.days[4].frac < 0.05, "twenty minutes is a sliver");
+  const alone = wrPlan([{ startedAt: at(2, 9), endedAt: at(2, 9.5), netMs: 20 * 60000 }], null, NOW);
+  assert.ok(alone.days[1].frac < 0.05, "the week's only day still fills the whole band");
 });
 
 T("last week's shifts are not this week's hours", () => {
@@ -103,7 +117,7 @@ T("no history is no streak, not a crash", () => {
   const p = wrPlan(null, null, NOW);
   assert.equal(p.streak, 0);
   assert.equal(p.total, 0);
-  assert.equal(p.max, 1, "a zero max would divide every bar by nothing");
+  assert.ok(p.days.every(d => d.frac === 0));
 });
 
 /* ---- drawn ---- */
@@ -127,6 +141,9 @@ T("seven bars are drawn, today is marked, and the total is stated", () => {
   assert.equal(row().querySelectorAll(".wrow-day.is-today").length, 1);
   assert.ok(row().textContent.includes("This week"));
   assert.ok(/1h/.test(row().textContent), "the week's total is not on screen");
+  const todayBar = row().querySelector(".wrow-day.is-today .wrow-bar");
+  const h = parseInt(todayBar.style.height, 10);
+  assert.ok(h > 6 && h < 12, "one hour of an 8h day should be a short bar, got " + h + "px");
 });
 
 /* A pill reading "0 days streak" is a boast about nothing. */
