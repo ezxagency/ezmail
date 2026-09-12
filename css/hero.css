@@ -3,15 +3,17 @@
    clock-in button. .ui-next only.
    ============================================================ */
 
-/* The comp's ground: near-black with the marble showing through a heavy
-   even veil, rather than the classic dashboard's left-to-right gradient
-   (which exists to keep white text legible over the bright half of the
-   photo - a problem this darker treatment does not have). */
+/* The ground: the marble under an even veil, rather than the classic
+   dashboard's left-to-right gradient (which exists to keep white text
+   legible over the bright half of the photo). The veil was 90% and read
+   as a flat black; it is lighter now so the stone actually shows through
+   the glass, and legibility comes from the glass surfaces the text sits
+   on rather than from hiding the photograph. */
 @media (min-width:1024px){
   .ui-next .app,
   .ui-next .app.panes{
     background-image:
-      linear-gradient(180deg, rgba(9,10,13,.90), rgba(9,10,13,.82) 42%, rgba(9,10,13,.88)),
+      linear-gradient(180deg, rgba(9,10,13,.70), rgba(9,10,13,.58) 42%, rgba(9,10,13,.68)),
       url('../assets/bg-marble.webp');
     background-size:cover;
     background-position:center;

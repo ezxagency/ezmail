@@ -181,6 +181,12 @@ await page.evaluate(() => {
 });
 await shoot("next-on-shift");
 
+// ---- a block of the bar under the cursor: it rises and says what it was ----
+await page.hover(".sb-seg.is-live");
+await page.waitForTimeout(400);
+await shoot("next-bar-hover");
+await page.mouse.move(5, 5);
+
 // Layout needs browser geometry: a DOM-only test cannot catch a grid row
 // shrinking through its labels or seconds inheriting a microscopic em size.
 for (const [width, height] of [[1920,1080], [1440,900], [1280,720], [1024,600], [1024,450], [768,900], [390,844]]) {

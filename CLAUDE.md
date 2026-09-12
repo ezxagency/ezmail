@@ -193,7 +193,13 @@ owner or by any role holding `member:hours` (the seeded Manager has it).
 `firestore.rules` pins that delegated write to that one field: without
 the pin, the update that sets somebody's hours is the same update that
 sets their `roleId`, and the rules suite proves it by failing four
-assertions the moment the pin comes out.
+assertions the moment the pin comes out. The bar is ticked every second
+but REBUILT only when its structure changes — a block started or closed,
+the schedule, another hour of overtime — and otherwise moved in place,
+which is what lets the playhead glide and the live block's light run
+instead of restarting each second. Every block carries what it was
+(`label`, `itemId`, `live`), so hovering one says the task and its span,
+and pressing one brings that task to the front of the deck.
 
 Second piece: the **assigned deck**. `js/deck.js` turns the same rows the
 queue has always produced into one card at a time — the wheel, the arrows

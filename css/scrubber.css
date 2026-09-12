@@ -32,30 +32,96 @@
 .sb-over{font-style:normal;color:var(--wk-green);margin-left:8px;font-weight:700}
 
 /* the track. Remaining time IS the track showing through, so an
-   unstarted shift and a finished one differ only by what covers it */
+   unstarted shift and a finished one differ only by what covers it.
+   Glass, like everything else on this screen, and overflow visible so a
+   block's tooltip can stand above it. */
 .sb-bar{
   position:relative;
-  height:34px;
-  border-radius:9px;
-  background:rgba(255,255,255,.14);
-  overflow:hidden;
+  height:38px;
+  border-radius:12px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14);
 }
-.sb-bar-empty{background:rgba(255,255,255,.08)}
+.sb-bar-empty{background:rgba(255,255,255,.05)}
 
-.sb-seg{position:absolute;top:4px;height:26px;border-radius:5px}
-.sb-work{background:rgba(255,255,255,.92)}
-.sb-break{background:#0c0d11}
+/* one mark per hour, under the blocks */
+.sb-tick{position:absolute;bottom:0;width:1px;height:7px;background:rgba(255,255,255,.22)}
+
+/* The blocks. A task is the tint; the idle gap between tasks is quiet;
+   a break is dark and striped; a hole in the data is red-striped, since
+   it IS wrong. Edges glide as the seconds pass rather than stepping,
+   and a fresh bar grows its blocks in from the left, one after another. */
+.sb-seg{
+  position:absolute;top:5px;height:26px;border-radius:7px;
+  transform-origin:left center;
+  animation:sbSegIn .55s var(--pz-ease) both;
+  transition:left 1s linear, width 1s linear, top .2s var(--pz-ease), height .2s var(--pz-ease), filter .2s ease;
+}
+.sb-seg[data-item]{cursor:pointer}
+.sb-work{
+  background:linear-gradient(180deg,#5FB2FF,#0A84FF);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 4px 12px rgba(10,132,255,.32);
+}
+.sb-work.is-idle{background:rgba(255,255,255,.26);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+.sb-break{
+  background-color:rgba(0,0,0,.5);
+  background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.12) 0 3px,transparent 3px 8px);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+}
 /* a hole neither a segment nor a break claimed. It should look wrong,
    because it is - see the header comment in js/scrubber.js */
-.sb-gap{background:repeating-linear-gradient(135deg,rgba(255,255,255,.22) 0 4px,transparent 4px 8px)}
+.sb-gap{background:repeating-linear-gradient(135deg,rgba(255,69,58,.45) 0 4px,transparent 4px 8px)}
+
+/* the block still open carries a moving light, so the eye finds "now"
+   on the bar as fast as it does on the ring */
+/* no overflow:hidden here - it would clip the tooltip above the block;
+   the light's own rounded box keeps it inside the block */
+.sb-seg.is-live::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.38) 50%,transparent 100%);
+  background-size:220% 100%;
+  animation:sbShimmer 2.4s linear infinite;
+}
+/* hover: the block rises a touch and says what it was */
+.sb-seg:hover{top:3px;height:30px;filter:brightness(1.15);z-index:3}
+.sb-seg[data-tip]::before{
+  content:attr(data-tip);
+  position:absolute;left:50%;bottom:calc(100% + 10px);
+  transform:translate(-50%,4px);
+  white-space:nowrap;padding:7px 11px;border-radius:10px;
+  background:rgba(28,28,32,.88);border:1px solid rgba(255,255,255,.14);
+  backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16), 0 10px 24px rgba(0,0,0,.4);
+  color:var(--wk-white);font-size:11px;font-weight:600;letter-spacing:.02em;
+  font-variant-numeric:tabular-nums;
+  opacity:0;pointer-events:none;z-index:6;
+  transition:opacity .18s var(--pz-ease), transform .18s var(--pz-ease);
+}
+.sb-seg:hover::before{opacity:1;transform:translate(-50%,0)}
+/* the first block's tip must not hang off the left of the bar */
+.sb-seg[data-n="0"]::before{left:0;transform:translate(0,4px)}
+.sb-seg[data-n="0"]:hover::before{transform:translate(0,0)}
 
 /* where the schedule ended, once somebody has run past it */
-.sb-target{position:absolute;top:0;width:2px;height:100%;background:rgba(255,255,255,.55)}
+.sb-target{position:absolute;top:0;width:0;height:100%;border-left:2px dashed rgba(255,255,255,.55)}
 
+/* the playhead breathes, and glides between seconds */
 .sb-play{
-  position:absolute;top:11px;width:12px;height:12px;margin-left:-6px;
-  border-radius:50%;background:var(--wk-green);
-  box-shadow:0 0 0 3px rgba(0,174,11,.28), 0 2px 6px rgba(0,0,0,.5);
+  position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;
+  border-radius:50%;background:#fff;border:3px solid var(--wk-green);
+  box-shadow:0 0 0 0 rgba(48,209,88,.55);
+  animation:sbPulse 2s ease-out infinite;
+  transition:left 1s linear;z-index:4;
+}
+
+@keyframes sbSegIn{from{transform:scaleX(0);opacity:0}to{transform:none;opacity:1}}
+@keyframes sbShimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+@keyframes sbPulse{0%{box-shadow:0 0 0 0 rgba(48,209,88,.55)}70%{box-shadow:0 0 0 12px rgba(48,209,88,0)}100%{box-shadow:0 0 0 0 rgba(48,209,88,0)}}
+@media (prefers-reduced-motion:reduce){
+  .sb-seg{animation:none;transition:none}
+  .sb-seg.is-live::after{animation:none}
+  .sb-play{animation:none;transition:none}
 }
 
 .sb-foot{
@@ -67,13 +133,13 @@
 .sb-t-start{left:0}
 .sb-t-end{right:0;left:auto}
 /* rides the playhead, so it reads as that dot's own label */
-.sb-t-live{transform:translateX(-50%);color:var(--wk-green);font-weight:700}
+.sb-t-live{transform:translateX(-50%);color:var(--wk-green);font-weight:700;transition:left 1s linear}
 .sb-note{position:absolute;left:0;top:0;color:var(--wk-white-60);letter-spacing:.02em}
 
 .sb-legend{position:absolute;right:0;top:0;display:flex;gap:16px}
 .sb-key{display:flex;align-items:center;gap:6px;letter-spacing:.06em}
 .sb-key i{width:10px;height:10px;border-radius:3px;display:block}
-.sb-key i.sb-work{background:rgba(255,255,255,.92)}
+.sb-key i.sb-work{background:linear-gradient(180deg,#5FB2FF,#0A84FF)}
 .sb-key i.sb-break{background:#0c0d11;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
 .sb-key i.sb-rest{background:rgba(255,255,255,.22)}
 

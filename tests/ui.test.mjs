@@ -621,11 +621,44 @@ T("the bar draws a segment per block, a playhead and a legend", () => {
       breaks: [{ reason: "Lunch", startedAt: t0 + 3600000, endedAt: t0 + 2 * 3600000 }] };
   `);
   const html = sbDraw();
-  assert.equal((html.match(/class="sb-seg sb-work"/g) || []).length, 2);
-  assert.equal((html.match(/class="sb-seg sb-break"/g) || []).length, 1);
+  assert.equal((html.match(/class="sb-seg sb-work/g) || []).length, 2);
+  assert.equal((html.match(/class="sb-seg sb-break/g) || []).length, 1);
   assert.ok(html.includes("sb-play"), "no playhead");
   assert.ok(html.includes("Remaining"), "no remaining key in the legend");
   assert.ok(/6h\s*shift/i.test(html), "the header never named the scheduled length");
+  assert.ok(/data-tip="Copy · /.test(html), "a block does not say what it was");
+  assert.ok(/data-tip="Lunch · /.test(html), "the break does not say what it was");
+  assert.ok(html.includes("is-live"), "the open block is not marked live");
+  assert.equal((html.match(/sb-tick/g) || []).length, 5, "a six-hour bar has five hour marks");
+});
+
+/* The bar is ticked every second. Rebuilt every second, its playhead
+   would jump instead of glide and its live block's light would restart
+   sixty times a minute - so a tick that changes no structure must move
+   the pieces it already has, and only a new block may rebuild it. */
+T("a second later the bar is moved, not rebuilt; a new block rebuilds it", () => {
+  const bar = sbHost().querySelector(".sb-bar");
+  const seg = sbHost().querySelector(".sb-seg.is-live");
+  const wasLeft = sbHost().querySelector(".sb-play").style.left;
+  run(`S.shift.startedAt -= 5 * 60000; S.shift.segs.forEach(s => { s.startedAt -= 5 * 60000; if (s.endedAt) s.endedAt -= 5 * 60000; });
+       S.shift.breaks.forEach(b => { b.startedAt -= 5 * 60000; b.endedAt -= 5 * 60000; }); sbRender($("shiftbar"));`);
+  assert.equal(sbHost().querySelector(".sb-bar"), bar, "the bar was rebuilt for a tick");
+  assert.equal(sbHost().querySelector(".sb-seg.is-live"), seg, "the live block was rebuilt for a tick");
+  assert.notEqual(sbHost().querySelector(".sb-play").style.left, wasLeft, "the playhead did not move");
+  // the new block must have SOME length, or the plan drops it as empty
+  run(`S.shift.segs[1].endedAt = Date.now() - 60000; S.shift.segs.push({ task: "Embed", itemId: "r9", startedAt: Date.now() - 60000, endedAt: null }); sbRender($("shiftbar"));`);
+  assert.notEqual(sbHost().querySelector(".sb-bar"), bar, "a new block did not rebuild the bar");
+  assert.equal(sbHost().querySelectorAll(".sb-seg").length, 4);
+});
+
+T("pressing a block brings its task to the front of the deck", () => {
+  run(`var __sbTo = -1; dkRows = [{ id: "r0" }, { id: "r9" }]; dkTo = n => { __sbTo = n; };
+       if (typeof dkItemId === "undefined") dkItemId = r => r.itemId || r.id;`);
+  sbHost().querySelector('.sb-seg[data-item="r9"]').click();
+  assert.equal(run(`__sbTo`), 1);
+  run(`__sbTo = -1;`);
+  sbHost().querySelector('.sb-seg[data-n="0"]').click();
+  assert.equal(run(`__sbTo`), -1, "a block with no task behind it sent the deck somewhere");
 });
 
 T("running over the schedule is marked, not clipped", () => {

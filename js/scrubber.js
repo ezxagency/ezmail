@@ -28,15 +28,20 @@ function sbPlan(shift, now, schedMs){
   const elapsed = Math.max(0, now - start);
 
   const raw = [];
-  const add = (kind, from, to) => {
+  /* Every block carries what it WAS - the task, the break's reason - and
+     whether it is the one still open, so the bar can say so when asked
+     rather than being a row of anonymous shapes. */
+  const add = (kind, from, to, meta) => {
     const f = Math.max(0, Math.min(elapsed, from));
     const t = Math.max(0, Math.min(elapsed, to));
-    if (t > f) raw.push({ kind, from: f, to: t });
+    if (t > f) raw.push(Object.assign({ kind, from: f, to: t }, meta));
   };
   (shift.segs || []).forEach(s =>
-    add("work", s.startedAt - start, (s.endedAt || now) - start));
+    add("work", s.startedAt - start, (s.endedAt || now) - start,
+      { label: s.task || "Idle", idle: !s.task, itemId: s.itemId || null, live: !s.endedAt }));
   (shift.breaks || []).forEach(b =>
-    add("break", b.startedAt - start, (b.endedAt || now) - start));
+    add("break", b.startedAt - start, (b.endedAt || now) - start,
+      { label: b.reason || "Break", idle: false, itemId: null, live: !b.endedAt }));
   raw.sort((a, b) => a.from - b.from || a.to - b.to);
 
   // one pass, left to right: overlaps are clipped to what came before
@@ -44,13 +49,14 @@ function sbPlan(shift, now, schedMs){
   // segment nor a break claims becomes a visible gap
   const blocks = [];
   let cursor = 0;
+  const gap = (from, to) => ({ kind: "gap", from, to, label: "Unaccounted", idle: false, itemId: null, live: false });
   raw.forEach(b => {
     if (b.to <= cursor) return;
-    if (b.from > cursor) blocks.push({ kind: "gap", from: cursor, to: b.from });
-    blocks.push({ kind: b.kind, from: Math.max(b.from, cursor), to: b.to });
+    if (b.from > cursor) blocks.push(gap(cursor, b.from));
+    blocks.push(Object.assign({}, b, { from: Math.max(b.from, cursor), to: b.to }));
     cursor = b.to;
   });
-  if (cursor < elapsed) blocks.push({ kind: "gap", from: cursor, to: elapsed });
+  if (cursor < elapsed) blocks.push(gap(cursor, elapsed));
 
   const sum = kind => blocks.reduce((t, b) => t + (b.kind === kind ? b.to - b.from : 0), 0);
   const worked = sum("work"), brk = sum("break");
@@ -71,11 +77,16 @@ function sbPlan(shift, now, schedMs){
 }
 
 /* ---------- the half that touches the document ----------
-   Redrawn every tick, so it stays cheap: one innerHTML of a handful of
-   spans, no per-block listeners. The bar is read-only by design - it
-   reports the shift, it does not edit it. */
+   Ticked every second, but only REBUILT when the bar's structure changes:
+   a task started or put down, a break, the schedule, another hour of
+   overtime. In between, the blocks' edges, the playhead and the digits
+   are moved in place - which is what lets the playhead glide and the live
+   block shimmer instead of both restarting sixty times a minute. The bar
+   reports the shift and does not edit it; the one thing pressing it does
+   is bring that block's task to the front of the deck. */
 
 const SB_MIN_BLOCK = 0.4;   // % - so a 20-second break is still visible
+const SB_HOUR = 3600000;
 
 function sbLabel(ms){ return humanDur(ms); }
 /* "6h", "7h 30m" - the scheduled LENGTH, which reads as a shift name in
@@ -83,6 +94,28 @@ function sbLabel(ms){ return humanDur(ms); }
 function sbSpanLabel(ms){
   const mins = Math.round(ms / 60000), h = Math.floor(mins / 60), m = mins % 60;
   return m ? h + "h " + m + "m" : h + "h";
+}
+/* what a block says when hovered: what it was, when, how long */
+function sbTip(plan, b){
+  return b.label + " · " + clock(plan.start + b.from) + "–" + (b.live ? "now" : clock(plan.start + b.to))
+    + " · " + humanDur(b.to - b.from);
+}
+function sbProgressHTML(plan){
+  return plan.scheduled
+    ? '<b>' + esc(sbLabel(plan.worked)) + '</b> <i>/</i> ' + esc(sbLabel(plan.scheduled))
+      + (plan.over > 0 ? '<em class="sb-over">+' + esc(sbLabel(plan.over)) + ' over</em>' : "")
+    : '<b>' + esc(sbLabel(plan.worked)) + '</b> <i>worked</i>';
+}
+
+function sbBind(host){
+  if (host.dataset.sbBound) return;
+  host.dataset.sbBound = "1";
+  host.addEventListener("click", e => {
+    const seg = e.target.closest(".sb-seg[data-item]");
+    if (!seg || typeof dkRows === "undefined" || typeof dkTo !== "function" || typeof dkItemId !== "function") return;
+    const i = dkRows.findIndex(r => dkItemId(r) === seg.dataset.item);
+    if (i >= 0) dkTo(i);
+  });
 }
 
 function sbRender(host){
@@ -100,6 +133,9 @@ function sbRender(host){
     const note = schedMs ? "The bar fills from the moment you clock in."
       : known ? "No shift length set for you yet, so this bar measures elapsed time only."
       : "";
+    const key = "idle|" + title + "|" + note;
+    if (host.dataset.sbKey === key) return;
+    host.dataset.sbKey = key;
     host.innerHTML =
       '<div class="sb-head"><span class="sb-title">' + esc(title) + '</span>'
       + '<span class="sb-prog sb-prog-idle">Not started</span></div>'
@@ -109,28 +145,57 @@ function sbRender(host){
   }
 
   const pct = ms => (plan.span ? (ms / plan.span) * 100 : 0);
-  const blocks = plan.blocks.map(b => {
-    const w = Math.max(SB_MIN_BLOCK, pct(b.to - b.from));
-    return '<span class="sb-seg sb-' + b.kind + '" style="left:' + pct(b.from).toFixed(3)
-      + '%;width:' + w.toFixed(3) + '%"></span>';
-  }).join("");
-
+  const hours = Math.floor(plan.span / SB_HOUR);
   const playPct = Math.min(100, pct(plan.elapsed));
+  const key = plan.blocks.map(b => b.kind + (b.idle ? "~" : "") + (b.live ? "!" : "") + ":" + b.label).join("|")
+    + "#" + plan.scheduled + "#" + (plan.over > 0) + "#" + known + "#" + hours + "#" + title;
+
+  if (host.dataset.sbKey === key){
+    // the same bar, a second later
+    const prog = host.querySelector(".sb-prog");
+    if (prog) prog.innerHTML = sbProgressHTML(plan);
+    host.querySelectorAll(".sb-seg").forEach((el, i) => {
+      const b = plan.blocks[i]; if (!b) return;
+      el.style.left = pct(b.from).toFixed(3) + "%";
+      el.style.width = Math.max(SB_MIN_BLOCK, pct(b.to - b.from)).toFixed(3) + "%";
+      el.setAttribute("data-tip", sbTip(plan, b));
+    });
+    host.querySelectorAll(".sb-tick").forEach((el, i) => { el.style.left = pct((i + 1) * SB_HOUR).toFixed(3) + "%"; });
+    const target = host.querySelector(".sb-target");
+    if (target) target.style.left = pct(plan.scheduled).toFixed(3) + "%";
+    const play = host.querySelector(".sb-play");
+    if (play) play.style.left = playPct.toFixed(3) + "%";
+    const live = host.querySelector(".sb-t-live");
+    if (live){ live.style.left = playPct.toFixed(3) + "%"; live.textContent = clock(plan.start + plan.elapsed); }
+    return;
+  }
+  host.dataset.sbKey = key;
+
+  const blocks = plan.blocks.map((b, i) => {
+    const w = Math.max(SB_MIN_BLOCK, pct(b.to - b.from));
+    return '<span class="sb-seg sb-' + b.kind + (b.idle ? " is-idle" : "") + (b.live ? " is-live" : "") + '"'
+      + ' data-n="' + i + '"' + (b.itemId ? ' data-item="' + esc(b.itemId) + '"' : "")
+      + ' data-tip="' + esc(sbTip(plan, b)) + '"'
+      + ' style="left:' + pct(b.from).toFixed(3) + '%;width:' + w.toFixed(3) + '%;animation-delay:' + (i * 60) + 'ms"></span>';
+  }).join("");
+  // one mark per whole hour of the span, so a block's length can be read
+  // off the track without hovering it
+  let ticks = "";
+  for (let i = 1; i <= hours; i++){
+    const at = pct(i * SB_HOUR);
+    if (at < 100) ticks += '<span class="sb-tick" style="left:' + at.toFixed(3) + '%"></span>';
+  }
+
   // the schedule stops being the bar's whole width once somebody runs
   // over it, so it gets a mark of its own - otherwise overtime would be
   // indistinguishable from a longer shift
   const overMark = plan.over > 0
     ? '<span class="sb-target" style="left:' + pct(plan.scheduled).toFixed(3) + '%"></span>' : "";
 
-  const progress = plan.scheduled
-    ? '<b>' + esc(sbLabel(plan.worked)) + '</b> <i>/</i> ' + esc(sbLabel(plan.scheduled))
-      + (plan.over > 0 ? '<em class="sb-over">+' + esc(sbLabel(plan.over)) + ' over</em>' : "")
-    : '<b>' + esc(sbLabel(plan.worked)) + '</b> <i>worked</i>';
-
   host.innerHTML =
     '<div class="sb-head"><span class="sb-title">' + esc(title) + '</span>'
-    + '<span class="sb-prog">' + progress + '</span></div>'
-    + '<div class="sb-bar">' + blocks + overMark
+    + '<span class="sb-prog">' + sbProgressHTML(plan) + '</span></div>'
+    + '<div class="sb-bar">' + ticks + blocks + overMark
     + '<span class="sb-play" style="left:' + playPct.toFixed(3) + '%"></span></div>'
     + '<div class="sb-foot">'
     +   '<span class="sb-t sb-t-start">' + esc(clock(plan.start)) + '</span>'
@@ -146,6 +211,7 @@ function sbRender(host){
     +     (plan.scheduled ? '<span class="sb-key"><i class="sb-rest"></i>Remaining</span>' : "")
     +   '</span>'
     + '</div>';
+  sbBind(host);
 }
 
 /* Node test hook — the browser never defines `module`. */

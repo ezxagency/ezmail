@@ -117,7 +117,7 @@ body.ui-next{
 /* the sub-pages share the dashboard's ground and its glass */
 .ui-next .admin-page{
   background-image:
-    linear-gradient(180deg, rgba(9,10,13,.90), rgba(9,10,13,.84) 42%, rgba(9,10,13,.90)),
+    linear-gradient(180deg, rgba(9,10,13,.78), rgba(9,10,13,.70) 42%, rgba(9,10,13,.78)),
     url('../assets/bg-marble.webp');
 }
 .ui-next .fpage-panel{border-radius:22px}
@@ -184,12 +184,9 @@ body.ui-next{
 .ui-next .wrow-bar{border-radius:6px}
 .ui-next .wrow-streak svg{color:var(--ios-orange)}
 
-/* the bar under the clocks */
-.ui-next .sb-bar{background:rgba(255,255,255,.07);border:1px solid var(--ios-stroke);border-radius:12px;box-shadow:var(--ios-hi)}
-.ui-next .sb-seg{border-radius:7px}
-.ui-next .sb-work{background:rgba(255,255,255,.88)}
-.ui-next .sb-break{background:rgba(0,0,0,.55)}
-.ui-next .sb-play{background:var(--ios-green);box-shadow:0 0 0 3px rgba(48,209,88,.26), 0 0 14px rgba(48,209,88,.6)}
+/* the bar under the clocks draws its own glass in css/scrubber.css -
+   its blocks and playhead are animated there, and a second rule here
+   would fight the first */
 
 .ui-next .brand-rule{opacity:.9}
 .ui-next .pu-chip b{color:var(--ios-label)}
@@ -233,5 +230,5 @@ body.ui-next{
 /* ---------- 4. shape ---------- */
 @supports (corner-shape: superellipse(2)){
   .ui-next :is(.dk-card, .st-card, .fpage-panel){corner-shape:var(--squircle-lg)}
-  .ui-next :is(.btn, .dk-bt, .dk-file, .rail-badge, .rail-mark, .sb-bar){corner-shape:var(--squircle-sm)}
+  .ui-next :is(.btn, .dk-bt, .dk-file, .rail-badge, .rail-mark){corner-shape:var(--squircle-sm)}
 }

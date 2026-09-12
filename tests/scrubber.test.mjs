@@ -111,6 +111,25 @@ T("with no schedule there is no target, no remaining and no overtime", () => {
   assert.equal(p.over, 0);
 });
 
+/* A block used to be an anonymous shape. It carries what it was now, so
+   the bar can answer "what was that" when hovered and send the deck to
+   the right card when pressed. */
+T("every block says what it was, and which one is still open", () => {
+  const t0 = 0;
+  const p = sbPlan({ startedAt: t0, segs: [
+      { task: "Copy", itemId: "r1", startedAt: t0, endedAt: t0 + H },
+      { task: null, itemId: null, startedAt: t0 + H, endedAt: t0 + H + 30 * M, via: "idle" },
+      { task: "Embed", itemId: "r2", startedAt: t0 + 2 * H, endedAt: null }
+    ], breaks: [{ reason: "Lunch", startedAt: t0 + H + 30 * M, endedAt: t0 + 2 * H }] }, t0 + 3 * H, 0);
+  assert.deepEqual(p.blocks.map(b => b.label), ["Copy", "Idle", "Lunch", "Embed"]);
+  assert.deepEqual(p.blocks.map(b => b.itemId), ["r1", null, null, "r2"]);
+  assert.deepEqual(p.blocks.map(b => b.idle), [false, true, false, false]);
+  assert.deepEqual(p.blocks.map(b => b.live), [false, false, false, true]);
+  const g = sbPlan({ startedAt: t0, segs: [{ task: "Copy", startedAt: t0 + H, endedAt: null }], breaks: [] }, t0 + 2 * H, 0);
+  assert.equal(g.blocks[0].kind, "gap");
+  assert.equal(g.blocks[0].label, "Unaccounted");
+});
+
 T("a shift one second old has a bar, not a divide by zero", () => {
   const p = sbPlan(shift([seg(0, null)], []), T0 + 1000, 6 * H);
   assert.equal(p.elapsed, 1000);
