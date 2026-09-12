@@ -49,7 +49,6 @@ vm.runInContext(`var isAdmin = false, isMember = false, canAssignTasks = false;
   function todayISO(){ return "2026-09-12"; }
   var __calls = []; function approvePendingSheet(uid, data){ __calls.push(["approve", uid, data.email]); }
   function rejectPendingUser(uid, email){ __calls.push(["reject", uid, email]); }
-  function viewWorker(raw, s, uid){ __calls.push(["worker", uid, s.worker]); }
   function go(r){ __calls.push(["go", r]); } function openComposer(){ __calls.push(["assign"]); }
   rlShell(); rlBuild();`, ctx);
 const run = expr => vm.runInContext(expr, ctx);
@@ -174,22 +173,23 @@ T("drawn: every item that needs the admin is a row with its action on it", () =>
   assert.ok(h.querySelector('.am-link[data-act="ackall"]'), "two completions but no Acknowledge all");
   assert.ok(/Overdue · due 2026-09-02/.test(h.querySelector('.am-row[data-act="late"]').textContent));
   assert.ok(/Email campaign will stop at Design review/.test(h.querySelector('.am-row[data-act="gap"]').textContent));
-  assert.equal(h.querySelectorAll('.am-team .am-row').length, 3);
-  assert.ok(/1 on shift · 1 on break/.test(h.querySelector('.am-team .am-panel-h').textContent));
+  // the roster and the numbers live on Team; the home carries one line
+  assert.ok(!h.querySelector(".am-team") && !h.querySelector(".am-tiles"), "the home still carries the roster or the tiles");
+  const pulse = h.querySelector('.am-pulse[data-act="team"]');
+  assert.ok(pulse, "no team pulse");
+  assert.ok(/1 on shift · 1 on break · 2 open · 1 overdue/.test(pulse.textContent), pulse.textContent);
   assert.ok(/Assign work/.test(h.textContent) && /Invite/.test(h.textContent) && /Export Excel/.test(h.textContent));
-  const tiles = [...h.querySelectorAll(".am-tile b")].map(b => b.textContent);
-  assert.deepEqual(tiles, ["1", "12h 00m", "2", "1", "3", "1"]);
 });
 
-T("pressing a row does the thing: approve, reject, acknowledge, open a member", () => {
+T("pressing a row does the thing: approve, reject, assign, fix a gap, open the team", () => {
   draw(fixture());
   run(`__calls.length = 0;`);
   host().querySelector('.am-row[data-act="approve"] .am-go').click();
   host().querySelector('.am-x[data-act="reject"]').click();
-  host().querySelector('.am-row[data-act="worker"][data-id="u2"]').click();
   host().querySelector('.am-act[data-act="assign"]').click();
   host().querySelector('.am-row[data-act="gap"]').click();
-  assert.deepEqual(runJ(`__calls`), [["approve", "p1", "jordan@ez.com"], ["reject", "p1", "jordan@ez.com"], ["worker", "u2", "Sandy"], ["assign"], ["go", "org"]]);
+  host().querySelector('.am-pulse').click();
+  assert.deepEqual(runJ(`__calls`), [["approve", "p1", "jordan@ez.com"], ["reject", "p1", "jordan@ez.com"], ["assign"], ["go", "org"], ["go", "team"]]);
 });
 
 /* Shape 1: a screen that is confidently wrong. */
@@ -197,13 +197,13 @@ T("nothing to do says so; a read that failed says THAT, not 'nothing to do'", ()
   const empty = fixture(); empty.pending = []; empty.assigns = []; empty.team = []; empty.gaps = [];
   let h = draw(empty);
   assert.ok(/Nothing needs you right now/.test(h.textContent));
-  assert.ok(/Nobody has clocked in today yet/.test(h.textContent));
+  assert.ok(/nobody on shift · 0 open/.test(h.querySelector(".am-pulse").textContent));
   const broken = fixture(); broken.pending = null; broken.assigns = null; broken.team = null;
   broken.errors = { pending: true, assigns: true, team: true }; broken.gaps = [];
   h = draw(broken);
   assert.ok(!/Nothing needs you/.test(h.textContent), "a failed read was reported as nothing to do");
   assert.ok(/Could not reach the approvals/.test(h.textContent) && /Could not reach the assignments/.test(h.textContent));
-  assert.ok(/Could not reach the team/.test(h.textContent));
+  assert.ok(/could not reach the team/.test(h.querySelector(".am-pulse").textContent), "a failed team read was not said on the pulse");
 });
 
 T("an owner who is not an Ez admin gets the org's part of the home and none of the team's", () => {
@@ -211,7 +211,7 @@ T("an owner who is not an Ez admin gets the org's part of the home and none of t
   const h = draw(d);
   assert.equal(h.querySelectorAll('.am-row[data-act="approve"], .am-row[data-act="ack"], .am-row[data-act="late"]').length, 0);
   assert.equal(h.querySelectorAll('.am-row[data-act="gap"]').length, 1);
-  assert.ok(!h.querySelector(".am-team") && !h.querySelector(".am-tiles"));
+  assert.ok(!h.querySelector(".am-pulse"), "an owner cannot read the team's shifts, so no pulse");
   assert.ok(/Invite/.test(h.textContent) && !/Export Excel/.test(h.textContent) && !/>Team</.test(h.innerHTML));
 });
 

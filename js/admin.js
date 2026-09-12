@@ -274,30 +274,18 @@ function amHomeHTML(d){
     ? '<ul class="am-list">' + needs + '</ul>'
     : '<p class="am-empty">' + (Object.keys(err).length ? "Some of this could not be reached — see above." : "Nothing needs you right now.") + '</p>';
 
-  // ---- team now ----
-  let team = "";
+  // ---- the team, in one line: the roster and the numbers live on Team ----
+  let pulse = "";
   if (c.admin){
-    const rows = g.team.map(t =>
-      '<li class="am-row am-who" data-act="worker" data-id="' + esc(t.uid) + '">'
-      + '<i class="am-dot is-' + t.status + '"></i>'
-      + '<div class="am-row-t"><b>' + esc(t.name) + '</b><span>' + esc(AM_STATUS[t.status] || t.status)
-      + (t.task ? " · " + esc(t.task) : "") + (t.store ? " · " + esc(t.store) : "") + '</span></div>'
-      + '<b class="am-time">' + esc(humanDur(t.netMs)) + '</b></li>').join("");
-    team = '<section class="am-panel am-team"><div class="am-panel-h"><h2>Team now</h2>'
-      + '<em>' + n(g.onShift) + ' on shift' + (g.onBreak ? ' · ' + n(g.onBreak) + ' on break' : "") + '</em></div>'
-      + (err.team ? '<p class="am-err">Could not reach the team\'s shifts — check your connection.</p>'
-        : rows ? '<ul class="am-list">' + rows + '</ul>'
-        : (d.team === null ? '<p class="am-empty">Loading…</p>' : '<p class="am-empty">Nobody has clocked in today yet.</p>'))
-      + '</section>';
+    const parts = [];
+    if (err.team) parts.push("could not reach the team's shifts");
+    else if (d.team === null) parts.push("loading the team");
+    else parts.push(g.onShift ? n(g.onShift) + " on shift" + (g.onBreak ? " · " + n(g.onBreak) + " on break" : "") : "nobody on shift");
+    if (!err.assigns && d.assigns !== null) parts.push(n(g.open.length) + " open" + (g.late.length ? " · " + n(g.late.length) + " overdue" : ""));
+    pulse = '<button type="button" class="am-pulse' + (err.team ? " is-err" : "") + '" data-act="team">'
+      + '<i class="am-dot ' + (g.onShift ? "is-active" : "is-done") + '"></i>'
+      + '<span>' + parts.join(" · ") + '</span><b>Team →</b></button>';
   }
-
-  // ---- tiles ----
-  const tile = (v, l, cls) => '<div class="am-tile' + (cls ? " " + cls : "") + '"><b>' + v + '</b><span>' + l + '</span></div>';
-  const tiles = c.admin
-    ? tile(n(g.onShift), "on shift now") + tile(esc(humanDur(g.hoursToday)), "worked today")
-      + tile(n(g.open.length), "open assignments") + tile(n(g.late.length), "overdue", g.late.length ? "is-red" : "")
-      + tile(n(g.doneToday.length), "done today") + tile(n(g.pending.length), "waiting approval", g.pending.length ? "is-blue" : "")
-    : "";
 
   // ---- quick actions ----
   const act = (a, label, primary) => '<button type="button" class="am-act' + (primary ? " is-primary" : "") + '" data-act="' + a + '">' + label + '</button>';
@@ -314,11 +302,8 @@ function amHomeHTML(d){
     + '<div class="am-acts">' + acts
     +   '<button type="button" class="am-act am-refresh" data-act="refresh" aria-label="Refresh" title="Refresh">' + AM_ICO.refresh + '</button></div>'
     + '</header>'
-    + (tiles ? '<div class="am-tiles">' + tiles + '</div>' : "")
-    + '<div class="am-grid">'
-    +   '<section class="am-panel am-needs">' + needsHead + needsBody + '</section>'
-    +   team
-    + '</div>';
+    + pulse
+    + '<section class="am-panel am-needs">' + needsHead + needsBody + '</section>';
 }
 
 function amRenderHome(host, d){
@@ -345,7 +330,6 @@ function amClick(e){
     case "reject": { const p = (d.pending || []).find(x => x.uid === id); if (p) call("rejectPendingUser", p.uid, p.email || "this account"); break; }
     case "ack": amAckOne(id).then(amRefresh); break;
     case "ackall": call("ackCompletedAssignments"); setTimeout(amRefresh, 400); break;
-    case "worker": { const t = (d.team || []).find(x => x.uid === id); if (t) call("viewWorker", t.doc.raw, t.doc.state, t.uid); break; }
     case "assign": call("openComposer"); break;
     case "invite": call("orgInviteSheet"); break;
     case "export": call("exportAllExcel"); break;
