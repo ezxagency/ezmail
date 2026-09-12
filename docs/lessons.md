@@ -424,3 +424,20 @@ screenshots happen.
 said a transaction was atomic while the code ran a query inside it. If a
 comment names a mechanism, check the mechanism exists — an automation
 comment named a `causationDepth` field that never existed.
+
+### Clock layout after clock-in
+
+**A flexible hero row can shrink through its own labels.** The v6 clock
+track used `minmax(0,1fr)` with `min-height:0`, while clock-in added a
+second row of large controls and paused-task chips. Its centered contents
+could paint outside that collapsed row. Old pane widths and margins also
+survived into the new grid. Preserve the clock's min-content height, reset
+those inherited dimensions, and let a short desktop scroll. Keep controls
+at a compact 48px minimum, with auto height for wrapped labels.
+
+**Seconds sized in em followed the wrapper, not the main digits.** The
+`.42em` seconds were based on a 16px parent and rendered at about 7px.
+Use an explicit responsive 16–22px size for the redesigned clocks.
+*Guard:* `tests/shots.mjs` checks actual ring/control geometry, button
+heights, and seconds sizes across seven desktop/tablet/phone viewports,
+then captures the active, idle, and classic dashboards.

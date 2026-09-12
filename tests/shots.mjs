@@ -23,6 +23,7 @@ import { extname, join, normalize } from "node:path";
 import { mkdirSync, readdirSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -56,6 +57,9 @@ const chromiumPath = (() => {
 })();
 const browser = await chromium.launch(chromiumPath ? { executablePath: chromiumPath } : {});
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+// Fixtures must never load the real Firebase SDK or contact live services.
+await page.route("**/*", route => route.request().url().startsWith(base + "/")
+  ? route.continue() : route.abort());
 
 /* Everything the page reaches for at load, and nothing more. A stub that
    resolved with DATA would be a second fixture nobody can see; these all
@@ -177,6 +181,31 @@ await page.evaluate(() => {
 });
 await shoot("next-on-shift");
 
+// Layout needs browser geometry: a DOM-only test cannot catch a grid row
+// shrinking through its labels or seconds inheriting a microscopic em size.
+for (const [width, height] of [[1920,1080], [1440,900], [1280,720], [1024,600], [1024,450], [768,900], [390,844]]) {
+  await page.setViewportSize({ width, height });
+  await page.waitForTimeout(100);
+  const layout = await page.evaluate(() => {
+    const rect = el => { const r = el.getBoundingClientRect(); return { top:r.top, bottom:r.bottom, left:r.left, right:r.right, height:r.height }; };
+    return {
+      panels: [...document.querySelectorAll('.clock-panel')].map(rect),
+      buttons: [...document.querySelectorAll('#dock .btn')].map(rect),
+      seconds: [...document.querySelectorAll('.clock-panel .ring-sec')].map(el => parseFloat(getComputedStyle(el).fontSize)),
+      clock: rect(document.querySelector('.clock')),
+      shiftbar: rect(document.querySelector('.shiftbar')),
+      rings: [...document.querySelectorAll('.clock-panel .ring')].map(rect)
+    };
+  });
+  const label = `${width}x${height}`;
+  assert.ok(layout.buttons[0].top - Math.max(...layout.panels.map(r => r.bottom)) >= 16, `${label}: clocks overlap dock`);
+  assert.ok(layout.buttons.every(r => r.height >= 44 && r.height <= 60), `${label}: buttons should stay compact and tappable`);
+  assert.ok(layout.seconds.every(size => size >= 16), `${label}: seconds should be readable`);
+  assert.ok(layout.rings.every(r => r.left >= layout.clock.left && r.right <= layout.clock.right), `${label}: rings overflow clock column`);
+  if (width >= 1024) assert.ok(layout.shiftbar.top - Math.max(...layout.buttons.map(r => r.bottom)) >= 12, `${label}: timeline overlaps dock`);
+  await shoot(`next-active-${label}`);
+}
+await page.setViewportSize({ width:1920, height:1080 });
 // ---- five tasks started this shift: the stack is three deep and scrolls ----
 await page.evaluate(() => {
   const now = Date.now();
