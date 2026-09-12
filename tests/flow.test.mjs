@@ -566,6 +566,10 @@ await T("resetting the organization puts it back to fresh, and keeps every seat"
   await db.collection("orgs").doc(ORG).collection("automations").doc("auto9").set({ name: "x", trigger: {}, action: {} });
   run(`orgInvalidate();`);
   assert.ok(find("orgs/" + ORG + "/itemTypes").length > 0, "the fixture has no types to reset");
+  // the tests above leave automations firing after their commits; a write
+  // landing between the reset's read and its check made this test red
+  // once in six runs, so the fixture is given a moment to go quiet
+  await new Promise(res => setTimeout(res, 60));
   const r = await runAsync(`return await itemsResetOrg();`);
   assert.ok(r.ok, JSON.stringify(r));
   assert.equal(find("orgs/" + ORG + "/itemTypes").length, 0, "kinds of work survived");
