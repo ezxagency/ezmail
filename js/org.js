@@ -26,6 +26,8 @@
    ============================================================ */
 
 let orgS = null;   // { orgId, org, members, roles, myRoleId } | null while loading
+const orgOpenRoles = new Set();   // roles unfolded in the People section
+let orgPeopleFind = "";           // what is typed in the People section's search box
 /* Why the last load produced nothing. Both outcomes return null, but they
    are not the same thing to a person: "you have no organization" is a
    next step, while "something failed" is a reason to try again. Telling
@@ -406,19 +408,37 @@ function orgRender(){
         '</button>').join("")
     : '<p class="org-note">No rules yet.' + (owner ? ' Create one to make something happen by itself.' : '') + '</p>';
 
-  // owner first, then by name: a roster you scan for a person, not a row
-  const membersHtml = (orgS.members || []).slice()
-    .sort((a, b) => a.roleId === "owner" ? -1 : b.roleId === "owner" ? 1
-      : orgPersonName(a.uid).localeCompare(orgPersonName(b.uid)))
-    .map(m => {
-      const nm = orgPersonName(m.uid);
-      return '<button type="button" class="org-row org-member" data-member="' + esc(m.uid) + '">' +
-        '<span class="org-av">' + esc(orgInitial(nm)) + '</span>' +
-        '<span class="org-row-main"><b>' + esc(nm) + '</b>' +
-          '<small>' + esc(orgRoleName(m.roleId)) + '</small></span>' +
-        '<span class="org-row-go">' + (owner ? "Manage" : "View") + '</span>' +
-        '</button>';
-    }).join("");
+  /* The roster, by role: one line per role - name and how many hold it -
+     folded shut, so a team of fifteen is four lines and not a column; a
+     role opens when pressed and stays as the person left it across
+     redraws. Typing a name narrows every role to the people who match
+     and opens the ones that have any. The owner's role sits first, the
+     rest by name, and people by name within a role. */
+  const findQ = (orgPeopleFind || "").trim().toLowerCase();
+  const roleOrder = (orgS.roles || []).slice().sort((a, b) => a.id === "owner" ? -1 : b.id === "owner" ? 1 : (a.name || "").localeCompare(b.name || ""));
+  const seatedRoles = new Set((orgS.members || []).map(m => m.roleId));
+  // a seat in a role that no longer exists still belongs to somebody
+  (orgS.members || []).forEach(m => { if (!roleOrder.some(r => r.id === m.roleId)) { roleOrder.push({ id: m.roleId, name: orgRoleName(m.roleId) }); seatedRoles.add(m.roleId); } });
+  const personRow = m => {
+    const nm = orgPersonName(m.uid);
+    return '<button type="button" class="org-row org-member" data-member="' + esc(m.uid) + '">' +
+      '<span class="org-av">' + esc(orgInitial(nm)) + '</span>' +
+      '<span class="org-row-main"><b>' + esc(nm) + '</b>' +
+        '<small>' + esc(orgRoleName(m.roleId)) + '</small></span>' +
+      '<span class="org-row-go">' + (owner ? "Manage" : "View") + '</span>' +
+      '</button>';
+  };
+  const membersHtml = roleOrder.map(r => {
+    const people = (orgS.members || []).filter(m => m.roleId === r.id).sort((a, b) => orgPersonName(a.uid).localeCompare(orgPersonName(b.uid)));
+    const shown = findQ ? people.filter(m => orgPersonName(m.uid).toLowerCase().indexOf(findQ) >= 0) : people;
+    if (findQ && !shown.length) return "";
+    const open = (findQ && shown.length) || orgOpenRoles.has(r.id);
+    return '<details class="org-fold org-rolefold" data-role-id="' + esc(r.id) + '"' + (open ? " open" : "") + '>' +
+      '<summary><b>' + esc(r.name || r.id) + '</b><small>' + (people.length ? people.length + (people.length === 1 ? " person" : " people") : "nobody") + '</small></summary>' +
+      (shown.length ? '<div class="org-list">' + shown.map(personRow).join("") + '</div>' : '<p class="org-note org-note-sm">Nobody in this role yet.</p>') +
+      '</details>';
+  }).join("");
+  const nPeople = (orgS.members || []).length;
 
   /* Sections carry data-sec and sit in two groups. Under the new dashboard
      on a desktop the groups are the two columns (css/admin.css); the
@@ -457,14 +477,9 @@ function orgRender(){
       '<div class="org-sec-head"><h3>People</h3>' +
         (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgInviteBtn">Invite</button>' : '') +
       '</div>' +
-      // a roster grows and a settings page should not grow with it - but it
-      // opens by default, because hiding your own team behind a tap to save
-      // a few pixels is the wrong trade at every size
-      '<details class="org-fold" open>' +
-        '<summary><b>' + (orgS.members || []).length + '</b> ' +
-          ((orgS.members || []).length === 1 ? "person" : "people") + ' in this organization</summary>' +
-        '<div class="org-list">' + membersHtml + '</div>' +
-      '</details>' +
+      '<label class="org-find"><input type="search" id="orgFind" placeholder="Find a person…" aria-label="Find a person" value="' + esc(orgPeopleFind || "") + '"></label>' +
+      '<p class="org-note org-people-n">' + nPeople + (nPeople === 1 ? " person" : " people") + ' in this organization, by role. Open a role to see who holds it.</p>' +
+      '<div class="org-roles-list">' + (membersHtml || '<p class="org-note org-note-sm">Nobody named like that.</p>') + '</div>' +
     '</section>' +
     // Ez Agency's admin only: every row here reads assignments, campaigns
     // or users, which the rules keep for the platform's own team. Drawn for
@@ -527,6 +542,19 @@ function orgRender(){
   $("orgBody").querySelectorAll(".org-member").forEach(b => {
     b.onclick = () => orgMemberSheet((orgS.members || []).find(m => m.uid === b.dataset.member) || null);
   });
+  // which roles are open survives a redraw; a search opens folds on its
+  // own behalf and is not remembered as the person's choice
+  $("orgBody").querySelectorAll("details.org-rolefold").forEach(d => d.ontoggle = () => {
+    if ((orgPeopleFind || "").trim()) return;
+    if (d.open) orgOpenRoles.add(d.dataset.roleId); else orgOpenRoles.delete(d.dataset.roleId);
+  });
+  const findBox = $("orgFind");
+  if (findBox) findBox.oninput = () => {
+    orgPeopleFind = findBox.value;
+    const at = findBox.selectionStart;
+    orgRender();
+    const again = $("orgFind"); if (again) { again.focus(); try { again.setSelectionRange(at, at); } catch (e) {} }
+  };
   $("orgBody").querySelectorAll(".org-role").forEach(b => {
     if (b.disabled) return;
     b.onclick = () => orgRoleSheet((orgS.roles || []).find(r => r.id === b.dataset.role) || null);

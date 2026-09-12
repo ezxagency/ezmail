@@ -179,6 +179,28 @@ button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
   .org-fold > summary::before { transition: none; }
 }
 
+/* ---- the roster, by role ---- */
+.org-find { display: block; margin: 0 0 8px; }
+.org-find input[type=search] {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 13.5px; color: inherit;
+  padding: 9px 13px; border-radius: 10px; min-height: 0;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  -webkit-appearance: none; appearance: none;
+}
+.org-find input::placeholder { color: inherit; opacity: .45; }
+.org-find input:focus { outline: none; border-color: rgba(255,255,255,.35); }
+.org-people-n { margin: 0 0 4px; font-size: 12.5px; }
+.org-note-sm { font-size: 12.5px; margin: 4px 0 8px; }
+.org-rolefold { border-top: 1px solid rgba(255,255,255,.08); }
+.org-rolefold > summary { opacity: 1; padding: 11px 2px; gap: 9px; border-radius: 8px; white-space: nowrap; }
+.org-rolefold > summary::before { opacity: .5; }
+.org-rolefold > summary:hover { opacity: 1; background: rgba(255,255,255,.03); }
+.org-rolefold > summary b { font-size: 14.5px; }
+.org-rolefold > summary small { font-size: 12px; opacity: .55; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.org-rolefold > .org-list { padding: 2px 0 10px 18px; }
+.org-rolefold > .org-note { padding-left: 18px; }
+body.ui-next #orgBody .org-rolefold > .org-list > .org-row:first-child { border-top: 0; }
+
 /* ---- a kind of work, opened ---- */
 /* Closed, it reads exactly like the rows around it. Open, it becomes a
    container - so the page gains depth without gaining a new visual

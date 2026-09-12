@@ -532,6 +532,9 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(500);
 await shoot("next-org");
+await page.evaluate(() => { const d = document.querySelector('details.org-rolefold[data-role-id="staff"]'); if (d) d.open = true; });
+await page.waitForTimeout(300);
+await shoot("next-org-people-open");
 
 // ---- the Flow builder: the org as one picture, edited where it is seen ----
 await page.evaluate(() => { go("flow"); });

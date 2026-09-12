@@ -244,16 +244,30 @@ T("every person is a row that hands back their own uid", () => {
     r.dataset.member + " is on screen but resolves to nobody"));
 });
 
-T("the owner sits first, everyone else by name", () => {
-  assert.deepEqual([...doc.querySelectorAll(".org-member")].map(r => r.dataset.member),
-    ["u1", "u3", "u2"]);   // Ada (owner), then Bo, then Max
+T("the roster is one fold per role: the owner's first, the rest by name, each shut with its count", () => {
+  const folds = [...doc.querySelectorAll("details.org-rolefold")];
+  assert.deepEqual(folds.map(f => f.dataset.roleId), ["owner", "manager", "staff"]);
+  assert.ok(folds.every(f => !f.open), "a long roster must not start as a column");
+  assert.deepEqual(folds.map(f => f.querySelector("summary").textContent), ["Owner1 person", "Manager1 person", "Staff1 person"]);
+  assert.deepEqual([...doc.querySelectorAll(".org-member")].map(r => r.dataset.member), ["u1", "u2", "u3"], "people are inside their role, by name");
+  assert.match(doc.querySelector(".org-people-n").textContent, /3 people/);
 });
 
-T("the roster collapses but starts open", () => {
-  const fold = doc.querySelector(".org-fold");
-  assert.ok(fold, "no collapsible section");
-  assert.ok(fold.open, "a settings page should not hide your own team at rest");
-  assert.match(fold.querySelector("summary").textContent, /3 people/);
+T("a role stays open across a redraw once opened; typing a name narrows the roster to the matches and opens their roles", () => {
+  const fold = id => doc.querySelector('details.org-rolefold[data-role-id="' + id + '"]');
+  fold("staff").open = true; fold("staff").dispatchEvent(new dom.window.Event("toggle"));
+  run("orgRender();");
+  assert.ok(fold("staff").open, "the redraw folded the role the person had opened");
+  fold("staff").open = false; fold("staff").dispatchEvent(new dom.window.Event("toggle"));
+  const box = doc.getElementById("orgFind");
+  box.value = "ma"; box.oninput();
+  assert.deepEqual([...doc.querySelectorAll(".org-member")].map(r => r.dataset.member), ["u2"], "only Max matches 'ma'");
+  assert.deepEqual([...doc.querySelectorAll("details.org-rolefold")].map(f => f.dataset.roleId + ":" + f.open), ["manager:true"]);
+  doc.getElementById("orgFind").value = "zz"; doc.getElementById("orgFind").oninput();
+  assert.match(doc.querySelector("[data-sec=people]").textContent, /Nobody named like that/);
+  doc.getElementById("orgFind").value = ""; doc.getElementById("orgFind").oninput();
+  assert.equal(doc.querySelectorAll(".org-member").length, 3);
+  assert.ok(!fold("manager").open, "a search must not leave a fold open behind it");
 });
 
 T("opening a person shows who they are", () => {
