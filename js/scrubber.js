@@ -10,10 +10,12 @@
 
    The bar spans the SCHEDULED shift, which an admin or a manager
    sets per person (orgs/{orgId}/members/{uid}.shiftMinutes). With
-   no schedule set it spans the elapsed time instead and says so -
-   a bar drawn against an invented eight-hour target would be a
-   screen stating something nobody configured, which is the shape
-   of failure this app has paid for most often.
+   no schedule set it spans EIGHT HOURS - the owner's decision, made
+   in as many words on 2026-09-12 - and the header says the length
+   is a default rather than something anybody configured, so the
+   screen is never confidently claiming a schedule that is not there.
+   The fill starts at the left edge the moment you clock in and grows
+   with the clocked-in time.
 
    Blocks tile the wall clock from the moment of clock-in: work
    segments and breaks, which by the shift invariant leave no
@@ -87,6 +89,7 @@ function sbPlan(shift, now, schedMs){
 
 const SB_MIN_BLOCK = 0.4;   // % - so a 20-second break is still visible
 const SB_HOUR = 3600000;
+const SB_DEFAULT_MS = 8 * SB_HOUR;   // the bar's span when nobody set one
 
 function sbLabel(ms){ return humanDur(ms); }
 /* "6h", "7h 30m" - the scheduled LENGTH, which reads as a shift name in
@@ -125,19 +128,26 @@ function sbRender(host){
      are set and must not say either way. */
   const sched = (typeof orgMyShiftMinutes === "function") ? orgMyShiftMinutes() : null;
   const known = typeof sched === "number";
-  const schedMs = known && sched > 0 ? sched * 60000 : 0;
+  const set = known && sched > 0;
+  const schedMs = set ? sched * 60000 : SB_DEFAULT_MS;
   const plan = S.status === "IDLE" ? null : sbPlan(S.shift, Date.now(), schedMs);
-  const title = "Today" + (schedMs ? " · " + sbSpanLabel(schedMs) + " shift" : " · shift");
+  /* "8h shift · default" when the eight hours is assumed. The roster not
+     having loaded yet also draws eight hours, but says nothing about a
+     default: it does not yet KNOW whether hours are set. */
+  const title = "Today · " + sbSpanLabel(schedMs) + " shift";
+  const SB_DEFAULT_WHY = "No shift length set for you yet — the bar assumes 8h";
+  const titleHTML = esc(title)
+    + (known && !set ? ' <em class="sb-default" title="' + esc(SB_DEFAULT_WHY) + '">default</em>' : "");
 
   if (!plan){
-    const note = schedMs ? "The bar fills from the moment you clock in."
-      : known ? "No shift length set for you yet, so this bar measures elapsed time only."
+    const note = set ? "The bar fills from the moment you clock in."
+      : known ? SB_DEFAULT_WHY + "."
       : "";
     const key = "idle|" + title + "|" + note;
     if (host.dataset.sbKey === key) return;
     host.dataset.sbKey = key;
     host.innerHTML =
-      '<div class="sb-head"><span class="sb-title">' + esc(title) + '</span>'
+      '<div class="sb-head"><span class="sb-title">' + titleHTML + '</span>'
       + '<span class="sb-prog sb-prog-idle">Not started</span></div>'
       + '<div class="sb-bar sb-bar-empty"></div>'
       + (note ? '<div class="sb-foot"><span class="sb-note">' + note + '</span></div>' : "");
@@ -163,8 +173,6 @@ function sbRender(host){
     host.querySelectorAll(".sb-tick").forEach((el, i) => { el.style.left = pct((i + 1) * SB_HOUR).toFixed(3) + "%"; });
     const target = host.querySelector(".sb-target");
     if (target) target.style.left = pct(plan.scheduled).toFixed(3) + "%";
-    const play = host.querySelector(".sb-play");
-    if (play) play.style.left = playPct.toFixed(3) + "%";
     const live = host.querySelector(".sb-t-live");
     if (live){ live.style.left = playPct.toFixed(3) + "%"; live.textContent = clock(plan.start + plan.elapsed); }
     return;
@@ -193,22 +201,18 @@ function sbRender(host){
     ? '<span class="sb-target" style="left:' + pct(plan.scheduled).toFixed(3) + '%"></span>' : "";
 
   host.innerHTML =
-    '<div class="sb-head"><span class="sb-title">' + esc(title) + '</span>'
+    '<div class="sb-head"><span class="sb-title">' + titleHTML + '</span>'
     + '<span class="sb-prog">' + sbProgressHTML(plan) + '</span></div>'
-    + '<div class="sb-bar">' + ticks + blocks + overMark
-    + '<span class="sb-play" style="left:' + playPct.toFixed(3) + '%"></span></div>'
+    + '<div class="sb-bar">' + ticks + blocks + overMark + '</div>'
     + '<div class="sb-foot">'
     +   '<span class="sb-t sb-t-start">' + esc(clock(plan.start)) + '</span>'
     +   '<span class="sb-t sb-t-live" style="left:' + playPct.toFixed(3) + '%">'
     +     esc(clock(plan.start + plan.elapsed)) + '</span>'
-    +   (plan.scheduled
-          ? '<span class="sb-t sb-t-end">' + esc(clock(plan.start + plan.scheduled)) + '</span>' : "")
-    +   (plan.scheduled || !known ? "" :
-          '<span class="sb-note sb-note-live">No shift length set for you yet</span>')
+    +   '<span class="sb-t sb-t-end">' + esc(clock(plan.start + plan.scheduled)) + '</span>'
     +   '<span class="sb-legend">'
     +     '<span class="sb-key"><i class="sb-work"></i>Worked</span>'
     +     '<span class="sb-key"><i class="sb-break"></i>Break</span>'
-    +     (plan.scheduled ? '<span class="sb-key"><i class="sb-rest"></i>Remaining</span>' : "")
+    +     '<span class="sb-key"><i class="sb-rest"></i>Remaining</span>'
     +   '</span>'
     + '</div>';
   sbBind(host);

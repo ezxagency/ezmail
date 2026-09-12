@@ -190,6 +190,11 @@ tested under Node, `sbRender()` is the only part that touches the
 document. It spans the SCHEDULED shift, which is
 `orgs/{orgId}/members/{uid}.shiftMinutes`, set on a person's seat by an
 owner or by any role holding `member:hours` (the seeded Manager has it).
+With none set it spans **eight hours** — the owner's decision, made in
+as many words on 2026-09-12 — and the header carries a `default` tag so
+the screen never claims a schedule nobody configured. The fill runs from
+the left edge and grows with the clocked-in time; there is no playhead
+dot, only the live time under the fill's end.
 `firestore.rules` pins that delegated write to that one field: without
 the pin, the update that sets somebody's hours is the same update that
 sets their `roleId`, and the rules suite proves it by failing four

@@ -245,6 +245,8 @@ await page.evaluate(() => {
     { task: "Update the price list", itemId: "r5", client: "Studio North",
       startedAt: now - 30 * 60000, endedAt: now - 20 * 60000 });
   assignedTasksSeen = new Set(["r1", "r2", "r3"]);
+  // and no shift length set on this seat: the bar assumes 8h and says so
+  orgS.members[0].shiftMinutes = 0;
   render();
 });
 await page.waitForTimeout(600);

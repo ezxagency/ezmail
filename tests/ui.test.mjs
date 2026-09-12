@@ -610,7 +610,7 @@ T("the Organization page offers templates to an owner and not to anyone else", (
 const sbHost = () => doc.getElementById("shiftbar");
 const sbDraw = () => { run(`sbRender($("shiftbar"))`); return sbHost().innerHTML; };
 
-T("the bar draws a segment per block, a playhead and a legend", () => {
+T("the bar draws a segment per block and a legend, and no playhead dot", () => {
   run(`
     orgS.members = [{ uid: "u1", roleId: "owner", shiftMinutes: 360 }];
     var t0 = Date.now() - 3 * 3600000;
@@ -623,7 +623,7 @@ T("the bar draws a segment per block, a playhead and a legend", () => {
   const html = sbDraw();
   assert.equal((html.match(/class="sb-seg sb-work/g) || []).length, 2);
   assert.equal((html.match(/class="sb-seg sb-break/g) || []).length, 1);
-  assert.ok(html.includes("sb-play"), "no playhead");
+  assert.ok(!html.includes("sb-play"), "the green dot is back");
   assert.ok(html.includes("Remaining"), "no remaining key in the legend");
   assert.ok(/6h\s*shift/i.test(html), "the header never named the scheduled length");
   assert.ok(/data-tip="Copy · /.test(html), "a block does not say what it was");
@@ -639,12 +639,12 @@ T("the bar draws a segment per block, a playhead and a legend", () => {
 T("a second later the bar is moved, not rebuilt; a new block rebuilds it", () => {
   const bar = sbHost().querySelector(".sb-bar");
   const seg = sbHost().querySelector(".sb-seg.is-live");
-  const wasLeft = sbHost().querySelector(".sb-play").style.left;
+  const wasLeft = sbHost().querySelector(".sb-t-live").style.left;
   run(`S.shift.startedAt -= 5 * 60000; S.shift.segs.forEach(s => { s.startedAt -= 5 * 60000; if (s.endedAt) s.endedAt -= 5 * 60000; });
        S.shift.breaks.forEach(b => { b.startedAt -= 5 * 60000; b.endedAt -= 5 * 60000; }); sbRender($("shiftbar"));`);
   assert.equal(sbHost().querySelector(".sb-bar"), bar, "the bar was rebuilt for a tick");
   assert.equal(sbHost().querySelector(".sb-seg.is-live"), seg, "the live block was rebuilt for a tick");
-  assert.notEqual(sbHost().querySelector(".sb-play").style.left, wasLeft, "the playhead did not move");
+  assert.notEqual(sbHost().querySelector(".sb-t-live").style.left, wasLeft, "the live time did not move");
   // the new block must have SOME length, or the plan drops it as empty
   run(`S.shift.segs[1].endedAt = Date.now() - 60000; S.shift.segs.push({ task: "Embed", itemId: "r9", startedAt: Date.now() - 60000, endedAt: null }); sbRender($("shiftbar"));`);
   assert.notEqual(sbHost().querySelector(".sb-bar"), bar, "a new block did not rebuild the bar");
@@ -682,12 +682,36 @@ T("an unloaded roster says nothing about hours; an empty one says so", () => {
   assert.ok(!unknown.includes("No shift length set"),
     "told somebody their hours are unset before the roster had loaded");
 
+  assert.ok(/8h\s*shift/.test(unknown), "the bar should span eight hours while the roster loads");
+  assert.ok(!unknown.includes("sb-default"), "called the hours a default before knowing they are unset");
+
   run(`
     orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner",
       members: [{ uid: "u1", roleId: "owner" }], roles: [], types: [], dir: {} };
   `);
-  assert.ok(sbDraw().includes("No shift length set"),
-    "a genuinely unset schedule went unmentioned");
+  const unset = sbDraw();
+  assert.ok(unset.includes("No shift length set"), "a genuinely unset schedule went unmentioned");
+  assert.ok(unset.includes("sb-default"), "the assumed eight hours is not marked as a default");
+});
+
+/* The owner's call, in as many words: no shift length set means eight
+   hours, not a bar that measures nothing. It still has to SAY it is a
+   default, and the fill still has to run from the left edge. */
+T("with no length set, a live bar spans eight hours from clock-in and says so", () => {
+  run(`
+    var t0 = Date.now() - 2 * 3600000;
+    S.status = "ACTIVE";
+    S.shift = { client: "Store", startedAt: t0, segs: [{ task: "Copy", startedAt: t0, endedAt: null }], breaks: [] };
+  `);
+  const html = sbDraw();
+  assert.ok(/8h\s*shift/.test(html), "the span is not eight hours");
+  assert.ok(html.includes("sb-default"), "does not say the eight hours is assumed");
+  assert.ok(!html.includes("sb-note-live"), "the old foot note is back, on top of the start time");
+  const seg = sbHost().querySelector(".sb-seg");
+  assert.equal(parseFloat(seg.style.left), 0, "the fill does not start at the left edge");
+  assert.ok(Math.abs(parseFloat(seg.style.width) - 25) < 0.5, "two hours of eight is a quarter, got " + seg.style.width);
+  assert.equal((html.match(/sb-tick/g) || []).length, 7, "eight hours has seven hour marks");
+  assert.ok(html.includes("Remaining"), "no remaining key");
 });
 
 /* ---------- two saves that once threw away what they were not showing ---------- */
