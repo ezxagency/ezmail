@@ -312,6 +312,49 @@ await page.evaluate(() => {
 await page.waitForTimeout(700);
 await shoot("next-admin");
 
+// ---- the Team page, the admin's page laid across the desktop ----
+await page.evaluate(() => { go("team"); });
+await page.waitForTimeout(400);
+await page.evaluate(() => {
+  const now = Date.now(), H = 3600000, D = 86400000;
+  const day = back => new Date(now - back * D);
+  const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const rows = [
+    { id: "a1", toName: "Sandy", store: "Store Epsilon", task: "Write the spring launch email", createdAt: now - 2 * D, dueDate: iso(day(-18)) },
+    { id: "a2", toName: "Prashanna", store: "Studio North", task: "Second pass on the sprint backlog", createdAt: now - 6 * D, dueDate: iso(day(3)) },
+    { id: "a3", toName: "Ada", store: "Store Delta", task: "Approve the final artwork", createdAt: now - D },
+    { id: "a4", toName: "Chhoki", store: "alvera", task: "Copy", createdAt: now - 20 * D, done: true, ack: true, doneAt: now - 40 * 60000 },
+    { id: "a5", toName: "Test1", store: "UNIQUE NAME", task: "COPIES", createdAt: now - 9 * D, done: true, ack: true, doneAt: now - 3 * D }
+  ];
+  assignRows = rows;
+  renderTeamStatusCards(document.getElementById("teamRecentlyDone"), rows);
+  // shifts must START today by the container's clock, which may be just
+  // past midnight: so they start at 00:01 rather than "hours ago"
+  const t0 = new Date(now); t0.setHours(0, 1, 0, 0);
+  const at = m => t0.getTime() + m * 60000;
+  const mk = (id, worker, startMin, open, task, store, brk) => ({ id, raw: { email: worker.toLowerCase() + "@ezagency.com" }, state: {
+    worker, status: open ? "ACTIVE" : "IDLE",
+    shift: open ? { client: store, startedAt: at(startMin), segs: [{ task, itemId: id + "t", client: store, startedAt: at(startMin), endedAt: null }],
+      breaks: brk ? [{ reason: "Lunch", startedAt: at(startMin + 5), endedAt: at(startMin + 8) }] : [] } : null,
+    history: open ? [] : [{ client: store, startedAt: at(startMin), endedAt: at(startMin + 12), netMs: 12 * 60000, breakMs: 0,
+      segs: [{ task, client: store, startedAt: at(startMin), endedAt: at(startMin + 12) }], breaks: [] }] } });
+  teamPageDocs = [mk("u1", "Prashanna", 0, true, "Approve the final artwork", "Store Delta", true),
+    mk("u2", "Sandy", 2, true, "Write the spring launch email", "Store Epsilon", false),
+    mk("u3", "Ada", 1, false, "Embed", "Studio North", false)];
+  renderTodaysWork(teamPageDocs);
+  teamPendingCount = 1;
+  const pending = document.getElementById("teamPending");
+  pending.insertAdjacentHTML("beforebegin", '<p class="hint" id="teamPendingHint" style="margin:0 0 10px">Pending approval</p>');
+  pending.innerHTML = '<li><div><div class="h-c">Jordan Lee</div><div class="h-d">jordan@ezagency.com · waiting for approval</div></div>'
+    + '<div class="row-acts"><button class="btn btn-go btn-sm" style="width:auto">Approve…</button></div></li>';
+  renderTeamTiles();
+  teamHistoryRows = []; renderTeamHistorySection();
+});
+await page.waitForTimeout(500);
+await shoot("next-team");
+await page.evaluate(() => go(""));
+await page.waitForTimeout(300);
+
 // ---- the same admin, switched to Me: the worker's screen, plus the switch ----
 await page.evaluate(() => amSet(false));
 await page.waitForTimeout(600);

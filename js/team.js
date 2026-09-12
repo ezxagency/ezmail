@@ -167,6 +167,8 @@ async function loadTeamPending(){
   if (oldHint) oldHint.remove();
   try {
     const snap = await db.collection("users").where("role", "==", "pending").get();
+    teamPendingCount = snap.size;
+    renderTeamTiles();
     if (snap.empty) return;
     pending.insertAdjacentHTML("beforebegin", `<p class="hint" id="teamPendingHint" style="margin:0 0 10px">Pending approval</p>`);
     snap.forEach(doc => {
@@ -273,6 +275,7 @@ function renderTodaysWork(docs){
     box.innerHTML = `
       <p class="hint" style="margin-bottom:8px">Today's work</p>
       <p class="work-none">Nobody has clocked in today.</p>`;
+    renderTeamTiles();
     return;
   }
   // on shift first, then whoever has put in the most time
@@ -315,6 +318,7 @@ function renderTodaysWork(docs){
         </tbody>
       </table>
     </div>`;
+  renderTeamTiles();
   const tw = $("twAssign");
   if (tw) tw.onclick = () => openComposer();
   // the member sheet - their record, email summary, Excel, Remove Member -
@@ -329,8 +333,32 @@ function renderTodaysWork(docs){
 // work with instead of a small bottom sheet. It routes like the other
 // pages so back buttons and deep links behave; the router calls the loader.
 function showTeam(){ go("team"); }
+/* Today's numbers across the top of the Team page, from what the page has
+   already fetched - the assignments (status cards) and today's shifts
+   (the roster). Drawn whenever either lands, so it is never a third read. */
+function renderTeamTiles(){
+  const box = $("teamTiles");
+  if (!box) return;
+  const now = Date.now();
+  const rows = assignRows || [], docs = teamPageDocs || [];
+  const today = docs.map(d => todaysWorkFor(d.state, now)).filter(Boolean);
+  const onShift = today.filter(w => w.state !== "done").length;
+  const net = today.reduce((t, w) => t + w.net, 0);
+  const open = rows.filter(r => !r.done).length;
+  const late = rows.filter(r => assignState(r) === "late").length;
+  const doneToday = rows.filter(r => r.done && r.doneAt && dayStamp(r.doneAt) === dayStamp(now)).length;
+  const tile = (v, l, cls) => `<div class="am-tile${cls ? " " + cls : ""}"><b>${v}</b><span>${l}</span></div>`;
+  box.innerHTML = tile(onShift, "on shift now") + tile(esc(humanDur(net)), "worked today")
+    + tile(open, "open") + tile(late, "overdue", late ? "is-red" : "")
+    + tile(doneToday, "done today") + tile(teamPendingCount, "waiting approval", teamPendingCount ? "is-blue" : "");
+}
+
 function loadTeamScreen(){
   $("teamPageClose").onclick = () => go("");
+  const exp = $("teamExportBtn");
+  if (exp){ exp.classList.toggle("hidden", !isAdmin); exp.onclick = () => exportAllExcel(); }
+  const asg = $("teamAssignBtn");
+  if (asg){ asg.classList.toggle("hidden", !canAssignTasks); asg.onclick = () => openComposer(); }
   loadTeamPending();
   loadTeamData();
   ackCompletedAssignments(); // clears the notification badge; log below stays regardless
@@ -395,7 +423,8 @@ let tlogOpen = { done: false, open: true, late: true };   // which cards start e
 let tlogShown = { done: 8, open: 8, late: 8 };             // per-card "load more" cursor
 let tlogThreadsByKey = new Map();   // stable key -> thread, for the Edit buttons below
 const threadKey = t => t.groupId || t.rows[0].id;
-const TLOG_ORDER = ["done", "open", "late"];
+// what needs a hand first: overdue, then open, and the completed log last
+const TLOG_ORDER = ["late", "open", "done"];
 const TLOG_META = {
   done: { label: "Completed Task", empty: "Nothing completed in this batch yet." },
   open: { label: "Open Task",      empty: "Nothing open right now." },
@@ -409,6 +438,7 @@ function renderTeamStatusCards(box, rows){
   threads.forEach(t => buckets[threadState(t)].push(t));
 
   box.innerHTML = `<div class="tlog">${TLOG_ORDER.map(st => tlogCardHtml(st, buckets[st])).join("")}</div>`;
+  renderTeamTiles();
 
   TLOG_ORDER.forEach(st => {
     const card = box.querySelector(`.tlog-card[data-status="${st}"]`);

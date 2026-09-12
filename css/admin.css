@@ -135,3 +135,56 @@ body.ui-next.admin-mode #adminHome{padding:6px 16px 40px}
 .am-x:hover{color:#FF453A;border-color:rgba(255,69,58,.5)}
 
 @media (prefers-reduced-motion:reduce){ .rail-mode-thumb{transition:none} }
+
+/* ============================================================
+   THE TEAM PAGE — the admin's page gets the whole desktop. Under
+   the new dashboard only; the classic screen keeps one column.
+   ============================================================ */
+.team-tiles{display:none}
+.team-act-l{display:none}
+.team-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none}
+
+body.ui-next .team-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:14px 0 22px}
+body.ui-next .team-tiles:empty{display:none}
+body.ui-next .team-act-l{display:inline}
+body.ui-next .team-acts .icon-btn,
+body.ui-next .team-acts .page-back{
+  display:inline-flex;align-items:center;gap:8px;
+  width:auto;height:auto;margin:0;padding:11px 16px;border-radius:14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:var(--wk-white);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+  backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);
+  font-family:var(--wk);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  transition:transform .25s var(--pz-ease), background .2s ease;
+}
+body.ui-next .team-acts .icon-btn svg,body.ui-next .team-acts .page-back svg{width:16px;height:16px;transform:none}
+body.ui-next .team-acts .icon-btn:hover,body.ui-next .team-acts .page-back:hover{background:rgba(255,255,255,.14);transform:translateY(-1px)}
+body.ui-next .team-acts #teamAssignBtn{background:linear-gradient(180deg,#2B95FF,#0A84FF);border-color:transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 10px 24px rgba(10,132,255,.32)}
+body.ui-next .team-hint{margin:6px 0 0}
+/* a list row's button, not the dashboard's */
+body.ui-next #teamPending .btn{padding:8px 14px;border-radius:999px;font-size:11px;letter-spacing:.08em}
+body.ui-next #teamPending li{padding:12px 0}
+body.ui-next #teamScreen .admin-page-head{align-items:flex-start;margin-bottom:0}
+
+/* the two columns, with the approvals and the status cards staying in
+   view as the roster and history scroll on the left */
+@media (min-width:1024px){
+  body.ui-next #teamScreen .admin-page-inner.team-page{
+    max-width:none;
+    display:grid;grid-template-columns:minmax(0,1fr) clamp(340px, 30%, 460px);
+    grid-template-areas:"head head" "tiles tiles" "main side";
+    column-gap:28px;row-gap:0;align-items:start;
+    padding:32px 48px 60px;
+  }
+  body.ui-next .team-page > .admin-page-head{grid-area:head}
+  body.ui-next .team-page .team-tiles{grid-area:tiles}
+  body.ui-next .team-page .team-main{grid-area:main;min-width:0}
+  body.ui-next .team-page .team-side{grid-area:side;min-width:0;position:sticky;top:24px}
+  body.ui-next .team-page .team-side .tlog{margin-top:0}
+}
+/* a phone reads top to bottom: numbers, then what needs a hand, then the roster */
+@media (max-width:1023px){
+  body.ui-next .team-page{display:flex;flex-direction:column}
+  body.ui-next .team-page .team-side{order:1}
+  body.ui-next .team-page .team-main{order:2}
+}
