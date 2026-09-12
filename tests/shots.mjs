@@ -206,6 +206,30 @@ for (const [width, height] of [[1920,1080], [1440,900], [1280,720], [1024,600], 
   await shoot(`next-active-${label}`);
 }
 await page.setViewportSize({ width:1920, height:1080 });
+// ---- a sheet open over the shift: glass, fields, chips, the tinted action ----
+await page.evaluate(() => {
+  openSheet('<h2>Clock in</h2><p class="hint">Where are you working today?</p>'
+    + '<label class="fld"><span>Store</span><input type="text" value="Store Epsilon"></label>'
+    + '<div class="chips"><button type="button" class="chip" aria-pressed="true">Copy</button>'
+    + '<button type="button" class="chip">Embed</button><button type="button" class="chip">Design review</button></div>'
+    + '<button type="button" class="btn btn-go">Clock in</button>');
+});
+await page.waitForTimeout(700);
+await shoot("next-sheet");
+if (process.env.SHOTS_CLIP){
+  // SHOTS_CLIP=x,y,w,h photographs one region at 3x, for looking at a corner
+  const [x, y, w, h] = process.env.SHOTS_CLIP.split(",").map(Number);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1920, height: 1080, deviceScaleFactor: 3, mobile: false });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(OUT, "clip.png"), clip: { x, y, width: w, height: h } });
+  await cdp.send("Emulation.clearDeviceMetricsOverride");
+  await cdp.detach();
+  console.log("  clip.png");
+}
+await page.evaluate(() => { document.getElementById("sheet").classList.remove("on"); document.getElementById("scrim").classList.remove("on"); });
+await page.waitForTimeout(400);
+
 // ---- five tasks started this shift: the stack is three deep and scrolls ----
 await page.evaluate(() => {
   const now = Date.now();

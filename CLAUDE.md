@@ -249,6 +249,25 @@ task's identity or state changes; the running card's digits are written
 in place every second, because rebuilding the stack once a second would
 restart the spring under the reader's wheel.
 
+Seventh piece: the **iOS layer**, `css/ios.css`, loaded after `v6.css`
+and scoped to `.ui-next` throughout. It lays nothing out — it retunes
+what the other sheets draw, in four ideas the file is organised by: glass
+(a translucent fill over a heavy blur, one thin stroke, a 1px highlight
+along the top edge), colour (iOS's secondary-label grey, and system tints
+used sparingly: blue is THE action, green is time running, orange the
+streak, red late), motion (one ease, springs that settle, a press that
+shrinks the whole control, surfaces that rise in on first paint) and
+shape (continuous corners, capsules for small things). It redefines the
+kit's own tokens — `--wk-green`, `--wk-white-60`, `--pz-ease` — under
+`body.ui-next`, so every older rule that used them picks up the palette
+without being rewritten. Two things it deliberately does not do: it never
+transitions `transform` or `opacity` on the deck's or the stack's cards,
+because their springs write those every frame; and it never adds a
+backdrop blur to something that is hidden or opaque, because each one is
+a layer the browser re-renders behind (`docs/lessons.md` > "Thirty
+cards"). The classic screen is untouched, and `tests/shots.mjs` proves it
+with `classic-unchanged.png` every run.
+
 The deck reads the shift as well as the queue — the Running pill, Paused ·
 23m, and whether the left button says Start task or Put down — but it is
 only DRAWN when the assignments snapshot fires. `dkRefresh()` is the
