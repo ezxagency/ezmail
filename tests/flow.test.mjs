@@ -190,7 +190,7 @@ await T("the wrong person cannot finish somebody else's stop", async () => {
 await T("MARK DONE passes it to the next person", async () => {
   AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
   run(`orgInvalidate();`);
-  const r = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(itemId)}, "");`);
+  const r = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(itemId)}, "Script is locked, shoot it as written");`);
   assert.ok(r.ok, JSON.stringify(r));
   assert.equal(r.how, "advanced");
   const item = await get("orgs/" + ORG + "/items/" + itemId);
@@ -201,6 +201,16 @@ await T("MARK DONE passes it to the next person", async () => {
   const type = Object.assign({ id: "video" }, await get("orgs/" + ORG + "/itemTypes/video"));
   const row = run(`itemToQueueRow(${JSON.stringify(Object.assign({ id: itemId }, item))}, ${JSON.stringify(type)})`);
   assert.equal(row.stage, "Filming", "the row still reads as the stage it just left");
+  /* the note rides the pass: the Item now says who passed it, what they
+     wrote, which stop this is, and who is next - what the next card reads */
+  const h = plain(item.handoff);
+  assert.ok(h && h.stop, "no handoff summary on the item: " + JSON.stringify(item.handoff));
+  assert.equal(h.stop.index, 2);
+  assert.equal(h.from.uid, "staff1", "from does not name who passed it");
+  assert.equal(h.from.note, "Script is locked, shoot it as written", "the note did not ride the pass");
+  assert.equal(h.next.label, "Edit it", "the next stop is not named: " + JSON.stringify(h.next));
+  assert.ok(h.next.holders.some(x => x.uid === "lead1"), "the next holder is not named");
+  assert.equal(row.handoff.from.note, h.from.note, "the queue row does not carry the handoff");
 });
 
 await T("and again, to a different role, who is told", async () => {
@@ -211,6 +221,9 @@ await T("and again, to a different role, who is told", async () => {
   assert.equal(item.status, "editing");
   assert.deepEqual(plain(item.assigneeIds), ["lead1"], "it did not reach the editor");
   assert.ok(find("notifications", n => n.toUid === "lead1").length > before, "the editor was not told");
+  const told = find("notifications", n => n.toUid === "lead1").pop();
+  assert.equal(plain(item.handoff).from.note, "", "a pass with no note should carry no note");
+  assert.ok(/assigned to you/.test(told.msg), told.msg);
 
   // and it is GONE from the queue of the person who finished it
   const mine = await db.collection("orgs/" + ORG + "/items")
@@ -224,6 +237,50 @@ await T("the trail records who finished each stop", async () => {
   const done = (runDoc.nodeRuns || []).filter(n => n.status === "completed" && n.nodeType === "role");
   assert.equal(done.length, 2);
   assert.deepEqual(plain(done.map(n => n.completedBy)), ["staff1", "staff1"]);
+});
+
+/* ---------- the composer, speaking a kind of work ---------- */
+await T("sent as a tracked kind, the composer's work starts its run and lands on the first stop", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  const type = Object.assign({ id: "video" }, await get("orgs/" + ORG + "/itemTypes/video"));
+  const before = find("assignments").length;
+  const r = await runAsync(`return await itemsCreateFromComposer(
+    { stores: ["Store Epsilon"], tasks: ["Launch teaser"], note: "Thirty seconds, vertical", who: [], due: "2026-09-30", dueTime: "" },
+    ${JSON.stringify(type)}, { fromName: "Owner" });`);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(r.tracked, true);
+  assert.equal(r.created.length, 1);
+  assert.equal(find("assignments").length, before, "a tracked kind must not write an assignment doc");
+  const item = await until(async () => {
+    const it = await get("orgs/" + ORG + "/items/" + r.created[0]);
+    return it && it.workflowRunId ? it : null;
+  }, "the run to start");
+  assert.equal(item.title, "Launch teaser");
+  assert.equal(item.brief, "Thirty seconds, vertical", "the brief did not ride onto the Item");
+  assert.equal(item.store, "Store Epsilon");
+  assert.deepEqual(plain(item.assigneeIds), ["staff1"], "it did not land on the first stop's holder");
+  assert.ok(item.dueAt, "the composer's due date was lost");
+  const row = run(`itemToQueueRow(${JSON.stringify(Object.assign({ id: r.created[0] }, item))}, ${JSON.stringify(type)})`);
+  assert.equal(row.note, "Thirty seconds, vertical");
+  assert.equal(row.store, "Store Epsilon");
+  assert.equal(row.fromName, "Owner");
+  assert.equal(row.dueDate, "2026-09-30");
+  assert.ok(row.handoff && row.handoff.stop && row.handoff.stop.index === 1, "the card has no handoff to show");
+});
+
+await T("sent as an untracked kind, it is assigned to the people named", async () => {
+  const plain_type = { id: "memo", name: "Memo", fields: [], statuses: [{ key: "open", label: "Open" }, { key: "done", label: "Done" }] };
+  await db.collection("orgs").doc(ORG).collection("itemTypes").doc("memo").set(plain_type);
+  run(`orgInvalidate();`);
+  const r = await runAsync(`return await itemsCreateFromComposer(
+    { stores: ["A", "B"], tasks: ["Write it"], note: "Short and sweet", who: [{ uid: "staff1", name: "Staff" }, { uid: "lead1", name: "Lead" }] },
+    ${JSON.stringify(plain_type)}, { fromName: "Owner" });`);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(r.created.length, 4, "two people x two stores is four pieces of work");
+  const one = await get("orgs/" + ORG + "/items/" + r.created[0]);
+  assert.deepEqual(plain(one.assigneeIds), ["staff1"]);
+  assert.equal(one.workflowRunId, null, "an untracked kind must not start a run");
 });
 
 /* ---------- work with no handoff still finishes ---------- */

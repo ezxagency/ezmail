@@ -188,3 +188,22 @@
   color:var(--muted); font-size:.86rem; line-height:1.45;
 }
 .atask-broken b{ color:#ff8a80; font-weight:600; }
+
+/* ---------- the kind of work ---------- */
+.cx-kinds{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.cx-kinds.hidden{display:none}
+.cx-kind{
+  padding:7px 12px;border-radius:999px;cursor:pointer;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);color:var(--wk-white-70);
+  font-family:var(--wk);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  transition:background .18s ease,color .18s ease;
+}
+.cx-kind i{font-style:normal;margin-left:6px;opacity:.6}
+.cx-kind:hover{background:rgba(255,255,255,.12);color:var(--wk-white)}
+.cx-kind.is-on{background:linear-gradient(180deg,#2B95FF,#0A84FF);border-color:transparent;color:#fff}
+/* the track, in place of TO */
+.cx-via{flex-wrap:wrap;row-gap:6px}
+.cx-stop{display:inline-flex;align-items:center;gap:6px;font-family:var(--wk);font-size:12px;color:var(--wk-white)}
+.cx-stop i{font-style:normal;color:var(--wk-white-60);margin-right:2px}
+.cx-stop small{font-size:11px;color:var(--wk-white-60)}
+.cx-stop.is-gap small{color:#FF9F0A}

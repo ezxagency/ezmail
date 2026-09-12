@@ -317,6 +317,23 @@ the account already makes on the Team or Org page, behind the same
 predicate, and a read that fails is shown as "could not reach", never as
 "nothing to do".
 
+**Work travels with its note.** The composer speaks work types
+(`cxKind`, the KIND row): a Task is the classic assignment, any other
+kind is an Item of that kind made by `itemsCreateFromComposer()`. A kind
+with a track takes no people — creation starts its run and the first
+stop's holders get it, which is what the track is for; the composer
+shows the track (VIA) in place of TO. The composer's brief, store and
+sender ride on the Item top-level (`brief`, `store`, `fromName`), because
+a kind's fields may have no slot for them. On every run sync
+`hoSummary()` copies the hand-off onto the Item as `handoff` — which stop
+(n of N), who passed it and the note they wrote (the finish comment,
+which the run has recorded as `output.comment` since the first build),
+and who is next — so the deck reads it without reading the run. The card
+draws it, Done reads "Pass on" (or "Finish" at the last stop), the Done
+sheet is "Pass it on" naming the next people and asking for a note, and
+the next person's "assigned to you" notification carries the note.
+`tests/flow.test.mjs` walks the whole of it.
+
 **A temporary testing aid lives on the Organization page**: "Reset this
 organization to fresh" (`orgResetOrg()` → `itemsResetOrg()`), owner-only,
 two taps, then a reload. It deletes every kind of work, track, rule,

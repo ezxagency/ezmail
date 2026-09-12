@@ -347,6 +347,34 @@ T("finishAssignment() drives the hold, the strike and the release", () => {
   assert.equal((body.match(/dkRelease\(\)/g) || []).length, 2, "both failure paths must release");
 });
 
+/* Work on a track: the card IS the handoff. It says which stop, who
+   passed it and what they wrote, who is next - and Done is Pass on. */
+T("a tracked card shows who passed it, the note, who is next, and offers Pass on", () => {
+  run(`dkReset(); S.status = "IDLE"; S.shift = null; dkRender([{ id: "h1", itemId: "h1", task: "Cut the teaser", store: "Store Delta",
+    handoff: { stop: { label: "Edit", index: 2, count: 3 },
+      from: { uid: "u1", name: "Sandy", label: "Shoot", note: "B-roll is in the shared drive", at: 1 },
+      next: { label: "Publish", role: "manager", holders: [{ uid: "u3", name: "Ada" }] }, done: false } }]);`);
+  const c = front();
+  assert.ok(/stop 2 of 3 · Edit/.test(c.querySelector(".dk-hand .dk-blk-h").textContent));
+  assert.ok(/From Sandy/.test(c.querySelector(".dk-hand-from").textContent) && /B-roll is in the shared drive/.test(c.querySelector(".dk-hand-from").textContent));
+  assert.ok(/Next · Publish → Ada/.test(c.querySelector(".dk-hand-next").textContent), c.querySelector(".dk-hand-next").textContent);
+  assert.equal(c.querySelector(".dk-done").textContent.trim(), "Pass on");
+});
+
+T("at the first stop it started with you; at the last, Done becomes Finish; off a track it stays Done", () => {
+  run(`dkReset(); dkRender([{ id: "h2", itemId: "h2", task: "Plan it",
+    handoff: { stop: { label: "Plan", index: 1, count: 2 }, from: null, next: { label: "Do", role: "staff", holders: [] }, done: false } }]);`);
+  assert.ok(/First stop/.test(front().querySelector(".dk-hand-from").textContent));
+  assert.ok(/nobody holds staff yet/.test(front().querySelector(".dk-hand-next").textContent));
+  run(`dkReset(); dkRender([{ id: "h3", itemId: "h3", task: "Ship it",
+    handoff: { stop: { label: "Ship", index: 2, count: 2 }, from: { uid: "u1", name: "Sandy", note: "", at: 1 }, next: null, done: false } }]);`);
+  assert.ok(/Last stop/.test(front().querySelector(".dk-hand-next").textContent));
+  assert.equal(front().querySelector(".dk-done").textContent.trim(), "Finish");
+  run(`dkReset(); dkRender([{ id: "p1", task: "Plain" }]);`);
+  assert.ok(!front().querySelector(".dk-hand"), "a plain assignment grew a handoff block");
+  assert.equal(front().querySelector(".dk-done").textContent.trim(), "Done");
+});
+
 /* The bug this exists for: Start task writes the SHIFT and never touches
    the assignments, so the snapshot watcher that draws the deck never
    fired. The card went on offering Start task on work that was already

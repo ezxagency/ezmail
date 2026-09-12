@@ -386,7 +386,11 @@ async function wkPaintHandoff(item, type){
           '<span class="wk-leg-main"><b>' + esc(t.label) + '</b><small>' +
             esc(t.status === "completed"
               ? (t.by ? "done by " + orgPersonName(t.by) + (t.as === "override" ? " (as owner)" : "") : "done")
-              : "here now") + '</small></span>' +
+              : "here now") + '</small>' +
+            // the note written when the stop was passed on - recorded on
+            // the run since the first build, shown to nobody until now
+            (t.output && t.output.comment ? '<em class="wk-leg-note">\u201c' + esc(t.output.comment) + '\u201d</em>' : "") +
+          '</span>' +
         '</div>').join("") + '</div>'
     : "";
 

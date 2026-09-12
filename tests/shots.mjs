@@ -161,6 +161,10 @@ await page.evaluate(() => {
     { id, task, store, dueDate: due, fromName: "Ada", createdAt: Date.now() - 86400000 }, extra || {});
   const rows = [
     t("r1", "Write the spring launch email", "Store Epsilon", "2026-09-30", {
+      itemId: "r1",
+      handoff: { stop: { label: "Copy", index: 2, count: 4 },
+        from: { uid: "u9", name: "Ada", label: "Brief", note: "Brief is final — lead with the restock, the discount is a footnote.", at: Date.now() - 2 * 3600000 },
+        next: { label: "Design review", role: "designer", holders: [{ uid: "u2", name: "Sandy" }] }, done: false },
       note: "Three-email sequence for the spring drop. Lead with the restock, not the discount — last quarter the discount-led version underperformed by 18%.",
       checklist: [
         { text: "Subject line, 3 variants", done: true },

@@ -188,6 +188,10 @@ if (typeof module !== "undefined" && module.exports){
    because writes still go to that collection. A row that read from one
    place and wrote to another under the wrong id would finish the wrong
    task, which is the worst bug this cutover could have. */
+const migrateISODate = ms => {
+  const d = new Date(ms);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+};
 function itemToQueueRow(item, type){
   const f = item.fields || {};
   // the kind of work, and the stage it is at. Both come from the type, so
@@ -206,17 +210,20 @@ function itemToQueueRow(item, type){
     // receipt stamp took the Item's own stamp down with it.
     fromAssignment: !!sourceId,
     toUid: (item.assigneeIds || [])[0] || null,
-    store: f.store || (type && type.name) || "",
+    store: f.store || item.store || (type && type.name) || "",
     stage: stage ? (stage.label || stage.key) : null,
     // the migrated task type keeps its own `task` field; every other kind
     // of work carries its name in the Item title, and a row with a blank
     // title is a row nobody can act on
     task: f.task || item.title || "",
-    note: f.note || "",
+    note: f.note || item.brief || "",
     snote: f.snote || null,
-    dueDate: f.dueDate || null,
+    dueDate: f.dueDate || (item.dueAt ? migrateISODate(item.dueAt) : null),
     dueTime: f.dueTime || null,
-    fromName: f.from || "",
+    fromName: f.from || item.fromName || "",
+    // where it is on its handoff: the stop, who passed it and their note,
+    // who is next. Null for work that is not on a track.
+    handoff: item.handoff || null,
     fromEmail: f.fromEmail || "",
     groupId: item.parentId ? String(item.parentId).replace(/^im_group_/, "") : null,
     groupSize: f.groupSize == null ? null : Number(f.groupSize),

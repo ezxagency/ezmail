@@ -299,5 +299,51 @@ T("no run, no answers, no crash", () => {
   assert.deepEqual(H.hoTrail(bp, null), []);
 });
 
+/* ---------- the summary a card reads ----------
+   Where the work is, who passed it and what they wrote, who is next -
+   copied onto the Item so the deck never reads the run. */
+T("at the first stop: no one before, the next stop and its people named", () => {
+  const st = start();
+  const sum = H.hoSummary(bp, st.nodeRuns, MEMBERS, uid => ({ u1: "Mia", u2: "Sam", u3: "Ada" })[uid] || "", st.run);
+  assert.deepEqual(sum.stop, { label: "Agree terms", index: 1, count: 2 });
+  assert.equal(sum.from, null);
+  assert.equal(sum.next.label, "Deliver");
+  assert.deepEqual(sum.next.holders.map(h => h.name), ["Sam", "Ada"]);
+  assert.equal(sum.done, false);
+});
+
+T("after a pass with a note: from names the passer and carries the note; the last stop has no next", () => {
+  const st = start();
+  const nr = H.hoActiveStops(st.nodeRuns)[0];
+  const next = WF.wfAdvance({ run: st.run, nodeRuns: st.nodeRuns },
+    { type: "complete", nodeRunId: nr.id, output: { comment: "Terms are signed, go" }, by: "u1" }, { now: 5 });
+  next.nodeRuns.forEach(x => { if (x.id === nr.id) { x.completedBy = "u1"; x.completedAs = "holder"; } });
+  const sum = H.hoSummary(bp, next.nodeRuns, MEMBERS, uid => uid === "u1" ? "Mia" : "", next.run);
+  assert.deepEqual(sum.stop, { label: "Deliver", index: 2, count: 2 });
+  assert.equal(sum.from.uid, "u1"); assert.equal(sum.from.name, "Mia");
+  assert.equal(sum.from.note, "Terms are signed, go");
+  assert.equal(sum.from.label, "Agree terms");
+  assert.equal(sum.next, null, "the last stop should have nothing after it");
+});
+
+T("a narrowed next stop names only the people it is narrowed to; an empty one says so", () => {
+  const bp2 = H.hoBuildBlueprint(TYPE, [{ label: "Outreach", roleId: "staff" }, { label: "Close", roleId: "staff", assignees: ["u2"] }], { id: "bp3", orgId: "o1", now: 1 });
+  const st2 = WF.wfStartRun({ blueprint: bp2, runId: "r3", taskId: "i3", task: {}, orgId: "o1", now: 1 });
+  const sum = H.hoSummary(bp2, st2.nodeRuns, MEMBERS, uid => uid, null);
+  assert.ok(sum.next, "no next stop on the narrowed track");
+  assert.deepEqual(sum.next.holders.map(h => h.uid), ["u2"], "u3 is staff too but was not named");
+  const empty = H.hoSummary(bp, start().nodeRuns, [{ uid: "u1", roleId: "manager" }], uid => uid, null);
+  assert.deepEqual(empty.next.holders, [], "nobody is staff, so the next stop has nobody");
+});
+
+T("a completed run is done, and still says who finished it", () => {
+  let st = start();
+  st = finish(st, 2); st = finish(st, 3);
+  const sum = H.hoSummary(bp, st.nodeRuns, MEMBERS, uid => uid, st.run);
+  assert.equal(sum.done, true);
+  assert.equal(sum.stop, null);
+  assert.equal(sum.from.label, "Deliver");
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -311,3 +311,15 @@ update work **across the org** runs it, because stamping the chase is a
 write and a staff member who may only touch their own assigned work
 cannot stamp anybody else's — the permission grammar already answers that,
 so it is asked rather than guessed at.
+
+**Since shipped (2026-09-12): the note rides the pass, and the composer
+speaks the type.** The finish comment had been recorded on the run as
+`output.comment` since the first build and shown to nobody. `hoSummary()`
+now copies the hand-off onto the Item (`handoff`: the stop n of N, who
+passed it and their note, who is next) on every run sync, the deck card
+draws it, the Done sheet is "Pass it on" with a note for the next
+people, the trail on the Work page shows the notes, and the next holder's
+notification carries the note. And the composer can send a KIND of work
+rather than only a Task: a tracked kind takes no people, starts its run
+and lands on the first stop's decks — the answer to "assigned work never
+travels a track".

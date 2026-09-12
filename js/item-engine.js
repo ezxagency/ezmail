@@ -215,6 +215,15 @@ function itemCommit(args){
       parentId: intent.parentId || null,
       workflowRunId: null,
       dueAt: intent.dueAt || null,
+      /* what the composer knows that a type's fields may not have a slot
+         for: the brief, the store it is for, who sent it. Top-level, so a
+         Sponsorship with no "note" field still carries its brief to the
+         deck. */
+      brief: intent.brief == null ? "" : String(intent.brief),
+      store: intent.store == null ? "" : String(intent.store),
+      fromName: intent.fromName == null ? "" : String(intent.fromName),
+      // where it is on its handoff, written by the run sync (hoSummary)
+      handoff: null,
       createdAt: at, updatedAt: at, createdBy: actor.uid
     };
     (type.fields || []).forEach(f => {
@@ -259,6 +268,11 @@ function itemCommit(args){
     // when the deadline moves, the chase stamp moves with it: a stamp
     // from the last stop must not silence the chase for the next one
     if (intent.nudgedAt !== undefined) top("nudgedAt", intent.nudgedAt);
+    if (intent.brief !== undefined) top("brief", intent.brief == null ? "" : String(intent.brief));
+    // the handoff summary: which stop, who passed it and what they said,
+    // who is next. The run is the truth; this is the truth copied onto
+    // the Item so a deck of fifty shows it without reading fifty runs.
+    if (intent.handoff !== undefined) top("handoff", intent.handoff);
     Object.keys(intent.fields || {}).forEach(key => {
       const f = itemFieldDef(type, key);
       if (!f) return;                 // a value for a field the type dropped is ignored, not an error

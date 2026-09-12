@@ -131,6 +131,43 @@ function hoBuildBlueprint(type, track, opts){
   };
 }
 
+/* Where a piece of work is on its handoff, in the words a card needs:
+   which stop (n of N), who passed it here and what they wrote, and who
+   is next. Copied onto the Item by the run sync so the deck reads it
+   without reading the run. `nameOf(uid)` turns a seat into a name; the
+   holders of the NEXT stop are resolved from the roster the same way
+   hoHolders resolves the current one - the role, narrowed to the named. */
+function hoSummary(blueprint, nodeRuns, members, nameOf, run){
+  const name = uid => (nameOf && nameOf(uid)) || "";
+  const stops = ((blueprint && blueprint.nodes) || []).filter(n => n.type === "role");
+  const active = hoActiveStops(nodeRuns)[0] || null;
+  const legs = hoTrail(blueprint, nodeRuns).filter(t => t.status === "completed");
+  const last = legs.length ? legs[legs.length - 1] : null;
+  const from = last ? {
+    uid: last.by || null, name: last.by ? name(last.by) : "",
+    label: last.label, note: (last.output && last.output.comment) || "", at: last.completedAt || null
+  } : null;
+  if (!active) return { stop: null, from, next: null, done: !!(run && run.status === "completed") || legs.length > 0 };
+  const idx = stops.findIndex(n => n.id === active.nodeId);
+  const cur = idx >= 0 ? stops[idx] : null;
+  const nextNode = idx >= 0 ? stops[idx + 1] || null : null;
+  const holdersOf = node => {
+    const cfg = node.config || {}, roster = members || [];
+    const inRole = cfg.role === HO_ANY ? roster.map(m => m.uid)
+      : cfg.role ? roster.filter(m => m.roleId === cfg.role).map(m => m.uid)
+      : roster.map(m => m.uid);
+    const named = cfg.assignees || [];
+    return (named.length ? inRole.filter(u => named.indexOf(u) >= 0) : inRole).map(u => ({ uid: u, name: name(u) }));
+  };
+  return {
+    stop: { label: (cur && cur.config && cur.config.label) || active.nodeId, index: idx + 1, count: stops.length },
+    from,
+    next: nextNode ? { label: (nextNode.config && nextNode.config.label) || nextNode.id,
+      role: (nextNode.config && nextNode.config.role) || null, holders: holdersOf(nextNode) } : null,
+    done: false
+  };
+}
+
 /* Stops nobody can act on, found from the TRACK rather than from any
    running work.
 
@@ -315,7 +352,7 @@ function hoTrail(blueprint, nodeRuns){
 }
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { HO_MAX_STOPS, HO_ANY, HO_DAY, HO_NUDGE_EVERY,
+  module.exports = { hoSummary, HO_MAX_STOPS, HO_ANY, HO_DAY, HO_NUDGE_EVERY,
     hoLate, hoDue, hoNeedsNudge, hoTrackErrors, hoTrackGaps, hoBuildBlueprint,
     hoActiveStops, hoHolders, hoStatus, hoMayAdvance, hoStalled, hoTrail };
 }

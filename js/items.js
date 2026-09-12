@@ -430,6 +430,28 @@ async function itemsResetOrg(){
   } catch (e) { console.error(e); return { ok: false, error: "delete-failed" }; }
 }
 
+/* The composer, speaking a work type. One Item per store x task (and per
+   person, when the kind has no track and people were named). A tracked
+   kind takes NO people: creation starts its run and the first stop's
+   holders get it, which is the whole point of the track. The composer's
+   brief, store and sender ride on the Item so a kind whose fields have
+   no slot for them still carries them to the deck. */
+async function itemsCreateFromComposer(state, type, from){
+  const tracked = !!(type && type.workflowId);
+  const due = state.due ? new Date(state.due + "T" + (state.dueTime || "17:00")).getTime() : null;
+  const pairs = [];
+  (state.stores || []).forEach(st => (state.tasks || []).forEach(t => pairs.push({ store: st, task: t })));
+  const people = tracked ? [null] : (state.who || []);
+  const created = [], failed = [];
+  for (const p of people) for (const pr of pairs) {
+    const r = await itemSave(type, null, { kind: "create", title: pr.task, fields: {},
+      assigneeIds: p ? [p.uid] : [], brief: (state.note || "").trim(), store: pr.store,
+      fromName: (from && from.fromName) || "", dueAt: due });
+    if (r.ok) created.push(r.item.id); else failed.push(r.error || "save-failed");
+  }
+  return { ok: !failed.length && created.length > 0, created, failed, tracked };
+}
+
 /* ---------- handoff: work that moves person to person ----------
    docs/handoff-spec.md. js/handoff.js decides; this writes.
 
@@ -569,6 +591,8 @@ async function itemsSyncFromRun(item, type, blueprint, run, nodeRuns){
   // the active stop's deadline is copied onto the Item, so a list of
   // fifty can show what is late without reading fifty runs
   const due = hoDue(blueprint, nodeRuns, Date.now()).dueAt;
+  const nameOf = uid => { const d = s.dir && s.dir[uid]; return d ? (d.name || (d.email ? d.email.split("@")[0] : "")) : ""; };
+  const summary = hoSummary(blueprint, nodeRuns, s.members || [], nameOf, run);
   let cur = item;
 
   try {
@@ -578,11 +602,12 @@ async function itemsSyncFromRun(item, type, blueprint, run, nodeRuns){
        in-memory copy that predates the side write and quietly erases it -
        which is how an Item ended up travelling a run it had no record of,
        looking untracked to every screen that asked. */
-    const patch = {};
+    const patch = { handoff: summary };   // the engine writes nothing if it is unchanged
     if (cur.workflowRunId !== run.id) patch.workflowRunId = run.id;
     // a new stop means a new clock: the chase stamp from the last one
-    // must not silence the next
-    if ((cur.dueAt || null) !== (due || null)) { patch.dueAt = due; patch.nudgedAt = null; }
+    // must not silence the next. A stop with NO budget leaves the
+    // deadline alone - the one the composer set is still the deadline.
+    if (due != null && (cur.dueAt || null) !== due) { patch.dueAt = due; patch.nudgedAt = null; }
     if (Object.keys(patch).length) {
       const r = await itemSave(type, cur, Object.assign({ kind: "update" }, patch));
       if (r.ok && r.item) cur = r.item;
@@ -1054,12 +1079,16 @@ async function itemsNotifyAssigned(events, item){
   if (!uids.length) return;
   const at = Date.now();
   const title = (item && item.title) || "some work";
+  const h = item && item.handoff;
+  const noteLine = (h && h.from && h.from.note) ? " " + (h.from.name || "The last stop") + ": \u201c" + h.from.note + "\u201d" : "";
   try {
     const batch = db.batch();
     uids.forEach(uid => batch.set(db.collection("notifications").doc(), {
       toUid: uid, fromUid: me, kind: "assigned", read: false, createdAt: at,
-      msg: title + " was assigned to you.",
-      text: title + " was assigned to you.",
+      // the note the last holder wrote rides along, so the notification
+      // says what they said and not only that it moved
+      msg: title + " was assigned to you." + noteLine,
+      text: title + " was assigned to you." + noteLine,
       store: (item && item.fields && item.fields.store) || "", task: title
     }));
     await batch.commit();

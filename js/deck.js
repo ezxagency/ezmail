@@ -164,6 +164,23 @@ function dkDuePill(r){
    rows here would put words on screen that nobody wrote. */
 function dkBlocks(r){
   let html = "";
+  /* Work on a track says where it is: the stop, who passed it here and
+     what they wrote, and who is next - the card is the handoff. */
+  const h = r.handoff && !r.handoff.done ? r.handoff : null;
+  if (h){
+    const nextWho = h.next ? h.next.holders.map(x => x.name).filter(Boolean).join(", ") : "";
+    html += '<div class="dk-blk dk-hand">'
+      + '<p class="dk-blk-h">Handoff' + (h.stop ? ' · stop ' + h.stop.index + ' of ' + h.stop.count + ' · ' + esc(h.stop.label) : "") + '</p>'
+      + (h.from
+          ? '<p class="dk-hand-from"><b>From ' + esc(h.from.name || h.from.label || "the last stop") + '</b>'
+            + (h.from.note ? ' · \u201c' + esc(h.from.note) + '\u201d' : ' · no note') + '</p>'
+          : '<p class="dk-hand-from"><b>First stop</b> · it starts with you</p>')
+      + (h.next
+          ? '<p class="dk-hand-next"><b>Next</b> · ' + esc(h.next.label) + ' \u2192 '
+            + (nextWho ? esc(nextWho) : '<em>nobody holds ' + esc(h.next.role || "that stop") + ' yet</em>') + '</p>'
+          : '<p class="dk-hand-next"><b>Last stop</b> · finishing closes it</p>')
+      + '</div>';
+  }
   const brief = r.note || r.snote;
   if (brief){
     html += '<div class="dk-blk"><p class="dk-blk-h">Brief</p>'
@@ -197,8 +214,11 @@ function dkFoot(r){
   const left = running
     ? '<button type="button" class="dk-bt dk-bt-gh dk-down">' + DK_ICO.back + 'Put down</button>'
     : '<button type="button" class="dk-bt dk-bt-go dk-start">' + DK_ICO.clock + 'Start task</button>';
+  // on a track, Done is a hand-off: say so, and name it Finish at the end
+  const h = r.handoff && !r.handoff.done ? r.handoff : null;
+  const doneLabel = h ? (h.next ? "Pass on" : "Finish") : "Done";
   const right = '<button type="button" class="dk-bt ' + (running ? "dk-bt-go" : "dk-bt-gh")
-    + ' dk-done">' + DK_ICO.tick + 'Done</button>';
+    + ' dk-done">' + DK_ICO.tick + doneLabel + '</button>';
   return left + right;
 }
 

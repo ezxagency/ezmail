@@ -64,7 +64,12 @@ const CX_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 
 const cxIsOpen = () => $("cx").classList.contains("on");
 const cxPairCount = () => cx ? cx.who.length * cx.stores.length * cx.tasks.length : 0;
-const cxReady = () => !!cx && cx.who.length > 0 && cx.stores.length > 0
+/* The kind of work being sent: null is the classic assignment; a type id
+   is an Item of that kind. A kind with a track needs no people - the
+   track's first stop decides who gets it. */
+const cxKind = () => (cx && cx.kind && cxData && cxData.types) ? cxData.types.find(t => t.id === cx.kind) || null : null;
+const cxTracked = () => { const t = cxKind(); return !!(t && t.workflowId && (t.track || []).length); };
+const cxReady = () => !!cx && (cxTracked() || cx.who.length > 0) && cx.stores.length > 0
   && cx.tasks.length > 0 && cx.note.trim().length >= 3;
 
 /* Members carry their open-task count,
@@ -118,7 +123,16 @@ async function cxLoadOptions(){
       .map(([craft, uids]) => ({ craft, label: "ALL " + craft.toUpperCase(), uids }));
   } catch (e) { console.error(e); }
 
-  return { members, stores, tasks, roles };
+  // the org's kinds of work, so the composer can send a Sponsorship and
+  // not only a Task. The migrated Task kind IS the classic assignment.
+  let types = [];
+  try {
+    const o = typeof orgEnsure === "function" ? await orgEnsure() : null;
+    types = ((o && o.types) || []).filter(t => t.id !== MIGRATE_TASK_TYPE.id)
+      .slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  } catch (e) { console.error(e); }
+
+  return { members, stores, tasks, types, roles };
 }
 
 function openComposer(preUid, preName, editThread){
@@ -138,7 +152,8 @@ function openComposer(preUid, preName, editThread){
     edit, order: [],
     who: [], stores: [], tasks: [],
     note: openRows.length ? (openRows[0].note || "") : "",
-    due, dueTime
+    due, dueTime,
+    kind: null
   };
   if (edit){
     cx.who = [{ uid: openRows[0].toUid, name: openRows[0].toName }];
@@ -160,6 +175,7 @@ function openComposer(preUid, preName, editThread){
       </span>
       <button type="button" class="cx-x" id="cxClose" aria-label="Close">${CX_X}</button>
     </div>
+    <div class="cx-kinds" id="cxKinds" role="radiogroup" aria-label="Kind of work"></div>
     <div class="cx-inputrow">
       <span class="cx-prompt" aria-hidden="true">›</span>
       <input type="text" id="cxInput" placeholder="Type a name, a store or a task…"
@@ -227,7 +243,43 @@ function openComposer(preUid, preName, editThread){
   cxLoadOptions().then(d => {
     if (!cxIsOpen()) return;
     cxData = d;
+    cxPaintKinds();
     cxPaintSugs();
+  });
+}
+
+/* ---------- the kind ---------- */
+/* Which kinds of work the org has, beside the classic Task. Editing an
+   assignment keeps it an assignment, so the row does not draw then. */
+function cxPaintKinds(){
+  const box = $("cxKinds");
+  if (!box || !cx) return;
+  const types = (cxData && cxData.types) || [];
+  if (cx.edit || !types.length){ box.innerHTML = ""; box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  const chip = (id, label, tracked, on) =>
+    '<button type="button" class="cx-kind' + (on ? " is-on" : "") + (tracked ? " is-tracked" : "") + '" data-kind="' + esc(id) + '" role="radio" aria-checked="' + on + '">'
+    + esc(label) + (tracked ? '<i aria-hidden="true">→</i>' : "") + '</button>';
+  box.innerHTML = '<span class="cx-verb">KIND</span>'
+    + chip("", "Task", false, !cx.kind)
+    + types.map(t => chip(t.id, t.name || t.id, !!(t.workflowId && (t.track || []).length), cx.kind === t.id)).join("");
+  box.querySelectorAll(".cx-kind").forEach(b => b.onclick = () => {
+    cx.kind = b.dataset.kind || null;
+    cxPaintKinds(); cxPaintLine(); cxPaintSugs();
+    $("cxInput").focus();
+  });
+}
+
+/* The track's stops with the people who hold each today - what the
+   sentence shows in place of TO when the kind has a track. */
+function cxPipeline(type){
+  const members = (typeof orgS !== "undefined" && orgS && orgS.members) || [];
+  const nameOf = uid => typeof orgPersonName === "function" ? orgPersonName(uid) : uid;
+  return (type.track || []).map(st => {
+    const inRole = st.roleId === HO_ANY ? members : members.filter(m => m.roleId === st.roleId);
+    const named = st.assignees || [];
+    const who = (named.length ? inRole.filter(m => named.indexOf(m.uid) >= 0) : inRole).map(m => nameOf(m.uid));
+    return { label: st.label || "Stop", who };
   });
 }
 
@@ -266,9 +318,17 @@ function cxPaintLine(){
       ${chips.join("")}
       ${slotText ? `<button type="button" class="cx-slot" data-kind="${kind}">${slotText}</button>` : ""}
     </div>`;
+  const type = cxKind();
+  const toRow = cxTracked()
+    // a tracked kind has no TO: the track says where it goes, stop by stop
+    ? '<div class="cx-row cx-via"><span class="cx-verb">VIA</span>'
+      + cxPipeline(type).map((st, i) => '<span class="cx-stop' + (st.who.length ? "" : " is-gap") + '">'
+          + (i ? '<i>→</i>' : "") + esc(st.label) + '<small>' + esc(st.who.join(", ") || "nobody yet") + '</small></span>').join("")
+      + '</div>'
+    : row("TO", "who", cx.who.map(p => cxChip("who", p.uid, p.name, !cx.edit)), cx.who.length ? "" : "who?");
   line.innerHTML =
     row("SEND", "task", cx.tasks.map(t => cxChip("task", t, t, true)), cx.tasks.length ? "" : "what task?")
-    + row("TO", "who", cx.who.map(p => cxChip("who", p.uid, p.name, !cx.edit)), cx.who.length ? "" : "who?")
+    + toRow
     + row("AT", "store", cx.stores.map(s => cxChip("store", s, s, true)), cx.stores.length ? "" : "which store?");
   line.querySelectorAll(".cx-chip-x").forEach(b => b.onclick = () => {
     const k = b.dataset.kind, v = b.dataset.v;
@@ -294,6 +354,12 @@ function cxPaintSend(){
   btn.disabled = !cxReady();
   if (cx.edit){ btn.textContent = "Save changes"; return; }
   if (!cxReady()){ btn.textContent = "Assign work"; return; }
+  if (cxTracked()){
+    const t = cxKind(), first = cxPipeline(t)[0];
+    const n = cx.stores.length * cx.tasks.length;
+    btn.textContent = `Start ${n} ${n === 1 ? t.name : t.name + "s"} → ${first ? first.label : "first stop"}`;
+    return;
+  }
   const n = cxPairCount();
   const who = cx.who.length === 1 ? cx.who[0].name : cx.who.length + " people";
   btn.textContent = `Assign ${n} task${n === 1 ? "" : "s"} → ${who}`;
@@ -313,7 +379,7 @@ function cxSuggestions(qRaw){
   if (!q){
     // empty bar: guide toward whichever lane the sentence still needs
     const hint = cxKindHint
-      || (!cx.tasks.length ? "task" : !cx.who.length ? "who" : !cx.stores.length ? "store" : null);
+      || (!cx.tasks.length ? "task" : (!cx.who.length && !cxTracked()) ? "who" : !cx.stores.length ? "store" : null);
     if (hint === "who" && !cx.edit){
       [...members].sort((a, b) => a.open - b.open).slice(0, 4)
         .forEach(m => push("who", m.uid, m.name, m.open ? m.open + " open" : "clear"));
@@ -432,6 +498,29 @@ async function cxSubmit(){
   });
   const pairs = [];
   state.stores.forEach(st => state.tasks.forEach(t => pairs.push({ store: st, task: t })));
+
+  /* A kind of work, not a Task: it becomes an Item of that kind. Tracked,
+     it starts its run and lands on the first stop's decks by itself;
+     untracked, it is assigned to the people named. No assignment doc. */
+  const kind = cxKind();
+  if (kind && !state.edit){
+    const r = await itemsCreateFromComposer(state, kind, from);
+    if (!r.ok){
+      btn.disabled = false;
+      toast(r.failed[0] === "invalid" ? "This kind has a required field the composer cannot fill — create it on the Work page."
+        : r.failed[0] === "denied" ? "Your role cannot create this kind of work."
+        : "Couldn't create it (" + (r.failed[0] || "unknown") + ")");
+      return;
+    }
+    const first = r.tracked ? cxPipeline(kind)[0] : null;
+    const n = r.created.length;
+    toast(r.tracked
+      ? `${n === 1 ? state.tasks[0] : n + " " + kind.name + "s"} started → ${first ? first.label + (first.who.length ? " · " + first.who.join(", ") : "") : "first stop"}`
+      : `${n === 1 ? state.tasks[0] : n + " " + kind.name + "s"} assigned to ${state.who.map(p => p.name).join(", ")}`);
+    closeComposer();
+    if (isAdmin) loadTeamPane();
+    return;
+  }
 
   try {
     const batch = db.batch();
@@ -894,14 +983,27 @@ function renderAssignedBrief(rows){
    the tags into in-app notifications for the tagged people and the admin. */
 function markAssignmentDone(id){
   const row = assignedOpenRows.find(r => r.id === id) || {};
+  /* Work on a track is not "complete" here - it is PASSED ON. The sheet
+     says who it goes to and asks for a note for them; that note rides on
+     the run and comes out on the next person's card as "From you". */
+  const h = row.handoff && !row.handoff.done && row.itemId && !row.fromAssignment ? row.handoff : null;
+  const nextNames = h && h.next ? h.next.holders.map(x => x.name).filter(Boolean).join(", ") : "";
+  const title = h ? (h.next ? "Pass it on" : "Finish it") : "Task complete";
+  const hint = h
+    ? (h.next
+        ? `<b>${esc(row.task || "This")}</b> goes to <b>${esc(h.next.label)}</b>${nextNames ? " · " + esc(nextNames) : (h.next.role ? " · nobody holds that stop yet" : "")}. Leave them a note.`
+        : `<b>${esc(row.task || "This")}</b> is at its last stop — finishing closes it.`)
+    : `<b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team.${isMember ? "" : " Tag someone with @ and they get an Accept / Decline hand-off in their inbox."}`;
+  const placeholder = h && h.next ? `A note for ${nextNames || h.next.label}…` : "e.g. Drafts are up — @Jack please review";
+  const go = h ? (h.next ? "Pass to " + h.next.label : "Finish") : "Mark done";
   openSheet(`
-    <h2>Task complete</h2>
-    <p class="hint"><b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team.${isMember ? "" : " Tag someone with @ and they get an Accept / Decline hand-off in their inbox."}</p>
+    <h2>${esc(title)}</h2>
+    <p class="hint">${hint}</p>
     <div class="mention-wrap">
-      <textarea id="doneNote" placeholder="e.g. Drafts are up — @Jack please review"></textarea>
+      <textarea id="doneNote" placeholder="${esc(placeholder)}"></textarea>
       <div class="af-panel mention-pop" id="mentionPop" hidden></div>
     </div>
-    <button class="btn btn-go" id="doneSend">Mark done</button>
+    <button class="btn btn-go" id="doneSend">${esc(go)}</button>
     <button class="btn btn-ghost btn-sm" id="doneCancel">Cancel</button>
   `, () => {
     // the @ autocomplete offers a hand-off, and a member's hand-off has
