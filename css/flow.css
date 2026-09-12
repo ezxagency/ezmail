@@ -201,12 +201,27 @@ body.ui-next #flowScreen .admin-page-inner { max-width: none; padding: 32px 48px
 /* ---- people & roles ---- */
 .fl-side { position: sticky; top: 16px; }
 @media (max-width: 1100px) { .fl-side { position: static; margin-top: 16px; } }
-.fl-role { margin-top: 12px; }
-.fl-role-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 6px; }
+.fl-role { margin-top: 6px; border-top: 1px solid rgba(255,255,255,.08); }
+.fl-role:first-of-type { border-top: 0; }
+.fl-role-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px;
+  padding: 9px 2px; cursor: pointer; list-style: none; user-select: none; border-radius: 8px;
+}
+.fl-role-head::-webkit-details-marker { display: none; }
+.fl-role-head:hover { background: rgba(255,255,255,.03); }
+.fl-role-caret {
+  align-self: center; width: 0; height: 0; flex: none; opacity: .55;
+  border-left: 5px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transition: transform .2s ease;
+}
+.fl-role[open] > .fl-role-head .fl-role-caret { transform: rotate(90deg); }
 .fl-role-head b { font-size: 14px; }
+.fl-role-n { font-style: normal; font-size: 12px; opacity: .7; }
 .fl-role-head small { font-size: 11.5px; opacity: .5; }
 .fl-role-head .fl-link { margin-left: auto; font-size: 11.5px; }
-.fl-role.is-gap .fl-role-head b { color: #d9a273; }
+.fl-role.is-gap .fl-role-head b, .fl-role.is-gap .fl-role-n { color: #d9a273; }
+.fl-role > .fl-person:first-of-type, .fl-role > .fl-note { margin-top: 2px; }
+.fl-role > .fl-person:last-child { margin-bottom: 8px; }
 .fl-person {
   display: flex; align-items: center; gap: 8px;
   padding: 5px 7px; border-radius: 10px; margin-bottom: 4px;

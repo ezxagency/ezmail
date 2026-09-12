@@ -344,6 +344,31 @@ T("the panel lists every role with its people; a person can be moved to another 
   assert.ok(doc.querySelector('#flPeople [data-role-edit="staff"]'), "what a role can do opens from here");
 });
 
+T("each role folds: closed with its count, open when pressed, still open after a redraw; a role a step needs and nobody holds starts open", () => {
+  const fold = id => doc.querySelector('#flPeople details.fl-role[data-role-id="' + id + '"]');
+  assert.ok(fold("staff") && !fold("staff").open, "the staff list should start folded");
+  assert.match(fold("staff").querySelector(".fl-role-n").textContent, /\d+ (person|people)/);
+  assert.ok(fold("staff").querySelector(".fl-person"), "the people are still inside the fold, ready to drag");
+  fold("staff").open = true; fold("staff").dispatchEvent(new dom.window.Event("toggle"));
+  run(`flPaintPeople();`);
+  assert.ok(fold("staff").open, "a redraw folded the list the person had opened");
+  fold("staff").open = false; fold("staff").dispatchEvent(new dom.window.Event("toggle"));
+  run(`flPaintPeople();`);
+  assert.ok(!fold("staff").open);
+  // put a step on QA, which nobody holds: that fold starts open, so the warning shows
+  run(`flS.draft[1].roleId = "qa"; flPaintPeople();`);
+  assert.ok(fold("qa").open && fold("qa").classList.contains("is-gap"), "a role a step needs and nobody holds should start open");
+  assert.match(fold("qa").textContent, /a step needs one/);
+  run(`flS.draft[1].roleId = "manager"; flPaintPeople();`);
+  assert.ok(!fold("qa").open, "with the step moved off QA the fold should close again");
+  // the "what they can do" button opens the sheet and does not toggle the fold
+  run(`__sheets = 0; orgRoleSheet = () => { __sheets++; };`);
+  const wasOpen = fold("staff").open;
+  fold("staff").querySelector("[data-role-edit]").click();
+  assert.equal(run("__sheets"), 1);
+  assert.equal(fold("staff").open, wasOpen, "pressing the link folded or unfolded the role");
+});
+
 /* ---------- who may change it ---------- */
 T("a manager sees the picture and can change none of it", () => {
   run(`orgS.myRoleId = "manager"; flS.draft = null; flS.dirty = false; flRender();`);

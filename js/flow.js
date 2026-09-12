@@ -32,6 +32,7 @@
    ============================================================ */
 
 let flS = null;   // { typeId, draft: [step], dirty, drag: index | null, rules: [unsaved rule rows] }
+const flOpenRoles = new Set();   // roles the person has unfolded in the people panel
 
 /* ---------- pure ---------- */
 
@@ -615,11 +616,19 @@ function flPaintPeople(){
   const roleOpts = m => roles.filter(r => r.id !== "owner").map(r =>
     '<option value="' + esc(r.id) + '"' + (r.id === m.roleId ? " selected" : "") + '>' + esc(r.name) + '</option>').join("");
 
+  /* Each role folds shut: a team of twenty is a list of roles with a
+     count, not a column of every name. A role opens when pressed, stays
+     as the person left it across redraws, and a role a step needs but
+     nobody holds starts open so the warning is on screen. */
   const group = r => {
     const people = members.filter(m => m.roleId === r.id);
-    return '<div class="fl-role' + (!people.length && usedBy.has(r.id) ? " is-gap" : "") + '">' +
-      '<div class="fl-role-head"><b>' + esc(r.name) + '</b><small>' + esc(permSummary(r)) + '</small>' +
-        (owner && r.id !== "owner" ? '<button type="button" class="fl-link" data-role-edit="' + esc(r.id) + '">What they can do…</button>' : "") + '</div>' +
+    const gap = !people.length && usedBy.has(r.id);
+    const open = flOpenRoles.has(r.id) || gap;
+    return '<details class="fl-role' + (gap ? " is-gap" : "") + '" data-role-id="' + esc(r.id) + '"' + (open ? " open" : "") + '>' +
+      '<summary class="fl-role-head"><i class="fl-role-caret" aria-hidden="true"></i><b>' + esc(r.name) + '</b>' +
+        '<em class="fl-role-n">' + (people.length ? people.length + (people.length === 1 ? " person" : " people") : "nobody") + '</em>' +
+        '<small>' + esc(permSummary(r)) + '</small>' +
+        (owner && r.id !== "owner" ? '<button type="button" class="fl-link" data-role-edit="' + esc(r.id) + '">What they can do…</button>' : "") + '</summary>' +
       (people.length
         ? people.map(m => {
             const name = orgPersonName(m.uid);
@@ -630,7 +639,7 @@ function flPaintPeople(){
             '</div>';
           }).join("")
         : '<p class="fl-note fl-note-sm">' + (usedBy.has(r.id) ? "Nobody yet, and a step needs one." : "Nobody yet.") + '</p>') +
-    '</div>';
+    '</details>';
   };
 
   $("flPeople").innerHTML =
@@ -641,11 +650,19 @@ function flPaintPeople(){
       '<button type="button" class="org-btn org-btn-sm" id="flInvite">Invite someone</button>' +
       '<button type="button" class="org-btn org-btn-sm" id="flNewRole">New role</button></div>' : "");
 
+  // remember which roles are open, so a redraw after a move or a save
+  // does not fold the list the person was just looking at
+  $("flPeople").querySelectorAll("details.fl-role").forEach(d => d.ontoggle = () => {
+    if (d.open) flOpenRoles.add(d.dataset.roleId); else flOpenRoles.delete(d.dataset.roleId);
+  });
   if (!owner) return;
   $("flInvite").onclick = () => orgInviteSheet();
   $("flNewRole").onclick = () => orgRoleSheet(null);
-  $("flPeople").querySelectorAll("[data-role-edit]").forEach(b => b.onclick = () =>
-    orgRoleSheet((orgS.roles || []).find(r => r.id === b.dataset.roleEdit)));
+  // the button sits inside the summary: it must open the sheet, not fold the role
+  $("flPeople").querySelectorAll("[data-role-edit]").forEach(b => b.onclick = e => {
+    e.preventDefault(); e.stopPropagation();
+    orgRoleSheet((orgS.roles || []).find(r => r.id === b.dataset.roleEdit));
+  });
   $("flPeople").querySelectorAll(".fl-person").forEach(p => {
     p.ondragstart = e => {
       try { e.dataTransfer.setData("text/plain", "person:" + p.dataset.uid); e.dataTransfer.effectAllowed = "copy"; } catch (x) {}

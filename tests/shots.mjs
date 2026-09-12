@@ -560,6 +560,10 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(500);
 await shoot("next-flow");
+// the people panel: roles folded, then one unfolded
+await page.evaluate(() => { const d = document.querySelector('#flPeople details.fl-role[data-role-id="staff"]'); if (d) d.open = true; });
+await page.waitForTimeout(300);
+await shoot("next-flow-people-open");
 await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(300);
 await shoot("next-flow-390");
