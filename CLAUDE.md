@@ -234,6 +234,21 @@ was FINISHED, since "done" lives on the Item — so `hrOffer()` narrows the
 list to the work still on the deck, which also means an unloaded queue
 offers nothing rather than offering work nobody can complete.
 
+Sixth piece: the **started stack**, the column between the clocks and
+the deck on a window 1600px or wider (`css/v6.css` reserves the column
+whether or not anything is started, so the rings do not jump the first
+time somebody presses Start task). `js/started.js` turns this shift's
+segments into one landscape card per task — grouped by `itemId`, so a
+segment without one (classic tasks, the idle gap) is not a started task.
+A new task lands at the bottom, three fit, and past three the stack
+scrolls one card per wheel notch on the deck's spring. `stPlan()` is the
+pure half; its one opinion is that a task whose segments are all closed
+is FINISHED only once the deck has loaded and no longer carries it — before
+that snapshot the honest word is Paused. The card redraws only when a
+task's identity or state changes; the running card's digits are written
+in place every second, because rebuilding the stack once a second would
+restart the spring under the reader's wheel.
+
 The deck reads the shift as well as the queue — the Running pill, Paused ·
 23m, and whether the left button says Start task or Put down — but it is
 only DRAWN when the assignments snapshot fires. `dkRefresh()` is the

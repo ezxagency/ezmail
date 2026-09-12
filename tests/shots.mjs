@@ -206,6 +206,32 @@ for (const [width, height] of [[1920,1080], [1440,900], [1280,720], [1024,600], 
   await shoot(`next-active-${label}`);
 }
 await page.setViewportSize({ width:1920, height:1080 });
+// ---- five tasks started this shift: the stack is three deep and scrolls ----
+await page.evaluate(() => {
+  const now = Date.now();
+  S.shift.segs.push(
+    { task: "Proof the newsletter", itemId: "r4", client: "Store Delta",
+      startedAt: now - 40 * 60000, endedAt: now - 30 * 60000 },
+    { task: "Update the price list", itemId: "r5", client: "Studio North",
+      startedAt: now - 30 * 60000, endedAt: now - 20 * 60000 });
+  assignedTasksSeen = new Set(["r1", "r2", "r3"]);
+  render();
+});
+await page.waitForTimeout(600);
+// the stack springs down to the newest card; a headless container runs
+// that spring at a fraction of a real frame rate, so the photograph is of
+// where it lands rather than of wherever it had got to
+await page.evaluate(() => { stPos = stTarget; stLayout(); });
+await shoot("next-started-five");
+if (process.env.SHOTS_METRICS){
+  console.log(await page.evaluate(() => {
+    const r = sel => { const el = document.querySelector(sel); if (!el) return sel + ": none";
+      const b = el.getBoundingClientRect(); return sel + ": " + Math.round(b.left) + "," + Math.round(b.top) + " " + Math.round(b.width) + "x" + Math.round(b.height); };
+    const cs = (sel, prop) => sel + " " + prop + ": " + getComputedStyle(document.querySelector(sel))[prop];
+    return [".clock", ".dock", ".pickup", ".pu-row", ".pu-chip", ".dock .btn", ".started", ".st-stage", ".shiftbar", ".band", ".clock-label"].map(r)
+      .concat([cs(".app.panes", "gridTemplateColumns"), "stack pos/target/raf: " + stPos + " / " + stTarget + " / " + stRaf]).join("\n");
+  }));
+}
 
 // ---- the same shift, close on the dock: the paused chips are the point ----
 await page.evaluate(() => {

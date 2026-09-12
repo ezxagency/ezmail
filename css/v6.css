@@ -119,6 +119,37 @@ body.ui-next .dock .btn{
   body.ui-next .app.panes .adeck{display:flex;flex-direction:column;flex:1;min-height:0}
 }
 
+/* ---------- the started stack's column ----------
+   Only when the window can afford one: rail 116 + a hero that still fits
+   two 232px rings (660) + the stack (304) + the deck (520) = 1600. Below
+   that the stack stays hidden and the hero keeps the whole middle. The
+   column is reserved whether or not anything is started, so the rings do
+   not jump left the first time somebody presses Start task. */
+@media (min-width:1600px){
+  body.ui-next .app.panes,
+  body.ui-next .app.panes.has-tasks,
+  body.ui-next .app.panes.has-team{
+    grid-template-columns:minmax(0,1fr) clamp(300px, 19vw, 372px) clamp(520px, 32.3%, 620px);
+    grid-template-areas:
+      "band     band     side"
+      "clock    started  side"
+      "dock     started  side"
+      "shiftbar shiftbar side";
+  }
+  /* responsive.css caps the hero and the dock at 73.75% of their track,
+     which kept them from sprawling across the old 1184px middle. The stack
+     now does that job, and in a track this narrow the cap wrapped the
+     paused chips onto two rows - which pushed the ring labels under the
+     button. The bar keeps it: it spans both columns. */
+  body.ui-next .app.panes .clock,
+  body.ui-next .app.panes .dock{max-width:none}
+  body.ui-next .app.panes .started{
+    grid-area:started;
+    display:flex;flex-direction:column;justify-content:center;
+    min-height:0;padding:0 40px 0 0;
+  }
+}
+
 /* the rail is the first column at every size the redesign draws */
 @media (min-width:1024px){
   body.ui-next .admin-page{left:116px}

@@ -336,6 +336,21 @@ a tween and the element is always a beat behind.
 thirty-card deck: the loop must stop within a few frames at rest,
 restart on a move, settle, and leave only the visible cards painted.
 
+**A redraw kept the memory of a stack it had thrown away.** Pressing
+Start task writes the shift, `render()` rebuilds the deck, and the
+rebuilt cards came up as blurred glass with no front card at all. The
+cards were new; `dkSettled` was not - it still said "index 1 is
+settled", and `dkLayout` only marks a card as front when that number
+CHANGES. A redraw onto the same index therefore marked nothing. The test
+harness had hidden it for weeks: its `front()` helper fell back to the
+first `.dk-card` when no card was marked, so every assertion passed on a
+deck with no front.
+*Rule:* state that describes the DOM is reset when the DOM is rebuilt.
+And a test helper must not paper over the absence of the thing it is
+there to find - a fallback in a helper is an assertion that never runs.
+*Guard:* `dkRender` resets `dkSettled`; `tests/deck.test.mjs` finds the
+front card strictly and proves a redraw onto the same index marks it.
+
 ### Cuts
 
 **Campaigns was cut, not migrated (2026-09-09).**

@@ -102,7 +102,10 @@ vm.runInContext(`function render(){}`, ctx);
 const run = expr => vm.runInContext(expr, ctx);
 const deck = () => dom.window.document.getElementById("assignedDeck");
 const draw = js => { run(js); return deck().innerHTML; };
-const front = () => deck().querySelector(".dk-card.is-front") || deck().querySelector(".dk-card");
+/* Strict on purpose. This used to fall back to the first .dk-card, which
+   is how a rebuild that marked NO card as front passed every test here
+   while the real screen showed blurred glass. */
+const front = () => deck().querySelector(".dk-card.is-front");
 const rowJs = (extra) => `dkReset(); S.status = "IDLE"; S.shift = null; dkRender([Object.assign(
   { id:"r1", task:"Write the spring launch email", store:"Store Epsilon", fromName:"Sandy" }, ${extra || "{}"})]);`;
 
@@ -282,6 +285,21 @@ T("Start task while on a break ends the break and starts the work", () => {
   assert.equal(run(`S.status`), "ACTIVE");
   assert.equal(run(`openBreak(S.shift) ? 1 : 0`), 0, "the break was left open");
   assert.equal(run(`clkOpenItemId(S.shift)`), "r3");
+});
+
+/* Pressing Start task redraws the deck onto the SAME index, and the redraw
+   marked nothing as front - dkSettled still said that index was settled -
+   so the front card came up blurred and translucent. */
+T("a redraw onto the same card marks it front again", () => {
+  run(`dkReset(); S.status="IDLE"; S.shift=null;
+       dkRender([{ id:"a", task:"One" }, { id:"b", task:"Two" }, { id:"c", task:"Three" }]);
+       dkTo(1);`);
+  assert.equal(deck().querySelectorAll(".dk-card.is-front").length, 1);
+  run(`dkRefresh();`);
+  const fronts = deck().querySelectorAll(".dk-card.is-front");
+  assert.equal(fronts.length, 1, "the rebuilt deck has " + fronts.length + " front cards");
+  assert.equal(fronts[0].dataset.n, "1", "the front moved");
+  assert.equal(deck().querySelectorAll(".dk-dots i.on").length, 1, "the dot went out");
 });
 
 /* The bug this exists for: Start task writes the SHIFT and never touches

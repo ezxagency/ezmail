@@ -53,6 +53,7 @@ js/   classic scripts sharing one global scope; loaded in order
   deck.js           the assigned deck: dkPick() pure, the stack and its physics
   week.js           this week's hours, seven day bars, the streak (from S.history)
   hero.js           the last real work this person did, as chips
+  started.js        this shift's started tasks as landscape cards: stPlan() pure, the stack scrolls
   rail.js           the icon rail, built from the drawer's own items
   ui.js             sheet + toast + chip primitives
   shift.js          clock-in/switch/pause/out flows, reports, Excel export
