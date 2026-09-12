@@ -318,6 +318,24 @@ neighbours. Relative scaling is for comparing categories, not for hours.
 sliver and a ten-hour day tops out at full, and the jsdom half measures
 the drawn height of a one-hour bar.
 
+**Thirty cards stuttered where three did not.** The deck's spring never
+stopped asking for animation frames, so every card was restyled sixty
+times a second all day, moving nothing. And a card two back sits at
+opacity 0 - nothing of it to see - but it was still a full-size glass
+pane with a backdrop blur, a 3D transform and a 60px shadow that the
+browser composited on every one of those frames. Three cards hid it;
+a real week's worth of work did not. The front card, 97.5% opaque,
+carried a backdrop blur too, which made the browser render everything
+behind it into a texture first for a difference nobody could see.
+*Rule:* an animation loop runs while something MOVES and stops when it
+is at rest. Anything at opacity 0 is `visibility:hidden` as well, so it
+leaves the compositor rather than costing a layer. A property the frame
+loop writes must not also carry a CSS transition, or every write re-aims
+a tween and the element is always a beat behind.
+*Guard:* `tests/deck.test.mjs` steps a faked frame scheduler over a
+thirty-card deck: the loop must stop within a few frames at rest,
+restart on a move, settle, and leave only the visible cards painted.
+
 ### Cuts
 
 **Campaigns was cut, not migrated (2026-09-09).**

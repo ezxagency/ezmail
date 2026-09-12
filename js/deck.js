@@ -202,6 +202,7 @@ const DK_DEPTH = 210;    // how far back each neighbour sits
 
 let dkId = null, dkIdx = 0, dkRows = [], dkBound = false;
 let dkPos = 0, dkVel = 0, dkTarget = 0, dkDragging = false, dkSettled = -1, dkRaf = 0;
+let dkW = 0;             // the front card's width, measured once per draw
 
 function dkSubtitle(rows){
   const today = todayISO();
@@ -276,6 +277,7 @@ function dkRender(rows){
   });
 
   dkBind(host);
+  dkW = 0;
   dkLayout();
   dkStartTicking();
   // the chips under the dock are this shift's paused tasks narrowed to the
@@ -297,11 +299,17 @@ function dkRefresh(){
    asks for them. Somewhere without rAF - jsdom, a test - still gets a laid
    out deck from the dkLayout() above; it simply does not animate. Silently
    doing nothing would have made every deck assertion pass on an empty
-   stage. */
+   stage.
+
+   The loop STOPS once the deck is at rest and starts again on the next
+   thing that moves it. It used to run forever, restyling every card on
+   every frame of the day - thirty transforms a frame to move nothing -
+   and every frame the stack was moving competed with that. */
 function dkStartTicking(){
   if (dkRaf || typeof requestAnimationFrame !== "function") return;
   dkRaf = requestAnimationFrame(dkTick);
 }
+const dkAtRest = () => !dkDragging && dkVel === 0 && dkPos === dkTarget;
 
 /* One transform per card, from a FRACTIONAL position - which is what lets a
    drag land between two cards and settle rather than snapping. */
@@ -312,10 +320,23 @@ function dkLayout(){
   // it: it has no position in a deck of nothing
   const cards = [...stage.querySelectorAll(".dk-card:not(.dk-card-empty)")];
   if (!cards.length) return;
-  const w = cards[0].offsetWidth || 470;
+  if (!dkW) dkW = cards[0].offsetWidth || 470;
+  const w = dkW;
 
   cards.forEach((c, n) => {
     const o = n - dkPos, a = Math.abs(o), dir = o < 0 ? -1 : 1;
+    /* A card more than two back is at opacity 0 - there is nothing of it
+       to see - but it was still a full-size glass pane the browser had to
+       blur, shadow and composite thirty times over on every frame. Hidden,
+       it costs nothing; and once hidden it is left alone until it comes
+       back into range, so a deck of thirty moves like a deck of three. */
+    const op = Math.max(0, 1 - a * 0.52);
+    const off = op <= 0;
+    if (off){
+      if (!c.classList.contains("is-off")) c.classList.add("is-off");
+      return;
+    }
+    c.classList.remove("is-off");
     const x = dir * (1 - Math.pow(0.72, a)) / 0.28 * (w * DK_STEP);
     const rot = -Math.max(-2.4, Math.min(2.4, o)) * DK_TILT;
     const z = -Math.min(a, 3) * DK_DEPTH;
@@ -325,7 +346,7 @@ function dkLayout(){
     // 0.34 left a neighbour at 66%, and the sliver that clears the front
     // card is its MIDDLE, not its edge - so words from the next task read
     // beside the one you are on. Depth is the signal; text is not.
-    c.style.opacity = a > 3.2 ? "0" : String(Math.max(0, 1 - a * 0.52));
+    c.style.opacity = String(op);
     c.style.zIndex = String(100 - Math.round(a * 10));
     c.style.pointerEvents = a < 0.5 ? "auto" : "none";
   });
@@ -350,6 +371,7 @@ function dkTick(){
       dkPos += dkVel; dkVel *= 0.90;
       dkTarget = Math.max(0, Math.min(dkRows.length - 1, Math.round(dkPos + dkVel * 6)));
     } else {
+      dkVel = 0;
       dkPos += (dkTarget - dkPos) * 0.16;
       if (Math.abs(dkTarget - dkPos) < 0.0009) dkPos = dkTarget;
     }
@@ -358,6 +380,7 @@ function dkTick(){
     if (dkPos > dkRows.length - 1 + 0.32){ dkPos = dkRows.length - 1 + 0.32; dkVel = 0; }
   }
   dkLayout();
+  if (dkAtRest()) { dkRaf = 0; return; }
   dkRaf = requestAnimationFrame(dkTick);
 }
 
@@ -383,6 +406,7 @@ function dkBind(host){
     dkStartX = dkLastX = e.clientX; dkStartPos = dkPos; dkLastT = e.timeStamp;
     host.classList.add("is-drag");
     try { host.setPointerCapture(e.pointerId); } catch (err) {}
+    dkStartTicking();
   });
   host.addEventListener("pointermove", e => {
     if (!dkDragging) return;
@@ -403,6 +427,7 @@ function dkBind(host){
     host.classList.remove("is-drag");
     dkVel = Math.max(-0.25, Math.min(0.25, dkVel));
     dkTarget = Math.max(0, Math.min(dkRows.length - 1, Math.round(dkPos + dkVel * 6)));
+    dkStartTicking();
   };
   host.addEventListener("pointerup", release);
   host.addEventListener("pointercancel", release);
@@ -425,6 +450,10 @@ function dkBind(host){
     dkGo(dir);
   }, { passive: false });
 
+  if (typeof window !== "undefined" && window.addEventListener){
+    window.addEventListener("resize", () => { dkW = 0; dkLayout(); });
+  }
+
   host.addEventListener("keydown", e => {
     if (e.key === "ArrowRight"){ dkGo(1); e.preventDefault(); }
     if (e.key === "ArrowLeft"){ dkGo(-1); e.preventDefault(); }
@@ -434,7 +463,7 @@ function dkBind(host){
 /* A fresh sign-in must not inherit the last person's place in the deck. */
 function dkReset(){
   dkId = null; dkIdx = 0; dkRows = [];
-  dkPos = 0; dkVel = 0; dkTarget = 0; dkSettled = -1;
+  dkPos = 0; dkVel = 0; dkTarget = 0; dkSettled = -1; dkW = 0;
 }
 
 if (typeof module !== "undefined" && module.exports){

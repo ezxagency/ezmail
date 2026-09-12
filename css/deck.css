@@ -58,13 +58,24 @@
      middle of the front card's brief. */
   transform-style:flat;will-change:transform,opacity;
   box-shadow:0 26px 60px rgba(0,0,0,.42);
-  transition:opacity .34s var(--pz-ease), border-color .34s ease;
+  /* border-color only. Opacity is written by the spring on every frame,
+     and a transition on it meant each write re-aimed a 340ms tween: the
+     card was always a third of a second behind where the spring put it. */
+  transition:border-color .34s ease;
 }
+/* Out of range - opacity 0 - is out of the compositor altogether. A card
+   at opacity 0 still cost a full-size layer, a backdrop blur and a shadow
+   every frame; thirty of them is why a long deck stuttered. */
+.dk-card.is-off{visibility:hidden}
 .dk-card.is-front{
   border-color:rgba(255,255,255,.32);
   /* the comp names this layer "Full Opacity" and means it: at 90% the
      card behind still read through the brief */
   background:rgba(44,40,36,.975);
+  /* at 97.5% opaque a backdrop blur changes nothing you can see and still
+     makes the browser render everything behind the card into a texture
+     first, every frame the stack moves */
+  backdrop-filter:none;-webkit-backdrop-filter:none;
 }
 /* Blurred out of legibility for the same reason: the stage is only wide
    enough to show ~55px of a neighbour, and 55px of a sentence looks like

@@ -314,5 +314,38 @@ T("an orphan cannot be started, because nothing can be done with it", () => {
   assert.equal(run(`S.shift.segs.length`), before, "a segment was opened for unreachable work");
 });
 
+/* Thirty tasks stuttered where three did not. The spring never stopped
+   asking for frames, so every card was restyled sixty times a second all
+   day - and a card two back, at opacity 0, was still a full-size glass
+   pane the browser blurred, shadowed and composited on each of them. The
+   deck must ask for frames only while it MOVES, and paint only what can
+   be seen. Frames are faked here so the loop can be stepped by hand. */
+T("the spring stops when the deck is at rest, and only the visible cards are painted", () => {
+  run(`var __q = []; requestAnimationFrame = cb => { __q.push(cb); return __q.length; };
+       function __frame(){ const q = __q.splice(0); q.forEach(cb => cb(16)); return q.length; }
+       dkReset(); S.status = "IDLE"; S.shift = null;
+       dkRender(Array.from({ length: 30 }, (_, i) => ({ id: "r" + i, task: "Task " + i, store: "Alpha" })));`);
+  let frames = 0;
+  while (run(`__frame()`) && frames < 200) frames++;
+  assert.ok(frames < 5, "at rest the loop kept running: " + frames + " frames");
+  assert.equal(run(`dkRaf`), 0, "still holding a frame request while nothing moves");
+  const shown = () => [...deck().querySelectorAll(".dk-card")]
+    .filter(c => !c.classList.contains("is-off")).map(c => Number(c.dataset.n));
+  assert.deepEqual(shown(), [0, 1], "cards nobody can see are still being painted");
+
+  run(`dkTo(15)`);
+  assert.notEqual(run(`dkRaf`), 0, "moving the deck did not restart the frames");
+  frames = 0;
+  while (run(`__frame()`) && frames < 400) frames++;
+  assert.ok(frames > 5 && frames < 400, "the spring settled in " + frames + " frames");
+  assert.equal(run(`dkPos`), 15, "did not land on the card it was sent to");
+  assert.equal(run(`dkRaf`), 0, "still ticking after settling");
+  assert.deepEqual(shown(), [14, 15, 16]);
+  assert.ok(deck().querySelector('.dk-card[data-n="15"]').classList.contains("is-front"));
+  assert.ok(deck().querySelector('.dk-card[data-n="0"]').style.opacity === "" ||
+    deck().querySelector('.dk-card[data-n="0"]').classList.contains("is-off"));
+  run(`delete globalThis.requestAnimationFrame;`);
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

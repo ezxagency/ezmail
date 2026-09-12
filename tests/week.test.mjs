@@ -135,7 +135,10 @@ const run = expr => vm.runInContext(expr, ctx);
 const row = () => dom.window.document.getElementById("weekRow");
 
 T("seven bars are drawn, today is marked, and the total is stated", () => {
-  run(`S.history = [{ startedAt: Date.now() - 3600000, endedAt: Date.now(), netMs: 3600000 }];
+  // one hour starting in today's first minute: "an hour ago" is yesterday
+  // for anyone running this just after midnight
+  run(`const __d = new Date(); __d.setHours(0, 1, 0, 0);
+       S.history = [{ startedAt: __d.getTime(), endedAt: __d.getTime() + 3600000, netMs: 3600000 }];
        S.shift = null; wrRender($("weekRow"));`);
   assert.equal(row().querySelectorAll(".wrow-day").length, 7);
   assert.equal(row().querySelectorAll(".wrow-day.is-today").length, 1);
