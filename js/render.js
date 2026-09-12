@@ -34,6 +34,9 @@ function render(){
   // the card's own state - Running, Paused, Start task vs Put down - is
   // read off the shift, and the shift just changed
   if (uiNextOn()) dkRefresh();
+  // the started stack is this shift's segments grouped by task, and the
+  // shift just changed
+  if (uiNextOn() && typeof stRender === "function") stRender();
   renderPunches();
   if (uiNextOn()) wrRefresh();
   updateDrawerIdentity();
@@ -151,6 +154,7 @@ function tick(){
   // the week row carries the open shift's hours, so it has to move with
   // them - once a minute, which is the only rate at which it changes
   if (uiNextOn()) wrTick();
+  if (uiNextOn() && typeof stTick === "function") stTick();
   pomoTick();
   if (S.status === "IDLE"){
     setRingTime("shiftClock", 0);

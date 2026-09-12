@@ -278,11 +278,19 @@ function dkRender(rows){
 
   dkBind(host);
   dkW = 0;
+  /* The cards were just rebuilt, and none of them is marked front. dkSettled
+     remembers which index WAS, and dkLayout only marks a card when that
+     number changes - so a redraw onto the same index marked nothing, and
+     the front card came up as blurred glass. Pressing Start task is such a
+     redraw: it writes the shift, and render() rebuilds the deck. */
+  dkSettled = -1;
   dkLayout();
   dkStartTicking();
   // the chips under the dock are this shift's paused tasks narrowed to the
   // work still on the deck, so a change here changes them too
   if (typeof hrRefresh === "function") hrRefresh();
+  // and the started stack reads the deck to tell Paused from Finished
+  if (typeof stRender === "function") stRender();
 }
 
 /* The deck is drawn from a SNAPSHOT of the assignments, but the card also

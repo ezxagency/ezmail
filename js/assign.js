@@ -706,6 +706,7 @@ function watchAssignedTasksFromAssignments(){
     $("appScreen").classList.remove("has-tasks");
     list.innerHTML = "";
     dkReset();
+    if (typeof stReset === "function") stReset();
   });
 }
 
