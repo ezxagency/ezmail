@@ -50,6 +50,7 @@ js/   classic scripts sharing one global scope; loaded in order
   packs.js          an industry as data: 8 starter packs + their validator (pure)
   handoff.js        a linear track compiled to a real blueprint (pure)
   flow.js           the Flow builder page: one kind of work as one picture
+  rating.js         reviewed quality: three scores per handed-over task, the board (pure)
   work.js           the Work page: every control generated from the ItemType
   org.js            the Organization page: tenancy, the roster, the roles editor
   render.js         dashboard render loop, rings, per-second tick

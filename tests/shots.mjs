@@ -341,7 +341,25 @@ await page.evaluate(() => {
       { uid: "u3", name: "Ada", status: "done", task: "Embed", store: "Studio North", netMs: 6 * H, doc: {} }
     ],
     gaps: [{ type: "Email campaign", at: 2, label: "Design review", roleId: "designer" }],
-    errors: {} });
+    errors: {},
+    // the board: three people, one ranked, one building, one with nothing yet
+    members: [{ uid: "u1", name: "Prashanna", roleId: "owner" }, { uid: "u2", name: "Sandy", roleId: "manager" }, { uid: "u3", name: "Ada", roleId: "staff" }, { uid: "u4", name: "Bo", roleId: "staff" }],
+    roles: [{ id: "owner", name: "Owner" }, { id: "manager", name: "Manager" }, { id: "staff", name: "Staff" }],
+    types: [{ id: "t", statuses: [{ key: "open" }, { key: "done" }] }],
+    reviews: (function(){
+      const DAY = 86400000, ym = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+      const mk = (about, score, daysAgo, extra) => Object.assign({ aboutUid: about, byUid: "u2", score, at: now - daysAgo * DAY, month: ym(new Date(now - daysAgo * DAY)),
+        firstPass: true, revisions: 0, onTime: true, title: "Spring launch email", stepLabel: "Copy", scores: { quality: 5, brief: 4, handoff: 5 } }, extra || {});
+      const out = [];
+      for (let i = 0; i < 9; i++) out.push(mk("u3", 4.6, i + 1, { onTime: i !== 4 }));
+      for (let i = 0; i < 4; i++) out.push(mk("u3", 3.9, 35 + i));
+      for (let i = 0; i < 5; i++) out.push(mk("u4", 4.1, i + 2, { firstPass: i % 2 === 0, revisions: i % 2 }));
+      for (let i = 0; i < 3; i++) out.push(mk("u4", 3.2, 33 + i));
+      for (let i = 0; i < 9; i++) out.push(mk("u2", 4.2, i + 3));
+      return out;
+    })(),
+    items: [{ typeId: "t", status: "open", assigneeIds: ["u3"] }, { typeId: "t", status: "open", assigneeIds: ["u3"] }, { typeId: "t", status: "open", assigneeIds: ["u2"], handoff: { stop: { rates: true }, done: false } },
+            { typeId: "t", status: "open", assigneeIds: ["u4"] }, { typeId: "t", status: "done", assigneeIds: ["u4"] }] });
   try { localStorage.removeItem("ez-adminmode-v1:u1"); } catch (e) {}
   amApply();
 });

@@ -268,6 +268,16 @@ T("ticking 'at the same time' groups the step with the one before, drawn as one 
   assert.equal(doc.querySelector('.fl-step[data-i="0"] .fl-together-in'), null, "the first step has nothing to run alongside");
 });
 
+T("a step can be told to rate the work it receives; the first step cannot", () => {
+  const second = () => doc.querySelector('.fl-step[data-i="1"]');
+  assert.equal(doc.querySelector('.fl-step[data-i="0"] .fl-rates-in'), null, "a first step receives nothing to rate");
+  const rt = second().querySelector(".fl-rates-in");
+  assert.ok(rt, "no rates switch on the second step");
+  rt.checked = true; rt.onchange({ target: rt });
+  assert.equal(run("flS.draft[1].rates"), true);
+  assert.match(second().querySelector(".fl-after > summary").textContent, /rates/);
+});
+
 T("the third ready-made shape is the approve-or-send-back loop", () => {
   run(`flS.draft = []; flPaintCanvas();`);
   const starts = [...doc.querySelectorAll(".fl-start-btn")].map(b => b.textContent);
@@ -278,6 +288,7 @@ T("the third ready-made shape is the approve-or-send-back loop", () => {
   assert.deepEqual(d.map(s => s.label), ["Do the work", "Check it"]);
   assert.deepEqual(d[1].choices, ["Approve", "Send back"]);
   assert.equal(d[1].routes[0].to, d[0].id);
+  assert.equal(d[1].rates, true, "a checker rates what they check");
   run(ORG);
 });
 

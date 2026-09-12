@@ -390,6 +390,8 @@ async function wkPaintHandoff(item, type){
             // the note written when the stop was passed on - recorded on
             // the run since the first build, shown to nobody until now
             (t.output && t.output.choice ? '<em class="wk-leg-choice">' + esc(t.output.choice) + '</em>' : "") +
+            (t.output && t.output.review && t.output.review.scores && typeof rtScore === "function" && rtScore(t.output.review.scores) != null
+              ? '<em class="wk-leg-choice wk-leg-rated">rated the step before ' + esc(rtFmt(rtScore(t.output.review.scores))) + ' / 5</em>' : "") +
             (t.output && t.output.comment ? '<em class="wk-leg-note">\u201c' + esc(t.output.comment) + '\u201d</em>' : "") +
           '</span>' +
         '</div>').join("") + '</div>'
@@ -401,25 +403,39 @@ async function wkPaintHandoff(item, type){
   const actNode = acting ? ((h.blueprint && h.blueprint.nodes) || []).find(x => x.id === acting.nodeId) : null;
   const choices = (actNode && actNode.config && actNode.config.choices) || [];
   const canAct = !!(mine || (owner && stops.length && !stalled));
+  // the work this stop received: the last finished step, by somebody else
+  const lastLeg = trail.filter(t => t.status === "completed").slice(-1)[0] || null;
+  const rates = !!(canAct && actNode && actNode.config && actNode.config.rates && lastLeg && lastLeg.by && lastLeg.by !== uid && typeof rtFormHTML === "function");
   box.innerHTML = head + dueLine + trailHtml +
     (canAct && choices.length
       ? '<p class="org-sub">What happens next</p><div class="org-chips wk-choices">' + choices.map(c =>
           '<button type="button" class="org-chip wk-choice" data-choice="' + esc(c) + '">' + esc(c) + '</button>').join("") + '</div>'
       : "") +
+    (rates ? rtFormHTML(orgPersonName(lastLeg.by)) : "") +
     (canAct
-      ? '<div class="org-actions"><button type="button" class="org-btn" id="wkAdvance"' + (choices.length ? " disabled" : "") + '>' +
-        (choices.length ? "Pick one above" : mine ? "Mark this done" : "Move it on (override)") + '</button></div>'
+      ? '<div class="org-actions"><button type="button" class="org-btn" id="wkAdvance"' + (choices.length || rates ? " disabled" : "") + '>' +
+        (choices.length ? "Pick one above" : rates ? "Rate it first" : mine ? "Mark this done" : "Move it on (override)") + '</button></div>'
       : "");
 
-  let picked = null;
+  let picked = null, scores = null;
+  const ready = () => { const b = $("wkAdvance"); if (b) b.disabled = (choices.length && !picked) || (rates && !scores); };
   box.querySelectorAll(".wk-choice").forEach(b => b.onclick = () => {
     picked = b.dataset.choice;
     box.querySelectorAll(".wk-choice").forEach(x => x.classList.toggle("is-on", x === b));
-    $("wkAdvance").disabled = false;
     $("wkAdvance").textContent = picked + (mine ? "" : " (override)");
+    ready();
   });
-  if ($("wkAdvance")) $("wkAdvance").onclick = () =>
-    wkAdvance(item, type, acting.id, $("wkAdvance"), picked ? { choice: picked } : {});
+  if (rates) rtFormBind(box.querySelector(".rt-form"), sc => { scores = sc; if (!choices.length) $("wkAdvance").textContent = mine ? "Mark this done" : "Move it on (override)"; ready(); });
+  if ($("wkAdvance")) $("wkAdvance").onclick = () => {
+    const out = {};
+    if (picked) out.choice = picked;
+    if (rates && scores) {
+      // sent back or not is what the choice says, when the step has one
+      const c = picked && choices.length ? (item.handoff && item.handoff.stop && (item.handoff.stop.choices || []).find(x => x.value === picked)) : null;
+      out.review = { scores, sentBack: !!(c && c.back) };
+    }
+    wkAdvance(item, type, acting.id, $("wkAdvance"), out);
+  };
 }
 
 async function wkAdvance(item, type, nodeRunId, btn, output){

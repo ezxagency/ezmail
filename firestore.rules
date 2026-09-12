@@ -274,6 +274,25 @@ service cloud.firestore {
         allow create, update, delete: if isOrgOwner(orgId);
       }
 
+      /* ---- Reviews (js/rating.js) ----
+         One rating per deliverable, written by the person who received
+         the work when they finish their own step. Two things the rules
+         hold that the screen also holds, because a screen is not a
+         gate: a review is written in the reviewer's own name, and nobody
+         rates themselves. Everyone in the org reads them - a person sees
+         their own feedback, and the board is drawn from them. Only an
+         owner deletes one, because a deleted review is a changed score. */
+      match /reviews/{reviewId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update: if isOrgMember(orgId)
+          && request.resource.data.byUid == request.auth.uid
+          && request.resource.data.aboutUid is string
+          && request.resource.data.aboutUid != request.auth.uid
+          && request.resource.data.score is number
+          && request.resource.data.at is int;
+        allow delete: if isOrgOwner(orgId);
+      }
+
       // The log. Append-only, forever - not even an owner rewrites what
       // happened, which is the entire reason it can be trusted as an
       // audit trail and as the trigger surface automations read.

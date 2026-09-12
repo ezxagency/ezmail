@@ -229,6 +229,21 @@ await T("non-owner: delete a run DENIED (history is not a member's to erase)", a
 await T("a stranger reaches none of it", assertFails(getDoc(doc(stranger, "orgs/orgA/runs/run1"))));
 await T("Ez Agency's admin cannot read the member's org", assertFails(getDoc(doc(admin, "orgs/orgM"))));
 
+// ================= REVIEWS: one rating per deliverable, in the reviewer's name =================
+const review = (by, about) => ({ orgId: "orgA", itemId: "it1", runId: "run1", nodeId: "s0", typeId: "brief", title: "Brief #1", stepLabel: "Write",
+  aboutUid: about, byUid: by, scores: { quality: 4, brief: 5, handoff: 4 }, score: 4.3, choice: "Approve", sentBack: false,
+  attempt: 1, revisions: 0, firstPass: true, onTime: null, at: 5, month: "2026-09", history: [] });
+await T("member: rates the work another member handed them", assertSucceeds(setDoc(doc(worker, "orgs/orgA/reviews/run1:s0"), review("worker1", "worker2"))));
+await T("member: rates their OWN work DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/run1:s1"), review("worker1", "worker1"))));
+await T("member: a review in somebody else's name DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/run1:s2"), review("admin1", "worker2"))));
+await T("member: a review with no score DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/run1:s3"), Object.assign(review("worker1", "worker2"), { score: "4" }))));
+await T("member: a second look replaces the rating (same document)", assertSucceeds(setDoc(doc(worker, "orgs/orgA/reviews/run1:s0"), Object.assign(review("worker1", "worker2"), { score: 3.7, attempt: 2, revisions: 1, firstPass: false }))));
+await T("member: reads the org's reviews (their own feedback, the board)", assertSucceeds(getDoc(doc(worker, "orgs/orgA/reviews/run1:s0"))));
+await T("another org cannot read this org's reviews", assertFails(getDoc(doc(member, "orgs/orgA/reviews/run1:s0"))));
+await T("a stranger reaches no review", assertFails(getDoc(doc(stranger, "orgs/orgA/reviews/run1:s0"))));
+await T("non-owner: delete a review DENIED (a deleted review is a changed score)", assertFails(deleteDoc(doc(worker, "orgs/orgA/reviews/run1:s0"))));
+await T("owner: deletes a review", assertSucceeds(deleteDoc(doc(admin, "orgs/orgA/reviews/run1:s0"))));
+
 // ================= THE DIRECTORY IS TENANT-SCOPED =================
 // It holds names and emails. "Every signed-in account may read it" was
 // true enough while everyone with an account worked here; the founder

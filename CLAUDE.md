@@ -339,6 +339,35 @@ the page on screen. `flS` is the page's state (`draft`, `dirty`, `drag`);
 half. Owner-only for changes, like the sheets it fronts; anyone through
 the door sees the picture. `tests/builder.test.mjs` drives it in jsdom.
 
+Tenth piece: **reviewed quality**, `js/rating.js` (pure) + the "Team
+quality" panel on the admin home (`amQualityHTML()` in `js/admin.js`).
+A step marked `rates` (the builder's "Rates the work it receives"
+switch; the approve-or-send-back shape sets it) asks the person
+finishing it for three scores, 1 to 5, about the step that handed the
+work over: execution quality, brief accuracy, handoff readiness. The
+finish sheet on the deck and the Work page draw the same form
+(`rtFormHTML()` / `rtFormBind()`) and stay disabled until all three are
+picked; the scores ride in the stop's output beside the note and the
+choice, and `itemsRecordReview()` then writes ONE document per
+deliverable to `orgs/{orgId}/reviews/{runId}:{nodeId}` - a second look
+after Send back replaces the rating and keeps the old one in `history`,
+so a revision is one rating with `revisions` beside it, never two. The
+math is stated in one place: a task is quality × .5 + brief × .3 +
+handoff × .2 out of 5, a person is the mean of their tasks, full
+precision inside and two places on screen (`rtScore`, `rtBoard`).
+`firstPass` is a first attempt not sent back; `onTime` compares the
+reviewed step's finish with its own deadline and is null, never false,
+when it had none. Nobody is ranked under `RT_MIN_REVIEWS` (8) - the row
+says "Building data · 3 of 8" - and every percentage carries its count.
+The rules hold what the screen holds: a review is written in the
+reviewer's own name and never about themselves; every member reads
+them (their own feedback, and the board); only an owner deletes one.
+The board reads the org's reviews and its recently touched work in
+`amCollect()`, and a read that fails says "could not reach". Pressing a
+row opens the tasks behind the number. `tests/rating.test.mjs` pins
+the math; `tests/flow.test.mjs` proves the write, the replacement and
+the history; `tests/admin.test.mjs` draws the panel.
+
 **A track can branch, and it is still the engine's own blueprint.** A
 stop may carry `choices` (what the person picks when they finish -
 Approve / Send back), `routes` (`[{ when, to }]`, first match wins:

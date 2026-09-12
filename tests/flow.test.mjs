@@ -40,7 +40,7 @@ const AUTH = { currentUser: { uid: "owner1", email: "owner@x.com" } };
 ctx.console = console;
 ctx.firebase = { initializeApp(){}, auth(){ return AUTH; }, firestore(){ return db; } };
 
-["js/config.js", "js/permissions.js", "js/item-engine.js", "js/migrate.js",
+["js/config.js", "js/rating.js", "js/permissions.js", "js/item-engine.js", "js/migrate.js",
  "js/items.js", "js/workflow-engine.js", "js/automation.js", "js/handoff.js",
  "js/packs.js", "js/notify.js", "js/org.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
@@ -615,7 +615,7 @@ await T("a track with an approve-or-send-back step saves as a blueprint the engi
     return await orgTrackCommit(t, [
       { id: "w", label: "Write it", roleId: "staff" },
       { id: "c", label: "Check it", roleId: "lead", status: "review", choices: ["Approve", "Send back"],
-        routes: [{ when: { kind: "choice", value: "Send back" }, to: "w" }] }
+        routes: [{ when: { kind: "choice", value: "Send back" }, to: "w" }], rates: true }
     ]);`);
   assert.ok(r.ok, JSON.stringify(r));
   const t = await get("orgs/" + ORG + "/itemTypes/brief");
@@ -651,10 +651,22 @@ await T("Send back returns the work to the writer, with the decision on the card
   assert.equal(f.ok, false);
   assert.equal(f.error, "needs-choice", JSON.stringify(f));
 
-  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "Too long, cut it", { choice: "Send back" });`);
+  assert.equal(h.stop.rates, true, "the card does not know this step rates");
+  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "Too long, cut it",
+    { choice: "Send back", review: { scores: { quality: 2, brief: 3, handoff: 2 }, sentBack: true } });`);
   assert.ok(f.ok, JSON.stringify(f));
   item = await get("orgs/" + ORG + "/items/" + briefId);
   assert.deepEqual(plain(item.assigneeIds), ["staff1"], "Send back did not return it to the writer");
+  // the rating landed, about the writer, in the checker's name
+  const rev = await get("orgs/" + ORG + "/reviews/" + item.workflowRunId + ":s0");
+  assert.ok(rev, "no review was written");
+  assert.equal(rev.aboutUid, "staff1"); assert.equal(rev.byUid, "lead1");
+  assert.equal(Math.round(rev.score * 100) / 100, 2.3);
+  assert.equal(rev.firstPass, false, "a send-back is not a first pass");
+  assert.equal(rev.attempt, 1); assert.equal(rev.revisions, 0);
+  assert.equal(rev.onTime, null, "no deadline means no on-time verdict");
+  assert.equal(rev.choice, "Send back");
+  assert.deepEqual(plain(rev.history), []);
   assert.equal(plain(item.handoff).from.choice, "Send back", "the decision is not on the card");
   assert.equal(plain(item.handoff).from.note, "Too long, cut it");
   assert.equal(plain(item.handoff).stop.index, 1);
@@ -667,10 +679,22 @@ await T("Approve carries it on, and the second time round finishes it", async ()
   assert.ok(f.ok, JSON.stringify(f));
   AUTH.currentUser = { uid: "lead1", email: "l@x.com" };
   run(`orgInvalidate();`);
-  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "", { choice: "Approve" });`);
+  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "",
+    { choice: "Approve", review: { scores: { quality: 4, brief: 5, handoff: 4 }, sentBack: false } });`);
   assert.ok(f.ok, JSON.stringify(f));
   const item = await get("orgs/" + ORG + "/items/" + briefId);
   assert.equal(item.status, "done", "approved work did not finish");
+  // ONE rating per deliverable: the second look replaced the first and kept it in history
+  const rev = await get("orgs/" + ORG + "/reviews/" + item.workflowRunId + ":s0");
+  assert.equal(Math.round(rev.score * 100) / 100, 4.3);
+  assert.equal(rev.attempt, 2); assert.equal(rev.revisions, 1); assert.equal(rev.firstPass, false);
+  assert.equal(rev.history.length, 1);
+  assert.equal(Math.round(rev.history[0].score * 100) / 100, 2.3);
+  const all = find("orgs/" + ORG + "/reviews", r => r.runId === item.workflowRunId);
+  assert.equal(all.length, 1, "a revision must not add a second rating");
+  // and the board reads it back
+  const rows = run(`JSON.stringify(rtBoard(${JSON.stringify(all)}, [{ uid: "staff1", name: "S" }], { min: 1 }))`);
+  assert.equal(JSON.parse(rows)[0].n, 1);
   assert.deepEqual(plain(item.assigneeIds), []);
   const runDoc = await get("orgs/" + ORG + "/runs/" + item.workflowRunId);
   assert.equal(runDoc.status, "completed");

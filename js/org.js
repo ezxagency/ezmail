@@ -1172,6 +1172,7 @@ function orgTrackStarts(){
     const a = step("Do the work", doer), b = step("Check it", checker);
     b.choices = ["Approve", "Send back"];
     b.routes = [{ when: { kind: "choice", value: "Send back" }, to: a.id }];
+    b.rates = true;   // a checker rates what they check: that is what the leaderboard is built from
     out.push({ key: "approve", label: "…then a " + orgRoleName(checker).toLowerCase() + " approves it, or sends it back", steps: [a, b] });
   }
   return out;
@@ -1239,6 +1240,7 @@ function orgTrackRender(type){
         ((st.choices || []).length || (st.routes || []).length || st.together
           ? '<p class="otk-hint otk-branch">' + esc([
               st.together ? "runs at the same time as the step before" : "",
+              st.rates ? "rates the work it receives" : "",
               (st.choices || []).length ? "asks for a choice: " + st.choices.join(" / ") : "",
               (st.routes || []).length ? st.routes.length + (st.routes.length === 1 ? " rule" : " rules") + " on where it goes next" : ""
             ].filter(Boolean).join(" · ")) + ' — change these in the Flow builder.</p>' : "") +

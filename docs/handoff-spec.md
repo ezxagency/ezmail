@@ -184,6 +184,17 @@ nothing new runs, and the finish sheet asks for the decision before the
 note. The first version's rule stands: there is one engine, and the
 track is a way of drawing it.
 
+**Rating.** A step may *rate* the work it receives: the person finishing
+it scores the previous step's work 1 to 5 on execution quality, brief
+accuracy and handoff readiness, weighted 50 / 30 / 20 into one number
+out of 5. One rating per deliverable (a second look replaces the first
+and keeps it in history), written in the reviewer's own name, never about
+themselves. The admin home's Team quality board is built from nothing
+else: the mean per person, ranked from eight reviewed tasks, with first
+pass, on time and revisions beside it, each carrying its count.
+`js/rating.js` is the math; `docs/lessons.md` has nothing to add yet
+because nobody has used it wrong yet.
+
 **The trail.** Who held it, how long, what they answered — read from
 `nodeRuns`, which already records exactly this and is currently shown to
 nobody.

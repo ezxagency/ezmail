@@ -203,6 +203,9 @@ function hoBuildBlueprint(type, track, opts){
     // without teaching the engine about statuses.
     if (s.status) config.status = s.status;
     if (s.dueAfter) config.dueAfter = s.dueAfter;
+    // the person at this stop rates the work the previous stop handed
+    // them; another key the engine ignores and the finish sheets read
+    if (s.rates) config.rates = true;
     const choices = (s.choices || []).map(c => String(c || "").trim()).filter(Boolean);
     if (choices.length) {
       config.choices = choices;
@@ -312,7 +315,7 @@ function hoSummary(blueprint, nodeRuns, members, nameOf, run){
   const last = legs.length ? legs[legs.length - 1] : null;
   const from = last ? {
     uid: last.by || null, name: last.by ? name(last.by) : "",
-    label: last.label, note: (last.output && last.output.comment) || "", at: last.completedAt || null,
+    label: last.label, nodeId: last.nodeId, note: (last.output && last.output.comment) || "", at: last.completedAt || null,
     choice: (last.output && last.output.choice) || null
   } : null;
   if (!active) return { stop: null, from, next: null, done: !!(run && run.status === "completed") || legs.length > 0 };
@@ -349,7 +352,7 @@ function hoSummary(blueprint, nodeRuns, members, nameOf, run){
   });
   return {
     stop: Object.assign({ label: (cur && cur.config && cur.config.label) || active.nodeId, index: idx + 1, count: stops.length },
-      choices.length ? { choices } : {}),
+      choices.length ? { choices } : {}, cfg.rates ? { rates: true } : {}),
     from,
     next: nextOf(after),
     done: false
@@ -556,6 +559,7 @@ function hoTrail(blueprint, nodeRuns){
       return {
         nodeId: nr.nodeId, nodeRunId: nr.id,
         label: cfg.label || nr.nodeId,
+        dueAt: nr.dueAt || null,
         role: cfg.role || null,
         status: nr.status,
         by: nr.completedBy || null,

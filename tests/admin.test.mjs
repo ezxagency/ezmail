@@ -42,7 +42,7 @@ const ctx = dom.getInternalVMContext();
 ctx.firebase = { initializeApp(){}, auth(){ return { currentUser: { uid: "u1", email: "a@b.c" } }; },
   firestore(){ return { collection(){ throw new Error("no network in this test"); } }; } };
 ctx.console = console;
-["js/config.js", "js/rail.js", "js/admin.js"].forEach(f =>
+["js/config.js", "js/rating.js", "js/rail.js", "js/admin.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 vm.runInContext(`var isAdmin = false, isMember = false, canAssignTasks = false;
   var assignedTasksSeen = null;
@@ -204,6 +204,54 @@ T("nothing to do says so; a read that failed says THAT, not 'nothing to do'", ()
   assert.ok(!/Nothing needs you/.test(h.textContent), "a failed read was reported as nothing to do");
   assert.ok(/Could not reach the approvals/.test(h.textContent) && /Could not reach the assignments/.test(h.textContent));
   assert.ok(/could not reach the team/.test(h.querySelector(".am-pulse").textContent), "a failed team read was not said on the pulse");
+});
+
+/* ---------- team quality: the board under Needs you ---------- */
+const QD = () => {
+  const now = new Date(2026, 8, 12).getTime(), DAY = 86400000;
+  const rv = (about, score, extra) => Object.assign({ aboutUid: about, byUid: "u9", score, at: now - DAY, month: "2026-09", firstPass: true, revisions: 0, onTime: true, title: "Brief", stepLabel: "Write", scores: { quality: 4, brief: 5, handoff: 4 } }, extra || {});
+  return {
+    at: now, caps: { admin: false, assign: false, owner: true, member: true, org: true, orgName: "Ez" },
+    pending: null, assigns: null, team: null, gaps: [], errors: {},
+    members: [{ uid: "u2", name: "Sandy", roleId: "manager" }, { uid: "u3", name: "Ada", roleId: "staff" }, { uid: "u4", name: "Bo", roleId: "staff" }],
+    roles: [{ id: "manager", name: "Manager" }, { id: "staff", name: "Staff" }],
+    types: [{ id: "t", statuses: [{ key: "open" }, { key: "done" }] }],
+    reviews: Array.from({ length: 9 }, () => rv("u3", 4.6)).concat(Array.from({ length: 2 }, () => rv("u4", 3.5))),
+    items: [{ typeId: "t", status: "open", assigneeIds: ["u3"] }, { typeId: "t", status: "done", assigneeIds: ["u4"] },
+            { typeId: "t", status: "open", assigneeIds: ["u2"], handoff: { stop: { rates: true }, done: false } }]
+  };
+};
+T("the board draws under Needs you: standout with a reason, ranked rows, and building data below the minimum", () => {
+  run(`amRtPeriod = "month";`);
+  doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(QD())})`);
+  const q = doc.querySelector(".am-quality");
+  assert.ok(q, "no quality panel");
+  assert.match(q.querySelector(".am-card-standout").textContent, /Ada/);
+  assert.match(q.querySelector(".am-card-standout").textContent, /4\.60/);
+  assert.match(q.querySelector(".am-card-standout").textContent, /Consistently strong work/);
+  const rows = [...q.querySelectorAll(".am-lb-row")];
+  assert.deepEqual(rows.map(r => r.querySelector(".am-lb-who b").textContent), ["Ada", "Bo", "Sandy"]);
+  assert.match(rows[0].querySelector(".am-lb-rating").textContent, /4\.60/);
+  assert.match(rows[0].querySelector(".am-lb-rating").textContent, /9 reviewed/);
+  assert.match(rows[1].querySelector(".am-lb-rating").textContent, /Building data/);
+  assert.match(rows[1].querySelector(".am-lb-rating").textContent, /2 of 8 reviewed/);
+  assert.match(rows[2].querySelector(".am-lb-rating").textContent, /No reviews yet/);
+  assert.match(q.querySelector(".am-panel-h em").textContent, /11 reviewed · 1 waiting on a review/);
+  assert.match(q.querySelector(".am-card-room").textContent, /Bo0 open|Bo.*0 open/);
+  assert.match(q.querySelector(".am-foot").textContent, /quality × 50% \+ brief × 30% \+ handoff × 20%/);
+});
+T("the period chip switches the window; a failed read says could not reach, not nobody reviewed", () => {
+  doc.querySelector('[data-act="rtperiod"][data-id="all"]').click();
+  assert.equal(run("amRtPeriod"), "all");
+  const d = QD(); d.errors.reviews = true; d.reviews = null;
+  doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(d)})`);
+  assert.match(doc.querySelector(".am-quality").textContent, /Could not reach the reviews/);
+  assert.doesNotMatch(doc.querySelector(".am-card-standout").textContent, /Ada/);
+  // a home with no org draws no board at all, rather than an empty one
+  const bare = QD(); delete bare.members;
+  doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(bare)})`);
+  assert.equal(doc.querySelector(".am-quality"), null);
+  run(`amRtPeriod = "month";`);
 });
 
 T("an owner who is not an Ez admin gets the org's part of the home and none of the team's", () => {

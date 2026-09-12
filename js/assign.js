@@ -1001,6 +1001,11 @@ function markAssignmentDone(id){
      and the button stays off until one is - the engine refuses a stop
      that promised a choice and got none. */
   const choices = h && h.stop && h.stop.choices && h.stop.choices.length ? h.stop.choices : null;
+  /* A step that RATES asks three scores about the work it received -
+     the previous step, done by somebody else. Never about your own
+     work, and never on a first step: there is nothing received. */
+  const me = (typeof auth !== "undefined" && auth && auth.currentUser) ? auth.currentUser.uid : null;
+  const rates = !!(h && h.stop && h.stop.rates && h.from && h.from.uid && h.from.uid !== me && typeof rtFormHTML === "function");
   const go = h ? (choices ? "Pick what happens next" : h.next ? "Pass to " + h.next.label : "Finish") : "Mark done";
   openSheet(`
     <h2>${esc(title)}</h2>
@@ -1008,6 +1013,7 @@ function markAssignmentDone(id){
     ${choices ? `<div class="chips dn-choices" role="radiogroup">${choices.map(c =>
       `<button type="button" class="chip dn-choice" role="radio" aria-checked="false" data-choice="${esc(c.value)}">${esc(c.value)}<i>${
         c.back ? "↩ " : "→ "}${esc(c.to || "Done")}</i></button>`).join("")}</div>` : ""}
+    ${rates ? rtFormHTML(h.from.name || h.from.label) : ""}
     <div class="mention-wrap">
       <textarea id="doneNote" placeholder="${esc(placeholder)}"></textarea>
       <div class="af-panel mention-pop" id="mentionPop" hidden></div>
@@ -1019,18 +1025,30 @@ function markAssignmentDone(id){
     // nowhere to land (see dispatchMentionNotifications) - so no offer
     if (!isMember) wireMentionBox($("doneNote"), $("mentionPop"));
     $("doneCancel").onclick = closeSheet;
-    let picked = null;
+    let picked = null, scores = null;
+    // the button wakes only once everything the step asks for is there:
+    // a decision if it has choices, three scores if it rates
+    const ready = () => { $("doneSend").disabled = (choices && !picked) || (rates && !scores); };
     if (choices) {
-      $("doneSend").disabled = true;
       document.querySelectorAll(".dn-choice").forEach(b => b.onclick = () => {
         picked = b.dataset.choice;
         document.querySelectorAll(".dn-choice").forEach(x => { const on = x === b; x.classList.toggle("is-on", on); x.setAttribute("aria-checked", String(on)); });
         const c = choices.find(x => x.value === picked);
         $("doneSend").textContent = picked + (c && c.to ? (c.back ? " · back to " : " · on to ") + c.to : "");
-        $("doneSend").disabled = false;
+        ready();
       });
     }
-    $("doneSend").onclick = () => finishAssignment(id, row, $("doneNote").value.trim(), picked ? { choice: picked } : null);
+    if (rates) rtFormBind(document.querySelector("#sheetBody .rt-form"), sc => { scores = sc; ready(); });
+    if (choices || rates) ready();
+    $("doneSend").onclick = () => {
+      const out = {};
+      if (picked) out.choice = picked;
+      if (rates && scores) {
+        const c = picked && choices ? choices.find(x => x.value === picked) : null;
+        out.review = { scores, sentBack: !!(c && c.back) };
+      }
+      finishAssignment(id, row, $("doneNote").value.trim(), Object.keys(out).length ? out : null);
+    };
     $("doneNote").focus();
   });
 }

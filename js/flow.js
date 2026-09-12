@@ -257,7 +257,7 @@ function flPaintCanvas(){
       '<details class="fl-after"' + (choices.length || routes.length || st.together ? " open" : "") + '>' +
         '<summary>After this step' + (routes.length ? ' <i>' + routes.length + (routes.length === 1 ? " rule" : " rules") + '</i>' : "") +
           (choices.length ? ' <i>' + choices.length + (choices.length === 1 ? " choice" : " choices") + '</i>' : "") +
-          (st.together ? ' <i>together</i>' : "") + '</summary>' +
+          (st.together ? ' <i>together</i>' : "") + (st.rates ? ' <i>rates</i>' : "") + '</summary>' +
         '<p class="fl-lbl">When they finish, they pick <i>optional</i></p>' +
         '<div class="fl-chips fl-choices">' +
           choices.map(c => '<span class="fl-chip is-on fl-choice">' + esc(c) +
@@ -270,6 +270,7 @@ function flPaintCanvas(){
         '<p class="fl-otherwise">' + (routes.length ? "Otherwise" : "It goes") + ' → <b>' + esc(otherwiseOf(i)) + '</b></p>' +
         (owner ? '<button type="button" class="fl-link fl-route-add">+ Add an if</button>' : "") +
         (i > 0 && owner ? '<label class="fl-together"><input type="checkbox" class="fl-together-in"' + (st.together ? " checked" : "") + '> Runs at the same time as the step before it</label>' : "") +
+        (i > 0 ? '<label class="fl-together fl-rates"><input type="checkbox" class="fl-rates-in"' + (st.rates ? " checked" : "") + (owner ? "" : " disabled") + '> Rates the work it receives <i>three scores, 1 to 5, feeds the leaderboard</i></label>' : "") +
       '</details>';
     return '<div class="fl-step' + (gap ? " gap" : "") + (flS.drag === i ? " is-drag" : "") + '" data-i="' + i + '"' +
         (owner ? ' draggable="true"' : "") + '>' +
@@ -439,6 +440,8 @@ function flBindCanvas(){
     });
     const tog = card.querySelector(".fl-together-in");
     if (tog) tog.onchange = e => { st().together = !!e.target.checked; touch(); redraw(); };
+    const rt = card.querySelector(".fl-rates-in");
+    if (rt) rt.onchange = e => { st().rates = !!e.target.checked; touch(); redraw(); };
 
     /* Drag: a card by its grip to reorder; a person from the panel onto
        a card to give the step to them. Both arrive here as drops, told
