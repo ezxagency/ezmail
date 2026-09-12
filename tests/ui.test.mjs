@@ -598,8 +598,14 @@ T("the Organization page offers templates to an owner and not to anyone else", (
   run(`orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner", members: [],
         roles: [], types: [], automations: [], dir: {} }; orgRender();`);
   assert.ok(doc.querySelector("#orgPackBtn"), "no way in for an owner");
+  assert.ok(doc.querySelector("#orgResetOrg"), "the owner's reset row is missing");
+  // every section carries its name, and sits in one of the two groups
+  const secs = [...doc.querySelectorAll("#orgBody .org-sec")].map(x => x.dataset.sec);
+  assert.deepEqual(secs, ["about", "types", "rules", "roles", "people", "reset"]);
+  assert.ok(doc.querySelector("#orgBody .org-main [data-sec=types]") && doc.querySelector("#orgBody .org-side [data-sec=roles]"));
   run(`orgS.myRoleId = "staff"; orgRender();`);
   assert.equal(doc.querySelector("#orgPackBtn"), null);
+  assert.equal(doc.querySelector("#orgResetOrg"), null, "a non-owner is offered the reset");
 });
 
 /* ---------- the scrubber, drawn into an actual document ----------

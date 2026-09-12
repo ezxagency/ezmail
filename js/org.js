@@ -410,20 +410,17 @@ function orgRender(){
         '</button>';
     }).join("");
 
+  /* Sections carry data-sec and sit in two groups. Under the new dashboard
+     on a desktop the groups are the two columns (css/admin.css); the
+     classic screen flattens them and keeps its old order (css/org.css). */
   $("orgBody").innerHTML =
-    '<section class="org-sec">' +
+    '<section class="org-sec" data-sec="about">' +
       '<div class="org-sec-head"><h2>' + esc(orgS.org.name || "Organization") + '</h2>' +
         '<span class="org-badge">' + esc(orgRoleName(orgS.myRoleId)) + '</span></div>' +
       '<p class="org-note">Everything below is scoped to this organization. No role reaches outside it.</p>' +
     '</section>' +
-    '<section class="org-sec">' +
-      '<div class="org-sec-head"><h3>Roles</h3>' +
-        (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgAddRole">New role</button>' : '') +
-      '</div>' +
-      '<div class="org-list">' + rolesHtml + '</div>' +
-      (owner ? '' : '<p class="org-note">Only an owner can change roles.</p>') +
-    '</section>' +
-    '<section class="org-sec">' +
+    '<div class="org-cols"><div class="org-main">' +
+    '<section class="org-sec" data-sec="types">' +
       '<div class="org-sec-head"><h3>Work types</h3>' +
         (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgPackBtn">Templates</button>' +
                  '<button type="button" class="org-btn org-btn-sm" id="orgAddType">New type</button>' : '') +
@@ -431,17 +428,38 @@ function orgRender(){
       typesHtml +
       '<p class="org-note">A work type is what makes this fit your business: the fields your work actually has, and the stages it moves through.</p>' +
     '</section>' +
-    '<section class="org-sec">' +
+    '<section class="org-sec" data-sec="rules">' +
       '<div class="org-sec-head"><h3>Rules</h3>' +
         (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgAddAuto">New rule</button>' : '') +
       '</div>' +
       '<div class="org-list">' + autoHtml + '</div>' +
       '<p class="org-note">A rule watches for something happening and does one thing about it, every time, without anyone remembering to.</p>' +
     '</section>' +
+    '</div><aside class="org-side">' +
+    '<section class="org-sec" data-sec="roles">' +
+      '<div class="org-sec-head"><h3>Roles</h3>' +
+        (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgAddRole">New role</button>' : '') +
+      '</div>' +
+      '<div class="org-list">' + rolesHtml + '</div>' +
+      (owner ? '' : '<p class="org-note">Only an owner can change roles.</p>') +
+    '</section>' +
+    '<section class="org-sec" data-sec="people">' +
+      '<div class="org-sec-head"><h3>People</h3>' +
+        (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgInviteBtn">Invite</button>' : '') +
+      '</div>' +
+      // a roster grows and a settings page should not grow with it - but it
+      // opens by default, because hiding your own team behind a tap to save
+      // a few pixels is the wrong trade at every size
+      '<details class="org-fold" open>' +
+        '<summary><b>' + (orgS.members || []).length + '</b> ' +
+          ((orgS.members || []).length === 1 ? "person" : "people") + ' in this organization</summary>' +
+        '<div class="org-list">' + membersHtml + '</div>' +
+      '</details>' +
+    '</section>' +
     // Ez Agency's admin only: every row here reads assignments, campaigns
     // or users, which the rules keep for the platform's own team. Drawn for
     // a customer owner it was a button that could only fail.
-    (owner && isAdmin ? '<section class="org-sec">' +
+    (owner && isAdmin ? '<section class="org-sec" data-sec="import">' +
       '<div class="org-sec-head"><h3>Bring existing work across</h3></div>' +
       '<div class="org-list">' +
         '<button type="button" class="org-row" id="orgImportTasks"><span class="org-row-main">' +
@@ -456,35 +474,29 @@ function orgRender(){
       '</div>' +
       '<p class="org-note">Nothing is deleted or changed — the Assign composer keeps working exactly as it does now. Safe to run more than once: anything already brought across is skipped.</p>' +
     '</section>' : '') +
-    (owner ? '<section class="org-sec">' +
+    (owner ? '<section class="org-sec" data-sec="reset">' +
       '<div class="org-sec-head"><h3>Start over</h3></div>' +
       '<div class="org-list">' +
         '<button type="button" class="org-row org-btn-danger" id="orgWipeWork"><span class="org-row-main">' +
           '<b>Delete all work in this organization</b>' +
           '<small>Every item and every handoff run. Your kinds of work, roles and rules stay.</small>' +
         '</span><span class="org-row-go">Delete</span></button>' +
+        // TEMPORARY - the owner's testing aid; see itemsResetOrg()
+        '<button type="button" class="org-row org-btn-danger" id="orgResetOrg"><span class="org-row-main">' +
+          '<b>Reset this organization to fresh</b>' +
+          '<small>Testing aid. Kinds of work, tracks, rules, custom roles and all work go; the starter roles come back; people keep their seats.</small>' +
+        '</span><span class="org-row-go">Reset</span></button>' +
       '</div>' +
       '<p class="org-note">For starting a test again from clean. Tasks assigned through the old composer are NOT touched — they live outside this organization and can be brought back with Import above. The event log is never deleted, by anyone, which is what makes it worth reading.</p>' +
     '</section>' : '') +
-    '<section class="org-sec">' +
-      '<div class="org-sec-head"><h3>People</h3>' +
-        (owner ? '<button type="button" class="org-btn org-btn-sm" id="orgInviteBtn">Invite</button>' : '') +
-      '</div>' +
-      // a roster grows and a settings page should not grow with it - but it
-      // opens by default, because hiding your own team behind a tap to save
-      // a few pixels is the wrong trade at every size
-      '<details class="org-fold" open>' +
-        '<summary><b>' + (orgS.members || []).length + '</b> ' +
-          ((orgS.members || []).length === 1 ? "person" : "people") + ' in this organization</summary>' +
-        '<div class="org-list">' + membersHtml + '</div>' +
-      '</details>' +
-    '</section>';
+    '</aside></div>';
 
   if (owner && $("orgAddRole")) $("orgAddRole").onclick = () => orgRoleSheet(null);
   if (owner && $("orgInviteBtn")) $("orgInviteBtn").onclick = () => orgInviteSheet();
   if (owner && $("orgAddType")) $("orgAddType").onclick = () => orgTypeSheet(null);
   if (owner && $("orgPackBtn")) $("orgPackBtn").onclick = () => orgPackSheet();
   if (owner && $("orgWipeWork")) $("orgWipeWork").onclick = () => orgWipeWork($("orgWipeWork"));
+  if (owner && $("orgResetOrg")) $("orgResetOrg").onclick = () => orgResetOrg($("orgResetOrg"));
   if (owner && isAdmin && $("orgImportTasks")) $("orgImportTasks").onclick = () => orgRunImport("assignment", $("orgImportTasks"));
   if (owner && isAdmin && $("orgImportCampaigns")) $("orgImportCampaigns").onclick = () => orgRunImport("campaign", $("orgImportCampaigns"));
   if (owner && isAdmin && $("orgSeatTeam")) $("orgSeatTeam").onclick = () => orgSeatTeam($("orgSeatTeam"));
@@ -1067,6 +1079,33 @@ async function orgWipeWork(btn){
   toast("Deleted " + r.items + (r.items === 1 ? " item" : " items") +
         " and " + r.runs + (r.runs === 1 ? " run" : " runs") + ".");
   enterOrgPage();
+}
+
+/* TEMPORARY - the testing aid. Two taps like the wipe above, and then the
+   page reloads: "like a hard refresh" is what was asked for, and a reload
+   is the one way to be sure nothing on this device remembers the old
+   setup - not a cache, not a draft, not a deck. */
+async function orgResetOrg(btn){
+  if (!orgIsOwner()) return;
+  const go = btn.querySelector(".org-row-go");
+  if (btn.dataset.armed !== "1") {
+    btn.dataset.armed = "1";
+    if (go) go.textContent = "Tap again";
+    btn.querySelector("b").textContent = "This puts the organization back to fresh — permanently";
+    return;
+  }
+  btn.disabled = true;
+  if (go) go.textContent = "Resetting…";
+  const r = await itemsResetOrg();
+  if (!r.ok) {
+    btn.disabled = false;
+    if (go) go.textContent = "Reset";
+    toast(r.error === "not-owner" ? "Only an owner can do this." : "Could not reset it all.");
+    return;
+  }
+  orgInvalidate();
+  toast("Reset. Reloading…");
+  setTimeout(() => { try { location.reload(); } catch (e) { enterOrgPage(); } }, 600);
 }
 
 /* ---------- the handoff track ----------

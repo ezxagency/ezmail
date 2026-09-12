@@ -355,6 +355,32 @@ await shoot("next-team");
 await page.evaluate(() => go(""));
 await page.waitForTimeout(300);
 
+// ---- the Organization page, the owner's setup across the desktop ----
+await page.evaluate(() => { go("org"); });
+await page.waitForTimeout(400);
+await page.evaluate(() => {
+  orgS = { orgId: "orgA", org: { name: "Test EZ" }, myRoleId: "owner",
+    roles: [{ id: "owner", name: "Owner", permissions: ["*:*:org"] },
+      { id: "manager", name: "Manager", permissions: ["item:create:org", "item:read:org", "item:update:org", "item:delete:org", "member:read:org", "member:invite:org", "member:hours:org", "workflow:read:org"] },
+      { id: "senior", name: "Senior", permissions: ["item:create:org", "item:read:org", "item:update:org", "workflow:read:org", "report:read:org"] },
+      { id: "staff", name: "Staff", permissions: ["item:create:org", "item:read:org", "item:update:assigned", "workflow:read:org"] }],
+    types: [
+      { id: "t1", name: "Sponsorship", pack: "content", fields: [{ key: "brand", label: "Brand", type: "text", required: true }, { key: "fee", label: "Fee", type: "number" }, { key: "due", label: "Due", type: "date" }],
+        statuses: [{ key: "pitch", label: "Pitch" }, { key: "agreed", label: "Agreed" }, { key: "live", label: "Live" }, { key: "done", label: "Done" }],
+        track: [{ label: "Pitch", roleId: "senior" }, { label: "Design review", roleId: "designer" }, { label: "Publish", roleId: "manager" }] },
+      { id: "t2", name: "Video", pack: "content", fields: [{ key: "title", label: "Title", type: "text" }, { key: "len", label: "Length", type: "number" }], statuses: [{ key: "idea", label: "Idea" }, { key: "shoot", label: "Shoot" }, { key: "edit", label: "Edit" }, { key: "done", label: "Done" }] },
+      { id: "t3", name: "Email marketing", fields: [{ key: "list", label: "List", type: "text" }], statuses: [{ key: "draft", label: "Draft" }, { key: "sent", label: "Sent" }] }
+    ],
+    automations: [],
+    members: [{ uid: "u1", roleId: "owner" }, { uid: "u2", roleId: "manager", shiftMinutes: 480 }, { uid: "u3", roleId: "staff" }],
+    dir: { u1: { name: "Prashanna" }, u2: { name: "Sandy" }, u3: { name: "Ada" } } };
+  orgRender();
+});
+await page.waitForTimeout(500);
+await shoot("next-org");
+await page.evaluate(() => go(""));
+await page.waitForTimeout(300);
+
 // ---- the same admin, switched to Me: the worker's screen, plus the switch ----
 await page.evaluate(() => amSet(false));
 await page.waitForTimeout(600);

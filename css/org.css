@@ -282,3 +282,16 @@ button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
   letter-spacing: .1em; text-transform: uppercase; opacity: .45;
 }
 .otk-who .wk-check { display: block; font-size: 13px; padding: 2px 0; }
+
+/* The page's sections sit in two groups (js/org.js orgRender) so the new
+   dashboard can lay them out as two columns. Here they are flattened and
+   put back in the order this page has always had. */
+#orgBody{display:flex;flex-direction:column}
+.org-cols,.org-main,.org-side{display:contents}
+.org-sec[data-sec="about"]{order:0}
+.org-sec[data-sec="roles"]{order:1}
+.org-sec[data-sec="types"]{order:2}
+.org-sec[data-sec="rules"]{order:3}
+.org-sec[data-sec="import"]{order:4}
+.org-sec[data-sec="reset"]{order:5}
+.org-sec[data-sec="people"]{order:6}

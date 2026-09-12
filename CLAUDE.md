@@ -317,6 +317,16 @@ the account already makes on the Team or Org page, behind the same
 predicate, and a read that fails is shown as "could not reach", never as
 "nothing to do".
 
+**A temporary testing aid lives on the Organization page**: "Reset this
+organization to fresh" (`orgResetOrg()` → `itemsResetOrg()`), owner-only,
+two taps, then a reload. It deletes every kind of work, track, rule,
+custom role and all work and runs, puts the seed roles back as seeded,
+keeps every seat (reseating anyone in a deleted role as Staff) and never
+touches the event log. The owner asked for it on 2026-09-12 to test by
+hand; it is meant to come out once that testing is over, and
+`tests/flow.test.mjs` proves exactly what it does and does not delete
+until then.
+
 The deck reads the shift as well as the queue — the Running pill, Paused ·
 23m, and whether the left button says Start task or Put down — but it is
 only DRAWN when the assignments snapshot fires. `dkRefresh()` is the

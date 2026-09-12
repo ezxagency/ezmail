@@ -557,12 +557,39 @@ await T("starting over clears the work and the runs, and nothing else", async ()
   assert.ok(find("orgs/" + ORG + "/events").length > 0, "the event log was cleared, which nothing may do");
 });
 
+/* TEMPORARY - the owner's testing aid. Back to the day the org was
+   created: setup and work gone, seed roles as seeded, seats kept. */
+await T("resetting the organization puts it back to fresh, and keeps every seat", async () => {
+  await db.collection("orgs").doc(ORG).collection("roles").doc("editor").set({ name: "Editor", permissions: ["item:read:org"] });
+  await db.collection("orgs").doc(ORG).collection("roles").doc("manager").set({ name: "Manager", permissions: ["item:read:org"] });
+  await db.collection("orgs").doc(ORG).collection("members").doc("ed1").set({ uid: "ed1", roleId: "editor", joinedAt: 2 });
+  await db.collection("orgs").doc(ORG).collection("automations").doc("auto9").set({ name: "x", trigger: {}, action: {} });
+  run(`orgInvalidate();`);
+  assert.ok(find("orgs/" + ORG + "/itemTypes").length > 0, "the fixture has no types to reset");
+  const r = await runAsync(`return await itemsResetOrg();`);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(find("orgs/" + ORG + "/itemTypes").length, 0, "kinds of work survived");
+  assert.equal(find("orgs/" + ORG + "/automations").length, 0, "rules survived");
+  assert.equal(find("orgs/" + ORG + "/blueprints").length, 0, "tracks survived");
+  assert.equal(find("orgs/" + ORG + "/items").length, 0);
+  const roles = find("orgs/" + ORG + "/roles").map(x => x.id).sort();
+  assert.deepEqual(roles, ["manager", "owner", "staff"], "the roles are not the three seeds");
+  const mgr = await get("orgs/" + ORG + "/roles/manager");
+  assert.ok(mgr.permissions.includes("member:hours:org"), "the manager's edited permissions were not put back");
+  assert.equal((await get("orgs/" + ORG + "/members/owner1")).roleId, "owner", "the owner lost their seat");
+  assert.equal((await get("orgs/" + ORG + "/members/ed1")).roleId, "staff", "a member seated in a deleted role was not reseated");
+  assert.ok(r.reseated >= 1, "nobody was reseated: " + JSON.stringify(r));
+  assert.ok(find("orgs/" + ORG + "/events").length > 0, "the event log was cleared, which nothing may do");
+});
+
 await T("only an owner may start over", async () => {
   AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
   run(`orgInvalidate();`);
   const r = await runAsync(`return await itemsDeleteAllWork();`);
   assert.equal(r.ok, false);
   assert.equal(r.error, "not-owner");
+  const r2 = await runAsync(`return await itemsResetOrg();`);
+  assert.equal(r2.error, "not-owner", "a non-owner could reset the organization");
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

@@ -386,6 +386,50 @@ async function itemsDeleteAllWork(){
   return { ok: true, items: items.size, runs: runs.size };
 }
 
+/* TEMPORARY, for testing by hand (the owner asked for it on 2026-09-12,
+   in as many words, to get back to a clean organization between tests).
+   The org back to the day it was created: every kind of work, its tracks
+   (their blueprints), every rule, every custom role and all the work and
+   runs go; the seed roles are put back exactly as seeded. Members KEEP
+   their seats - an owner who deleted their own would be locked out - and
+   anyone seated in a role that no longer exists is reseated as Staff.
+   The event log stays, as it always does. Owner only, and the rules
+   agree: every collection touched here is owner-writable. */
+async function itemsResetOrg(){
+  const s = await orgEnsure();
+  if (!s) return { ok: false, error: "no-org" };
+  if (s.myRoleId !== "owner") return { ok: false, error: "not-owner" };
+  const org = db.collection("orgs").doc(s.orgId);
+  const cols = ["items", "runs", "itemTypes", "automations", "blueprints", "roles"];
+  let snaps, members;
+  try {
+    snaps = await Promise.all(cols.map(c => org.collection(c).get()));
+    members = await org.collection("members").get();
+  } catch (e) { console.error(e); return { ok: false, error: "read-failed" }; }
+  const seedIds = new Set(ORG_SEED_ROLES.map(r => r.id));
+  const refs = [];
+  snaps.forEach((snap, i) => snap.docs.forEach(d => {
+    if (cols[i] === "roles" && seedIds.has(d.id)) return;   // put back below, not deleted
+    refs.push(org.collection(cols[i]).doc(d.id));
+  }));
+  try {
+    for (let i = 0; i < refs.length; i += 400) {
+      const batch = db.batch();
+      refs.slice(i, i + 400).forEach(r => batch.delete(r));
+      await batch.commit();
+    }
+    const batch = db.batch();
+    ORG_SEED_ROLES.forEach(r => batch.set(org.collection("roles").doc(r.id), { name: r.name, permissions: r.permissions }));
+    let reseated = 0;
+    members.docs.forEach(d => {
+      const m = d.data();
+      if (m.roleId !== "owner" && !seedIds.has(m.roleId)) { batch.update(org.collection("members").doc(d.id), { roleId: "staff" }); reseated++; }
+    });
+    await batch.commit();
+    return { ok: true, deleted: refs.length, reseated };
+  } catch (e) { console.error(e); return { ok: false, error: "delete-failed" }; }
+}
+
 /* ---------- handoff: work that moves person to person ----------
    docs/handoff-spec.md. js/handoff.js decides; this writes.
 

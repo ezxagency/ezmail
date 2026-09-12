@@ -280,3 +280,80 @@ body.ui-next .team-page #teamPending .btn{
   background:linear-gradient(180deg,#2B95FF,#0A84FF);border:0;color:#fff;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.28);backdrop-filter:none;
 }
+
+/* ============================================================
+   THE ORGANIZATION PAGE — two columns on a desktop, the home's
+   row language. Under the new dashboard only.
+   ============================================================ */
+@media (min-width:1024px){
+  body.ui-next #orgScreen .admin-page-inner{max-width:none;padding:32px 48px 60px}
+  body.ui-next #orgBody{display:block}
+  body.ui-next #orgBody .org-cols{
+    display:grid;grid-template-columns:minmax(0,1fr) clamp(340px, 32%, 460px);
+    column-gap:28px;align-items:start;
+  }
+  body.ui-next #orgBody .org-main{display:block;min-width:0}
+  /* not sticky: this column is often taller than the window (roles, people,
+     imports, start over), and a sticky column taller than the window hides
+     its own bottom until the other column runs out */
+  body.ui-next #orgBody .org-side{display:block;min-width:0}
+}
+body.ui-next #orgScreen .admin-page-head{margin-bottom:0}
+body.ui-next #orgBody .org-sec[data-sec="about"]{margin:10px 0 22px}
+body.ui-next #orgBody .org-sec[data-sec="about"] h2{font-size:clamp(22px,1.8vw,30px);font-weight:700}
+body.ui-next #orgBody .org-badge{
+  padding:4px 10px;border-radius:999px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  background:rgba(10,132,255,.2);border:1px solid rgba(10,132,255,.45);color:#fff;
+}
+body.ui-next #orgBody .org-sec[data-sec="about"] .org-note{margin:6px 0 0}
+
+/* a section is a glass panel; its heading the caption */
+body.ui-next #orgBody .org-sec:not([data-sec="about"]){
+  margin:0 0 16px;padding:18px 20px 14px;border-radius:24px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 24px 60px rgba(0,0,0,.35);
+  backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);
+}
+body.ui-next #orgBody .org-sec-head{margin:0 0 6px}
+body.ui-next #orgBody .org-sec-head h3{font-size:12px;letter-spacing:.16em;opacity:1;color:var(--wk-white)}
+body.ui-next #orgBody .org-note{font-size:12px;opacity:1;color:var(--wk-white-60);margin:10px 0 0}
+body.ui-next #orgBody .org-sub{color:var(--wk-white-60)}
+
+/* the rows */
+body.ui-next #orgBody .org-list{gap:0}
+body.ui-next #orgBody .org-row{
+  padding:12px 4px;border:0;border-top:1px solid rgba(255,255,255,.08);border-radius:0;background:none;
+}
+body.ui-next #orgBody .org-list > .org-row:first-child,
+body.ui-next #orgBody .org-list > .org-typefold:first-child{border-top:0}
+body.ui-next #orgBody button.org-row:not(:disabled):hover{background:rgba(255,255,255,.03)}
+body.ui-next #orgBody .org-row-main b{font-size:14px;font-weight:600}
+body.ui-next #orgBody .org-row-main small{font-size:12px;color:var(--wk-white-60);opacity:1}
+body.ui-next #orgBody .org-row-go{
+  padding:7px 12px;border-radius:999px;opacity:1;
+  background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);
+  font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--wk-white);
+}
+body.ui-next #orgBody .org-btn-danger{background:none}
+body.ui-next #orgBody .org-btn-danger .org-row-go{background:rgba(255,69,58,.16);border-color:rgba(255,69,58,.4);color:#FF453A}
+body.ui-next #orgBody .org-av{background:rgba(255,255,255,.12)}
+
+/* the header's small buttons */
+body.ui-next #orgBody .org-btn{
+  padding:7px 12px;border-radius:999px;
+  background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);
+  font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+}
+body.ui-next #orgBody .org-sec-head #orgAddType,
+body.ui-next #orgBody .org-sec-head #orgAddRole,
+body.ui-next #orgBody .org-sec-head #orgAddAuto,
+body.ui-next #orgBody .org-sec-head #orgInviteBtn{background:linear-gradient(180deg,#2B95FF,#0A84FF);border-color:transparent;color:#fff}
+
+/* a kind of work is a row that opens */
+body.ui-next #orgBody .org-typefold{background:none;border:0;border-top:1px solid rgba(255,255,255,.08);border-radius:0}
+body.ui-next #orgBody .org-typefold > summary{padding:12px 4px}
+body.ui-next #orgBody .org-typefold[open] > summary{border-bottom:0}
+body.ui-next #orgBody .org-typebody{padding:4px 4px 14px 22px}
+body.ui-next #orgBody .org-group-head{font-size:10px;letter-spacing:.16em;color:var(--wk-white-60);margin:12px 0 2px}
+body.ui-next #orgBody .org-chip{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14)}
+body.ui-next #orgBody .org-fold > summary{padding:10px 4px;font-size:13px;color:var(--wk-white-60)}
