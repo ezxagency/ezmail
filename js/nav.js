@@ -99,20 +99,24 @@ document.addEventListener("keydown", e => {
   const map = { "1": "", "2": "mission", "3": "history", "4": "team", "5": "work", "6": "org" };
   if (!(e.key in map)) return;
   const r = map[e.key];
-  if (r === "team" && !isAdmin) return;
-  if (r === "org" && !isAdmin && !isMember) return;
-  if (r === "history" && isAdmin) return;
+  if (!navAllowed(r)) return;
   go(r);
 });
+
+/* Which pages this account gets, in this mode. js/admin.js answers it
+   (Team and Organization only in Admin view, Mission and History only in
+   Me view, on the new dashboard); without it the old role rule holds. */
+function navAllowed(r){
+  if (typeof amRouteAllowed === "function") return amRouteAllowed(r);
+  return !((r === "team" && !isAdmin) || (r === "org" && !isAdmin && !isMember) || (r === "history" && isAdmin));
+}
 
 function applyRoute(){
   let r = currentRoute();
   // role guards: a deep link to a page you can't use lands on the dashboard.
   // History is personal, so it's everyone's page EXCEPT admin's - their own
   // record lives inside Team's History section instead.
-  if ((r === "team" && !isAdmin)
-      || (r === "org" && !isAdmin && !isMember)
-      || (r === "history" && isAdmin)) { r = ""; if (location.hash) location.replace("#/"); }
+  if (!navAllowed(r)) { r = ""; if (location.hash) location.replace("#/"); }
   Object.keys(PAGE_IDS).forEach(k => $(PAGE_IDS[k]).classList.toggle("hidden", k !== r));
   document.querySelectorAll(".drawer-item").forEach(a =>
     a.classList.toggle("active", (a.dataset.route || "") === r));

@@ -295,6 +295,28 @@ a layer the browser re-renders behind (`docs/lessons.md` > "Thirty
 cards"). The classic screen is untouched, and `tests/shots.mjs` proves it
 with `classic-unchanged.png` every run.
 
+Eighth piece: **Admin mode**, `js/admin.js` + `css/admin.css`. An admin
+used to get everything a worker gets plus the admin furniture, all at
+once. Now an account with something to administer (`amCapable()`: an Ez
+admin, an assigner, an org owner or hours-manager) has a switch in the
+rail (and in the drawer on a phone) between two views. **Me** is the
+worker's screen, gated exactly as a worker's. **Admin** replaces the
+whole stage with the admin home: "Needs you" (approvals, completions to
+acknowledge, overdue work, handoff gaps — each row carrying its action),
+"Team now" (who is on shift, live), today's numbers, and quick actions;
+the rail carries Home, Team, Work, Organization. Admin is the default and
+the choice is remembered per account on the device. `amApply()` is the
+ONE place that decides what the screen holds — `enterFullApp()` calls it
+instead of toggling drawer items itself, `applyRoute()` asks
+`amRouteAllowed()`, and the queue and notifications ask `amAdminHere()`
+where they used to ask `isAdmin`. Two things it does not touch: what the
+account may WRITE (still `isAdmin`, `canAssignTasks`, the org role, and
+`firestore.rules`), and the classic screen, where `amOn()` is always
+false and the role decides as before. Every read the home makes is one
+the account already makes on the Team or Org page, behind the same
+predicate, and a read that fails is shown as "could not reach", never as
+"nothing to do".
+
 The deck reads the shift as well as the queue — the Running pill, Paused ·
 23m, and whether the left button says Start task or Put down — but it is
 only DRAWN when the assignments snapshot fires. `dkRefresh()` is the

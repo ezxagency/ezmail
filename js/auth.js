@@ -113,30 +113,20 @@ function enterFullApp(user, role){
   isAdmin = role === "admin";
   isMember = role === "member";
   canAssignTasks = isAdmin || ASSIGNER_EMAILS.includes((user.email || "").toLowerCase());
-  $("drawerTeam").classList.toggle("hidden", !isAdmin);
-  /* Organization is where somebody creates and runs their own tenant, so
-     it belongs to whoever has one to run: the Ez Agency admin, and every
-     member. It is NOT gated on ADMIN_EMAILS any more - that list means
-     "works for the company that runs this platform", which is a different
-     thing from "owns this organization", and conflating the two is what
-     left a customer unable to reach the page that manages their own org.
-     Inside the page, owner-only controls gate on the org role instead. */
-  $("drawerOrg").classList.toggle("hidden", !(isAdmin || isMember));
-  // admin's own record lives inside Team's History section now - a
-  // separate personal-history page is only useful to everyone else
-  $("drawerHistory").classList.toggle("hidden", isAdmin);
-  $("adminAccessBtn").classList.toggle("hidden", !isAdmin);
-  // the composer's launchers follow the same permission as assigning itself
-  $("assignLaunch").classList.toggle("hidden", !canAssignTasks);
-  $("cardAssignBtn").classList.toggle("hidden", !canAssignTasks);
-  $("teamPanelAssignBtn").classList.toggle("hidden", !canAssignTasks);
   // everyone on desktop gets the two-pane shell; the role only decides
   // what the third column holds
   $("appScreen").classList.add("panes");
-  $("appScreen").classList.toggle("has-team", isAdmin);
-  $("teamPanel").classList.toggle("hidden", !isAdmin);
   if (isAdmin) { watchCompletionNotifications(); loadTeamPane(); }
   Store.setUser(user.uid, user.email);
+  /* What the screen holds - which drawer items, which launchers, which
+     third column, and on the new dashboard which of the two VIEWS - is
+     decided in one place, js/admin.js. Organization belongs to whoever
+     has one to run (the Ez Agency admin, and every member), NOT to
+     ADMIN_EMAILS: that list means "works for the company that runs this
+     platform", a different thing from "owns this organization", and
+     conflating the two once left a customer unable to reach the page that
+     manages their own org. amApply() keeps that rule. */
+  amApply();
   pomoLoadFor(user.uid);   // this account's own focus timer, no one else's
   ptLoadFor(user.uid);     // ...and their own personal task list
   screen("app");
@@ -262,6 +252,7 @@ if (!FB_READY){
       if (location.hash && location.hash !== "#/") location.replace("#/");
       $("appScreen").classList.remove("panes", "has-team", "has-tasks", "side-open");
       $("teamPanel").classList.add("hidden");
+      amReset();
       teamPendingCount = 0;
       // park the departing account's focus timer and personal list, and
       // reset to neutral - the next sign-in loads its own, so nothing

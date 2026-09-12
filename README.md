@@ -35,6 +35,7 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   started.css       the started stack's landscape cards (redesign)
   v6.css            the redesign's ground and layout, all under body.ui-next
   ios.css           the iOS layer over the redesign: glass, tints, motion, shape
+  admin.css         Admin mode: the Admin/Me switch in the rail and the admin home
   login.css         Shift Card login screen (legacy palette)
   premium.css       motion/gesture polish layer, loaded last on purpose
 
@@ -56,6 +57,7 @@ js/   classic scripts sharing one global scope; loaded in order
   week.js           this week's hours, seven day bars, the streak (from S.history)
   hero.js           the last real work this person did, as chips
   started.js        this shift's started tasks as landscape cards: stPlan() pure, the stack scrolls
+  admin.js          Admin mode: who gets the switch, what each view holds, the admin home
   rail.js           the icon rail, built from the drawer's own items
   ui.js             sheet + toast + chip primitives
   shift.js          clock-in/switch/pause/out flows, reports, Excel export

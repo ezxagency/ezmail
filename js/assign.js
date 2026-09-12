@@ -723,14 +723,17 @@ function renderAssignedQueue(){
   rows.sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
   const app = $("appScreen");
   const count = $("assignedCount");
-  if (!rows.length && isAdmin) {
+  // "am I the admin here" is the MODE on the new dashboard (an admin in Me
+  // view is a worker with a queue) and the role on the classic one
+  const adminHere = typeof amAdminHere === "function" ? amAdminHere() : isAdmin;
+  if (!rows.length && adminHere) {
     box.classList.add("hidden");
     app.classList.remove("has-tasks");
     list.innerHTML = "";
     return;
   }
   box.classList.remove("hidden");
-  app.classList.toggle("has-tasks", !isAdmin);
+  app.classList.toggle("has-tasks", !adminHere);
   if (count) count.textContent = rows.length ? rows.length + " open" : "";
   renderAssignedBrief(rows);
   // Same rows, two shapes. The deck is the new dashboard's; the nested
@@ -989,8 +992,10 @@ function watchCompletionNotifications(){
       badge.textContent = snap.size;
       badge.classList.toggle("hidden", snap.empty);
       // keep the Team pane's counts and "latest completion" in step with the
-      // badge instead of going stale until the next reload
+      // badge instead of going stale until the next reload - and the admin
+      // home's "needs you" list with them
       loadTeamPane();
+      if (typeof amRefresh === "function") amRefresh();
     }, e => console.error(e));
   onSessionEnd(() => { unsub(); badge.textContent = "0"; badge.classList.add("hidden"); });
 }
@@ -1055,6 +1060,7 @@ async function rejectPendingUser(uid, email){
     await db.collection("appState").doc(uid).delete();
     toast(email + " removed");
     loadTeamPending();
+    if (typeof amRefresh === "function") amRefresh();
   } catch (e) {
     console.error(e);
     toast("Couldn't remove - check Firestore rules allow admin deletes");

@@ -428,7 +428,7 @@ function openNotifCenter(){
     body.querySelectorAll(".notif-item").forEach(li => li.onclick = () => {
       const n = rows[Number(li.dataset.i)];
       closeSheet();
-      if (isAdmin){ go("team"); return; }
+      if (typeof amAdminHere === "function" ? amAdminHere() : isAdmin){ go("team"); return; }
       go("");
       // desktop non-admins keep the queue in the side pane - open it
       const app = $("appScreen");

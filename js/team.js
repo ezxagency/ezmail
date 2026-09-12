@@ -146,6 +146,7 @@ function approvePendingSheet(uid, data){
         closeSheet();
         toast((data.email || "Account") + " approved");
         loadTeamPending();
+        if (typeof amRefresh === "function") amRefresh();
       } catch (e) {
         console.error(e);
         toast("Couldn't approve — check Firestore rules");

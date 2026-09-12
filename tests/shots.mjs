@@ -286,6 +286,38 @@ await page.evaluate(() => {
 });
 await shoot("next-idle");
 
+// ---- Admin view: the home that replaces the stage for an admin ----
+await page.evaluate(() => {
+  isAdmin = true; canAssignTasks = true;
+  const now = Date.now(), H = 3600000;
+  amCollect = async () => ({ at: now,
+    caps: { admin: true, assign: true, owner: true, member: false, org: true, orgName: "Ez Agency" },
+    pending: [{ uid: "p1", name: "Jordan Lee", email: "jordan@ezagency.com" }],
+    assigns: [
+      { id: "a1", done: true, ack: false, toName: "Sandy", store: "Store Epsilon", task: "Write the spring launch email", comment: "Drafts are up", doneAt: now - 20 * 60000 },
+      { id: "a2", done: false, dueDate: "2026-09-02", store: "Studio North", task: "Second pass on the sprint backlog", toName: "Prashanna" },
+      { id: "a3", done: false, dueDate: "2026-09-30", store: "Store Delta", task: "Approve the final artwork" },
+      { id: "a4", done: true, ack: true, doneAt: now - 3 * H }
+    ],
+    team: [
+      { uid: "u1", name: "Prashanna", status: "active", task: "Approve the final artwork", store: "Store Delta", netMs: 2.6 * H, doc: {} },
+      { uid: "u2", name: "Sandy", status: "break", task: "Copy", store: "Store Epsilon", netMs: 4.1 * H, doc: {} },
+      { uid: "u3", name: "Ada", status: "done", task: "Embed", store: "Studio North", netMs: 6 * H, doc: {} }
+    ],
+    gaps: [{ type: "Email campaign", at: 2, label: "Design review", roleId: "designer" }],
+    errors: {} });
+  try { localStorage.removeItem("ez-adminmode-v1:u1"); } catch (e) {}
+  amApply();
+});
+await page.waitForTimeout(700);
+await shoot("next-admin");
+
+// ---- the same admin, switched to Me: the worker's screen, plus the switch ----
+await page.evaluate(() => amSet(false));
+await page.waitForTimeout(600);
+await shoot("next-admin-me");
+await page.evaluate(() => { isAdmin = false; canAssignTasks = false; amApply(); });
+
 // ---- and the classic dashboard, reached the way a person reaches it ----
 await page.goto(base + "/index.html?ui=classic#/", { waitUntil: "load" });
 await page.waitForTimeout(300);
