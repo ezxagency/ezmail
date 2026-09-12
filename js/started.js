@@ -142,12 +142,17 @@ function stAnimate(){
   if (stRaf || typeof requestAnimationFrame !== "function") return;
   stRaf = requestAnimationFrame(stFrame);
 }
-function stFrame(){
-  if (!document.querySelector(".st-stage")){ stRaf = 0; return; }
-  stPos += (stTarget - stPos) * 0.16;
+/* stepped by wall-clock time, as the deck's is - see dkFrames() */
+let stPrevFrame = 0;
+function stFrame(ts){
+  if (!document.querySelector(".st-stage")){ stRaf = 0; stPrevFrame = 0; return; }
+  const dt = (typeof ts === "number" && stPrevFrame) ? ts - stPrevFrame : 0;
+  stPrevFrame = typeof ts === "number" ? ts : 0;
+  const f = (dt > 0 && dt < 100) ? dt / 16.667 : 1;
+  stPos += (stTarget - stPos) * (1 - Math.pow(0.84, f));
   if (Math.abs(stTarget - stPos) < 0.0009) stPos = stTarget;
   stLayout();
-  if (stPos === stTarget){ stRaf = 0; return; }
+  if (stPos === stTarget){ stRaf = 0; stPrevFrame = 0; return; }
   stRaf = requestAnimationFrame(stFrame);
 }
 function stTo(n){

@@ -203,6 +203,19 @@ const DK_DEPTH = 210;    // how far back each neighbour sits
 let dkId = null, dkIdx = 0, dkRows = [], dkBound = false;
 let dkPos = 0, dkVel = 0, dkTarget = 0, dkDragging = false, dkSettled = -1, dkRaf = 0;
 let dkW = 0;             // the front card's width, measured once per draw
+let dkPrevFrame = 0;     // the last animation frame's timestamp
+
+/* The spring's feel was tuned at 60Hz: 16% of the way per frame, and 10%
+   off the fling per frame. Stepped PER FRAME it ran twice as fast on a
+   120Hz screen and crawled under a heavy tab, so every step is scaled by
+   how much wall-clock time the frame actually took - `f` is the number of
+   60Hz frames' worth. A timestamp that is missing, repeated or absurd
+   (a tab coming back from the background) counts as one frame. */
+function dkFrames(ts){
+  const dt = (typeof ts === "number" && dkPrevFrame) ? ts - dkPrevFrame : 0;
+  dkPrevFrame = typeof ts === "number" ? ts : 0;
+  return (dt > 0 && dt < 100) ? dt / 16.667 : 1;
+}
 
 function dkSubtitle(rows){
   const today = todayISO();
@@ -359,6 +372,15 @@ function dkLayout(){
     c.style.opacity = String(op);
     c.style.zIndex = String(100 - Math.round(a * 10));
     c.style.pointerEvents = a < 0.5 ? "auto" : "none";
+    /* The glass is built from these in css/ios.css: --d is how far back
+       the card sits (0 in front, 1 a neighbour), --o which side and how
+       far (so the sheen swings as it moves), --v how fast the stack is
+       going (a touch of blur while it flies). Written every frame the
+       stack moves, so the tint, the blur and the light change WITH the
+       motion rather than snapping when the front card is re-picked. */
+    c.style.setProperty("--d", Math.min(1, a).toFixed(3));
+    c.style.setProperty("--o", Math.max(-1, Math.min(1, o)).toFixed(3));
+    c.style.setProperty("--v", Math.min(1, Math.abs(dkVel) * 8).toFixed(3));
   });
 
   const near = Math.round(dkPos);
@@ -374,15 +396,16 @@ function dkLayout(){
   }
 }
 
-function dkTick(){
-  if (!document.querySelector(".dk-stage")) { dkRaf = 0; return; }
+function dkTick(ts){
+  if (!document.querySelector(".dk-stage")) { dkRaf = 0; dkPrevFrame = 0; return; }
+  const f = dkFrames(ts);
   if (!dkDragging){
     if (Math.abs(dkVel) > 0.0005){
-      dkPos += dkVel; dkVel *= 0.90;
+      dkPos += dkVel * f; dkVel *= Math.pow(0.90, f);
       dkTarget = Math.max(0, Math.min(dkRows.length - 1, Math.round(dkPos + dkVel * 6)));
     } else {
       dkVel = 0;
-      dkPos += (dkTarget - dkPos) * 0.16;
+      dkPos += (dkTarget - dkPos) * (1 - Math.pow(0.84, f));
       if (Math.abs(dkTarget - dkPos) < 0.0009) dkPos = dkTarget;
     }
     // refuse to travel past the ends, with a little give
@@ -390,7 +413,7 @@ function dkTick(){
     if (dkPos > dkRows.length - 1 + 0.32){ dkPos = dkRows.length - 1 + 0.32; dkVel = 0; }
   }
   dkLayout();
-  if (dkAtRest()) { dkRaf = 0; return; }
+  if (dkAtRest()) { dkRaf = 0; dkPrevFrame = 0; return; }
   dkRaf = requestAnimationFrame(dkTick);
 }
 

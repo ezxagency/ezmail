@@ -271,7 +271,14 @@ shrinks the whole control, surfaces that rise in on first paint) and
 shape (continuous corners, capsules for small things). It redefines the
 kit's own tokens — `--wk-green`, `--wk-white-60`, `--pz-ease` — under
 `body.ui-next`, so every older rule that used them picks up the palette
-without being rewritten. Two things it deliberately does not do: it never
+without being rewritten. The deck's glass is a function of DEPTH: `dkLayout()`
+writes `--d` (how far back), `--o` (which side) and `--v` (how fast) onto
+every card each frame, and the tint, edge, sheen angle, backdrop blur and
+the card's own blur are all `calc()`s of those, so the glass changes with
+the motion instead of snapping when the front card is re-picked. Both
+springs step by wall-clock time (`dkFrames()`), not per frame — see
+`docs/lessons.md` > "A spring stepped per frame". Two things it
+deliberately does not do: it never
 transitions `transform` or `opacity` on the deck's or the stack's cards,
 because their springs write those every frame; and it never adds a
 backdrop blur to something that is hidden or opaque, because each one is

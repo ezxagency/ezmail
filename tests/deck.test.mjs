@@ -365,5 +365,35 @@ T("the spring stops when the deck is at rest, and only the visible cards are pai
   run(`delete globalThis.requestAnimationFrame;`);
 });
 
+/* The spring was tuned at 60Hz and stepped per frame, so a 120Hz screen
+   ran it twice as fast. It steps by wall-clock time now: the same span of
+   milliseconds lands the same distance however many frames it is cut
+   into. And a frame that is missing its timestamp - a test's fake, or a
+   tab back from the background - counts as one frame, never as a jump. */
+T("the spring covers the same ground in the same milliseconds at 60Hz and 120Hz", () => {
+  const go = (stepMs, frames) => {
+    // let the previous run settle first: a loop still holding a frame
+    // request would refuse to start again, and measure nothing
+    run(`if (typeof __frameAt === "function") while (__frameAt(__t += 16));`);
+    run(`var __q = []; var __t = 1000; requestAnimationFrame = cb => { __q.push(cb); return __q.length; };
+         function __frameAt(ms){ const q = __q.splice(0); q.forEach(cb => cb(ms)); return q.length; }
+         dkReset(); S.status = "IDLE"; S.shift = null;
+         dkRender(Array.from({ length: 10 }, (_, i) => ({ id: "r" + i, task: "Task " + i })));
+         while (__frameAt(__t)) __t += 16;
+         dkTo(6);`);
+    for (let i = 1; i <= frames; i++) run(`__frameAt(__t + ${i * stepMs})`);
+    return run(`dkPos`);
+  };
+  const at60 = go(16.667, 12);   // 200ms in twelve frames
+  const at120 = go(8.333, 24);   // 200ms in twenty-four frames
+  assert.ok(at60 > 0.5 && at60 < 6, "the spring did not move in 200ms: " + at60);
+  // within one frame: the first frame after a start has no previous
+  // timestamp and counts as one 60Hz frame at either rate, by design
+  assert.ok(Math.abs(at60 - at120) < 0.15, "60Hz reached " + at60 + ", 120Hz reached " + at120);
+  const glass = deck().querySelector('.dk-card[data-n="0"]').style.getPropertyValue("--d");
+  assert.ok(glass !== "", "the depth is not written onto the card for the glass to use");
+  run(`delete globalThis.requestAnimationFrame;`);
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

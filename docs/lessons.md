@@ -351,6 +351,17 @@ there to find - a fallback in a helper is an assertion that never runs.
 *Guard:* `dkRender` resets `dkSettled`; `tests/deck.test.mjs` finds the
 front card strictly and proves a redraw onto the same index marks it.
 
+**A spring stepped per frame ran twice as fast on a 120Hz screen.** The
+deck's and the stack's springs moved 16% of the way each animation frame
+and bled 10% off a fling each frame. Tuned on a 60Hz display that felt
+right; on a 120Hz laptop every motion took half the time, and under a
+heavy tab it crawled. Frames are not a unit of time.
+*Rule:* an animation loop integrates by the wall-clock time the frame
+took (`requestAnimationFrame`'s timestamp), scaled to the rate it was
+tuned at, with a missing or absurd delta counting as one frame.
+*Guard:* `tests/deck.test.mjs` drives the spring over the same 200ms as
+twelve frames and as twenty-four and requires the same position.
+
 ### Cuts
 
 **Campaigns was cut, not migrated (2026-09-09).**
