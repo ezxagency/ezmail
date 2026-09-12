@@ -430,12 +430,13 @@ T("every control in a step has a visible label, in plain words", () => {
     assert.ok(l.querySelector("input,select"), "a label with nothing inside it"));
 });
 
-T("a blank track offers three ready-made shapes, and one press fills the steps", () => {
+T("a blank track offers four ready-made shapes, and one press fills the steps", () => {
   run(`orgTrackDraft = [{ label: "", roleId: "", assignees: [], status: "", dueAfter: null }]; orgTrackRender(orgS.types[0]);`);
   const starts = [...doc.querySelectorAll(".otk-start")].map(b => b.textContent);
-  assert.equal(starts.length, 3, "three shapes: " + JSON.stringify(starts));
+  assert.equal(starts.length, 4, "four shapes: " + JSON.stringify(starts));
   assert.match(starts[1], /then a manager checks it/);
   assert.match(starts[2], /approves it, or sends it back/);
+  assert.match(starts[3], /approves it and hands it to someone else/);
   doc.querySelectorAll(".otk-start")[1].onclick();
   const draft = plain(run("orgTrackDraft"));
   assert.deepEqual(draft.map(s => [s.label, s.roleId]), [["Do the work", "staff"], ["Check it", "manager"]]);

@@ -1202,6 +1202,14 @@ function orgTrackStarts(){
     b.routes = [{ when: { kind: "choice", value: "Send back" }, to: a.id }];
     b.rates = true;   // a checker rates what they check: that is what the leaderboard is built from
     out.push({ key: "approve", label: "…then a " + orgRoleName(checker).toLowerCase() + " approves it, or sends it back", steps: [a, b] });
+    // approved is not finished: the fourth shape says so. Approve hands
+    // the work to a third step - whoever does the next part - and the
+    // owner picks that person on the card, because no template can know
+    const a2 = step("Do the work", doer), b2 = step("Check it", checker), c2 = step("Hand it on", "");
+    b2.choices = ["Approve", "Send back"];
+    b2.routes = [{ when: { kind: "choice", value: "Send back" }, to: a2.id }, { when: { kind: "choice", value: "Approve" }, to: c2.id }];
+    b2.rates = true;
+    out.push({ key: "handon", label: "…then a " + orgRoleName(checker).toLowerCase() + " approves it and hands it to someone else", steps: [a2, b2, c2] });
   }
   return out;
 }

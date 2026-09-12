@@ -239,7 +239,7 @@ T("an if-rule reads a choice or a field, and goes to a step or Done; the otherwi
   const whats = [...row.querySelectorAll(".fl-r-what option")].map(o => o.textContent);
   assert.deepEqual(plain(whats), ["they pick Approve", "they pick Send back", "Brand"]);
   const tos = [...row.querySelectorAll(".fl-r-to option")].map(o => o.textContent);
-  assert.deepEqual(plain(tos), ["↩ 1. Write the draft", "→ Done"]);
+  assert.deepEqual(plain(tos), ["↩ 1. Write the draft", "→ Done", "→ Someone else (adds a step after this one)"]);
   assert.equal(row.querySelector(".fl-r-op"), null, "a choice rule has no comparison");
   row.querySelector(".fl-r-what").value = "choice:Send back"; row.querySelector(".fl-r-what").onchange({ target: row.querySelector(".fl-r-what") });
   const r2 = card().querySelector(".fl-route");
@@ -306,7 +306,7 @@ T("a step can be told to rate the work it receives; the first step cannot", () =
 T("the third ready-made shape is the approve-or-send-back loop", () => {
   run(`flS.draft = []; flPaintCanvas();`);
   const starts = [...doc.querySelectorAll(".fl-start-btn")].map(b => b.textContent);
-  assert.equal(starts.length, 4, JSON.stringify(starts));
+  assert.equal(starts.length, 5, JSON.stringify(starts));
   assert.match(starts[2], /approves it, or sends it back/);
   doc.querySelectorAll(".fl-start-btn")[2].onclick();
   const d = plain(run("flS.draft"));
@@ -314,6 +314,83 @@ T("the third ready-made shape is the approve-or-send-back loop", () => {
   assert.deepEqual(d[1].choices, ["Approve", "Send back"]);
   assert.equal(d[1].routes[0].to, d[0].id);
   assert.equal(d[1].rates, true, "a checker rates what they check");
+  run(ORG);
+});
+
+/* Approved is not finished. The owner's own words, 2026-09-12: "he said
+   done/approved, that means the task is ready to hand over to another
+   person". So the fourth shape has a third step, Approve points at it,
+   and nobody is guessed into it - the card says so until the owner picks. */
+T("the fourth ready-made shape hands approved work to a third step that somebody still has to be chosen for", () => {
+  run(`flS.draft = []; flPaintCanvas();`);
+  const starts = [...doc.querySelectorAll(".fl-start-btn")].map(b => b.textContent);
+  assert.match(starts[3], /approves it and hands it to someone else/);
+  doc.querySelectorAll(".fl-start-btn")[3].onclick();
+  const d = plain(run("flS.draft"));
+  assert.deepEqual(d.map(s => s.label), ["Do the work", "Check it", "Hand it on"]);
+  assert.deepEqual(d[1].routes.map(r => [r.when.value, r.to]), [["Send back", d[0].id], ["Approve", d[2].id]]);
+  assert.equal(d[1].rates, true);
+  assert.equal(d[2].roleId, "", "no role is guessed for the hand-on step");
+  assert.match(doc.querySelector('.fl-step[data-i="2"] .fl-sum').textContent, /Nobody chosen/);
+  // the picture reads it: Approve goes to step 3, and Done is a step further on
+  open(1);
+  const to = doc.querySelectorAll('.fl-step[data-i="1"] .fl-r-to')[1];
+  assert.equal(to.value, d[2].id);
+  assert.match(to.selectedOptions[0].textContent, /3\. Hand it on/);
+  run(ORG);
+});
+
+T("a route can point at a step that does not exist yet: picking 'someone else' adds the step and sends the work there", () => {
+  run(`flS.draft = []; flPaintCanvas();`);
+  doc.querySelectorAll(".fl-start-btn")[2].onclick();   // Do the work → Check it (Approve / Send back)
+  open(1);
+  const card = () => doc.querySelector('.fl-step[data-i="1"]');
+  // the Approve rule is not written yet, so Approve falls through to Done - and the card offers the way on
+  assert.match(card().querySelector(".fl-otherwise").textContent, /Otherwise → Done/);
+  assert.ok(card().querySelector(".fl-next-add"), "no 'hand it to someone else next' offer beside Done");
+  card().querySelector(".fl-route-add").onclick();
+  const sel = card().querySelectorAll(".fl-r-to")[1];
+  assert.ok([...sel.options].some(o => o.value === "new" && /Someone else/.test(o.textContent)), "no 'someone else' target");
+  sel.value = "new"; sel.onchange({ target: sel });
+  const d = plain(run("flS.draft"));
+  assert.equal(d.length, 3, "picking 'someone else' adds a step");
+  assert.equal(d[1].routes[1].to, d[2].id, "the rule points at the new step");
+  assert.equal(run("flS.open"), 2, "the new step is the open card");
+  assert.equal(run("flS.dirty"), true);
+  // and the older route's target survives the redraw
+  open(1);
+  const tos = doc.querySelectorAll('.fl-step[data-i="1"] .fl-r-to');
+  assert.equal(tos[0].value, d[0].id);
+  assert.equal(tos[1].value, d[2].id);
+  run(ORG);
+});
+
+T("'hand it to someone else next' adds a step after the group, and 'otherwise' follows it there", () => {
+  run(`flS.draft = []; flPaintCanvas();`);
+  doc.querySelectorAll(".fl-start-btn")[1].onclick();   // Do the work → Check it
+  open(1);
+  doc.querySelector('.fl-step[data-i="1"] .fl-next-add').onclick();
+  const d = plain(run("flS.draft"));
+  assert.equal(d.length, 3);
+  assert.equal(run("flS.open"), 2);
+  open(1);
+  assert.match(doc.querySelector('.fl-step[data-i="1"] .fl-otherwise').textContent, /→ Step 3/);
+  assert.equal(doc.querySelector('.fl-step[data-i="1"] .fl-next-add'), null, "the offer is only there when the way on is Done");
+  // a step that runs alongside others gets the new step after the whole group
+  run(`flS.draft[2].together = true; flPaintCanvas();`);
+  open(1);
+  doc.querySelector('.fl-step[data-i="1"] .fl-next-add').onclick();
+  assert.equal(run("flS.draft.length"), 4);
+  assert.equal(run("flS.open"), 3, "after the group, not inside it");
+  run(ORG);
+});
+
+T("the status chips say what they are for: the status while the work sits at the step", () => {
+  run(`flS.draft = []; flPaintCanvas();`);
+  doc.querySelectorAll(".fl-start-btn")[0].onclick();
+  open(0);
+  const opt = [...doc.querySelectorAll('.fl-step[data-i="0"] .fl-opt > span:first-child')].map(x => x.textContent);
+  assert.ok(opt.some(t => /While it is at this step, its status is/.test(t)), JSON.stringify(opt));
   run(ORG);
 });
 

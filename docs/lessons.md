@@ -210,6 +210,22 @@ WHY it is empty. It also has to distinguish "in no org" from "could not
 reach the org", because the first version of this fix told somebody to
 get themselves added to an org they were already in.
 
+**A rule that can only name what already exists cannot say what should
+happen next.** The check step's route target listed the other steps and
+Done, so "If they pick Approve go to" offered "1. Do the work" and
+"Done" - and the owner read the picture as "after the manager approves,
+it is finished", when what they meant was "approved means the next
+person takes it". The way to add that person existed (the + between
+the cards) and nowhere near the question. Now the target list ends
+with "Someone else (adds a step after this one)", "Otherwise → Done"
+carries the same offer, and a ready-made shape shows the three-step
+form. Rule: where a control asks "and then what?", the answer that is
+not built yet has to be one of the options, next to the ones that are.
+Guard: `tests/builder.test.mjs` "a route can point at a step that does
+not exist yet". (Same day: the step's "Mark the work as" chips read as
+an action - "mark it done and it is done" - when they are the label the
+work wears while it waits there. Renamed to say so.)
+
 **A correct action that looks like a dead button is not correct enough.**
 Finishing a stop whose next stop holds the same person is a correct
 handoff that changes nothing on screen. The row has to show the change.

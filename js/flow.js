@@ -73,6 +73,17 @@ function flToggle(step, uid){
 
 const flBlankStep = () => ({ id: "st" + orgNewId(), label: "", roleId: "", assignees: [], status: "", dueAfter: null });
 
+// insert a blank step after step i - after its whole group, if it runs
+// alongside others - and make it the open card. Returns the new step.
+function flAddAfter(i){
+  const g = hoGroups(flS.draft).find(x => i >= x.from && i <= x.to);
+  const at = (g ? g.to : i) + 1;
+  const st = flBlankStep();
+  flS.draft.splice(at, 0, st);
+  flS.open = at;
+  return st;
+}
+
 /* A rule as one sentence, for the lane and for a rule's own name when the
    person did not give it one. Rules are stored as trigger + action
    documents; nobody thinks in those, so the lane never shows a verb key. */
@@ -256,9 +267,13 @@ function flPaintCanvas(){
     const choices = (st.choices || []);
     const routes = (st.routes || []);
     const dis = owner ? "" : " disabled";
+    // where a rule can send the work: any other step, Done - or a step
+    // that does not exist yet, because "approved" usually means "now
+    // somebody else takes it", and that somebody needs a step to hold it
     const targets = draft.map((x, j) => j === i ? null :
-      '<option value="' + esc(x.id) + '"' + (x.id === "" ? "" : "") + '>' + (j < i ? "↩ " : "→ ") + (j + 1) + ". " + esc(labelOf(x)) + '</option>').filter(Boolean).join("") +
-      '<option value="done">→ Done</option>';
+      '<option value="' + esc(x.id) + '">' + (j < i ? "↩ " : "→ ") + (j + 1) + ". " + esc(labelOf(x)) + '</option>').filter(Boolean).join("") +
+      '<option value="done">→ Done</option>' +
+      (owner ? '<option value="new">→ Someone else (adds a step after this one)</option>' : "");
     const routeRow = (r, k) => {
       const w = r.when || {};
       const what = w.kind === "choice" ? "choice:" + w.value : "field:" + (w.key || "");
@@ -297,7 +312,8 @@ function flPaintCanvas(){
         '</div>' +
         '<p class="fl-lbl">Then</p>' +
         routes.map(routeRow).join("") +
-        '<p class="fl-otherwise">' + (routes.length ? "Otherwise" : "It goes") + ' → <b>' + esc(otherwiseOf(i)) + '</b></p>' +
+        '<p class="fl-otherwise">' + (routes.length ? "Otherwise" : "It goes") + ' → <b>' + esc(otherwiseOf(i)) + '</b>' +
+          (owner && otherwiseOf(i) === "Done" ? ' <button type="button" class="fl-link fl-next-add">+ Hand it to someone else next</button>' : "") + '</p>' +
         (owner ? '<button type="button" class="fl-link fl-route-add">+ Add an if</button>' : "") +
         (i > 0 && owner ? '<label class="fl-together"><input type="checkbox" class="fl-together-in"' + (st.together ? " checked" : "") + '> Runs at the same time as the step before it</label>' : "") +
         (i > 0 ? '<label class="fl-together fl-rates"><input type="checkbox" class="fl-rates-in"' + (st.rates ? " checked" : "") + (owner ? "" : " disabled") + '> Rates the work it receives <i>three scores, 1 to 5, feeds the leaderboard</i></label>' : "") +
@@ -353,7 +369,7 @@ function flPaintCanvas(){
       '<div class="fl-opts">' +
         '<label class="fl-opt"><span>Days to finish</span><span class="fl-days"><input type="number" min="1" max="365" placeholder="No limit" value="' +
           esc(st.dueAfter ? String(Math.round(st.dueAfter / HO_DAY)) : "") + '"' + dis + '><em>days</em></span></label>' +
-        '<div class="fl-opt"><span>Mark the work as</span><div class="fl-chips fl-chips-sm">' +
+        '<div class="fl-opt"><span>While it is at this step, its status is</span><div class="fl-chips fl-chips-sm">' +
           '<button type="button" class="fl-chip' + (!st.status ? " is-on" : "") + '" data-status=""' + dis + '>Don\'t change</button>' +
           (type.statuses || []).map(x => '<button type="button" class="fl-chip' + (x.key === st.status ? " is-on" : "") + '" data-status="' + esc(x.key) + '"' + dis + '>' + esc(x.label || x.key) + '</button>').join("") +
         '</div></div>' +
@@ -465,6 +481,11 @@ function flBindCanvas(){
       st().routes = (st().routes || []).filter(r => !(r.when && r.when.kind === "choice" && r.when.value === v));
       touch(); redraw();
     });
+    // "then somebody else takes it": a new step right after this one (or
+    // after its group), which is what "otherwise" now points at
+    const focusName = () => { const inp = c.querySelector('.fl-step[data-i="' + flS.open + '"] .fl-name'); if (inp) inp.focus(); };
+    const nextAdd = card.querySelector(".fl-next-add");
+    if (nextAdd) nextAdd.onclick = () => { flAddAfter(i); touch(); redraw(); focusName(); };
     const addRoute = card.querySelector(".fl-route-add");
     if (addRoute) addRoute.onclick = () => {
       const ch = st().choices || [], fs = type.fields || [];
@@ -493,7 +514,10 @@ function flBindCanvas(){
         if (fdef && fdef.type === "checkbox") r().when.value = raw === "true";
         touch();
       };
-      row.querySelector(".fl-r-to").onchange = e => { r().to = e.target.value; touch(); };
+      row.querySelector(".fl-r-to").onchange = e => {
+        if (e.target.value === "new") { r().to = flAddAfter(i).id; touch(); redraw(); focusName(); return; }
+        r().to = e.target.value; touch();
+      };
       const del = row.querySelector(".fl-r-del");
       if (del) del.onclick = () => { st().routes.splice(k, 1); touch(); redraw(); };
     });

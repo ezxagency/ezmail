@@ -128,7 +128,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 630 assertions, node + jsdom, seconds
+npm test        # 639 assertions, node + jsdom, seconds
 npm run test:rules   # 304 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -167,7 +167,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 934 pass as of this writing — a
+reaches through an org boundary. All 943 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -351,7 +351,16 @@ its own options), THEN (tell people - a role, whoever holds it, or
 whoever created it via `toWhom` - mark it, give it to someone, set a
 field). `flRuleBuild()` is the pure half the preview and the save both
 read; `flRuleProblem()` names what an empty rule still needs. Rules for
-every kind of work show in the lane too, tagged.
+every kind of work show in the lane too, tagged. Approved is not
+finished: a route's target list ends with "Someone else", which adds a
+step right after this one and points the rule at it (`flAddAfter`),
+the "Otherwise → Done" line offers the same, and the fourth ready-made
+shape is "…approves it and hands it to someone else" - Approve goes to
+a third step with nobody guessed into it, so the card says "Nobody
+chosen" until the owner picks. The status chips are labelled for what
+they are: the status the work shows WHILE it sits at that step
+(`hoStatus` copies the active stop's `status` onto the item); steps
+move work, statuses only describe it.
 
 Tenth piece: **task review and reviewed quality**, `js/rating.js`
 (pure: the math, the words, what a review IS) + `js/reviews.js` (the
