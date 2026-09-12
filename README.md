@@ -32,7 +32,9 @@ css/  loaded in order; the order IS the cascade, never shuffle it
   week.css          this week's hours and streak under the wordmark (redesign)
   rail.css          the left icon rail that replaces the hamburger (redesign)
   hero.css          "pick up where you left off" chips (redesign)
+  started.css       the started stack's landscape cards (redesign)
   v6.css            the redesign's ground and layout, all under body.ui-next
+  ios.css           the iOS layer over the redesign: glass, tints, motion, shape
   login.css         Shift Card login screen (legacy palette)
   premium.css       motion/gesture polish layer, loaded last on purpose
 

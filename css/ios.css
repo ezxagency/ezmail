@@ -1,0 +1,237 @@
+/* ============================================================
+   THE iOS LAYER — how iOS uses glass, colour and motion, laid
+   over the new dashboard. .ui-next only, so ?ui=classic is
+   untouched. Loaded after v6.css: this file ADJUSTS surfaces the
+   other sheets lay out, it does not lay anything out itself.
+
+   Four ideas, and everything below is one of them:
+     1. glass  - a translucent fill over a heavy blur, one thin
+                 light stroke, and a 1px highlight along the top
+                 edge, which is what makes glass read as glass
+     2. colour - near-black ground, white and "secondary" labels
+                 (iOS's slightly blue-grey), and system tints used
+                 sparingly: blue for the action, green for time
+                 running, orange for the streak, red for late
+     3. motion - one ease (iOS's), springs that settle, things
+                 that shrink a touch when pressed, and surfaces
+                 that arrive in a staggered rise on first paint
+     4. shape  - continuous corners, capsules for anything small
+   ============================================================ */
+
+body.ui-next{
+  --ios-blue:#0A84FF;
+  --ios-green:#30D158;
+  --ios-orange:#FF9F0A;
+  --ios-red:#FF453A;
+  --ios-label:#FFFFFF;
+  --ios-label-2:rgba(235,235,245,.62);
+  --ios-label-3:rgba(235,235,245,.32);
+  --ios-glass:rgba(255,255,255,.08);
+  --ios-glass-2:rgba(255,255,255,.13);
+  --ios-stroke:rgba(255,255,255,.14);
+  --ios-stroke-2:rgba(255,255,255,.24);
+  --ios-blur:blur(28px) saturate(180%);
+  --ios-blur-lg:blur(40px) saturate(180%);
+  --ios-shadow:0 18px 44px rgba(0,0,0,.42);
+  --ios-hi:inset 0 1px 0 rgba(255,255,255,.18);
+  --ios-ease:cubic-bezier(.32,.72,0,1);
+  /* the kit's own tokens, retuned: every rule that already used them
+     picks up the palette without being rewritten */
+  --wk-green:var(--ios-green);
+  --wk-white-70:rgba(235,235,245,.74);
+  --wk-white-60:var(--ios-label-2);
+  --pz-ease:var(--ios-ease);
+}
+
+/* ---------- 1. glass ---------- */
+.ui-next :is(.mode-switch, .pu-chip, .wrow-streak, .dk-ab, .dk-file, .rail-badge,
+  .dk-bt-gh, .toast, .fpage-panel, .fpage-bar, .st-card){
+  background:var(--ios-glass);
+  border:1px solid var(--ios-stroke);
+  backdrop-filter:var(--ios-blur);-webkit-backdrop-filter:var(--ios-blur);
+  box-shadow:var(--ios-hi);
+}
+.ui-next :is(.dk-file, .st-card, .fpage-panel, .toast){box-shadow:var(--ios-hi), var(--ios-shadow)}
+
+/* the deck's front card is the app's biggest pane of glass: dark enough
+   to read on, clear enough that the marble and the card behind it show
+   through as soft shapes - the app switcher's look */
+.ui-next .dk-card{
+  background:rgba(255,255,255,.10);
+  border-color:var(--ios-stroke);border-radius:30px;
+  box-shadow:var(--ios-hi), 0 26px 60px rgba(0,0,0,.42);
+}
+.ui-next .dk-card.is-front{
+  background:rgba(28,28,34,.78);
+  border-color:var(--ios-stroke-2);
+  backdrop-filter:var(--ios-blur);-webkit-backdrop-filter:var(--ios-blur);
+}
+.ui-next .st-card{background:rgba(28,28,34,.62);border-radius:22px}
+.ui-next .st-card:hover{background:rgba(44,44,52,.68);border-color:var(--ios-stroke-2)}
+.ui-next .st-card.is-running{border-color:rgba(10,132,255,.55);box-shadow:var(--ios-hi), 0 0 0 1px rgba(10,132,255,.25), var(--ios-shadow)}
+.ui-next .st-card.is-finished,.ui-next .st-card.is-finished:hover{background:rgba(20,20,24,.55);border-color:var(--ios-stroke)}
+
+/* the rail is a glass strip, and the page you are on sits in a tinted
+   pill behind its icon rather than under a bar on the edge */
+.ui-next #rail{
+  background:rgba(12,12,16,.58);
+  backdrop-filter:var(--ios-blur-lg);-webkit-backdrop-filter:var(--ios-blur-lg);
+  border-right:1px solid rgba(255,255,255,.08);
+}
+.ui-next .rail-badge{border-radius:14px}
+.ui-next .rail-ico,.ui-next .rail-txt{position:relative}
+.ui-next .rail-mark{
+  left:50%;top:6px;width:50px;height:34px;border-radius:12px;
+  background:rgba(10,132,255,.22);
+  transform:translateX(-50%) scale(.6);opacity:0;
+  transition:transform .42s var(--pz-spring), opacity .2s ease;
+}
+.ui-next .rail-item.is-on{color:var(--ios-blue)}
+.ui-next .rail-item.is-on .rail-mark{transform:translateX(-50%) scale(1);opacity:1}
+.ui-next .rail-av{box-shadow:0 0 0 2px rgba(255,255,255,.14)}
+
+/* sheets, the scrim and the toast */
+.ui-next .scrim{background:rgba(0,0,0,.42);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.ui-next .sheet{
+  background:rgba(28,28,32,.78);
+  backdrop-filter:var(--ios-blur-lg);-webkit-backdrop-filter:var(--ios-blur-lg);
+  border:1px solid var(--ios-stroke);border-bottom:0;border-radius:32px 32px 0 0;
+  box-shadow:var(--ios-hi), 0 -24px 60px rgba(0,0,0,.45);
+}
+.ui-next .grab{width:36px;height:5px;background:rgba(255,255,255,.3)}
+.ui-next .toast{background:rgba(40,40,46,.72);color:var(--ios-label)}
+
+/* inputs: iOS's grouped fields - a quiet fill, no hard stroke, and the
+   focus is the tint, not a white box */
+.ui-next :is(input[type=text],input[type=date],input[type=month],input[type=time],input[type=number],select,textarea){
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);border-radius:14px;
+  transition:border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.ui-next :is(input,select,textarea):focus{
+  outline:none;border-color:var(--ios-blue);
+  box-shadow:0 0 0 3px rgba(10,132,255,.28);background:rgba(255,255,255,.10);
+}
+.ui-next .chip{background:var(--ios-glass);border:1px solid var(--ios-stroke)}
+.ui-next .chip[aria-pressed=true]{background:var(--ios-blue);color:#fff;border-color:transparent}
+
+/* the sub-pages share the dashboard's ground and its glass */
+.ui-next .admin-page{
+  background-image:
+    linear-gradient(180deg, rgba(9,10,13,.90), rgba(9,10,13,.84) 42%, rgba(9,10,13,.90)),
+    url('../assets/bg-marble.webp');
+}
+.ui-next .fpage-panel{border-radius:22px}
+
+/* ---------- 2. colour ---------- */
+/* the action is blue. A white button reads as a surface; a tinted one
+   reads as the thing to press, which is how iOS tells the two apart */
+.ui-next #appScreen .btn,.ui-next .sheet .btn{
+  background:var(--ios-glass);color:var(--ios-label);
+  border:1px solid var(--ios-stroke);
+  backdrop-filter:var(--ios-blur);-webkit-backdrop-filter:var(--ios-blur);
+  box-shadow:var(--ios-hi);
+  border-radius:18px;
+}
+.ui-next #appScreen .btn-ghost,.ui-next .sheet .btn-ghost{background:var(--ios-glass);border-color:var(--ios-stroke)}
+.ui-next #appScreen .btn-break,.ui-next .sheet .btn-break{background:rgba(255,255,255,.06)}
+.ui-next #appScreen .btn-go,.ui-next .sheet .btn-go,
+.ui-next .app.panes .dock .btn-go{
+  background:linear-gradient(180deg, #2B95FF, var(--ios-blue));color:#fff;border-color:transparent;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 12px 28px rgba(10,132,255,.35);
+}
+.ui-next .btn-go:not([disabled]):hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 16px 34px rgba(10,132,255,.45)}
+.ui-next .dk-bt-go{
+  background:linear-gradient(180deg, #2B95FF, var(--ios-blue));color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 10px 24px rgba(10,132,255,.35);
+}
+.ui-next .dk-bt-gh{color:var(--ios-label);border-width:1px}
+.ui-next .dk-bt,.ui-next .dk-file{border-radius:16px}
+.ui-next .btn:focus-visible,.ui-next .dk-bt:focus-visible,.ui-next .chip:focus-visible,
+.ui-next .mode-opt:focus-visible,.ui-next .pu-chip:focus-visible{outline:2px solid var(--ios-blue);outline-offset:2px}
+
+/* the segmented control: a glass track, a lighter glass thumb, and the
+   chosen label simply goes white */
+.ui-next .mode-switch{padding:3px;box-shadow:var(--ios-hi)}
+.ui-next .mode-opt{color:var(--ios-label-2)}
+.ui-next .mode-opt.is-on{color:var(--ios-label)}
+.ui-next .mode-thumb{
+  top:3px;bottom:3px;left:3px;
+  background:rgba(255,255,255,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 12px rgba(0,0,0,.35);
+}
+
+/* the rings: a dim track, a green arc that glows - the activity rings */
+.ui-next .ring-track{stroke:rgba(255,255,255,.12)}
+.ui-next .ring-progress{filter:drop-shadow(0 0 7px rgba(48,209,88,.55))}
+.ui-next .ring-lap-fill{stroke:rgba(48,209,88,.3)}
+.ui-next .band[data-s="ON_BREAK"] ~ .stage .ring-progress{filter:none}
+.ui-next .clock-label{color:var(--ios-label-2);letter-spacing:.12em;font-weight:600}
+
+/* pills: a tint at 16% behind its own colour at full */
+.ui-next :is(.dk-due, .st-card.is-finished .st-state){background:rgba(48,209,88,.16);color:var(--ios-green);border:1px solid rgba(48,209,88,.32)}
+.ui-next .dk-late{background:rgba(255,69,58,.16);color:var(--ios-red);border:1px solid rgba(255,69,58,.35)}
+.ui-next :is(.dk-live, .st-card.is-running .st-state){background:var(--ios-blue);color:#fff}
+.ui-next :is(.dk-paused, .st-card.is-paused .st-state, .dk-store){background:var(--ios-glass-2);color:var(--ios-label);border:1px solid var(--ios-stroke)}
+.ui-next .dk-sub b{color:var(--ios-red)}
+.ui-next .dk-sub b i{background:var(--ios-red)}
+.ui-next .dk-chk.is-done i{background:var(--ios-green)}
+.ui-next .dk-chk i{border-radius:6px}
+
+/* the week: today is the tinted bar, the streak is orange, the rest is
+   quiet */
+.ui-next .wrow-day.is-today .wrow-bar{background:var(--ios-blue);box-shadow:0 6px 18px rgba(10,132,255,.45)}
+.ui-next .wrow-day.is-today em{color:var(--ios-blue)}
+.ui-next .wrow-bar{border-radius:6px}
+.ui-next .wrow-streak svg{color:var(--ios-orange)}
+
+/* the bar under the clocks */
+.ui-next .sb-bar{background:rgba(255,255,255,.07);border:1px solid var(--ios-stroke);border-radius:12px;box-shadow:var(--ios-hi)}
+.ui-next .sb-seg{border-radius:7px}
+.ui-next .sb-work{background:rgba(255,255,255,.88)}
+.ui-next .sb-break{background:rgba(0,0,0,.55)}
+.ui-next .sb-play{background:var(--ios-green);box-shadow:0 0 0 3px rgba(48,209,88,.26), 0 0 14px rgba(48,209,88,.6)}
+
+.ui-next .brand-rule{opacity:.9}
+.ui-next .pu-chip b{color:var(--ios-label)}
+.ui-next .pu-chip:hover{background:var(--ios-glass-2);border-color:var(--ios-stroke-2)}
+
+/* ---------- 3. motion ---------- */
+/* first paint: the surfaces rise into place, one after another */
+@keyframes iosRise{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.ui-next #appScreen:not(.hidden) :is(.band, .clock, .dock, .shiftbar, .started, .assign-panel){
+  animation:iosRise .7s var(--ios-ease) both;
+}
+.ui-next #appScreen:not(.hidden) .clock{animation-delay:.05s}
+.ui-next #appScreen:not(.hidden) .dock{animation-delay:.1s}
+.ui-next #appScreen:not(.hidden) .shiftbar{animation-delay:.15s}
+.ui-next #appScreen:not(.hidden) .started{animation-delay:.12s}
+.ui-next #appScreen:not(.hidden) .assign-panel{animation-delay:.08s}
+
+/* pressed things give, and what is pressed is the whole control. Cards
+   in the deck and the stack are placed by their springs, so their press
+   is on the buttons they hold rather than the card. */
+.ui-next #appScreen :is(.btn, .dk-bt, .dk-ab, .dk-file, .pu-chip, .mode-opt, .rail-item, .wrow-streak):not([disabled]):active,
+.ui-next .sheet :is(.btn, .chip):not([disabled]):active{transform:scale(.96);transition-duration:.08s}
+.ui-next .st-card:active{border-color:var(--ios-blue)}
+
+/* iOS eases everything the same way, and springs what settles */
+.ui-next .sheet{transition:transform .55s var(--pz-spring)}
+.ui-next .sheet:not(.on){transition:transform .32s var(--ios-ease)}
+.ui-next .scrim{transition:opacity .32s var(--ios-ease)}
+.ui-next .mode-thumb{transition:transform .5s var(--pz-spring)}
+.ui-next .dk-ab,.ui-next .dk-file,.ui-next .dk-bt,.ui-next .pu-chip{
+  transition:transform .28s var(--ios-ease), background .2s ease, border-color .2s ease, box-shadow .28s var(--ios-ease);
+}
+.ui-next .dk-dots i{transition:background .3s var(--ios-ease), width .4s var(--pz-spring)}
+.ui-next .wrow-bar{transition:height .5s var(--pz-spring)}
+
+@media (prefers-reduced-motion:reduce){
+  .ui-next #appScreen :is(.band, .clock, .dock, .shiftbar, .started, .assign-panel){animation:none}
+  .ui-next .sheet,.ui-next .sheet:not(.on){transition:transform .2s ease}
+}
+
+/* ---------- 4. shape ---------- */
+@supports (corner-shape: superellipse(2)){
+  .ui-next :is(.dk-card, .st-card, .fpage-panel){corner-shape:var(--squircle-lg)}
+  .ui-next :is(.btn, .dk-bt, .dk-file, .rail-badge, .rail-mark, .sb-bar){corner-shape:var(--squircle-sm)}
+}
