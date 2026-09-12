@@ -215,7 +215,12 @@ assignment offers Done, a
 workflow stop routes to its stop, and work whose type was deleted offers
 nothing and says why. `dkPick()` is the pure half, and it exists because
 finishing the front card removes it from the snapshot — what shows next
-has to be the work that took its place, not card one.
+has to be the work that took its place, not card one. Done has a MOMENT:
+`finishAssignment()` arms `dkHold()` before it writes, so the snapshot's
+rows wait; on success `dkStrike()` draws a line through the middle of the
+title and the deck keeps that picture for under a second before the rows
+apply; on failure `dkRelease()` puts everything back. Nothing changes on
+the press itself — `docs/lessons.md` > "A card faded before".
 
 Third piece: the **week row** under the wordmark. `js/week.js` derives
 this week's hours, seven day bars and the clock-in streak from
@@ -254,8 +259,9 @@ segment without one (classic tasks, the idle gap) is not a started task.
 A new task lands at the bottom, three fit, and past three the stack
 scrolls one card per wheel notch on the deck's spring. `stPlan()` is the
 pure half; its one opinion is that a task whose segments are all closed
-is FINISHED only once the deck has loaded and no longer carries it — before
-that snapshot the honest word is Paused. The card redraws only when a
+is FINISHED only once the deck has loaded and no longer carries it — and a
+finished task LEAVES the stack (the owner's ask); before that snapshot the
+honest word is Paused, and the card stays. The card redraws only when a
 task's identity or state changes; the running card's digits are written
 in place every second, because rebuilding the stack once a second would
 restart the spring under the reader's wheel.

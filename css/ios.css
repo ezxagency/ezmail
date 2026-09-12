@@ -88,7 +88,6 @@ body.ui-next{
   /* every one of these is written per frame; a transition would lag it */
   transition:none;
 }
-.ui-next .adeck .dk-card.is-going{transition:opacity .22s var(--pz-ease)}
 /* the sheen: wider than the card, so sliding it never shows an edge */
 .ui-next .adeck .dk-card::before{
   content:"";position:absolute;inset:0 -30%;pointer-events:none;z-index:0;
@@ -121,7 +120,6 @@ body.ui-next{
 .ui-next .st-card{background:rgba(28,28,34,.62);border-radius:22px}
 .ui-next .st-card:hover{background:rgba(44,44,52,.68);border-color:var(--ios-stroke-2)}
 .ui-next .st-card.is-running{border-color:rgba(10,132,255,.55);box-shadow:var(--ios-hi), 0 0 0 1px rgba(10,132,255,.25), var(--ios-shadow)}
-.ui-next .st-card.is-finished,.ui-next .st-card.is-finished:hover{background:rgba(20,20,24,.55);border-color:var(--ios-stroke)}
 
 /* the rail is a glass strip, and the page you are on sits in a tinted
    pill behind its icon rather than under a bar on the edge */
@@ -220,7 +218,7 @@ body.ui-next{
 .ui-next .clock-label{color:var(--ios-label-2);letter-spacing:.12em;font-weight:600}
 
 /* pills: a tint at 16% behind its own colour at full */
-.ui-next :is(.dk-due, .st-card.is-finished .st-state){background:rgba(48,209,88,.16);color:var(--ios-green);border:1px solid rgba(48,209,88,.32)}
+.ui-next .dk-due{background:rgba(48,209,88,.16);color:var(--ios-green);border:1px solid rgba(48,209,88,.32)}
 .ui-next .dk-late{background:rgba(255,69,58,.16);color:var(--ios-red);border:1px solid rgba(255,69,58,.35)}
 .ui-next :is(.dk-live, .st-card.is-running .st-state){background:var(--ios-blue);color:#fff}
 .ui-next :is(.dk-paused, .st-card.is-paused .st-state, .dk-store){background:var(--ios-glass-2);color:var(--ios-label);border:1px solid var(--ios-stroke)}

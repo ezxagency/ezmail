@@ -181,6 +181,12 @@ await page.evaluate(() => {
 });
 await shoot("next-on-shift");
 
+// ---- the done moment: the finish has landed, the line is through the title ----
+await page.evaluate(() => { dkHold("r1"); dkStrike("r1"); });
+await page.waitForTimeout(250);   // + the shoot's own 350ms: the line is fully drawn, the fade not begun
+await shoot("next-done");
+await page.evaluate(() => { dkRelease(); dkRender(dkRows); });
+
 // ---- a block of the bar under the cursor: it rises and says what it was ----
 await page.hover(".sb-seg.is-live");
 await page.waitForTimeout(400);
@@ -244,8 +250,10 @@ await page.evaluate(() => {
       startedAt: now - 40 * 60000, endedAt: now - 30 * 60000 },
     { task: "Update the price list", itemId: "r5", client: "Studio North",
       startedAt: now - 30 * 60000, endedAt: now - 20 * 60000 });
-  assignedTasksSeen = new Set(["r1", "r2", "r3"]);
-  // and no shift length set on this seat: the bar assumes 8h and says so
+  // the deck has not loaded yet, so all five are still on the stack (once
+  // it has, the two it no longer carries leave); and no shift length set
+  // on this seat, so the bar assumes 8h and says so
+  assignedTasksSeen = null;
   orgS.members[0].shiftMinutes = 0;
   render();
 });

@@ -31,8 +31,6 @@
 .st-card:hover{border-color:rgba(255,255,255,.3);background:rgba(52,48,44,.94)}
 .st-card.is-off{visibility:hidden}
 .st-card.is-running{border-color:rgba(255,255,255,.34)}
-.st-card.is-finished{cursor:default;background:rgba(34,32,30,.82)}
-.st-card.is-finished:hover{border-color:rgba(255,255,255,.14);background:rgba(34,32,30,.82)}
 
 .st-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:22px}
 .st-store{
@@ -45,13 +43,11 @@
 }
 .st-card.is-running .st-state{background:var(--wk-white);color:#12131a}
 .st-card.is-paused .st-state{background:rgba(255,255,255,.10);color:var(--wk-white-70);border:1px solid rgba(255,255,255,.22)}
-.st-card.is-finished .st-state{background:rgba(0,174,11,.2);color:#7dfa86;border:1px solid rgba(0,174,11,.4)}
 
 .st-title{
   margin:4px 0 0;font-size:15px;font-weight:600;line-height:1.25;color:var(--wk-white);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.st-card.is-finished .st-title{color:var(--wk-white-70)}
 .st-meta{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:11px;color:var(--wk-white-60)}
 .st-meta b{
   font-size:14px;font-weight:600;color:var(--wk-white);

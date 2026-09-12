@@ -913,6 +913,9 @@ function markAssignmentDone(id){
 async function finishAssignment(id, row, comment){
   const btn = $("doneSend");
   if (btn) btn.disabled = true;
+  // the deck holds its picture until this reports back - see dkHold()
+  const deck = typeof dkHold === "function";
+  if (deck) dkHold(id);
 
   /* An Item has no `done` flag to set - it has a status its type owns,
      and possibly a handoff whose current stop is what finishing actually
@@ -923,6 +926,7 @@ async function finishAssignment(id, row, comment){
     const r = await itemsFinishFromQueue(row.itemId, comment);
     if (!r.ok) {
       if (btn) btn.disabled = false;
+      if (deck) dkRelease();
       /* Name the actual failure. "Check Firestore rules" was a guess
          dressed as a diagnosis, and it sent somebody looking at rules
          three times for three different causes, none of them rules. */
@@ -938,6 +942,7 @@ async function finishAssignment(id, row, comment){
       return;
     }
     closeSheet();
+    if (deck) dkStrike(id);
     if (comment) dispatchMentionNotifications(comment, id, row).catch(e => console.error(e));
     // the toast says what actually happened rather than "done" for all of
     // them: passing a baton on and closing a job are different events
@@ -956,6 +961,7 @@ async function finishAssignment(id, row, comment){
     if (comment){ patch.comment = comment; patch.commentAt = now; }
     await db.collection("assignments").doc(id).update(patch);
     closeSheet();
+    if (deck) dkStrike(id);
     // the notification fan-out is fire-and-forget: the task is done either
     // way. Runs with or without a comment - a completion alone still rings
     // the admin's bell; a comment adds its text and tags its @mentions.
@@ -967,6 +973,7 @@ async function finishAssignment(id, row, comment){
   } catch (e) {
     console.error(e);
     if (btn) btn.disabled = false;
+    if (deck) dkRelease();
     toast("Couldn't update — check Firestore rules allow it");
   }
 }

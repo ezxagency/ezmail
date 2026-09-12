@@ -46,12 +46,12 @@ T("the open segment's task is running; a closed one is paused", () => {
   assert.equal(p[1].state, "running");
 });
 
-T("finished only once the deck has loaded and no longer carries it", () => {
+T("a task leaves the stack once the deck has loaded and no longer carries it", () => {
   const sh = { segs: [seg("a", "First", "Alpha", 90, 50)] };
   assert.equal(stPlan(sh, NOW, null, false)[0].state, "paused", "no deck at all");
   assert.equal(stPlan(sh, NOW, new Set(), false)[0].state, "paused", "the deck has not loaded: the honest word is Paused");
   assert.equal(stPlan(sh, NOW, new Set(["a"]), true)[0].state, "paused", "still on the deck");
-  assert.equal(stPlan(sh, NOW, new Set(["z"]), true)[0].state, "finished");
+  assert.equal(stPlan(sh, NOW, new Set(["z"]), true).length, 0, "a finished task is still on the stack");
 });
 
 T("segments with no item - classic tasks, the idle gap - are not started tasks", () => {
@@ -148,11 +148,10 @@ T("pressing a card brings that work to the front of the deck", () => {
   run(`stReset(); ${five} dkRows = [{ id:"r5" }, { id:"r3" }, { id:"r1" }]; assignedTasksSeen = new Set(); stRender();`);
   host().querySelector('.st-card[data-item="r3"]').click();
   assert.equal(run(`__to`), 1);
-  assert.ok(host().querySelector('.st-card[data-item="r2"]').classList.contains("is-finished"),
-    "off the loaded deck with its segments closed is finished");
-  run(`__to = -1;`);
-  host().querySelector('.st-card[data-item="r2"]').click();
-  assert.equal(run(`__to`), -1, "a finished task has no card on the deck to go to");
+  assert.equal(host().querySelector('.st-card[data-item="r2"]'), null,
+    "off the loaded deck with its segments closed is finished, and finished has left the stack");
+  assert.equal(host().querySelectorAll(".st-card").length, 3, "r1, r3 and the running r5 remain");
+  assert.ok(/3/.test(host().querySelector(".st-cap").textContent), "the caption still counts the finished ones");
 });
 
 T("clocking out empties it", () => {

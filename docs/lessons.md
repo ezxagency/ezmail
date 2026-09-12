@@ -377,6 +377,19 @@ transform instead.
 *Guard:* `tests/deck.test.mjs` reads `css/ios.css` and fails if `--d`,
 `--o` or `--v` appears in any other property.
 
+**A card faded before the thing it announced had happened.** Pressing
+Done on the deck faded the card to nothing at once - then opened the
+sheet that asks for a comment and actually finishes the task. Cancel the
+sheet and the card stayed invisible until the next snapshot. Confirm it
+and the snapshot removed the card before the eye caught up, so "done"
+had no moment at all.
+*Rule:* a control's feedback follows the WRITE, not the press. Until the
+write lands nothing on screen may claim it did; once it lands, the
+picture is held long enough to be seen before the new state applies.
+*Guard:* `tests/deck.test.mjs` proves the press changes nothing, that a
+hold keeps the snapshot's rows waiting while the strike draws, and that
+`finishAssignment()` arms, strikes and releases on both of its paths.
+
 ### Cuts
 
 **Campaigns was cut, not migrated (2026-09-09).**

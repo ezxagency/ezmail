@@ -84,7 +84,20 @@
 .dk-card:not(.is-front){filter:blur(3.5px)}
 .dk-card *{user-select:none}
 .dk-card.is-front .dk-body{user-select:text}
-.dk-card.is-going{opacity:0 !important;transition:opacity .22s var(--pz-ease)}
+/* the done moment: a line draws through the middle of the title, every
+   line of it (box-decoration-break gives each line fragment its own
+   background), and then the card fades. The animation beats the inline
+   opacity the spring writes, which is what lets it win while held. */
+.dk-card.is-done .dk-title{color:var(--wk-white-70)}
+.dk-card.is-done .dk-title span{
+  background-image:linear-gradient(var(--wk-white),var(--wk-white));
+  background-repeat:no-repeat;background-position:0 54%;background-size:0% 2px;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;
+  animation:dkStrike .4s cubic-bezier(.32,.72,0,1) forwards;
+}
+.dk-card.is-done{pointer-events:none;animation:dkGone .3s .8s cubic-bezier(.32,.72,0,1) forwards}
+@keyframes dkStrike{to{background-size:100% 2px}}
+@keyframes dkGone{to{opacity:0}}
 /* Nothing assigned is still a CARD - the column keeps its shape rather
    than collapsing - but it is not IN the stack, so it does not move. */
 .dk-card-empty{

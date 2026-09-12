@@ -92,10 +92,44 @@ async function dkIdleAfter(r){
 }
 
 function dkFinish(r){
-  const card = document.querySelector(".dk-card.is-front");
-  if (card) card.classList.add("is-going");
   dkIdleAfter(r);
   return markAssignmentDone(r.id);
+}
+
+/* ---------- the done moment ----------
+   Done is confirmed in a sheet (markAssignmentDone), and the write that
+   follows removes the row from the snapshot within a frame or two. That
+   used to be the whole ceremony - worse, the card faded the instant Done
+   was PRESSED, before anything was confirmed, and cancelling the sheet
+   left an invisible card. Now the card does nothing until the finish
+   lands. finishAssignment() arms a HOLD before it writes, so the rows the
+   snapshot delivers wait instead of applying; on success it asks for the
+   strike - a line drawn through the middle of the title - and the deck
+   keeps that picture for DK_DONE_MS before the waiting rows apply. On
+   failure it releases at once and the card is simply still there. */
+const DK_DONE_MS = 1150;
+let dkHeld = null;   // { id, rows: the latest rows delivered while holding, timer }
+
+function dkHold(id){
+  if (typeof uiNextOn === "function" && !uiNextOn()) return;
+  if (!$("assignedDeck")) return;
+  dkRelease(false);
+  // a finish that never reports back must not freeze the deck for good
+  dkHeld = { id, rows: null, timer: setTimeout(() => dkRelease(), 6000) };
+}
+function dkStrike(id){
+  if (!dkHeld || dkHeld.id !== id) return;
+  const card = [...document.querySelectorAll(".dk-card")].find(c => c.dataset.id === id);
+  if (card) card.classList.add("is-done");
+  clearTimeout(dkHeld.timer);
+  dkHeld.timer = setTimeout(() => dkRelease(), DK_DONE_MS);
+}
+function dkRelease(apply){
+  if (!dkHeld) return;
+  const { rows, timer } = dkHeld;
+  clearTimeout(timer);
+  dkHeld = null;
+  if (apply !== false && rows) dkRender(rows);
 }
 
 /* §4: the paused row. Putting work down closes its segment and opens an
@@ -170,7 +204,7 @@ function dkFoot(r){
 
 function dkCard(r, n){
   const paused = !dkRunning(r) && dkPausedMs(r) > 0;
-  return '<article class="dk-card" data-n="' + n + '">'
+  return '<article class="dk-card" data-n="' + n + '" data-id="' + esc(r.id) + '">'
     + '<div class="dk-top">'
     +   (r.store ? '<span class="dk-pill dk-store">' + esc(r.store) + '</span>' : "")
     +   dkDuePill(r)
@@ -178,7 +212,8 @@ function dkCard(r, n){
     +   (paused ? '<span class="dk-pill dk-paused">Paused · ' + esc(humanDur(dkPausedMs(r))) + '</span>' : "")
     +   (r.orphanType ? '<span class="dk-pill dk-late">Needs an owner</span>' : "")
     + '</div>'
-    + '<h3 class="dk-title">' + esc(r.task || "Work") + '</h3>'
+    // the span is what the done strike draws across, line by line
+    + '<h3 class="dk-title"><span>' + esc(r.task || "Work") + '</span></h3>'
     + '<p class="dk-from">From ' + esc(r.fromName || r.fromEmail || "admin")
     +   (r.createdAt ? " · assigned " + dayStamp(r.createdAt) : "")
     +   (r.dueDate ? "" : " · no due date") + '</p>'
@@ -250,6 +285,8 @@ function dkEmptyHTML(){
 function dkRender(rows){
   const host = $("assignedDeck");
   if (!host) return;
+  // mid-done: the picture is held, the rows wait (see dkHold)
+  if (dkHeld){ dkHeld.rows = rows || []; return; }
   dkRows = rows || [];
   const pick = dkPick(dkRows, dkId, dkIdx);
   const wasIdx = dkIdx;
@@ -317,6 +354,7 @@ function dkRender(rows){
    offering Start task on work that was already running. render() calls
    this, which is the only place that sees both. */
 function dkRefresh(){
+  if (dkHeld) return;   // the held picture is the point; and dkRows is stale by then
   if (typeof $ === "function" && $("assignedDeck")) dkRender(dkRows);
 }
 

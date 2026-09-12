@@ -302,6 +302,51 @@ T("a redraw onto the same card marks it front again", () => {
   assert.equal(deck().querySelectorAll(".dk-dots i.on").length, 1, "the dot went out");
 });
 
+/* The done moment. The card used to fade the instant Done was PRESSED -
+   before the sheet was confirmed, so cancelling left an invisible card -
+   and the snapshot then removed it before the eye caught up. Now nothing
+   happens until the finish lands: the write arms a hold, the rows the
+   snapshot delivers wait, the strike draws through the title, and only
+   then do the waiting rows apply. A failed finish releases at once. */
+T("pressing Done changes nothing on the card until the finish lands", () => {
+  run(`dkReset(); S.status = "IDLE"; S.shift = null; markAssignmentDone = () => {};
+       dkRender([{ id: "a", task: "One" }, { id: "b", task: "Two" }]); dkFinish(dkRows[0]);`);
+  const card = deck().querySelector('.dk-card[data-id="a"]');
+  assert.ok(!card.classList.contains("is-done") && !card.classList.contains("is-going"), "the card reacted to the press");
+  assert.equal(card.style.opacity, "1");
+});
+
+T("the finish holds the deck, strikes the title, then lets the new rows apply", () => {
+  run(`dkHold("a"); dkRender([{ id: "b", task: "Two" }]);`);
+  assert.equal(deck().querySelectorAll(".dk-card").length, 2, "the snapshot's rows applied during the hold");
+  run(`dkRefresh();`);
+  assert.equal(deck().querySelectorAll(".dk-card").length, 2, "a refresh rebuilt the held picture");
+  run(`dkStrike("a");`);
+  assert.ok(deck().querySelector('.dk-card[data-id="a"]').classList.contains("is-done"), "no strike through the title");
+  assert.ok(deck().querySelector('.dk-card[data-id="a"] .dk-title span'), "the title has no span for the line to draw across");
+  run(`dkRelease();`);
+  assert.equal(deck().querySelectorAll(".dk-card").length, 1, "the waiting rows did not apply after the hold");
+  assert.equal(deck().querySelector(".dk-card").dataset.id, "b");
+});
+
+T("a finish that fails releases the hold and leaves the card alone", () => {
+  run(`dkReset(); dkRender([{ id: "a", task: "One" }, { id: "b", task: "Two" }]); dkHold("a"); dkRelease();`);
+  assert.equal(deck().querySelectorAll(".dk-card").length, 2);
+  assert.ok(!deck().querySelector(".is-done"));
+  run(`dkRender([{ id: "b", task: "Two" }]);`);
+  assert.equal(deck().querySelectorAll(".dk-card").length, 1, "renders are still held after the release");
+});
+
+/* Written, never read - shape 3: the hold exists only if the write path
+   arms it, strikes on success and releases on failure. */
+T("finishAssignment() drives the hold, the strike and the release", () => {
+  const src = readFileSync(join(here, "..", "js", "assign.js"), "utf8");
+  const body = src.slice(src.indexOf("async function finishAssignment"), src.indexOf("function watchCompletionNotifications"));
+  assert.ok(/dkHold\(id\)/.test(body), "the write never arms the hold");
+  assert.equal((body.match(/dkStrike\(id\)/g) || []).length, 2, "both finish paths must strike on success");
+  assert.equal((body.match(/dkRelease\(\)/g) || []).length, 2, "both failure paths must release");
+});
+
 /* The bug this exists for: Start task writes the SHIFT and never touches
    the assignments, so the snapshot watcher that draws the deck never
    fired. The card went on offering Start task on work that was already

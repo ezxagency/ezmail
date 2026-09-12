@@ -19,12 +19,14 @@
 const ST_SHOW = 3;                 // cards in view; past that the stack scrolls
 const ST_H = 104, ST_GAP = 12;     // px - the same numbers as css/started.css
 
-/* What this shift has started, oldest first.
+/* What this shift has started and is still open, oldest first.
    `onDeck` is the set of item ids still on the deck and `deckLoaded`
    whether its first snapshot has landed: a task whose segments are all
    closed is FINISHED only when the deck has loaded and no longer carries
-   it. Before that snapshot the honest word is Paused - the segments are
-   closed, and that is all this device knows. */
+   it - and a finished task LEAVES the stack, as asked, rather than
+   sitting there under a Finished pill. Before that snapshot the honest
+   word is Paused: the segments are closed, and that is all this device
+   knows, so the card stays. */
 function stPlan(sh, now, onDeck, deckLoaded){
   if (!sh) return [];
   const by = new Map();
@@ -47,7 +49,7 @@ function stPlan(sh, now, onDeck, deckLoaded){
       : (deckLoaded && onDeck && !onDeck.has(p.itemId)) ? "finished"
       : "paused";
   });
-  return list;
+  return list.filter(p => p.state !== "finished");
 }
 
 /* ---------- the half that touches the document ---------- */
@@ -55,7 +57,7 @@ function stPlan(sh, now, onDeck, deckLoaded){
 let stKey = "", stCount = 0, stPos = 0, stTarget = 0, stRaf = 0, stBound = false, stWheelAt = 0;
 
 const stTime = p => p.running ? hms(p.ms) : humanDur(p.ms);
-const stLabel = { running: "Running", paused: "Paused", finished: "Finished" };
+const stLabel = { running: "Running", paused: "Paused" };
 
 function stDeckIds(){
   if (typeof dkRows === "undefined" || typeof dkItemId !== "function") return null;
@@ -185,7 +187,7 @@ function stBind(host){
   });
 
   // pressing a card brings that work to the front of the deck, where its
-  // buttons are; a finished one has no card there to go to
+  // buttons are
   host.addEventListener("click", e => {
     const c = e.target.closest(".st-card");
     if (!c || typeof dkRows === "undefined" || typeof dkTo !== "function") return;
