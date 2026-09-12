@@ -340,7 +340,7 @@ function dkLayout(){
        back into range, so a deck of thirty moves like a deck of three. */
     // 0.62: a neighbour at 38%, faint enough that the front card is
     // plainly the one on top, and still there to say the deck goes on
-    const op = Math.max(0, 1 - a * 0.62);
+    const op = Math.max(0, 1 - a * 0.68);
     const off = op <= 0;
     if (off){
       if (!c.classList.contains("is-off")) c.classList.add("is-off");
