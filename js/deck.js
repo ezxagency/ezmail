@@ -176,7 +176,7 @@ function dkBlocks(r){
             + (h.from.note ? ' · \u201c' + esc(h.from.note) + '\u201d' : ' · no note') + '</p>'
           : '<p class="dk-hand-from"><b>First step</b> · it starts with you</p>')
       + (h.next
-          ? '<p class="dk-hand-next"><b>Next</b> · ' + esc(h.next.label) + ' \u2192 '
+          ? '<p class="dk-hand-next"><b>Next</b> · ' + esc(h.next.label) + (h.next.also && h.next.also.length ? ' + ' + esc(h.next.also.join(" + ")) + ' together' : '') + ' \u2192 '
             + (nextWho ? esc(nextWho) : '<em>nobody holds ' + esc(h.next.role || "that step") + ' yet</em>') + '</p>'
           : '<p class="dk-hand-next"><b>Last step</b> · finishing closes it</p>')
       + '</div>';
@@ -216,7 +216,7 @@ function dkFoot(r){
     : '<button type="button" class="dk-bt dk-bt-go dk-start">' + DK_ICO.clock + 'Start task</button>';
   // on a track, Done is a hand-off: say so, and name it Finish at the end
   const h = r.handoff && !r.handoff.done ? r.handoff : null;
-  const doneLabel = h ? (h.next ? "Pass on" : "Finish") : "Done";
+  const doneLabel = h ? (h.stop && h.stop.choices && h.stop.choices.length ? "Decide" : h.next ? "Pass on" : "Finish") : "Done";
   const right = '<button type="button" class="dk-bt ' + (running ? "dk-bt-go" : "dk-bt-gh")
     + ' dk-done">' + DK_ICO.tick + doneLabel + '</button>';
   return left + right;

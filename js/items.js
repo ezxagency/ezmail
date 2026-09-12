@@ -175,7 +175,10 @@ async function itemTypeSave(type){
 
    Returns { ok, how, status } so the caller can word the toast honestly
    instead of claiming "done" for all three. */
-async function itemsFinishFromQueue(itemId, comment){
+/* `output` is anything else the stop records - today the `choice` a
+   branching step asks for. It is merged beside the comment so the engine
+   sees one output map, which is what its declaration check reads. */
+async function itemsFinishFromQueue(itemId, comment, output){
   const s = await orgEnsure();
   if (!s) return { ok: false, error: "no-org" };
   let item, type;
@@ -216,7 +219,7 @@ async function itemsFinishFromQueue(itemId, comment){
     const stops = h ? hoActiveStops(h.nodeRuns) : [];
     const mine = stops.find(nr => hoMayAdvance(h.blueprint, nr, uid, h.members, false).ok);
     if (mine) {
-      const r = await itemsAdvanceHandoff(item, type, mine.id, comment ? { comment } : {});
+      const r = await itemsAdvanceHandoff(item, type, mine.id, Object.assign(comment ? { comment } : {}, output || {}));
       return r.ok ? { ok: true, how: "advanced" } : { ok: false, error: r.error };
     }
     // on a run but not their stop: finishing it from here would jump the
@@ -560,6 +563,9 @@ async function itemsAdvanceHandoff(item, type, nodeRunId, output){
   } catch (e) {
     const m = String((e && e.message) || "");
     if (m === "not-yours" || m === "not-active" || m === "no-stop" || m === "no-run") return { ok: false, error: m };
+    // a branching stop finished without its decision: the engine refuses,
+    // and the screen has to say which, not "failed"
+    if (m.indexOf("must record") >= 0) return { ok: false, error: "needs-choice" };
     console.error(e);
     return { ok: false, error: "failed" };
   }

@@ -416,11 +416,12 @@ T("every control in a step has a visible label, in plain words", () => {
     assert.ok(l.querySelector("input,select"), "a label with nothing inside it"));
 });
 
-T("a blank track offers two ready-made shapes, and one press fills the steps", () => {
+T("a blank track offers three ready-made shapes, and one press fills the steps", () => {
   run(`orgTrackDraft = [{ label: "", roleId: "", assignees: [], status: "", dueAfter: null }]; orgTrackRender(orgS.types[0]);`);
   const starts = [...doc.querySelectorAll(".otk-start")].map(b => b.textContent);
-  assert.equal(starts.length, 2, "two shapes: " + JSON.stringify(starts));
+  assert.equal(starts.length, 3, "three shapes: " + JSON.stringify(starts));
   assert.match(starts[1], /then a manager checks it/);
+  assert.match(starts[2], /approves it, or sends it back/);
   doc.querySelectorAll(".otk-start")[1].onclick();
   const draft = plain(run("orgTrackDraft"));
   assert.deepEqual(draft.map(s => [s.label, s.roleId]), [["Do the work", "staff"], ["Check it", "manager"]]);
@@ -512,6 +513,27 @@ T("the editor shows days back, and reads them as milliseconds", () => {
   doc.querySelector(".otk-days").value = "5";
   doc.getElementById("otkSave").onclick();          // reads the rows, then validates
   assert.equal(run("orgTrackDraft[0].dueAfter"), 5 * 86400000);
+});
+
+T("the steps sheet keeps a step's choices, rules and 'together', which it cannot draw", () => {
+  // set in the Flow builder, no control here; a save that rebuilt each
+  // step from its four boxes would drop them - the exact shape of
+  // docs/lessons.md > "A form that hides a control still reads it back"
+  run(`orgS.types[0].track = [{ id: "a", label: "Write", roleId: "manager" },
+    { id: "b", label: "Check", roleId: "manager", choices: ["Approve", "Send back"], routes: [{ when: { kind: "choice", value: "Send back" }, to: "a" }] },
+    { id: "c", label: "Copy", roleId: "manager", together: true }];
+    orgTrackSheet(orgS.types[0]);`);
+  assert.match(doc.getElementById("sheetBody").textContent, /asks for a choice: Approve \/ Send back/);
+  assert.match(doc.getElementById("sheetBody").textContent, /runs at the same time as the step before/);
+  doc.querySelectorAll(".otk-label")[1].value = "Check it";
+  doc.getElementById("otkSave").onclick();          // reads every row back
+  const d = plain(run("orgTrackDraft"));
+  assert.equal(d[1].label, "Check it");
+  assert.deepEqual(d[1].choices, ["Approve", "Send back"], "the choices were dropped on read-back");
+  assert.equal(d[1].routes.length, 1, "the rule was dropped on read-back");
+  assert.equal(d[2].together, true, "together was dropped on read-back");
+  assert.deepEqual(d.map(x => x.id), ["a", "b", "c"], "ids must survive, a rule points at one");
+  run(`orgS.types[0].track = [{ label: "Agree", roleId: "manager", dueAfter: 2 * 86400000 }];`);
 });
 
 T("a nonsense budget is refused with a reason", () => {

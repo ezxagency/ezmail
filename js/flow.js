@@ -68,7 +68,7 @@ function flToggle(step, uid){
   return s;
 }
 
-const flBlankStep = () => ({ label: "", roleId: "", assignees: [], status: "", dueAfter: null });
+const flBlankStep = () => ({ id: "st" + orgNewId(), label: "", roleId: "", assignees: [], status: "", dueAfter: null });
 
 /* A rule as one sentence, for the lane and for a rule's own name when the
    person did not give it one. Rules are stored as trigger + action
@@ -143,7 +143,7 @@ function flRender(){
   // means a fresh draft; the same kind keeps its unsaved edits
   if (!types.find(t => t.id === flS.typeId)) { flS.typeId = types[0].id; flS.draft = null; flS.dirty = false; }
   const type = flType();
-  if (!flS.draft) { flS.draft = JSON.parse(JSON.stringify(type.track || [])); flS.dirty = false; flS.rules = []; }
+  if (!flS.draft) { flS.draft = hoStopIds(JSON.parse(JSON.stringify(type.track || []))); flS.dirty = false; flS.rules = []; }
 
   const tabs = types.map(t => '<button type="button" class="fl-tab' + (t.id === type.id ? " is-on" : "") +
     '" data-type="' + esc(t.id) + '">' + esc(t.name || t.id) +
@@ -203,20 +203,80 @@ function flPaintCanvas(){
       ' and the person who created it is told.</p>' +
     '</div>';
 
-  const plus = i => owner
-    ? '<button type="button" class="fl-plus" data-at="' + i + '" title="Add a step here" aria-label="Add a step here">+</button>'
+  const plus = (i, together) => owner
+    ? '<button type="button" class="fl-plus' + (together ? " fl-plus-par" : "") + '" data-at="' + i + '"' + (together ? ' data-together="1"' : "") +
+      ' title="' + (together ? "Add a step that runs at the same time" : "Add a step here") + '" aria-label="' + (together ? "Add a step that runs at the same time" : "Add a step here") + '">' +
+      (together ? "+ at the same time" : "+") + '</button>'
     : '<span class="fl-plus is-off"></span>';
+
+  const groups = hoGroups(draft);
+  const fields = type.fields || [];
+  const labelOf = st => (st.label || "").trim() || ("Step " + (draft.indexOf(st) + 1));
+  // what "otherwise" means for a step: the entry of the next group, or Done
+  const otherwiseOf = i => {
+    const g = groups.findIndex(x => i >= x.from && i <= x.to);
+    const nx = groups[g + 1];
+    return nx ? labelOf(draft[nx.from]) : "Done";
+  };
 
   const card = (st, i) => {
     const inRole = st.roleId === HO_ANY ? members : st.roleId ? members.filter(m => m.roleId === st.roleId) : [];
     const on = st.assignees || [];
     const gap = gapAt.has(i);
+    const choices = (st.choices || []);
+    const routes = (st.routes || []);
+    const dis = owner ? "" : " disabled";
+    const targets = draft.map((x, j) => j === i ? null :
+      '<option value="' + esc(x.id) + '"' + (x.id === "" ? "" : "") + '>' + (j < i ? "↩ " : "→ ") + (j + 1) + ". " + esc(labelOf(x)) + '</option>').filter(Boolean).join("") +
+      '<option value="done">→ Done</option>';
+    const routeRow = (r, k) => {
+      const w = r.when || {};
+      const what = w.kind === "choice" ? "choice:" + w.value : "field:" + (w.key || "");
+      const fdef = w.kind === "field" ? fields.find(f => f.key === w.key) : null;
+      return '<div class="fl-route" data-k="' + k + '">' +
+        '<span class="fl-rule-w">If</span>' +
+        '<select class="fl-r-what"' + dis + '>' +
+          choices.map(c => '<option value="choice:' + esc(c) + '"' + (what === "choice:" + c ? " selected" : "") + '>they pick ' + esc(c) + '</option>').join("") +
+          fields.map(f => '<option value="field:' + esc(f.key) + '"' + (what === "field:" + f.key ? " selected" : "") + '>' + esc(f.label || f.key) + '</option>').join("") +
+        '</select>' +
+        (w.kind === "field"
+          ? '<select class="fl-r-op"' + dis + '>' + [["==", "is"], ["!=", "is not"], ["contains", "contains"], [">", "is over"], ["<", "is under"]].map(([v, l]) =>
+              '<option value="' + v + '"' + ((w.op || "==") === v ? " selected" : "") + '>' + l + '</option>').join("") + '</select>' +
+            (fdef && (fdef.type === "select" || fdef.type === "multiselect") && (fdef.options || []).length
+              ? '<select class="fl-r-val"' + dis + '>' + fdef.options.map(o => '<option value="' + esc(o) + '"' + (String(w.value) === o ? " selected" : "") + '>' + esc(o) + '</option>').join("") + '</select>'
+              : fdef && fdef.type === "checkbox"
+                ? '<select class="fl-r-val"' + dis + '><option value="true"' + (w.value === true ? " selected" : "") + '>ticked</option><option value="false"' + (w.value === false ? " selected" : "") + '>not ticked</option></select>'
+                : '<input class="fl-r-val" type="text" maxlength="60" placeholder="value" value="' + esc(w.value == null ? "" : String(w.value)) + '"' + dis + '>')
+          : "") +
+        '<span class="fl-rule-w">go to</span>' +
+        '<select class="fl-r-to"' + dis + '>' + targets.replace('value="' + esc(r.to || "") + '"', 'value="' + esc(r.to || "") + '" selected') + '</select>' +
+        (owner ? '<button type="button" class="fl-ic fl-ic-x fl-r-del" title="Remove this rule" aria-label="Remove this rule">×</button>' : "") +
+      '</div>';
+    };
+    const after =
+      '<details class="fl-after"' + (choices.length || routes.length || st.together ? " open" : "") + '>' +
+        '<summary>After this step' + (routes.length ? ' <i>' + routes.length + (routes.length === 1 ? " rule" : " rules") + '</i>' : "") +
+          (choices.length ? ' <i>' + choices.length + (choices.length === 1 ? " choice" : " choices") + '</i>' : "") +
+          (st.together ? ' <i>together</i>' : "") + '</summary>' +
+        '<p class="fl-lbl">When they finish, they pick <i>optional</i></p>' +
+        '<div class="fl-chips fl-choices">' +
+          choices.map(c => '<span class="fl-chip is-on fl-choice">' + esc(c) +
+            (owner ? '<button type="button" class="fl-choice-x" data-choice="' + esc(c) + '" aria-label="Remove ' + esc(c) + '">×</button>' : "") + '</span>').join("") +
+          (owner ? '<span class="fl-choice-add"><input type="text" class="fl-choice-in" maxlength="24" placeholder="' + (choices.length ? "another…" : "e.g. Approve") + '">' +
+            '<button type="button" class="fl-ic fl-choice-go" aria-label="Add this choice">+</button></span>' : "") +
+        '</div>' +
+        '<p class="fl-lbl">Then</p>' +
+        routes.map(routeRow).join("") +
+        '<p class="fl-otherwise">' + (routes.length ? "Otherwise" : "It goes") + ' → <b>' + esc(otherwiseOf(i)) + '</b></p>' +
+        (owner ? '<button type="button" class="fl-link fl-route-add">+ Add an if</button>' : "") +
+        (i > 0 && owner ? '<label class="fl-together"><input type="checkbox" class="fl-together-in"' + (st.together ? " checked" : "") + '> Runs at the same time as the step before it</label>' : "") +
+      '</details>';
     return '<div class="fl-step' + (gap ? " gap" : "") + (flS.drag === i ? " is-drag" : "") + '" data-i="' + i + '"' +
         (owner ? ' draggable="true"' : "") + '>' +
       '<div class="fl-step-head">' +
         (owner ? '<span class="fl-grip" title="Drag to reorder" aria-hidden="true">⋮⋮</span>' : "") +
         '<span class="fl-n">' + (i + 1) + '</span>' +
-        '<input class="fl-name" type="text" maxlength="40" placeholder="What happens at this step" value="' + esc(st.label || "") + '"' + (owner ? "" : " disabled") + '>' +
+        '<input class="fl-name" type="text" maxlength="40" placeholder="What happens at this step" value="' + esc(st.label || "") + '"' + dis + '>' +
         (owner ? '<span class="fl-step-acts">' +
           '<button type="button" class="fl-ic" data-move="-1" title="Move left" aria-label="Move left"' + (i === 0 ? " disabled" : "") + '>‹</button>' +
           '<button type="button" class="fl-ic" data-move="1" title="Move right" aria-label="Move right"' + (i === draft.length - 1 ? " disabled" : "") + '>›</button>' +
@@ -224,8 +284,8 @@ function flPaintCanvas(){
       '</div>' +
       '<p class="fl-lbl">Who does it</p>' +
       '<div class="fl-chips">' +
-        '<button type="button" class="fl-chip' + (st.roleId === HO_ANY ? " is-on" : "") + '" data-role="' + esc(HO_ANY) + '"' + (owner ? "" : " disabled") + '>Anyone</button>' +
-        roles.map(r => '<button type="button" class="fl-chip' + (r.id === st.roleId ? " is-on" : "") + '" data-role="' + esc(r.id) + '"' + (owner ? "" : " disabled") + '>' +
+        '<button type="button" class="fl-chip' + (st.roleId === HO_ANY ? " is-on" : "") + '" data-role="' + esc(HO_ANY) + '"' + dis + '>Anyone</button>' +
+        roles.map(r => '<button type="button" class="fl-chip' + (r.id === st.roleId ? " is-on" : "") + '" data-role="' + esc(r.id) + '"' + dis + '>' +
           esc(r.name) + '<i>' + members.filter(m => m.roleId === r.id).length + '</i></button>').join("") +
       '</div>' +
       (st.roleId
@@ -233,7 +293,7 @@ function flPaintCanvas(){
             (inRole.length
               ? '<p class="fl-lbl">' + (on.length ? esc("Only these " + on.length) : esc("Any of these " + inRole.length)) +
                   (owner ? ' <i>tick, or drag a person here</i>' : "") + '</p>' +
-                inRole.map(m => '<button type="button" class="fl-av' + (on.indexOf(m.uid) >= 0 ? " is-on" : "") + '" data-uid="' + esc(m.uid) + '"' + (owner ? "" : " disabled") + '>' +
+                inRole.map(m => '<button type="button" class="fl-av' + (on.indexOf(m.uid) >= 0 ? " is-on" : "") + '" data-uid="' + esc(m.uid) + '"' + dis + '>' +
                   '<b>' + esc(flInitial(orgPersonName(m.uid))) + '</b>' + esc(orgPersonName(m.uid)) + '</button>').join("")
               : '<p class="fl-warn">Nobody is ' + esc(st.roleId === HO_ANY ? "in this organization" : orgRoleName(st.roleId)) +
                   ' right now, so work would wait here.' + (owner ? ' Drag a person here, or invite one.' : "") + '</p>') +
@@ -241,17 +301,26 @@ function flPaintCanvas(){
         : '<p class="fl-warn">Pick who does this step.</p>') +
       '<div class="fl-opts">' +
         '<label class="fl-opt"><span>Days to finish</span><span class="fl-days"><input type="number" min="1" max="365" placeholder="No limit" value="' +
-          esc(st.dueAfter ? String(Math.round(st.dueAfter / HO_DAY)) : "") + '"' + (owner ? "" : " disabled") + '><em>days</em></span></label>' +
+          esc(st.dueAfter ? String(Math.round(st.dueAfter / HO_DAY)) : "") + '"' + dis + '><em>days</em></span></label>' +
         '<div class="fl-opt"><span>Mark the work as</span><div class="fl-chips fl-chips-sm">' +
-          '<button type="button" class="fl-chip' + (!st.status ? " is-on" : "") + '" data-status=""' + (owner ? "" : " disabled") + '>Don\'t change</button>' +
-          (type.statuses || []).map(x => '<button type="button" class="fl-chip' + (x.key === st.status ? " is-on" : "") + '" data-status="' + esc(x.key) + '"' + (owner ? "" : " disabled") + '>' + esc(x.label || x.key) + '</button>').join("") +
+          '<button type="button" class="fl-chip' + (!st.status ? " is-on" : "") + '" data-status=""' + dis + '>Don\'t change</button>' +
+          (type.statuses || []).map(x => '<button type="button" class="fl-chip' + (x.key === st.status ? " is-on" : "") + '" data-status="' + esc(x.key) + '"' + dis + '>' + esc(x.label || x.key) + '</button>').join("") +
         '</div></div>' +
       '</div>' +
+      after +
     '</div>';
   };
 
+  /* Steps that run together stand in one column under a shared label,
+     so "two or three at once" looks like what it is; the + between
+     groups adds a step in the line, the + inside a group adds one that
+     runs alongside. */
   const steps = draft.length
-    ? draft.map((st, i) => plus(i) + card(st, i)).join("") + plus(draft.length)
+    ? groups.map(g => plus(g.from) + (g.from === g.to
+        ? card(draft[g.from], g.from)
+        : '<div class="fl-par"><p class="fl-par-h">At the same time</p>' +
+            draft.slice(g.from, g.to + 1).map((st, k) => card(st, g.from + k)).join("") +
+            plus(g.to + 1, true) + '</div>')).join("") + plus(draft.length)
     : '<div class="fl-none">' +
         '<p>No steps yet. Whoever is given a ' + esc(type.name || "task") + ' does all of it.</p>' +
         (owner ? '<div class="fl-starts"><span>Start with</span>' +
@@ -278,7 +347,13 @@ function flBindCanvas(){
     touch(); redraw();
   });
   c.querySelectorAll(".fl-plus").forEach(b => b.onclick = () => {
-    flS.draft.splice(+b.dataset.at, 0, flBlankStep());
+    const at = +b.dataset.at;
+    const st = flBlankStep();
+    // a step added inside a group joins it; one added between groups
+    // stands on its own, and if it lands where a member used to be the
+    // member behind it keeps running alongside the new one
+    if (b.dataset.together) st.together = true;
+    flS.draft.splice(at, 0, st);
     touch(); redraw();
     const inp = c.querySelector('.fl-step[data-i="' + b.dataset.at + '"] .fl-name');
     if (inp) inp.focus();
@@ -307,6 +382,63 @@ function flBindCanvas(){
       const d = parseFloat(e.target.value);
       st().dueAfter = d > 0 ? d * HO_DAY : null; touch();
     };
+
+    // ---- after this step: choices, rules, together ----
+    const addChoice = () => {
+      const inp = card.querySelector(".fl-choice-in");
+      const v = (inp.value || "").trim();
+      if (!v) return;
+      const list = st().choices || [];
+      if (list.indexOf(v) >= 0) { toast("That choice is already there."); return; }
+      st().choices = list.concat([v]); touch(); redraw();
+      const again = c.querySelector('.fl-step[data-i="' + i + '"] .fl-choice-in');
+      if (again) again.focus();
+    };
+    const go = card.querySelector(".fl-choice-go");
+    if (go) go.onclick = addChoice;
+    const cin = card.querySelector(".fl-choice-in");
+    if (cin) cin.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); addChoice(); } };
+    card.querySelectorAll(".fl-choice-x").forEach(b => b.onclick = () => {
+      const v = b.dataset.choice;
+      st().choices = (st().choices || []).filter(x => x !== v);
+      // a rule that read the choice has nothing to read now
+      st().routes = (st().routes || []).filter(r => !(r.when && r.when.kind === "choice" && r.when.value === v));
+      touch(); redraw();
+    });
+    const addRoute = card.querySelector(".fl-route-add");
+    if (addRoute) addRoute.onclick = () => {
+      const ch = st().choices || [], fs = type.fields || [];
+      if (!ch.length && !fs.length) { toast("Add a choice above, or give this kind of work a field, for a rule to look at."); return; }
+      const when = ch.length ? { kind: "choice", value: ch[0] } : { kind: "field", key: fs[0].key, op: "==", value: "" };
+      st().routes = (st().routes || []).concat([{ when, to: "done" }]); touch(); redraw();
+    };
+    card.querySelectorAll(".fl-route").forEach(row => {
+      const k = +row.dataset.k;
+      const r = () => st().routes[k];
+      row.querySelector(".fl-r-what").onchange = e => {
+        const v = e.target.value;
+        r().when = v.indexOf("choice:") === 0 ? { kind: "choice", value: v.slice(7) }
+          : { kind: "field", key: v.slice(6), op: (r().when && r().when.op) || "==", value: "" };
+        touch(); redraw();
+      };
+      const op = row.querySelector(".fl-r-op");
+      if (op) op.onchange = e => { r().when.op = e.target.value; touch(); };
+      const val = row.querySelector(".fl-r-val");
+      if (val) val.onchange = val.oninput = e => {
+        // typed as text, stored as the field's own type: the rule compares
+        // with ===, so "42" would never equal 42 and a tick is not "true"
+        const fdef = (type.fields || []).find(f => f.key === r().when.key);
+        const raw = e.target.value;
+        r().when.value = fdef && typeof itemCoerce === "function" ? itemCoerce(fdef, raw) : raw;
+        if (fdef && fdef.type === "checkbox") r().when.value = raw === "true";
+        touch();
+      };
+      row.querySelector(".fl-r-to").onchange = e => { r().to = e.target.value; touch(); };
+      const del = row.querySelector(".fl-r-del");
+      if (del) del.onclick = () => { st().routes.splice(k, 1); touch(); redraw(); };
+    });
+    const tog = card.querySelector(".fl-together-in");
+    if (tog) tog.onchange = e => { st().together = !!e.target.checked; touch(); redraw(); };
 
     /* Drag: a card by its grip to reorder; a person from the panel onto
        a card to give the step to them. Both arrive here as drops, told
@@ -389,7 +521,7 @@ function flPaintRules(){
 
   $("flRules").innerHTML =
     '<div class="fl-lane-head"><h4>Rules for ' + esc(type.name || type.id) + '</h4>' +
-      '<p class="fl-note">Things that happen by themselves. Each one is a sentence.</p>' +
+      '<p class="fl-note">A rule watches this kind of work and reacts: when something happens to a piece of it, the rule tells someone, marks it, fills a field or assigns it. Rules do not move work between steps - the steps and their choices do that.</p>' +
       (owner ? '<button type="button" class="org-btn org-btn-sm" id="flRuleAdd">+ Add a rule</button>' : "") + '</div>' +
     (rows.length ? rows.map(row).join("") : '<p class="fl-note">Nothing happens by itself yet for this kind.</p>') +
     (others ? '<p class="fl-note fl-note-sm">' + others + (others === 1 ? " rule applies" : " rules apply") + ' to every kind of work. They are on the Organization page.</p>' : "");
@@ -563,7 +695,7 @@ async function flSave(){
   const type = flType();
   const roleIds = (orgS.roles || []).map(r => r.id).concat([HO_ANY]);
   const statusKeys = (type.statuses || []).map(s => s.key);
-  const errs = hoTrackErrors(flS.draft, roleIds, statusKeys, orgS.members || []);
+  const errs = hoTrackErrors(flS.draft, roleIds, statusKeys, orgS.members || [], (type.fields || []).map(f => f.key));
   document.querySelectorAll("#flCanvas .fl-step").forEach(c => c.classList.toggle("bad", errs.some(e => e.at === +c.dataset.i)));
   if (errs.length) {
     $("flErr").innerHTML = '<p class="fl-err">' + errs.map(e => esc((e.at >= 0 ? "Step " + (e.at + 1) + ": " : "") + e.message)).join("<br>") + '</p>';

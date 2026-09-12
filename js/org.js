@@ -1137,11 +1137,11 @@ async function orgResetOrg(btn){
 
 let orgTrackDraft = [];
 
-const orgTrackBlank = () => ({ label: "", roleId: "", assignees: [], status: "", dueAfter: null });
+const orgTrackBlank = () => ({ id: "st" + orgNewId(), label: "", roleId: "", assignees: [], status: "", dueAfter: null });
 
 function orgTrackSheet(type){
   if (!type || !orgIsOwner()) return;
-  orgTrackDraft = JSON.parse(JSON.stringify(type.track || []));
+  orgTrackDraft = hoStopIds(JSON.parse(JSON.stringify(type.track || [])));
   if (!orgTrackDraft.length) orgTrackDraft.push(orgTrackBlank());
   orgTrackRender(type);
 }
@@ -1163,9 +1163,17 @@ function orgTrackStarts(){
   const checker = find(["manager", "lead", "supervisor"]) || (roles.some(r => r.id === "owner") ? "owner" : null);
   const step = (label, roleId) => Object.assign(orgTrackBlank(), { label, roleId });
   const out = [{ key: "one", label: "One person does it", steps: [step("Do the work", doer)] }];
-  if (checker && checker !== doer) out.push({
-    key: "check", label: "One person does it, then a " + orgRoleName(checker).toLowerCase() + " checks it",
-    steps: [step("Do the work", doer), step("Check it", checker)] });
+  if (checker && checker !== doer) {
+    out.push({
+      key: "check", label: "One person does it, then a " + orgRoleName(checker).toLowerCase() + " checks it",
+      steps: [step("Do the work", doer), step("Check it", checker)] });
+    // the loop every review really is: the checker approves, or sends it
+    // back to be done again - a choice on the second step, and one rule
+    const a = step("Do the work", doer), b = step("Check it", checker);
+    b.choices = ["Approve", "Send back"];
+    b.routes = [{ when: { kind: "choice", value: "Send back" }, to: a.id }];
+    out.push({ key: "approve", label: "…then a " + orgRoleName(checker).toLowerCase() + " approves it, or sends it back", steps: [a, b] });
+  }
   return out;
 }
 
@@ -1228,6 +1236,12 @@ function orgTrackRender(type){
             '</select></label>' +
         '</div>' +
         '<p class="otk-hint">Give it days and the person is reminded if it takes longer. Pick a status and the work shows that word while it sits at this step.</p>' +
+        ((st.choices || []).length || (st.routes || []).length || st.together
+          ? '<p class="otk-hint otk-branch">' + esc([
+              st.together ? "runs at the same time as the step before" : "",
+              (st.choices || []).length ? "asks for a choice: " + st.choices.join(" / ") : "",
+              (st.routes || []).length ? st.routes.length + (st.routes.length === 1 ? " rule" : " rules") + " on where it goes next" : ""
+            ].filter(Boolean).join(" · ")) + ' — change these in the Flow builder.</p>' : "") +
         (gapAt.has(i) ? '<p class="org-warn">Nobody is ' +
           esc(st.roleId === HO_ANY ? "in this organization" : orgRoleName(st.roleId)) +
           ' right now, so work would wait here until somebody is.</p>' : "") +
@@ -1260,7 +1274,12 @@ function orgTrackRender(type){
           const i = +row.dataset.i;
           const days = parseFloat(row.querySelector(".otk-days").value);
           const picked = [...row.querySelectorAll(".otk-person")].filter(c => c.checked).map(c => c.value);
-          orgTrackDraft[i] = {
+          // rebuilt FROM the draft, not from scratch: a step's choices,
+          // rules and "together" are set in the Flow builder and have no
+          // control here, and a save that dropped them would turn a
+          // branch off for every type whose steps were ever renamed
+          // (docs/lessons.md > "A form that hides a control")
+          orgTrackDraft[i] = Object.assign({}, orgTrackDraft[i], {
             label: row.querySelector(".otk-label").value.trim(),
             roleId: row.querySelector(".otk-role").value,
             assignees: picked,
@@ -1268,7 +1287,7 @@ function orgTrackRender(type){
             // days in the box, milliseconds in the model: the engine's
             // clock is in ms and a unit converted at the edge cannot drift
             dueAfter: (days > 0 ? days * HO_DAY : null)
-          };
+          });
         });
       };
       const preview = () => { read(); const p = $("otkPreview"); if (p) p.textContent = orgTrackPreview(); };
@@ -1304,7 +1323,7 @@ function orgTrackRender(type){
 async function orgTrackSave(type){
   const roleIds = (orgS.roles || []).map(r => r.id).concat([HO_ANY]);
   const statusKeys = (type.statuses || []).map(s => s.key);
-  const errs = hoTrackErrors(orgTrackDraft, roleIds, statusKeys, orgS.members || []);
+  const errs = hoTrackErrors(orgTrackDraft, roleIds, statusKeys, orgS.members || [], (type.statuses ? (type.fields || []) : []).map(f => f.key));
   // the list names each step, and the step itself is marked, so the eye
   // goes from the message to the box it is about without counting
   document.querySelectorAll("#sheetBody .org-stop").forEach(row =>
@@ -1342,7 +1361,7 @@ async function orgTrackCommit(type, track){
     const bad = wfValidate(bp);
     if (bad.length) return { ok: false, error: bad[0].msg };
     await db.collection("orgs").doc(orgS.orgId).collection("blueprints").doc(bpId).set(bp);
-    const r = await itemTypeSave(Object.assign({}, type, { track: JSON.parse(JSON.stringify(track)), workflowId: bpId }));
+    const r = await itemTypeSave(Object.assign({}, type, { track: hoStopIds(track), workflowId: bpId }));
     if (!r.ok) return { ok: false, error: r.error || "save-failed" };
     orgInvalidate();
     return { ok: true, workflowId: bpId };

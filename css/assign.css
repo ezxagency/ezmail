@@ -207,3 +207,11 @@
 .cx-stop i{font-style:normal;color:var(--wk-white-60);margin-right:2px}
 .cx-stop small{font-size:11px;color:var(--wk-white-60)}
 .cx-stop.is-gap small{color:#FF9F0A}
+
+/* ---- a branching step's decision on the finish sheet ---- */
+/* each choice says where it sends the work, and nothing is pressed for
+   the person: the button below wakes up only once they have decided */
+.dn-choices { margin: 6px 0 12px; }
+.dn-choice i { font-style: normal; font-size: 11px; opacity: .55; margin-left: 6px; }
+.dn-choice.is-on { background: rgba(255,255,255,.92); color: #14161c; border-color: transparent; }
+.dn-choice.is-on i { opacity: .7; }

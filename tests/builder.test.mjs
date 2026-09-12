@@ -191,6 +191,96 @@ T("saving an incomplete step marks the card and says what is missing, before any
   assert.match(doc.getElementById("flErr").textContent, /Who does this step/);
 });
 
+/* ---------- after a step: choices, if-rules, together ---------- */
+T("a step can be given choices, each one drawn as a chip", () => {
+  run(ORG);
+  const card = doc.querySelector('.fl-step[data-i="1"]');
+  assert.ok(card.querySelector(".fl-after"), "no after-this-step section");
+  assert.equal(card.querySelectorAll(".fl-choice").length, 0);
+  const inp = card.querySelector(".fl-choice-in");
+  inp.value = "Approve"; card.querySelector(".fl-choice-go").onclick();
+  const again = () => doc.querySelector('.fl-step[data-i="1"]');
+  again().querySelector(".fl-choice-in").value = "Send back";
+  again().querySelector(".fl-choice-in").onkeydown({ key: "Enter", preventDefault(){} });
+  assert.deepEqual(plain(run("flS.draft[1].choices")), ["Approve", "Send back"]);
+  assert.deepEqual(plain([...again().querySelectorAll(".fl-choice")].map(c => c.textContent.replace("×", ""))), ["Approve", "Send back"]);
+  assert.ok(again().querySelector(".fl-after").open, "the section stays open once it has something");
+});
+
+T("an if-rule reads a choice or a field, and goes to a step or Done; the otherwise is the list order", () => {
+  const card = () => doc.querySelector('.fl-step[data-i="1"]');
+  assert.match(card().querySelector(".fl-otherwise").textContent, /It goes → Done/);
+  card().querySelector(".fl-route-add").onclick();
+  const row = card().querySelector(".fl-route");
+  assert.ok(row, "no rule row was drawn");
+  const whats = [...row.querySelectorAll(".fl-r-what option")].map(o => o.textContent);
+  assert.deepEqual(plain(whats), ["they pick Approve", "they pick Send back", "Brand"]);
+  const tos = [...row.querySelectorAll(".fl-r-to option")].map(o => o.textContent);
+  assert.deepEqual(plain(tos), ["↩ 1. Write the draft", "→ Done"]);
+  assert.equal(row.querySelector(".fl-r-op"), null, "a choice rule has no comparison");
+  row.querySelector(".fl-r-what").value = "choice:Send back"; row.querySelector(".fl-r-what").onchange({ target: row.querySelector(".fl-r-what") });
+  const r2 = card().querySelector(".fl-route");
+  r2.querySelector(".fl-r-to").value = run("flS.draft[0].id"); r2.querySelector(".fl-r-to").onchange({ target: r2.querySelector(".fl-r-to") });
+  assert.deepEqual(plain(run("flS.draft[1].routes")), [{ when: { kind: "choice", value: "Send back" }, to: run("flS.draft[0].id") }]);
+  assert.match(card().querySelector(".fl-otherwise").textContent, /Otherwise → Done/);
+  assert.match(doc.getElementById("flBar").textContent, /Check it \(Manager\) \[if Send back → back to Write the draft\] → done/);
+});
+
+T("a field rule gets a comparison, and its value is stored as the field's own type", () => {
+  const card = () => doc.querySelector('.fl-step[data-i="1"]');
+  card().querySelector(".fl-route-add").onclick();
+  let row = card().querySelectorAll(".fl-route")[1];
+  row.querySelector(".fl-r-what").value = "field:brand"; row.querySelector(".fl-r-what").onchange({ target: row.querySelector(".fl-r-what") });
+  row = card().querySelectorAll(".fl-route")[1];
+  assert.ok(row.querySelector(".fl-r-op"), "a field rule needs a comparison");
+  assert.deepEqual(plain([...row.querySelectorAll(".fl-r-op option")].map(o => o.textContent)), ["is", "is not", "contains", "is over", "is under"]);
+  row.querySelector(".fl-r-val").value = "Nike"; row.querySelector(".fl-r-val").oninput({ target: row.querySelector(".fl-r-val") });
+  assert.deepEqual(plain(run("flS.draft[1].routes[1].when")), { kind: "field", key: "brand", op: "==", value: "Nike" });
+  row.querySelector(".fl-r-del").onclick();
+  assert.equal(run("flS.draft[1].routes.length"), 1);
+});
+
+T("removing a choice removes the rule that read it", () => {
+  const card = () => doc.querySelector('.fl-step[data-i="1"]');
+  card().querySelector('.fl-choice-x[data-choice="Send back"]').onclick();
+  assert.deepEqual(plain(run("flS.draft[1].choices")), ["Approve"]);
+  assert.deepEqual(plain(run("flS.draft[1].routes")), []);
+});
+
+T("ticking 'at the same time' groups the step with the one before, drawn as one column", () => {
+  doc.querySelector('.fl-plus[data-at="2"]').onclick();
+  const third = () => doc.querySelector('.fl-step[data-i="2"]');
+  third().querySelector(".fl-name").value = "Copy"; third().querySelector(".fl-name").oninput({ target: third().querySelector(".fl-name") });
+  third().querySelector('[data-role="staff"]').onclick();
+  assert.equal(doc.querySelector(".fl-par"), null);
+  const tog = third().querySelector(".fl-together-in");
+  tog.checked = true; tog.onchange({ target: tog });
+  assert.equal(run("flS.draft[2].together"), true);
+  const par = doc.querySelector(".fl-par");
+  assert.ok(par, "the group is not drawn as a column");
+  assert.equal(par.querySelectorAll(".fl-step").length, 2);
+  assert.match(par.textContent, /At the same time/);
+  assert.match(doc.getElementById("flBar").textContent, /\{ Check it \(Manager\) \+ Copy \(Staff\) together \}/);
+  // the + inside the group adds another member
+  par.querySelector(".fl-plus-par").onclick();
+  assert.equal(run("flS.draft[3].together"), true);
+  assert.equal(doc.querySelector(".fl-par").querySelectorAll(".fl-step").length, 3);
+  assert.equal(doc.querySelector('.fl-step[data-i="0"] .fl-together-in'), null, "the first step has nothing to run alongside");
+});
+
+T("the third ready-made shape is the approve-or-send-back loop", () => {
+  run(`flS.draft = []; flPaintCanvas();`);
+  const starts = [...doc.querySelectorAll(".fl-start-btn")].map(b => b.textContent);
+  assert.equal(starts.length, 4, JSON.stringify(starts));
+  assert.match(starts[2], /approves it, or sends it back/);
+  doc.querySelectorAll(".fl-start-btn")[2].onclick();
+  const d = plain(run("flS.draft"));
+  assert.deepEqual(d.map(s => s.label), ["Do the work", "Check it"]);
+  assert.deepEqual(d[1].choices, ["Approve", "Send back"]);
+  assert.equal(d[1].routes[0].to, d[0].id);
+  run(ORG);
+});
+
 /* ---------- rules ---------- */
 T("the lane lists this kind's rules as sentences with their controls, and counts the org-wide ones", () => {
   const rules = doc.querySelectorAll("#flRules .fl-rule");

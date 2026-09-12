@@ -49,7 +49,7 @@ T("an empty track is nothing, not a broken blueprint", () => {
   assert.equal(H.hoBuildBlueprint(TYPE, null, {}), null);
 });
 T("the track is kept on the blueprint so the editor can show it back", () => {
-  assert.deepEqual(plain(bp.track), plain(TRACK));
+  assert.deepEqual(plain(bp.track), plain(H.hoStopIds(TRACK)), "the track comes back with the ids the editors need");
 });
 T("a stop carries the status it means, which the engine ignores", () => {
   const s0 = bp.nodes.find(n => n.id === "s0");
@@ -357,6 +357,109 @@ T("a completed run is done, and still says who finished it", () => {
   assert.equal(sum.done, true);
   assert.equal(sum.stop, null);
   assert.equal(sum.from.label, "Deliver");
+});
+
+/* ---------- branching: if / otherwise, and stops that run together ----------
+   Everything here runs through the REAL engine, because the claim is
+   that a track with branches is still a blueprint it accepts and runs. */
+const LOOP = [
+  { id: "a", label: "Write the draft", roleId: "staff" },
+  { id: "b", label: "Check it", roleId: "manager", choices: ["Approve", "Send back"],
+    routes: [{ when: { kind: "choice", value: "Send back" }, to: "a" }] },
+  { id: "c", label: "Publish", roleId: "staff" }
+];
+const loopBp = H.hoBuildBlueprint(TYPE, LOOP, { id: "bpL", orgId: "o1", now: 1 });
+const startOn = (b, task) => WF.wfStartRun({ blueprint: b, runId: "rL", taskId: "iL", task: task || {}, orgId: "o1", now: 1 });
+const finishWith = (b, st, output, which) => {
+  const nr = H.hoActiveStops(st.nodeRuns)[which || 0];
+  return WF.wfAdvance({ run: st.run, nodeRuns: st.nodeRuns }, { type: "complete", nodeRunId: nr.id, output: output || {} }, { now: 2 });
+};
+const where = (b, st) => H.hoActiveStops(st.nodeRuns).map(nr => b.nodes.find(n => n.id === nr.nodeId).config.label);
+
+T("a step with a choice compiles to a route split the real engine accepts", () => {
+  assert.deepEqual(plain(WF.wfValidate(loopBp)), []);
+  const check = loopBp.nodes.find(n => n.id === "s1");
+  assert.deepEqual(plain(check.config.choices), ["Approve", "Send back"]);
+  assert.deepEqual(plain(check.config.outputs), [{ key: "choice", type: "text", label: "Decision" }]);
+  const split = loopBp.nodes.find(n => n.type === "split");
+  assert.equal(split.config.mode, "route");
+  assert.equal(split.config.branches.filter(b => b.isElse).length, 1, "the list order is the otherwise");
+});
+T("Send back returns the work to the first step; Approve carries it on", () => {
+  let st = startOn(loopBp);
+  st = finishWith(loopBp, st, {});
+  assert.deepEqual(where(loopBp, st), ["Check it"]);
+  const back = finishWith(loopBp, st, { choice: "Send back" });
+  assert.deepEqual(where(loopBp, back), ["Write the draft"], "Send back did not loop");
+  const again = finishWith(loopBp, finishWith(loopBp, back, {}), { choice: "Approve" });
+  assert.deepEqual(where(loopBp, again), ["Publish"]);
+  assert.equal(finishWith(loopBp, again, {}).run.status, "completed");
+});
+T("a step that asks for a choice cannot be finished without one", () => {
+  const st = finishWith(loopBp, startOn(loopBp), {});
+  assert.throws(() => finishWith(loopBp, st, {}), /must record: choice/);
+});
+T("the summary offers each choice with where it sends the work", () => {
+  const st = finishWith(loopBp, startOn(loopBp), {});
+  const sum = H.hoSummary(loopBp, st.nodeRuns, MEMBERS, uid => uid, st.run);
+  assert.deepEqual(plain(sum.stop.choices), [{ value: "Approve", to: "Publish", back: false }, { value: "Send back", to: "Write the draft", back: true }]);
+  assert.equal(sum.next.label, "Publish", "next is the otherwise path");
+});
+T("a rule can read a field on the work, frozen when the run started", () => {
+  const fast = [
+    { id: "a", label: "Write", roleId: "staff", routes: [{ when: { kind: "field", key: "priority", op: "==", value: "urgent" }, to: "c" }] },
+    { id: "b", label: "Review", roleId: "manager" },
+    { id: "c", label: "Publish", roleId: "staff" }
+  ];
+  const b = H.hoBuildBlueprint(TYPE, fast, { id: "bpF", now: 1 });
+  assert.deepEqual(plain(WF.wfValidate(b)), []);
+  const urgent = finishWith(b, startOn(b, { fields: { priority: "urgent" } }), {});
+  assert.deepEqual(where(b, urgent), ["Publish"], "urgent work did not skip the review");
+  const normal = finishWith(b, startOn(b, { fields: { priority: "normal" } }), {});
+  assert.deepEqual(where(b, normal), ["Review"]);
+});
+const PAR = [
+  { id: "a", label: "Brief", roleId: "manager" },
+  { id: "b", label: "Design", roleId: "staff", assignees: ["u2"] },
+  { id: "c", label: "Copy", roleId: "staff", assignees: ["u3"], together: true },
+  { id: "d", label: "Check", roleId: "manager" }
+];
+const parBp = H.hoBuildBlueprint(TYPE, PAR, { id: "bpP", now: 1 });
+T("steps that run together start at once and the step after waits for both", () => {
+  assert.deepEqual(plain(WF.wfValidate(parBp)), []);
+  let st = finishWith(parBp, startOn(parBp), {});
+  assert.deepEqual(where(parBp, st).sort(), ["Copy", "Design"]);
+  assert.deepEqual(H.hoHolders(parBp, st.nodeRuns, MEMBERS).sort(), ["u2", "u3"], "both people hold it at once");
+  st = finishWith(parBp, st, {}, 0);
+  assert.deepEqual(where(parBp, st).length, 1, "the other branch is still open");
+  st = finishWith(parBp, st, {}, 0);
+  assert.deepEqual(where(parBp, st), ["Check"], "the merge did not fire after both finished");
+});
+T("the summary says the next steps run together", () => {
+  const sum = H.hoSummary(parBp, startOn(parBp).nodeRuns, MEMBERS, uid => uid, null);
+  assert.equal(sum.next.label, "Design");
+  assert.deepEqual(plain(sum.next.also), ["Copy"]);
+});
+T("groups are found from the list, and the sentence says together and where a branch goes", () => {
+  assert.deepEqual(plain(H.hoGroups(H.hoStopIds(PAR))), [{ from: 0, to: 0 }, { from: 1, to: 2 }, { from: 3, to: 3 }]);
+  assert.equal(H.hoDescribe(PAR, id => ({ manager: "Manager", staff: "Staff" })[id]),
+    "Brief (Manager) → { Design (Staff, 1 named) + Copy (Staff, 1 named) together } → Check (Manager) → done");
+  assert.equal(H.hoDescribe(LOOP, id => ({ manager: "Manager", staff: "Staff" })[id]),
+    "Write the draft (Staff) → Check it (Manager) [if Send back → back to Write the draft] → Publish (Staff) → done");
+});
+T("the branch mistakes are refused with a reason, before the engine sees them", () => {
+  const e = t => H.hoTrackErrors(t, ROLES, STATUSES, null, ["priority"]).map(x => x.message).join(" | ");
+  assert.match(e([{ label: "A", roleId: "staff", together: true }]), /first step has nothing to run alongside/);
+  assert.match(e([{ id: "a", label: "A", roleId: "staff", routes: [{ when: { kind: "choice", value: "Yes" }, to: "done" }] }]), /no choices/);
+  assert.match(e([{ id: "a", label: "A", roleId: "staff", choices: ["Yes"], routes: [{ when: { kind: "choice", value: "No" }, to: "done" }] }]), /not one of this step's choices/);
+  assert.match(e([{ id: "a", label: "A", roleId: "staff", routes: [{ when: { kind: "field", key: "brand", op: "==", value: "x" }, to: "done" }] }]), /not a field this kind of work has/);
+  assert.match(e([{ id: "a", label: "A", roleId: "staff", routes: [{ when: { kind: "field", key: "priority", op: "==", value: "x" }, to: "zz" }] }]), /no longer there/);
+  assert.match(e([{ id: "a", label: "A", roleId: "staff", routes: [{ when: { kind: "field", key: "priority", op: "==", value: "x" }, to: "c" }] },
+                  { id: "b", label: "B", roleId: "staff" }, { id: "c", label: "C", roleId: "staff", together: true }]), /middle of steps that run together/);
+  assert.match(e([{ id: "a", label: "A", roleId: "staff" }, { id: "b", label: "B", roleId: "staff", together: true, choices: ["Y"], routes: [{ when: { kind: "choice", value: "Y" }, to: "done" }] }]), /cannot branch/);
+  assert.match(e([{ id: "a", label: "A", roleId: "staff", choices: ["Yes", "Yes"] }]), /same name/);
+  assert.equal(H.hoTrackErrors(LOOP, ROLES, STATUSES).length, 0, "a good loop must pass: " + e(LOOP));
+  assert.equal(H.hoTrackErrors(PAR, ROLES, STATUSES).length, 0, "a good group must pass: " + e(PAR));
 });
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

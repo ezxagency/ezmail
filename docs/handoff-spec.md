@@ -172,6 +172,18 @@ control, edited in place; a person dragged onto a card narrows the step
 to them (taking their role with them, so it is still "Staff, and of them
 Bo"). Both screens save through `orgTrackCommit()`.
 
+**Branching.** The straight line was the first shape, not the only one.
+A step may ask for a *choice* when it is finished (Approve / Send back),
+carry *if-rules* on where the work goes next (if they pick Send back →
+back to Write it; if Priority is urgent → Publish; otherwise the next
+step in the list) and be marked *together* with the step before it, so
+two or three people work at once and the step after waits for all of
+them. Each compiles to a block the engine already had - a declared
+output, a route split with an else, a parallel split and a merge - so
+nothing new runs, and the finish sheet asks for the decision before the
+note. The first version's rule stands: there is one engine, and the
+track is a way of drawing it.
+
 **The trail.** Who held it, how long, what they answered — read from
 `nodeRuns`, which already records exactly this and is currently shown to
 nobody.

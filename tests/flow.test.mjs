@@ -601,6 +601,122 @@ await T("saving from a page-old copy keeps a stamp written in between", async ()
   assert.equal(after.nudgedAt, 777, "the rename from a stale copy erased the chase stamp");
 });
 
+/* ---------- branching, end to end: a decision that loops, and steps that run together ---------- */
+await T("a track with an approve-or-send-back step saves as a blueprint the engine runs", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  await db.collection("orgs").doc(ORG).collection("itemTypes").doc("brief")
+    .set({ name: "Brief", fields: [{ key: "priority", label: "Priority", type: "select", options: ["normal", "urgent"] }],
+           statuses: [{ key: "open", label: "Open" }, { key: "review", label: "Review" }, { key: "done", label: "Done" }] });
+  run(`orgInvalidate();`);
+  const r = await runAsync(`
+    await orgEnsure();
+    const t = Object.assign({ id: "brief" }, ${JSON.stringify(await get("orgs/" + ORG + "/itemTypes/brief"))});
+    return await orgTrackCommit(t, [
+      { id: "w", label: "Write it", roleId: "staff" },
+      { id: "c", label: "Check it", roleId: "lead", status: "review", choices: ["Approve", "Send back"],
+        routes: [{ when: { kind: "choice", value: "Send back" }, to: "w" }] }
+    ]);`);
+  assert.ok(r.ok, JSON.stringify(r));
+  const t = await get("orgs/" + ORG + "/itemTypes/brief");
+  assert.equal(t.workflowId, r.workflowId);
+  assert.deepEqual(plain(t.track[1].choices), ["Approve", "Send back"], "the choices did not survive the save");
+  const bp = await get("orgs/" + ORG + "/blueprints/" + r.workflowId);
+  assert.ok(bp.nodes.some(n => n.type === "split" && n.config.mode === "route"), "no route split was compiled");
+});
+
+let briefId = null;
+await T("Send back returns the work to the writer, with the decision on the card", async () => {
+  run(`orgInvalidate();`);
+  const type = Object.assign({ id: "brief" }, await get("orgs/" + ORG + "/itemTypes/brief"));
+  const r = await runAsync(`return await itemSave(${JSON.stringify(type)}, null, { kind: "create", title: "Brief #1", fields: { priority: "normal" }, assigneeIds: [] });`);
+  assert.ok(r.ok, JSON.stringify(r));
+  briefId = r.item.id;
+  await until(async () => { const it = await get("orgs/" + ORG + "/items/" + briefId); return it && it.workflowRunId ? it : null; }, "the run to start");
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  let f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "First draft");`);
+  assert.ok(f.ok, JSON.stringify(f));
+  let item = await get("orgs/" + ORG + "/items/" + briefId);
+  assert.deepEqual(plain(item.assigneeIds), ["lead1"]);
+  assert.equal(item.status, "review");
+  const h = plain(item.handoff);
+  assert.deepEqual(h.stop.choices, [{ value: "Approve", to: "Done", back: false }, { value: "Send back", to: "Write it", back: true }],
+    "the card does not offer the choices with where they go: " + JSON.stringify(h.stop));
+
+  // the checker cannot finish without deciding
+  AUTH.currentUser = { uid: "lead1", email: "l@x.com" };
+  run(`orgInvalidate();`);
+  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "");`);
+  assert.equal(f.ok, false);
+  assert.equal(f.error, "needs-choice", JSON.stringify(f));
+
+  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "Too long, cut it", { choice: "Send back" });`);
+  assert.ok(f.ok, JSON.stringify(f));
+  item = await get("orgs/" + ORG + "/items/" + briefId);
+  assert.deepEqual(plain(item.assigneeIds), ["staff1"], "Send back did not return it to the writer");
+  assert.equal(plain(item.handoff).from.choice, "Send back", "the decision is not on the card");
+  assert.equal(plain(item.handoff).from.note, "Too long, cut it");
+  assert.equal(plain(item.handoff).stop.index, 1);
+});
+
+await T("Approve carries it on, and the second time round finishes it", async () => {
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  let f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "Cut by half");`);
+  assert.ok(f.ok, JSON.stringify(f));
+  AUTH.currentUser = { uid: "lead1", email: "l@x.com" };
+  run(`orgInvalidate();`);
+  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "", { choice: "Approve" });`);
+  assert.ok(f.ok, JSON.stringify(f));
+  const item = await get("orgs/" + ORG + "/items/" + briefId);
+  assert.equal(item.status, "done", "approved work did not finish");
+  assert.deepEqual(plain(item.assigneeIds), []);
+  const runDoc = await get("orgs/" + ORG + "/runs/" + item.workflowRunId);
+  assert.equal(runDoc.status, "completed");
+  const legs = runDoc.nodeRuns.filter(n => n.nodeType === "role" && n.status === "completed");
+  assert.equal(legs.length, 4, "write, check, write again, check again");
+});
+
+await T("steps that run together are held by both people at once, and the step after waits for both", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  await db.collection("orgs").doc(ORG).collection("itemTypes").doc("launch")
+    .set({ name: "Launch", fields: [], statuses: [{ key: "open", label: "Open" }, { key: "done", label: "Done" }] });
+  run(`orgInvalidate();`);
+  const r = await runAsync(`
+    await orgEnsure();
+    const t = Object.assign({ id: "launch" }, ${JSON.stringify(await get("orgs/" + ORG + "/itemTypes/launch"))});
+    return await orgTrackCommit(t, [
+      { id: "d", label: "Design", roleId: "staff" },
+      { id: "c", label: "Copy", roleId: "lead", together: true },
+      { id: "s", label: "Ship", roleId: "owner" }
+    ]);`);
+  assert.ok(r.ok, JSON.stringify(r));
+  const type = Object.assign({ id: "launch" }, await get("orgs/" + ORG + "/itemTypes/launch"));
+  const c = await runAsync(`return await itemSave(${JSON.stringify(type)}, null, { kind: "create", title: "Launch #1", fields: {}, assigneeIds: [] });`);
+  assert.ok(c.ok, JSON.stringify(c));
+  const id = c.item.id;
+  let item = await until(async () => { const it = await get("orgs/" + ORG + "/items/" + id); return it && it.workflowRunId ? it : null; }, "the run to start");
+  assert.deepEqual(plain(item.assigneeIds).sort(), ["lead1", "staff1"], "both branches did not start at once");
+  assert.equal(plain(item.handoff).next.label, "Ship", "next should be the step after the group");
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  let f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(id)}, "");`);
+  assert.ok(f.ok, JSON.stringify(f));
+  item = await get("orgs/" + ORG + "/items/" + id);
+  assert.deepEqual(plain(item.assigneeIds), ["lead1"], "finishing one branch must not move the work on");
+  AUTH.currentUser = { uid: "lead1", email: "l@x.com" };
+  run(`orgInvalidate();`);
+  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(id)}, "");`);
+  assert.ok(f.ok, JSON.stringify(f));
+  item = await get("orgs/" + ORG + "/items/" + id);
+  assert.deepEqual(plain(item.assigneeIds), ["owner1"], "the merge did not fire once both were done");
+  // the tests after this one act as the owner again
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+});
+
 await T("starting over clears the work and the runs, and nothing else", async () => {
   const typesBefore = find("orgs/" + ORG + "/itemTypes").length;
   const rolesBefore = find("orgs/" + ORG + "/roles").length;

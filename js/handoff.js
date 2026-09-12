@@ -36,14 +36,57 @@ const HO_NUDGE_EVERY = HO_DAY;
 
 /* ---------- building a track ---------- */
 
+/* ---------- the shape of a stop ----------
+   { id, label, roleId, assignees, status, dueAfter,
+     choices:  ["Approve", "Send back"]         what the person picks when they finish (optional)
+     routes:   [{ when, to }]                   where the work goes next, first match wins;
+                                                 when = { kind:"choice", value } or
+                                                        { kind:"field", key, op, value }
+                                                 to   = another stop's id, or "done"
+     together: true }                           runs AT THE SAME TIME as the stop before it
+
+   Without routes the work goes to the next stop in the list - the list
+   order is the "otherwise". Consecutive stops marked `together` form a
+   group that starts at once and is waited for as one: the stop after
+   the group begins only when every member has finished. */
+
+/* Every stop gets an id that survives reordering, because a route names
+   the stop it goes to and "step 3" stops being step 3 the moment
+   somebody drags a card. Tracks saved before routes existed carry none;
+   they are given one here, from their position, and keep it from then
+   on because the editors save what this returns. */
+function hoStopIds(track){
+  return (track || []).filter(Boolean).map((s, i) => Object.assign({}, s, { id: s.id || ("st" + i) }));
+}
+
+/* Consecutive stops that run together, as [{ from, to }] index ranges.
+   A stop on its own is a group of one. The first stop cannot join
+   anything, so `together` on it is ignored here and refused below. */
+function hoGroups(stops){
+  const out = [];
+  (stops || []).forEach((s, i) => {
+    if (i > 0 && s && s.together) out[out.length - 1].to = i;
+    else out.push({ from: i, to: i });
+  });
+  return out;
+}
+
+const HO_FIELD_OPS = ["==", "!=", "contains", ">", "<"];
+
 /* Everything wrong with a track, all at once - never the first error,
    for the same reason itemValidate() works that way: a form that
-   reveals one problem per save is a form people abandon. */
-function hoTrackErrors(track, roleIds, statusKeys, members){
+   reveals one problem per save is a form people abandon.
+   `fieldKeys` is the kind's fields, for rules that read one; pass
+   nothing and field rules are not checked against a list. */
+function hoTrackErrors(track, roleIds, statusKeys, members, fieldKeys){
   const out = [];
-  const stops = track || [];
+  const stops = hoStopIds(track);
   const roles = new Set(roleIds || []);
   const statuses = new Set(statusKeys || []);
+  const ids = new Set(stops.map(s => s.id));
+  const groups = hoGroups(stops);
+  const groupStart = new Set(groups.map(g => g.from));
+  const inGroup = i => { const g = groups.find(x => i >= x.from && i <= x.to); return g && g.from !== g.to; };
   if (!stops.length) return [{ at: -1, message: "Add at least one step." }];
   if (stops.length > HO_MAX_STOPS)
     out.push({ at: -1, message: "That is more than " + HO_MAX_STOPS + " steps. Keep it shorter." });
@@ -70,41 +113,134 @@ function hoTrackErrors(track, roleIds, statusKeys, members){
       if (!s.assignees.some(u => inRole.indexOf(u) >= 0))
         out.push({ at: i, message: "Nobody you ticked is in that role any more." });
     }
+    if (!s) return;
+    const choices = (s.choices || []).map(c => String(c || "").trim());
+    if (choices.some(c => !c)) out.push({ at: i, message: "A choice needs a name." });
+    if (new Set(choices).size !== choices.length) out.push({ at: i, message: "Two choices have the same name." });
+    if (i === 0 && s.together) out.push({ at: i, message: "The first step has nothing to run alongside." });
+    const routes = (s.routes || []).filter(Boolean);
+    if (routes.length && s.together)
+      out.push({ at: i, message: "A step that runs alongside others cannot branch. Put the branch on the step after them." });
+    routes.forEach(r => {
+      const w = r.when || {};
+      if (w.kind === "choice") {
+        if (!choices.length) out.push({ at: i, message: "This step has no choices, so a rule cannot read one." });
+        else if (choices.indexOf(String(w.value || "").trim()) < 0)
+          out.push({ at: i, message: '"' + (w.value || "") + '" is not one of this step\'s choices.' });
+      } else if (w.kind === "field") {
+        if (!w.key) out.push({ at: i, message: "Which field should the rule look at?" });
+        else if (fieldKeys && fieldKeys.indexOf(w.key) < 0)
+          out.push({ at: i, message: '"' + w.key + '" is not a field this kind of work has.' });
+        if (HO_FIELD_OPS.indexOf(w.op || "==") < 0) out.push({ at: i, message: "That comparison is not one the rules know." });
+        if (w.value === undefined || w.value === null || w.value === "")
+          out.push({ at: i, message: "What should the field be compared with?" });
+      } else out.push({ at: i, message: "A rule has to look at a choice or a field." });
+      if (!r.to) out.push({ at: i, message: "Where should the work go? Pick a step or Done." });
+      else if (r.to !== "done") {
+        const j = stops.findIndex(x => x.id === r.to);
+        if (j < 0) out.push({ at: i, message: "A rule points at a step that is no longer there." });
+        else if (inGroup(j) && !groupStart.has(j))
+          out.push({ at: i, message: "Work cannot jump into the middle of steps that run together." });
+      }
+    });
   });
   return out;
 }
 
-/* A track becomes trigger -> role -> role -> ... -> done: the one
-   generator of a linear pipeline. (A second one, from campaign chains,
-   wrote to a collection nothing listed and was cut with the page.) */
+/* A track becomes a real blueprint: trigger -> role -> role -> ... ->
+   done, and where a stop branches, the engine's own SPLIT blocks -
+   `route` for if/otherwise, `parallel` for stops that run together -
+   with the stop after a parallel group as the MERGE (a node with two or
+   more incoming lines is the merge; it waits for all of them). The one
+   generator of a pipeline. (A second one, from campaign chains, wrote
+   to a collection nothing listed and was cut with the page.)
+
+   A stop with choices DECLARES an output, `choice`, so the engine
+   refuses to complete it without one and every rule that reads it is
+   reading a value that was really recorded (the engine's declaration
+   invariant). The choices ride on the role node as `choices` too, so
+   the finish sheet can draw them from the run's frozen snapshot. */
 function hoBuildBlueprint(type, track, opts){
   const o = opts || {};
-  const stops = (track || []).filter(Boolean);
+  const stops = hoStopIds(track);
   if (!stops.length) return null;
+  const groups = hoGroups(stops);
 
   const nodes = [{ id: "trigger", type: "trigger", position: { x: 0, y: 0 },
                    config: { label: "New " + ((type && type.name) || "work") } }];
   const edges = [];
-  let prev = "trigger";
+  let en = 0;
+  const edge = (from, to, handle) => {
+    const e = { id: "e" + (en++), from, to };
+    if (handle) e.fromHandle = handle;
+    edges.push(e);
+  };
+  const entryOf = g => g.from === g.to ? "s" + g.from : "p" + g.from;
+  // where a route may send the work: a stop on its own, the FIRST stop
+  // of a group (which enters the whole group), or the end
+  const targetOf = to => {
+    if (to === "done") return "done";
+    const i = stops.findIndex(x => x.id === to);
+    if (i < 0) return null;
+    const g = groups.find(x => i >= x.from && i <= x.to);
+    return g && g.from === i ? entryOf(g) : null;
+  };
+  const condOf = (when, i) => when.kind === "choice"
+    ? { source: "nodeOutput", nodeId: "s" + i, path: "choice", op: "==", value: String(when.value || "").trim() }
+    : { source: "field", path: when.key, op: when.op || "==", value: when.value };
 
   stops.forEach((s, i) => {
-    const id = "s" + i;
-    const config = { label: s.label || ("Stop " + (i + 1)) };
+    const config = { label: s.label || ("Step " + (i + 1)) };
     // the role is the whole point: who holds it is derived from this at
     // read time, so the stop stays true as people join and leave
     config.role = s.roleId;
     // the engine reads cfg.assignees as "who may act"; the role stays
     // beside it so hoHolders can keep intersecting the two
     if ((s.assignees || []).length) config.assignees = s.assignees.slice();
-    // an extra key the engine ignores and this file reads. wfValidate
+    // extra keys the engine ignores and this file reads. wfValidate
     // checks the config it knows about and permits the rest, which is
     // what lets a stop say what it MEANS in the type's own vocabulary
     // without teaching the engine about statuses.
     if (s.status) config.status = s.status;
     if (s.dueAfter) config.dueAfter = s.dueAfter;
-    nodes.push({ id, type: "role", position: { x: 0, y: (i + 1) * 160 }, config });
-    edges.push({ id: "e" + i, from: prev, to: id });
-    prev = id;
+    const choices = (s.choices || []).map(c => String(c || "").trim()).filter(Boolean);
+    if (choices.length) {
+      config.choices = choices;
+      config.outputs = [{ key: "choice", type: "text", label: "Decision" }];
+    }
+    nodes.push({ id: "s" + i, type: "role", position: { x: 0, y: (i + 1) * 160 }, config });
+  });
+
+  // `prev` is every line waiting to be joined to the next thing: one for
+  // a plain stop, one per member after a group (their lines meet at the
+  // next entry, which is what makes it the merge), and a route's
+  // "otherwise" side after a stop that branches
+  let prev = [{ node: "trigger" }];
+  groups.forEach((g, gi) => {
+    const entry = entryOf(g);
+    prev.forEach(p => edge(p.node, entry, p.handle));
+    if (g.from === g.to) {
+      const i = g.from, s = stops[i];
+      const routes = (s.routes || []).filter(r => r && r.when && r.to);
+      if (!routes.length) { prev = [{ node: "s" + i }]; return; }
+      const branches = routes.map((r, k) => ({ id: "b" + k,
+        label: r.when.kind === "choice" ? String(r.when.value) : (r.when.key + " " + (r.when.op || "==") + " " + r.when.value),
+        condition: condOf(r.when, i) }));
+      branches.push({ id: "else", label: "Otherwise", isElse: true });
+      nodes.push({ id: "r" + i, type: "split", position: { x: 0, y: (i + 1) * 160 + 80 },
+        config: { mode: "route", label: "After " + (s.label || ("step " + (i + 1))), branches } });
+      edge("s" + i, "r" + i);
+      routes.forEach((r, k) => { const t = targetOf(r.to); if (t) edge("r" + i, t, "b" + k); });
+      prev = [{ node: "r" + i, handle: "else" }];
+    } else {
+      const members = [];
+      for (let i = g.from; i <= g.to; i++) members.push(i);
+      nodes.push({ id: "p" + g.from, type: "split", position: { x: 0, y: (g.from + 1) * 160 - 80 },
+        config: { mode: "parallel", label: "At the same time",
+                  branches: members.map(i => ({ id: "b" + i, label: stops[i].label || ("Step " + (i + 1)) })) } });
+      members.forEach(i => edge("p" + g.from, "s" + i, "b" + i));
+      prev = members.map(i => ({ node: "s" + i }));
+    }
   });
 
   // every path must reach an end or the blueprint will not validate. The
@@ -115,7 +251,7 @@ function hoBuildBlueprint(type, track, opts){
   nodes.push({ id: "done", type: "action", position: { x: 0, y: (stops.length + 1) * 160 },
     config: { actionType: "notify", label: "Finished",
               params: { message: ((type && type.name) || "Work") + " finished its handoff." } } });
-  edges.push({ id: "e_done", from: prev, to: "done" });
+  prev.forEach(p => edge(p.node, "done", p.handle));
 
   return {
     id: o.id || null,
@@ -131,12 +267,43 @@ function hoBuildBlueprint(type, track, opts){
   };
 }
 
+/* The role stops the work reaches after a node, following the graph the
+   way the engine will: through a route's "otherwise" (or a named branch
+   when `handle` is given), through every branch of a parallel split, to
+   the end. Returns { stops: [role nodes], done: bool }. */
+function hoAfter(blueprint, nodeId, handle){
+  const nodes = (blueprint && blueprint.nodes) || [], edges = (blueprint && blueprint.edges) || [];
+  const byId = id => nodes.find(n => n.id === id) || null;
+  const out = { stops: [], done: false };
+  const seen = new Set();
+  const walk = (id, h) => {
+    edges.filter(e => e.from === id && (h ? e.fromHandle === h : true)).forEach(e => {
+      if (seen.has(e.id)) return;
+      seen.add(e.id);
+      const n = byId(e.to);
+      if (!n) return;
+      if (n.type === "role") { if (!out.stops.some(x => x.id === n.id)) out.stops.push(n); }
+      else if (n.type === "split") {
+        const cfg = n.config || {};
+        if ((cfg.mode || "route") === "route") walk(n.id, "else");
+        else (cfg.branches || []).forEach(b => walk(n.id, b.id));
+      }
+      else if (n.type === "action" || n.type === "vault") { if (!edges.some(x => x.from === n.id)) out.done = true; else walk(n.id); }
+      else walk(n.id);
+    });
+  };
+  walk(nodeId, handle || null);
+  return out;
+}
+
 /* Where a piece of work is on its handoff, in the words a card needs:
-   which stop (n of N), who passed it here and what they wrote, and who
-   is next. Copied onto the Item by the run sync so the deck reads it
-   without reading the run. `nameOf(uid)` turns a seat into a name; the
-   holders of the NEXT stop are resolved from the roster the same way
-   hoHolders resolves the current one - the role, narrowed to the named. */
+   which stop (n of N), who passed it here and what they wrote, who is
+   next, and - when the stop asks for a decision - the choices and where
+   each one sends the work. Copied onto the Item by the run sync so the
+   deck reads it without reading the run. `nameOf(uid)` turns a seat
+   into a name; the holders of the NEXT stop are resolved from the
+   roster the same way hoHolders resolves the current one - the role,
+   narrowed to the named. */
 function hoSummary(blueprint, nodeRuns, members, nameOf, run){
   const name = uid => (nameOf && nameOf(uid)) || "";
   const stops = ((blueprint && blueprint.nodes) || []).filter(n => n.type === "role");
@@ -145,12 +312,12 @@ function hoSummary(blueprint, nodeRuns, members, nameOf, run){
   const last = legs.length ? legs[legs.length - 1] : null;
   const from = last ? {
     uid: last.by || null, name: last.by ? name(last.by) : "",
-    label: last.label, note: (last.output && last.output.comment) || "", at: last.completedAt || null
+    label: last.label, note: (last.output && last.output.comment) || "", at: last.completedAt || null,
+    choice: (last.output && last.output.choice) || null
   } : null;
   if (!active) return { stop: null, from, next: null, done: !!(run && run.status === "completed") || legs.length > 0 };
   const idx = stops.findIndex(n => n.id === active.nodeId);
   const cur = idx >= 0 ? stops[idx] : null;
-  const nextNode = idx >= 0 ? stops[idx + 1] || null : null;
   const holdersOf = node => {
     const cfg = node.config || {}, roster = members || [];
     const inRole = cfg.role === HO_ANY ? roster.map(m => m.uid)
@@ -159,11 +326,32 @@ function hoSummary(blueprint, nodeRuns, members, nameOf, run){
     const named = cfg.assignees || [];
     return (named.length ? inRole.filter(u => named.indexOf(u) >= 0) : inRole).map(u => ({ uid: u, name: name(u) }));
   };
+  const nextOf = (after) => {
+    const first = after.stops[0] || null;
+    if (!first) return null;
+    const n = { label: (first.config && first.config.label) || first.id,
+      role: (first.config && first.config.role) || null, holders: holdersOf(first) };
+    if (after.stops.length > 1) n.also = after.stops.slice(1).map(x => (x.config && x.config.label) || x.id);
+    return n;
+  };
+  const after = hoAfter(blueprint, active.nodeId);
+  // where each choice sends the work: the branch whose rule names it,
+  // else the "otherwise" path - said in the target's own words, so the
+  // sheet can offer "Send back -> Write the draft" rather than a bare word
+  const cfg = (cur && cur.config) || {};
+  const choices = (cfg.choices || []).map(v => {
+    const split = ((blueprint && blueprint.nodes) || []).find(n => n.type === "split" &&
+      ((blueprint.edges || []).some(e => e.from === active.nodeId && e.to === n.id)));
+    const br = split ? ((split.config || {}).branches || []).find(b => b.condition && b.condition.path === "choice" && b.condition.value === v) : null;
+    const to = br ? hoAfter(blueprint, split.id, br.id) : after;
+    const first = to.stops[0];
+    return { value: v, to: first ? ((first.config && first.config.label) || first.id) : (to.done ? "Done" : ""), back: !!(first && stops.indexOf(first) < idx) };
+  });
   return {
-    stop: { label: (cur && cur.config && cur.config.label) || active.nodeId, index: idx + 1, count: stops.length },
+    stop: Object.assign({ label: (cur && cur.config && cur.config.label) || active.nodeId, index: idx + 1, count: stops.length },
+      choices.length ? { choices } : {}),
     from,
-    next: nextNode ? { label: (nextNode.config && nextNode.config.label) || nextNode.id,
-      role: (nextNode.config && nextNode.config.role) || null, holders: holdersOf(nextNode) } : null,
+    next: nextOf(after),
     done: false
   };
 }
@@ -201,19 +389,29 @@ function hoTrackGaps(track, members){
    a sentence is what turns four dropdowns into a decision they can
    check. A step with no name yet is "Step n", and one with nobody
    chosen says so rather than vanishing, so the preview is honest about
-   an unfinished track instead of tidy about it. `roleNameOf(id)` turns
-   a role id into its name; HO_ANY reads "anyone". */
+   an unfinished track instead of tidy about it. Steps that run together
+   are bracketed, and a step that branches says where each way goes.
+   `roleNameOf(id)` turns a role id into its name; HO_ANY reads "anyone". */
 function hoDescribe(track, roleNameOf){
-  const stops = (track || []).filter(Boolean);
+  const stops = hoStopIds(track);
   if (!stops.length) return "";
   const nameOf = id => id === HO_ANY ? "anyone" : ((roleNameOf && roleNameOf(id)) || id);
-  const legs = stops.map((s, i) => {
-    const label = (s.label || "").trim() || ("Step " + (i + 1));
+  const labelOf = s => (s.label || "").trim() || ("Step " + (stops.indexOf(s) + 1));
+  const leg = s => {
     const who = s.roleId ? nameOf(s.roleId) : "nobody chosen yet";
     const only = (s.assignees || []).length ? ", " + s.assignees.length + " named" : "";
-    return label + " (" + who + only + ")";
-  });
-  return legs.join(" \u2192 ") + " \u2192 done";
+    const routes = (s.routes || []).filter(r => r && r.when && r.to).map(r => {
+      const w = r.when;
+      const test = w.kind === "choice" ? String(w.value) : (w.key + " " + ({ "==": "is", "!=": "is not", contains: "contains", ">": "over", "<": "under" }[w.op || "=="] || w.op) + " " + w.value);
+      const t = r.to === "done" ? "done" : (stops.find(x => x.id === r.to) || null);
+      const dest = t === "done" ? "done" : t ? ((stops.indexOf(t) < stops.indexOf(s) ? "back to " : "") + labelOf(t)) : "?";
+      return "if " + test + " → " + dest;
+    });
+    return labelOf(s) + " (" + who + only + ")" + (routes.length ? " [" + routes.join("; ") + "]" : "");
+  };
+  const legs = hoGroups(stops).map(g => g.from === g.to ? leg(stops[g.from])
+    : "{ " + stops.slice(g.from, g.to + 1).map(leg).join(" + ") + " together }");
+  return legs.join(" → ") + " → done";
 }
 
 /* ---------- late ----------
@@ -374,7 +572,7 @@ function hoTrail(blueprint, nodeRuns){
 }
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { hoSummary, hoDescribe, HO_MAX_STOPS, HO_ANY, HO_DAY, HO_NUDGE_EVERY,
+  module.exports = { hoSummary, hoDescribe, hoStopIds, hoGroups, hoAfter, HO_FIELD_OPS, HO_MAX_STOPS, HO_ANY, HO_DAY, HO_NUDGE_EVERY,
     hoLate, hoDue, hoNeedsNudge, hoTrackErrors, hoTrackGaps, hoBuildBlueprint,
     hoActiveStops, hoHolders, hoStatus, hoMayAdvance, hoStalled, hoTrail };
 }

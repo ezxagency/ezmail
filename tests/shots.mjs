@@ -429,9 +429,11 @@ await page.evaluate(() => {
       { id: "designer", name: "Designer", permissions: ["item:read:org", "item:update:assigned"] }],
     types: [{ id: "simpletask", name: "Task", fields: [{ key: "brand", label: "Brand", type: "text" }],
       statuses: [{ key: "to_do", label: "To do" }, { key: "doing", label: "Doing" }, { key: "done", label: "Done" }],
-      track: [{ label: "Write the draft", roleId: "staff", assignees: ["u3"], status: "doing", dueAfter: 2 * 86400000 },
-              { label: "Design it", roleId: "designer", assignees: [], status: "", dueAfter: null },
-              { label: "Check it", roleId: "manager", assignees: [], status: "", dueAfter: 1 * 86400000 }], workflowId: "bp1" },
+      track: [{ id: "w", label: "Write the draft", roleId: "staff", assignees: ["u3"], status: "doing", dueAfter: 2 * 86400000 },
+              { id: "d", label: "Design it", roleId: "designer", assignees: [], status: "", dueAfter: null },
+              { id: "p", label: "Pick the photos", roleId: "staff", assignees: ["u4"], status: "", dueAfter: null, together: true },
+              { id: "c", label: "Check it", roleId: "manager", assignees: [], status: "", dueAfter: 1 * 86400000,
+                choices: ["Approve", "Send back"], routes: [{ when: { kind: "choice", value: "Send back" }, to: "w" }] }], workflowId: "bp1" },
       { id: "video", name: "Video", fields: [], statuses: [{ key: "idea", label: "Idea" }, { key: "done", label: "Done" }] }],
     automations: [{ id: "au1", name: "Tell the manager", enabled: true, trigger: { verb: "item.created", typeId: "simpletask" }, conditions: [],
                     actions: [{ kind: "notify", toRole: "manager", message: "A new task is in" }] }] };
@@ -446,6 +448,18 @@ await shoot("next-flow-390");
 await page.setViewportSize({ width: 1920, height: 1080 });
 await page.evaluate(() => { orgS = window.__orgSBefore2; go(""); });
 await page.waitForTimeout(400);
+
+// ---- the finish sheet on a branching step: decide, then note ----
+await page.evaluate(() => {
+  assignedOpenRows = [{ id: "br1", itemId: "br1", task: "Spring launch brief", store: "Store Epsilon",
+    handoff: { stop: { label: "Check it", index: 4, count: 4, choices: [{ value: "Approve", to: "Done", back: false }, { value: "Send back", to: "Write the draft", back: true }] },
+      from: { uid: "u3", name: "Ada", note: "Second pass, cut by half" }, next: null, done: false } }];
+  markAssignmentDone("br1");
+});
+await page.waitForTimeout(500);
+await shoot("next-decide");
+await page.evaluate(() => { closeSheet(); });
+await page.waitForTimeout(300);
 
 await page.evaluate(() => go(""));
 await page.waitForTimeout(300);

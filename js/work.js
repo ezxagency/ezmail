@@ -389,28 +389,47 @@ async function wkPaintHandoff(item, type){
               : "here now") + '</small>' +
             // the note written when the stop was passed on - recorded on
             // the run since the first build, shown to nobody until now
+            (t.output && t.output.choice ? '<em class="wk-leg-choice">' + esc(t.output.choice) + '</em>' : "") +
             (t.output && t.output.comment ? '<em class="wk-leg-note">\u201c' + esc(t.output.comment) + '\u201d</em>' : "") +
           '</span>' +
         '</div>').join("") + '</div>'
     : "";
 
+  // a branching step records a decision: the choices come from the run's
+  // own frozen snapshot, so a track edited since cannot change the offer
+  const acting = mine || stops[0] || null;
+  const actNode = acting ? ((h.blueprint && h.blueprint.nodes) || []).find(x => x.id === acting.nodeId) : null;
+  const choices = (actNode && actNode.config && actNode.config.choices) || [];
+  const canAct = !!(mine || (owner && stops.length && !stalled));
   box.innerHTML = head + dueLine + trailHtml +
-    ((mine || (owner && stops.length && !stalled))
-      ? '<div class="org-actions"><button type="button" class="org-btn" id="wkAdvance">' +
-        (mine ? "Mark this done" : "Move it on (override)") + '</button></div>'
+    (canAct && choices.length
+      ? '<p class="org-sub">What happens next</p><div class="org-chips wk-choices">' + choices.map(c =>
+          '<button type="button" class="org-chip wk-choice" data-choice="' + esc(c) + '">' + esc(c) + '</button>').join("") + '</div>'
+      : "") +
+    (canAct
+      ? '<div class="org-actions"><button type="button" class="org-btn" id="wkAdvance"' + (choices.length ? " disabled" : "") + '>' +
+        (choices.length ? "Pick one above" : mine ? "Mark this done" : "Move it on (override)") + '</button></div>'
       : "");
 
+  let picked = null;
+  box.querySelectorAll(".wk-choice").forEach(b => b.onclick = () => {
+    picked = b.dataset.choice;
+    box.querySelectorAll(".wk-choice").forEach(x => x.classList.toggle("is-on", x === b));
+    $("wkAdvance").disabled = false;
+    $("wkAdvance").textContent = picked + (mine ? "" : " (override)");
+  });
   if ($("wkAdvance")) $("wkAdvance").onclick = () =>
-    wkAdvance(item, type, (mine || stops[0]).id, $("wkAdvance"));
+    wkAdvance(item, type, acting.id, $("wkAdvance"), picked ? { choice: picked } : {});
 }
 
-async function wkAdvance(item, type, nodeRunId, btn){
+async function wkAdvance(item, type, nodeRunId, btn, output){
   btn.disabled = true; btn.textContent = "Passing it on…";
-  const r = await itemsAdvanceHandoff(item, type, nodeRunId, {});
+  const r = await itemsAdvanceHandoff(item, type, nodeRunId, output || {});
   if (!r.ok) {
     btn.disabled = false; btn.textContent = "Mark this done";
     toast(r.error === "not-yours" ? "This step is not yours to move."
       : r.error === "not-active" ? "Somebody already moved it on."
+      : r.error === "needs-choice" ? "This step asks for a decision first."
       : "Could not move it on.");
     return;
   }

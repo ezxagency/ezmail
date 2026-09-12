@@ -995,10 +995,19 @@ function markAssignmentDone(id){
         : `<b>${esc(row.task || "This")}</b> is on its last step — finishing closes it.`)
     : `<b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team.${isMember ? "" : " Tag someone with @ and they get an Accept / Decline hand-off in their inbox."}`;
   const placeholder = h && h.next ? `A note for ${nextNames || h.next.label}…` : "e.g. Drafts are up — @Jack please review";
-  const go = h ? (h.next ? "Pass to " + h.next.label : "Finish") : "Mark done";
+  /* A branching step asks for a DECISION before a note: each choice says
+     where it sends the work, because "Send back" is only a choice if you
+     can see it goes back to Write the draft. Nothing is pressed for them,
+     and the button stays off until one is - the engine refuses a stop
+     that promised a choice and got none. */
+  const choices = h && h.stop && h.stop.choices && h.stop.choices.length ? h.stop.choices : null;
+  const go = h ? (choices ? "Pick what happens next" : h.next ? "Pass to " + h.next.label : "Finish") : "Mark done";
   openSheet(`
     <h2>${esc(title)}</h2>
-    <p class="hint">${hint}</p>
+    <p class="hint">${choices ? `<b>${esc(row.task || "This")}</b> — decide what happens next, and leave a note.` : hint}</p>
+    ${choices ? `<div class="chips dn-choices" role="radiogroup">${choices.map(c =>
+      `<button type="button" class="chip dn-choice" role="radio" aria-checked="false" data-choice="${esc(c.value)}">${esc(c.value)}<i>${
+        c.back ? "↩ " : "→ "}${esc(c.to || "Done")}</i></button>`).join("")}</div>` : ""}
     <div class="mention-wrap">
       <textarea id="doneNote" placeholder="${esc(placeholder)}"></textarea>
       <div class="af-panel mention-pop" id="mentionPop" hidden></div>
@@ -1010,12 +1019,23 @@ function markAssignmentDone(id){
     // nowhere to land (see dispatchMentionNotifications) - so no offer
     if (!isMember) wireMentionBox($("doneNote"), $("mentionPop"));
     $("doneCancel").onclick = closeSheet;
-    $("doneSend").onclick = () => finishAssignment(id, row, $("doneNote").value.trim());
+    let picked = null;
+    if (choices) {
+      $("doneSend").disabled = true;
+      document.querySelectorAll(".dn-choice").forEach(b => b.onclick = () => {
+        picked = b.dataset.choice;
+        document.querySelectorAll(".dn-choice").forEach(x => { const on = x === b; x.classList.toggle("is-on", on); x.setAttribute("aria-checked", String(on)); });
+        const c = choices.find(x => x.value === picked);
+        $("doneSend").textContent = picked + (c && c.to ? (c.back ? " · back to " : " · on to ") + c.to : "");
+        $("doneSend").disabled = false;
+      });
+    }
+    $("doneSend").onclick = () => finishAssignment(id, row, $("doneNote").value.trim(), picked ? { choice: picked } : null);
     $("doneNote").focus();
   });
 }
 
-async function finishAssignment(id, row, comment){
+async function finishAssignment(id, row, comment, output){
   const btn = $("doneSend");
   if (btn) btn.disabled = true;
   // the deck holds its picture until this reports back - see dkHold()
@@ -1028,7 +1048,7 @@ async function finishAssignment(id, row, comment){
      because the assignment document is still what Done has always
      written to and what the admin badge counts. */
   if (row && !row.fromAssignment && row.itemId) {
-    const r = await itemsFinishFromQueue(row.itemId, comment);
+    const r = await itemsFinishFromQueue(row.itemId, comment, output);
     if (!r.ok) {
       if (btn) btn.disabled = false;
       if (deck) dkRelease();
@@ -1043,6 +1063,7 @@ async function finishAssignment(id, row, comment){
         : r.error === "denied" ? "Your role cannot change this work."
         : r.error === "invalid" ? "It would not save — a required field is empty."
         : r.error === "read-failed" ? "Could not load it: " + (r.detail || "unknown")
+        : r.error === "needs-choice" ? "This step asks for a decision first."
         : "Could not finish it (" + (r.error || "unknown") + ")");
       return;
     }

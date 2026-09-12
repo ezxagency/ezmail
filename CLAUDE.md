@@ -339,6 +339,32 @@ the page on screen. `flS` is the page's state (`draft`, `dirty`, `drag`);
 half. Owner-only for changes, like the sheets it fronts; anyone through
 the door sees the picture. `tests/builder.test.mjs` drives it in jsdom.
 
+**A track can branch, and it is still the engine's own blueprint.** A
+stop may carry `choices` (what the person picks when they finish -
+Approve / Send back), `routes` (`[{ when, to }]`, first match wins:
+`when` reads a choice or a field on the work, `to` is another stop's
+`id` or `"done"`; the list order is the "otherwise") and `together`
+(runs at the same time as the stop before it; consecutive ones form a
+group and the stop after the group waits for all of them). Stops carry
+stable `id`s for this - `hoStopIds()` gives legacy tracks theirs from
+their position - because a route names the stop it goes to and "step 3"
+stops being step 3 when a card is dragged. `hoBuildBlueprint()` compiles
+a choice into a declared output (`choice`, so the engine refuses to
+finish the stop without one), routes into a `route` split with an else
+branch, a group into a `parallel` split whose members all point at the
+next entry (two incoming lines IS the engine's merge). Loops are just a
+route that points backwards; the engine's arrival bookkeeping makes a
+re-entry a fresh iteration. `hoAfter()` follows the graph the way the
+engine will, and `hoSummary()` puts `stop.choices` (each with where it
+sends the work) and `next.also` (steps that start together) on the
+Item, so the deck's finish sheet and the Work page ask for the decision
+before the note; `itemsFinishFromQueue(id, comment, output)` carries it
+and the engine's refusal comes back as `needs-choice`. The Organization
+sheet cannot draw any of this and KEEPS it on read-back
+(`Object.assign` over the draft), saying what the builder set. Every
+branch shape runs through the real engine in `tests/handoff.test.mjs`
+and end to end in `tests/flow.test.mjs`.
+
 **Work travels with its note.** The composer speaks work types
 (`cxKind`, the KIND row): a Task is the classic assignment, any other
 kind is an Item of that kind made by `itemsCreateFromComposer()`. A kind
