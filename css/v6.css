@@ -10,6 +10,17 @@
    116px inset - same result, fewer moving parts.
    ============================================================ */
 
+/* Explicit pixels keep seconds legible: em used the 16px wrapper, not the
+   much larger sibling containing hours/minutes. */
+body.ui-next .app .ring-sec{
+  font-size:clamp(16px, 1.15vw, 22px);font-weight:500;
+  margin-left:4px;line-height:1.4;
+}
+body.ui-next .dock .btn{
+  min-height:48px;padding:12px 16px;border-radius:12px;
+  font-size:14px;line-height:1.4;letter-spacing:.08em;
+}
+
 @media (min-width:1024px){
   /* ---------- the three columns ---------- */
   body.ui-next .app.panes,
@@ -18,7 +29,8 @@
     padding:0 0 0 116px;
     grid-template-columns:minmax(0,1fr) clamp(520px, 32.3%, 620px);
     /* brand+week, then the hero taking what is left, then the bar */
-    grid-template-rows:auto minmax(0,1fr) auto auto;
+    /* Keep the rings + labels in the track even when the dock grows. */
+    grid-template-rows:auto minmax(min-content,1fr) max-content max-content;
     grid-template-areas:
       "band     side"
       "clock    side"
@@ -26,7 +38,7 @@
       "shiftbar side";
     column-gap:0;
     row-gap:0;
-    overflow:hidden;
+    overflow-x:hidden;overflow-y:auto;
   }
 
   /* Daily Mission leaves the dashboard. Its page stays, on the rail. */
@@ -52,38 +64,40 @@
   body.ui-next .app.panes .clock{
     grid-area:clock;
     display:grid;
-    grid-template-columns:auto auto;
+    grid-template-columns:repeat(2,minmax(0,232px));
     justify-content:center;align-content:center;
-    gap:clamp(16px, 3.2vh, 34px) 56px;      /* 288 - 232 = 56 between the rings */
-    padding:0 48px;
-    min-height:0;
+    gap:clamp(16px, 3.2vh, 34px) clamp(20px, 3vw, 56px);
+    padding:24px clamp(20px, 2.5vw, 48px);
+    min-height:auto;max-width:none;margin-top:0;
   }
   body.ui-next .app.panes .clock .mode-switch{grid-column:1 / -1;justify-self:center;margin:0}
   body.ui-next .app.panes .clock .pomo,
   body.ui-next .app.panes .clock .anchor{grid-column:1 / -1}
-  body.ui-next .app.panes .clock-panel{padding:0}
+  body.ui-next .app.panes .clock-panel{padding:0;min-width:0}
   /* 232px at the comp's 1080, shrinking on a shorter window rather than
      pushing the button off the bottom */
-  body.ui-next .app.panes .ring{width:clamp(132px, 21.5vh, 232px);height:clamp(132px, 21.5vh, 232px)}
-  body.ui-next .app.panes .clock-label{margin-top:14px}
+  body.ui-next .app.panes .ring{width:100%;max-width:clamp(132px, 21.5vh, 232px);height:auto}
+  body.ui-next .app.panes .clock-label{margin-top:14px;font-size:clamp(12px, 1vw, 16px)}
 
   /* the button and the paused-task chips, on their own row under the rings */
   body.ui-next .app.panes .dock{
     grid-area:dock;
     display:flex;flex-direction:column;align-items:center;
-    padding:0 48px clamp(12px, 2.2vh, 26px);
-    min-height:auto;justify-content:flex-end;gap:12px;
+    padding:0 clamp(20px, 2.5vw, 48px) clamp(12px, 2.2vh, 26px);
+    min-height:auto;max-width:none;margin-top:0;justify-content:flex-end;gap:10px;
   }
   body.ui-next .app.panes .dock .btn{
-    width:520px;max-width:100%;height:clamp(62px, 9vh, 98px);
-    border-radius:20px;
+    width:420px;max-width:100%;height:auto;max-height:none;min-height:48px;
+    padding:12px 16px;border-radius:12px;flex-shrink:0;
+    font-size:clamp(14px, 1vw, 16px);letter-spacing:.08em;
   }
-  body.ui-next .app.panes .dock .row{display:flex;gap:12px;width:520px;max-width:100%}
-  body.ui-next .app.panes .dock .row .btn{width:auto;flex:1}
+  body.ui-next .app.panes .dock .row{display:flex;gap:10px;width:420px;max-width:100%}
+  body.ui-next .app.panes .dock .row .btn{width:auto;flex:1;min-width:0}
 
   body.ui-next .app.panes .shiftbar{
     grid-area:shiftbar;
-    padding:0 48px clamp(20px, 3.2vh, 36px);
+    padding:0 clamp(20px, 2.5vw, 48px) clamp(20px, 3.2vh, 36px);
+    max-width:none;
     align-self:end;
   }
 
