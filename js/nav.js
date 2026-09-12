@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", team: "teamScreen", work: "workScreen", org: "orgScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", team: "teamScreen", work: "workScreen", org: "orgScreen", flow: "flowScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -96,7 +96,7 @@ document.addEventListener("keydown", e => {
   if ($("sheet").classList.contains("on")) return;
   if (typeof cxIsOpen === "function" && cxIsOpen()) return;
   // the same digits the drawer prints beside each item - all eight of them
-  const map = { "1": "", "2": "mission", "3": "history", "4": "team", "5": "work", "6": "org" };
+  const map = { "1": "", "2": "mission", "3": "history", "4": "team", "5": "work", "6": "org", "7": "flow" };
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (!navAllowed(r)) return;
@@ -108,7 +108,7 @@ document.addEventListener("keydown", e => {
    Me view, on the new dashboard); without it the old role rule holds. */
 function navAllowed(r){
   if (typeof amRouteAllowed === "function") return amRouteAllowed(r);
-  return !((r === "team" && !isAdmin) || (r === "org" && !isAdmin && !isMember) || (r === "history" && isAdmin));
+  return !((r === "team" && !isAdmin) || ((r === "org" || r === "flow") && !isAdmin && !isMember) || (r === "history" && isAdmin));
 }
 
 function applyRoute(){
@@ -128,6 +128,7 @@ function applyRoute(){
   else if (r === "team") loadTeamScreen();
   else if (r === "work") enterWorkPage();
   else if (r === "org") enterOrgPage();
+  else if (r === "flow") enterFlowPage();
 }
 window.addEventListener("hashchange", applyRoute);
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(""));

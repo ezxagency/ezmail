@@ -189,6 +189,15 @@ function orgInvalidate(){ orgS = null; dirInvalidate(); }
 /* ---------- page entry ---------- */
 
 function enterOrgPage(){
+  /* The Flow builder (js/flow.js) opens this file's sheets - a role, a
+     kind of work, an invite - and each of them reloads "the org page"
+     after it saves. The page on screen is the one that gets reloaded:
+     otherwise the builder would sit on a picture of an org that had just
+     changed under it while a hidden page redrew instead. */
+  if (typeof currentRoute === "function" && currentRoute() === "flow" && typeof enterFlowPage === "function") {
+    enterFlowPage();
+    return;
+  }
   const box = $("orgBody");
   if (!box) return;
   box.innerHTML = '<p class="org-note">Loading…</p>';
@@ -358,6 +367,7 @@ function orgRender(){
             (owner ? '<div class="org-actions">' +
               '<button type="button" class="org-btn org-btn-sm org-track" data-track="' + esc(t.id) + '">' +
                 ((t.track || []).length ? "Edit steps" : "Set up steps") + '</button>' +
+              '<button type="button" class="org-btn org-btn-sm org-flow" data-flow="' + esc(t.id) + '">Open in the builder</button>' +
               '<button type="button" class="org-btn org-btn-sm org-type" ' +
               'data-type="' + esc(t.id) + '">Edit this type</button></div>' : '') +
           '</div>' +
@@ -511,6 +521,8 @@ function orgRender(){
   });
   $("orgBody").querySelectorAll(".org-track").forEach(b => {
     b.onclick = () => orgTrackSheet((orgS.types || []).find(t => t.id === b.dataset.track) || null);
+  $("orgBody").querySelectorAll(".org-flow").forEach(b =>
+    b.onclick = () => { if (typeof flS !== "undefined") flS = { orgId: orgS.orgId, typeId: b.dataset.flow, draft: null, dirty: false, drag: null, rules: [] }; go("flow"); });
   });
   $("orgBody").querySelectorAll(".org-member").forEach(b => {
     b.onclick = () => orgMemberSheet((orgS.members || []).find(m => m.uid === b.dataset.member) || null);
@@ -1305,24 +1317,38 @@ async function orgTrackSave(type){
   $("otkErr").innerHTML = "";
   const btn = $("otkSave");
   btn.disabled = true; btn.textContent = "Saving…";
-  try {
-    const bpId = type.workflowId || ("bp" + orgNewId());
-    const bp = hoBuildBlueprint(type, orgTrackDraft, { id: bpId, orgId: orgS.orgId, ownerId: orgUid(), now: Date.now() });
-    // the same validator the Workflows page publishes against: a track
-    // that would not run must not be saveable
-    const bad = wfValidate(bp);
-    if (bad.length) throw new Error(bad[0].msg);
-    await db.collection("orgs").doc(orgS.orgId).collection("blueprints").doc(bpId).set(bp);
-    const r = await itemTypeSave(Object.assign({}, type, { track: orgTrackDraft, workflowId: bpId }));
-    if (!r.ok) throw new Error(r.error || "save-failed");
-    orgInvalidate();
-    closeSheet();
-    toast("Steps saved. New " + (type.name || "work") + " will follow them.");
-    enterOrgPage();
-  } catch (e) {
-    console.error(e);
+  const r = await orgTrackCommit(type, orgTrackDraft);
+  if (!r.ok) {
     btn.disabled = false; btn.textContent = "Save steps";
     toast("Could not save the steps.");
+    return;
+  }
+  closeSheet();
+  toast("Steps saved. New " + (type.name || "work") + " will follow them.");
+  enterOrgPage();
+}
+
+/* The one write that makes a track real: compile it, validate it with
+   the same validator the Workflows page published against, write the
+   blueprint, then point the type at it. Two screens edit a track - the
+   steps sheet here and the Flow builder (js/flow.js) - and they share
+   this rather than each carrying a copy that would drift apart on the
+   first fix (docs/lessons.md > "Fixing casualties instead of the cause"). */
+async function orgTrackCommit(type, track){
+  try {
+    const bpId = type.workflowId || ("bp" + orgNewId());
+    const bp = hoBuildBlueprint(type, track, { id: bpId, orgId: orgS.orgId, ownerId: orgUid(), now: Date.now() });
+    if (!bp) return { ok: false, error: "Add at least one step." };
+    const bad = wfValidate(bp);
+    if (bad.length) return { ok: false, error: bad[0].msg };
+    await db.collection("orgs").doc(orgS.orgId).collection("blueprints").doc(bpId).set(bp);
+    const r = await itemTypeSave(Object.assign({}, type, { track: JSON.parse(JSON.stringify(track)), workflowId: bpId }));
+    if (!r.ok) return { ok: false, error: r.error || "save-failed" };
+    orgInvalidate();
+    return { ok: true, workflowId: bpId };
+  } catch (e) {
+    console.error(e);
+    return { ok: false, error: "Could not save the steps." };
   }
 }
 

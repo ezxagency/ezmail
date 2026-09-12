@@ -1,0 +1,242 @@
+/* FLOW BUILDER - js/flow.js. One picture per kind of work: the steps as
+   cards left to right, the rules as a lane beneath, the people beside.
+   Loaded after org.css and reuses its buttons and notes; everything of
+   its own is fl- prefixed. */
+
+body.ui-next #flowScreen .admin-page-inner { max-width: none; padding: 32px 48px 60px; }
+#flowScreen .admin-page-head { margin-bottom: 14px; }
+
+.fl-note { font-size: 13.5px; line-height: 1.55; opacity: .62; margin: 0 0 10px; }
+.fl-note-sm { font-size: 12px; margin: 6px 0 0; }
+.fl-err { color: #e0a08a; font-size: 13px; line-height: 1.5; margin: 6px 0 0; }
+.fl-warn { margin: 6px 0 0; font-size: 12.5px; line-height: 1.5; color: #d9a273; }
+.fl-empty { max-width: 520px; padding: 28px 0; }
+.fl-empty h2 { margin: 0 0 8px; font-size: 22px; }
+.fl-empty p { opacity: .7; line-height: 1.55; }
+.fl-link {
+  font: inherit; font-size: 12.5px; color: inherit; opacity: .7; cursor: pointer;
+  background: none; border: 0; padding: 0; text-decoration: underline; text-underline-offset: 3px;
+}
+.fl-link:hover { opacity: 1; }
+
+/* ---- which kind ---- */
+.fl-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.fl-tab {
+  font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; color: inherit;
+  padding: 9px 15px; border-radius: 999px;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.fl-tab i { font-style: normal; font-size: 11px; opacity: .55; padding: 1px 6px; border-radius: 999px; background: rgba(255,255,255,.1); }
+.fl-tab.is-on { background: rgba(255,255,255,.92); color: #14161c; border-color: transparent; }
+.fl-tab.is-on i { background: rgba(0,0,0,.1); opacity: .8; }
+.fl-tab-new { opacity: .7; border-style: dashed; }
+
+/* ---- two columns on a desk, one on a phone ---- */
+.fl-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+@media (max-width: 1100px) { .fl-cols { grid-template-columns: minmax(0, 1fr); } }
+.fl-main { min-width: 0; }
+
+/* ---- the canvas: start, steps, end, in a row that scrolls ---- */
+.fl-canvas {
+  display: flex; align-items: stretch; gap: 0; overflow-x: auto; overscroll-behavior-x: contain;
+  padding: 18px 6px 22px; margin: 0 -6px 16px;
+  scrollbar-width: thin;
+}
+.fl-node, .fl-step { flex: none; border-radius: 16px; }
+.fl-node {
+  width: 220px; padding: 16px 18px; align-self: flex-start;
+  background: rgba(255,255,255,.05); border: 1px dashed rgba(255,255,255,.22);
+}
+.fl-node-k { margin: 0 0 4px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; opacity: .5; }
+.fl-node h3 { margin: 0 0 6px; font-size: 17px; }
+.fl-node-s { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; opacity: .7; }
+.fl-node-s b { opacity: 1; }
+.fl-end { border-color: rgba(120,200,140,.4); }
+
+/* the joins: an arrow with a "+" in it, because between two steps is
+   exactly where a new one goes */
+.fl-plus {
+  flex: none; align-self: flex-start; margin-top: 44px;
+  width: 56px; height: 28px; position: relative; cursor: pointer;
+  font: inherit; font-size: 16px; font-weight: 700; color: inherit;
+  background: none; border: 0; padding: 0; opacity: .55;
+}
+.fl-plus::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+  background: rgba(255,255,255,.3);
+}
+.fl-plus::after {
+  content: "+"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 24px; height: 24px; line-height: 22px; text-align: center; border-radius: 50%;
+  background: #1d2028; border: 1px solid rgba(255,255,255,.3);
+}
+.fl-plus.is-off::after { content: "\2192"; border: 0; background: none; }
+.fl-plus:not(.is-off):hover { opacity: 1; }
+.fl-plus:not(.is-off):hover::after { background: rgba(255,255,255,.92); color: #14161c; }
+
+/* ---- a step ---- */
+.fl-step {
+  width: 300px; padding: 12px 14px 14px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 10px 28px rgba(0,0,0,.25);
+  transition: box-shadow .16s ease, border-color .16s ease, opacity .16s ease;
+}
+.fl-step.gap { border-color: rgba(208,138,78,.5); }
+.fl-step.bad { border-color: rgba(226,90,70,.6); }
+.fl-step.is-drag { opacity: .45; }
+.fl-step.is-over { border-color: rgba(255,255,255,.7); box-shadow: 0 0 0 3px rgba(255,255,255,.18), 0 10px 28px rgba(0,0,0,.25); }
+/* the name is the card's subject and gets the whole width; the grip, the
+   number and the three small actions share the row above it */
+.fl-step-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 10px; }
+.fl-grip { cursor: grab; opacity: .4; font-size: 14px; letter-spacing: -3px; user-select: none; }
+.fl-step:active .fl-grip { cursor: grabbing; }
+.fl-n {
+  flex: none; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 700;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.14);
+}
+.fl-name {
+  flex: 1 1 100%; order: 2; min-width: 0; font: inherit; font-size: 15px; font-weight: 600; color: inherit;
+  background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.14); border-radius: 0;
+  padding: 4px 2px; min-height: 0;
+}
+.fl-name::placeholder { font-weight: 400; opacity: .5; }
+.fl-name:focus-visible { outline: 0; border-bottom-color: rgba(255,255,255,.7); }
+.fl-step-acts { display: flex; gap: 2px; flex: none; margin-left: auto; }
+.fl-ic {
+  font: inherit; font-size: 15px; line-height: 1; color: inherit; cursor: pointer;
+  width: 24px; height: 24px; border-radius: 7px; padding: 0;
+  background: none; border: 1px solid transparent; opacity: .6;
+}
+.fl-ic:hover:not(:disabled) { opacity: 1; background: rgba(255,255,255,.1); }
+.fl-ic:disabled { opacity: .2; cursor: default; }
+.fl-ic-x:hover:not(:disabled) { background: rgba(226,90,70,.22); }
+.fl-ic.is-armed { opacity: 1; width: auto; padding: 0 8px; font-size: 12px; background: rgba(226,90,70,.25); }
+
+.fl-lbl { margin: 8px 0 5px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; opacity: .5; }
+.fl-lbl i { font-style: normal; text-transform: none; letter-spacing: 0; opacity: .8; }
+.fl-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.fl-chip {
+  font: inherit; font-size: 12.5px; font-weight: 600; color: inherit; cursor: pointer;
+  padding: 5px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.fl-chip i { font-style: normal; font-size: 10.5px; opacity: .5; }
+.fl-chip.is-on { background: rgba(255,255,255,.92); color: #14161c; border-color: transparent; }
+.fl-chip.is-on i { opacity: .7; }
+.fl-chip:disabled { cursor: default; }
+.fl-chips-sm .fl-chip { font-size: 11.5px; padding: 4px 9px; }
+
+.fl-people {
+  margin-top: 8px; padding: 8px 10px 9px; border-radius: 10px;
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07);
+}
+.fl-people.is-gap { border-color: rgba(208,138,78,.35); }
+.fl-people .fl-lbl { margin-top: 0; }
+.fl-av {
+  font: inherit; font-size: 12.5px; color: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 6px 6px 0;
+  padding: 3px 9px 3px 3px; border-radius: 999px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+}
+.fl-av b, .fl-av-b {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 700; background: rgba(255,255,255,.14);
+}
+.fl-av.is-on { background: rgba(120,200,140,.22); border-color: rgba(120,200,140,.5); }
+.fl-av.is-on b { background: rgba(120,200,140,.5); }
+
+.fl-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.fl-opt > span:first-child, .fl-opt > .fl-lbl { display: block; margin: 0 0 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; opacity: .5; }
+.fl-days { display: flex; align-items: center; gap: 7px; }
+.fl-days input { width: 84px; font-size: 13px; padding: 6px 9px; border-radius: 8px; min-height: 0; }
+.fl-days em { font-style: normal; font-size: 12.5px; opacity: .6; }
+
+.fl-none { flex: none; align-self: center; width: 420px; max-width: 70vw; padding: 0 18px; }
+.fl-none p { margin: 0 0 10px; font-size: 14px; opacity: .75; line-height: 1.5; }
+.fl-starts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fl-starts > span { flex: 1 1 100%; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .5; }
+.fl-start-btn {
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; color: inherit;
+  padding: 8px 14px; border-radius: 999px;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+}
+.fl-start-btn:hover { background: rgba(255,255,255,.14); }
+
+/* ---- the rules lane ---- */
+.fl-lane, .fl-side {
+  padding: 16px 18px; border-radius: 16px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1);
+}
+.fl-lane-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 10px; }
+.fl-lane-head h4 { margin: 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+.fl-lane-head .fl-note { margin: 0; flex: 1 1 200px; }
+.fl-lane-head .org-btn-sm { margin-left: auto; }
+.fl-rule {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
+  padding: 9px 11px; border-radius: 10px; margin-bottom: 7px;
+  background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08);
+  font-size: 13.5px;
+}
+.fl-rule.is-new { border-style: dashed; }
+.fl-rule-w { opacity: .6; }
+.fl-rule-if { font-size: 12px; opacity: .6; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.07); }
+.fl-rule select, .fl-rule input[type=text] {
+  font-size: 13px; padding: 6px 10px; border-radius: 8px; min-height: 0; width: auto;
+}
+.fl-rule select { padding-right: 28px; background-position: calc(100% - 16px) 13px, calc(100% - 11px) 13px; }
+.fl-rule-p { display: inline-flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.fl-rule-p input[type=text] { width: 180px; }
+.fl-rule-acts { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.fl-rule-save {
+  font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  padding: 6px 12px; border-radius: 8px; border: 0;
+  background: rgba(255,255,255,.92); color: #14161c;
+}
+
+/* ---- people & roles ---- */
+.fl-side { position: sticky; top: 16px; }
+@media (max-width: 1100px) { .fl-side { position: static; margin-top: 16px; } }
+.fl-role { margin-top: 12px; }
+.fl-role-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 6px; }
+.fl-role-head b { font-size: 14px; }
+.fl-role-head small { font-size: 11.5px; opacity: .5; }
+.fl-role-head .fl-link { margin-left: auto; font-size: 11.5px; }
+.fl-role.is-gap .fl-role-head b { color: #d9a273; }
+.fl-person {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 7px; border-radius: 10px; margin-bottom: 4px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+  font-size: 13.5px;
+}
+.fl-person[draggable=true] { cursor: grab; }
+.fl-person.is-drag { opacity: .5; }
+.fl-person > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-person-role { font-size: 12px; padding: 4px 24px 4px 8px; border-radius: 7px; min-height: 0; width: auto; flex: none;
+  background-position: calc(100% - 14px) 11px, calc(100% - 9px) 11px; }
+.fl-side-acts { margin-top: 14px; }
+
+/* ---- the bar ---- */
+.fl-bar {
+  position: sticky; bottom: 0; z-index: 2; margin-top: 18px;
+  padding: 12px 16px; border-radius: 14px;
+  background: rgba(16,18,24,.96); border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+}
+.fl-sentence { margin: 0; flex: 1 1 320px; font-size: 13.5px; line-height: 1.5; }
+.fl-bar #flErr { flex: 1 1 100%; }
+.fl-bar #flErr:empty { display: none; }
+.fl-bar-acts { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.fl-state { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .5; }
+.fl-state.is-dirty { opacity: 1; color: #f0c27a; }
+
+@media (max-width: 640px) {
+  body.ui-next #flowScreen .admin-page-inner { padding: 24px 16px 60px; }
+  .fl-step { width: 270px; }
+  .fl-none { width: 300px; }
+}

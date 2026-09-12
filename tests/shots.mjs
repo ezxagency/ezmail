@@ -152,6 +152,7 @@ await page.evaluate(() => {
   document.querySelectorAll(".drawer-item").forEach(a => a.classList.remove("hidden"));
   document.getElementById("drawerTeam").classList.add("hidden");
   document.getElementById("drawerOrg").classList.add("hidden");
+  document.getElementById("drawerFlow").classList.add("hidden");
   document.querySelector('.drawer-item[data-route=""]').classList.add("active");
 
   render();
@@ -413,6 +414,39 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(500);
 await shoot("next-org");
+
+// ---- the Flow builder: the org as one picture, edited where it is seen ----
+await page.evaluate(() => { go("flow"); });
+await page.waitForTimeout(400);
+await page.evaluate(() => {
+  window.__orgSBefore2 = orgS;
+  orgS = { orgId: "orgA", org: { name: "Ez Agency" }, myRoleId: "owner",
+    members: [{ uid: "u1", roleId: "owner" }, { uid: "u2", roleId: "manager" }, { uid: "u3", roleId: "staff" }, { uid: "u4", roleId: "staff" }],
+    dir: { u1: { name: "Prashanna" }, u2: { name: "Sandy" }, u3: { name: "Ada" }, u4: { name: "Bo" } },
+    roles: [{ id: "owner", name: "Owner", permissions: ["*:*:org"] },
+      { id: "manager", name: "Manager", permissions: ["item:create:org", "item:read:org", "item:update:org", "member:read:org", "member:hours:org"] },
+      { id: "staff", name: "Staff", permissions: ["item:create:org", "item:read:org", "item:update:assigned"] },
+      { id: "designer", name: "Designer", permissions: ["item:read:org", "item:update:assigned"] }],
+    types: [{ id: "simpletask", name: "Task", fields: [{ key: "brand", label: "Brand", type: "text" }],
+      statuses: [{ key: "to_do", label: "To do" }, { key: "doing", label: "Doing" }, { key: "done", label: "Done" }],
+      track: [{ label: "Write the draft", roleId: "staff", assignees: ["u3"], status: "doing", dueAfter: 2 * 86400000 },
+              { label: "Design it", roleId: "designer", assignees: [], status: "", dueAfter: null },
+              { label: "Check it", roleId: "manager", assignees: [], status: "", dueAfter: 1 * 86400000 }], workflowId: "bp1" },
+      { id: "video", name: "Video", fields: [], statuses: [{ key: "idea", label: "Idea" }, { key: "done", label: "Done" }] }],
+    automations: [{ id: "au1", name: "Tell the manager", enabled: true, trigger: { verb: "item.created", typeId: "simpletask" }, conditions: [],
+                    actions: [{ kind: "notify", toRole: "manager", message: "A new task is in" }] }] };
+  flS = { orgId: "orgA", typeId: "simpletask", draft: null, dirty: false, drag: null, rules: [] };
+  flRender();
+});
+await page.waitForTimeout(500);
+await shoot("next-flow");
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(300);
+await shoot("next-flow-390");
+await page.setViewportSize({ width: 1920, height: 1080 });
+await page.evaluate(() => { orgS = window.__orgSBefore2; go(""); });
+await page.waitForTimeout(400);
+
 await page.evaluate(() => go(""));
 await page.waitForTimeout(300);
 

@@ -317,6 +317,28 @@ the account already makes on the Team or Org page, behind the same
 predicate, and a read that fails is shown as "could not reach", never as
 "nothing to do".
 
+Ninth piece: the **Flow builder**, `js/flow.js` + `css/flow.css`, route
+`#/flow`, the same door as Organization (`amRouteAllowed`). The
+Organization page answers "what do we have" in four sections; this page
+draws one kind of work as ONE picture, left to right - start, the steps
+as cards, the end - with the rules for that kind in a lane beneath and
+the people and roles beside it, and everything is edited where it is
+seen: a step's name is typed on the card, its role is a chip, its
+people are avatars to tick, a person is dragged from the panel onto a
+step to give it to them, cards are dragged to reorder (arrows too, for a
+phone), the + between two cards inserts one. It invents NO model: the
+canvas edits the same `track` the steps sheet edits and saves it through
+`orgTrackCommit()` in `js/org.js`, the one write path both screens
+share; rules are the same automations documents (the lane offers a
+kind's own statuses and fields where the Organization sheet asks for a
+key typed exactly); a role's permissions, a kind's fields and an invite
+open the sheets that already exist. Those sheets call `enterOrgPage()`
+when they save, and it yields to `enterFlowPage()` when the builder is
+the page on screen. `flS` is the page's state (`draft`, `dirty`, `drag`);
+`flMove()`, `flGive()`, `flToggle()` and `flRuleWords()` are the pure
+half. Owner-only for changes, like the sheets it fronts; anyone through
+the door sees the picture. `tests/builder.test.mjs` drives it in jsdom.
+
 **Work travels with its note.** The composer speaks work types
 (`cxKind`, the KIND row): a Task is the classic assignment, any other
 kind is an Item of that kind made by `itemsCreateFromComposer()`. A kind

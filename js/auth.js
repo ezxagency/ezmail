@@ -239,6 +239,7 @@ if (!FB_READY){
       $("teamPanelAssignBtn").classList.add("hidden");
       $("drawerTeam").classList.add("hidden");
       $("drawerOrg").classList.add("hidden");
+      $("drawerFlow").classList.add("hidden");
       $("drawerHistory").classList.remove("hidden");   // visible-by-default; only admin hides it
       closeDrawer();
       // a sheet open at forced sign-out (token revoked, account disabled)

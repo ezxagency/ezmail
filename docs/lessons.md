@@ -263,6 +263,22 @@ back after typing. `hoDescribe()` is the pure half, in
 `tests/handoff.test.mjs`. `npm run shots` photographs the editor blank,
 filled, and at phone width.
 
+**Four sections for one decision is four places to be confused.**
+The steps editor was labelled and plain, and the owner still could not
+set a pipeline up: the steps were behind a button inside a fold on the
+kinds-of-work section, the rules were in another section, the roles in
+a third and the people in a fourth - and "who does step 2" is all four
+at once (a role, the people in it, what they may do, what happens when
+it reaches them). Each section was right; reading them together was
+the work, and it was left to the owner.
+*Rule:* when one decision is spread over several sections, draw it once
+as a picture and let it be edited where it is seen. The picture must
+invent no model: it edits the same documents through the same write
+path, or it is a second app with a second set of bugs.
+*Guard:* `tests/builder.test.mjs` drives the Flow builder; `orgTrackCommit()`
+is the one write both editors use, and `tests/ui.test.mjs` still drives
+the sheet through it.
+
 ### Load order and globals
 
 `js/` files are classic scripts in ONE global scope; the `<script>`

@@ -165,6 +165,13 @@ it - and the whole line is read back as one sentence under the steps:
 its names (`track`, `stops`, `hoTrackErrors`); only the screen changed.
 See `docs/lessons.md` > "A control with no label".
 
+The **Flow builder** (`#/flow`, `js/flow.js`) is the same track drawn as
+a picture: start, step cards, end, the kind's rules in a lane beneath and
+the people beside it. Every control on a card is the steps editor's
+control, edited in place; a person dragged onto a card narrows the step
+to them (taking their role with them, so it is still "Staff, and of them
+Bo"). Both screens save through `orgTrackCommit()`.
+
 **The trail.** Who held it, how long, what they answered — read from
 `nodeRuns`, which already records exactly this and is currently shown to
 nobody.

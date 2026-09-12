@@ -47,7 +47,8 @@ function amAdminHere(){ return uiNextOn() ? amOn() : !!isAdmin; }
 function amRouteAllowed(r){
   const nx = uiNextOn(), on = amOn();
   if (r === "team") return !!isAdmin && (!nx || on);
-  if (r === "org") return !!(isAdmin || isMember) && (!nx || on);
+  // the builder is the Organization page seen as one picture: same door
+  if (r === "org" || r === "flow") return !!(isAdmin || isMember) && (!nx || on);
   if (r === "history") return nx ? !on : !isAdmin;
   if (r === "mission") return !(nx && on);
   return true;
@@ -68,6 +69,7 @@ function amApply(){
   const set = (id, show) => { const el = $(id); if (el) el.classList.toggle("hidden", !show); };
   set("drawerTeam", !!isAdmin && (!nx || on));
   set("drawerOrg", !!(isAdmin || isMember) && (!nx || on));
+  set("drawerFlow", !!(isAdmin || isMember) && (!nx || on));
   set("drawerHistory", nx ? !on : !isAdmin);
   set("drawerMission", !(nx && on));
   set("adminAccessBtn", !!isAdmin && (!nx || on));
@@ -294,6 +296,7 @@ function amHomeHTML(d){
     + (c.admin ? act("team", "Team") : "")
     + (c.admin || c.org ? act("work", "Work") : "")
     + (c.admin || c.member ? act("org", "Organization") : "")
+    + (c.admin || c.member ? act("flow", "Flow builder") : "")
     + (c.admin ? act("export", "Export Excel") : "");
 
   return '<header class="am-head">'
@@ -333,7 +336,7 @@ function amClick(e){
     case "assign": call("openComposer"); break;
     case "invite": call("orgInviteSheet"); break;
     case "export": call("exportAllExcel"); break;
-    case "team": case "work": case "org": call("go", act); break;
+    case "team": case "work": case "org": case "flow": call("go", act); break;
     case "late": call("go", "team"); break;
     case "gap": call("go", "org"); break;
     case "refresh": amRefresh(); break;
