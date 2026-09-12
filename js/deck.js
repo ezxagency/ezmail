@@ -338,7 +338,9 @@ function dkLayout(){
        blur, shadow and composite thirty times over on every frame. Hidden,
        it costs nothing; and once hidden it is left alone until it comes
        back into range, so a deck of thirty moves like a deck of three. */
-    const op = Math.max(0, 1 - a * 0.52);
+    // 0.62: a neighbour at 38%, faint enough that the front card is
+    // plainly the one on top, and still there to say the deck goes on
+    const op = Math.max(0, 1 - a * 0.62);
     const off = op <= 0;
     if (off){
       if (!c.classList.contains("is-off")) c.classList.add("is-off");

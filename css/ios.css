@@ -56,15 +56,29 @@ body.ui-next{
 /* the deck's front card is the app's biggest pane of glass: dark enough
    to read on, clear enough that the marble and the card behind it show
    through as soft shapes - the app switcher's look */
+/* The front card is the one surface on this screen that is ELEVATED, and
+   it has to look it: the cards behind are pushed darker and fainter, and
+   the front carries a denser fill (at 78% the neighbour's title and its
+   blue button ghosted through the brief), a sheen along its top, a
+   brighter rim and a deeper, longer shadow. Still glass - the marble
+   shows through the blur - but glass you could set a cup on. */
 .ui-next .dk-card{
-  background:rgba(255,255,255,.10);
-  border-color:var(--ios-stroke);border-radius:30px;
+  background:rgba(255,255,255,.06);
+  border-color:rgba(255,255,255,.10);border-radius:30px;
   box-shadow:var(--ios-hi), 0 26px 60px rgba(0,0,0,.42);
 }
+.ui-next .dk-card:not(.is-front){filter:blur(3.5px) brightness(.72)}
 .ui-next .dk-card.is-front{
-  background:rgba(28,28,34,.78);
-  border-color:var(--ios-stroke-2);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.02) 38%, rgba(255,255,255,0) 100%),
+    rgba(26,26,32,.94);
+  border-color:rgba(255,255,255,.34);
   backdrop-filter:var(--ios-blur);-webkit-backdrop-filter:var(--ios-blur);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.30),
+    0 0 0 1px rgba(0,0,0,.35),
+    0 40px 90px rgba(0,0,0,.62),
+    0 12px 28px rgba(0,0,0,.35);
 }
 .ui-next .st-card{background:rgba(28,28,34,.62);border-radius:22px}
 .ui-next .st-card:hover{background:rgba(44,44,52,.68);border-color:var(--ios-stroke-2)}
