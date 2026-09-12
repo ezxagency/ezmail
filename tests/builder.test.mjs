@@ -369,6 +369,22 @@ T("each role folds: closed with its count, open when pressed, still open after a
   assert.equal(fold("staff").open, wasOpen, "pressing the link folded or unfolded the role");
 });
 
+T("typing a name narrows the panel to the people who match, opens their roles, and hides the rest", () => {
+  const find = doc.getElementById("flFind");
+  const people = () => [...doc.querySelectorAll("#flPeople .fl-person span")].map(x => x.textContent);
+  const before = people().length;
+  find.value = "bo"; find.oninput();
+  assert.deepEqual(plain(people()), ["Bo"]);
+  const roles = [...doc.querySelectorAll("#flPeople details.fl-role")];
+  assert.ok(roles.length === 1 && roles[0].open, "only Bo's role should be shown, and open");
+  assert.equal(doc.getElementById("flFind").value, "bo", "the redraw lost what was typed");
+  doc.getElementById("flFind").value = "zzz"; doc.getElementById("flFind").oninput();
+  assert.match(doc.getElementById("flPeople").textContent, /Nobody named like that/);
+  doc.getElementById("flFind").value = ""; doc.getElementById("flFind").oninput();
+  assert.equal(people().length, before, "clearing the box must bring everyone back");
+  assert.ok(!doc.querySelector('#flPeople details.fl-role[data-role-id="staff"]').open, "a search must not leave folds open behind it");
+});
+
 /* ---------- who may change it ---------- */
 T("a manager sees the picture and can change none of it", () => {
   run(`orgS.myRoleId = "manager"; flS.draft = null; flS.dirty = false; flRender();`);

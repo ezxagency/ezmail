@@ -199,29 +199,53 @@ body.ui-next #flowScreen .admin-page-inner { max-width: none; padding: 32px 48px
 }
 
 /* ---- people & roles ---- */
-.fl-side { position: sticky; top: 16px; }
-@media (max-width: 1100px) { .fl-side { position: static; margin-top: 16px; } }
-.fl-role { margin-top: 6px; border-top: 1px solid rgba(255,255,255,.08); }
-.fl-role:first-of-type { border-top: 0; }
+/* the panel keeps to the window: it sticks, and past the window's height
+   it scrolls inside itself rather than running down the page */
+.fl-side {
+  position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent;
+}
+.fl-side::-webkit-scrollbar { width: 5px; }
+.fl-side::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 999px; }
+@media (max-width: 1100px) { .fl-side { position: static; margin-top: 16px; max-height: none; } }
+.fl-find { display: block; margin: 0 0 10px; }
+.fl-find input[type=search] {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; color: inherit;
+  padding: 8px 12px; border-radius: 10px; min-height: 0;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  -webkit-appearance: none; appearance: none;
+}
+.fl-find input::placeholder { color: inherit; opacity: .45; }
+.fl-find input:focus { outline: none; border-color: rgba(255,255,255,.35); }
+.fl-roles { border-top: 1px solid rgba(255,255,255,.08); }
+
+.fl-role { border-bottom: 1px solid rgba(255,255,255,.08); }
 .fl-role-head {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px;
-  padding: 9px 2px; cursor: pointer; list-style: none; user-select: none; border-radius: 8px;
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 4px 10px 2px; cursor: pointer; list-style: none; user-select: none; border-radius: 8px;
+  white-space: nowrap;
 }
 .fl-role-head::-webkit-details-marker { display: none; }
 .fl-role-head:hover { background: rgba(255,255,255,.03); }
 .fl-role-caret {
-  align-self: center; width: 0; height: 0; flex: none; opacity: .55;
+  width: 0; height: 0; flex: none; opacity: .5;
   border-left: 5px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
   transition: transform .2s ease;
 }
 .fl-role[open] > .fl-role-head .fl-role-caret { transform: rotate(90deg); }
-.fl-role-head b { font-size: 14px; }
-.fl-role-n { font-style: normal; font-size: 12px; opacity: .7; }
-.fl-role-head small { font-size: 11.5px; opacity: .5; }
-.fl-role-head .fl-link { margin-left: auto; font-size: 11.5px; }
-.fl-role.is-gap .fl-role-head b, .fl-role.is-gap .fl-role-n { color: #d9a273; }
-.fl-role > .fl-person:first-of-type, .fl-role > .fl-note { margin-top: 2px; }
-.fl-role > .fl-person:last-child { margin-bottom: 8px; }
+.fl-role-t { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; overflow: hidden; }
+.fl-role-t b { font-size: 14px; flex: none; }
+.fl-role-n { font-size: 11.5px; opacity: .55; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.fl-role-edit {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; color: inherit;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); opacity: .75;
+}
+.fl-role-edit svg { width: 13px; height: 13px; }
+.fl-role-edit:hover { opacity: 1; background: rgba(255,255,255,.12); }
+.fl-role.is-gap .fl-role-t b, .fl-role.is-gap .fl-role-n { color: #d9a273; }
+.fl-role-body { padding: 0 0 8px 16px; }
+.fl-role-body > .fl-note { margin: 0 0 4px; }
 .fl-person {
   display: flex; align-items: center; gap: 8px;
   padding: 5px 7px; border-radius: 10px; margin-bottom: 4px;

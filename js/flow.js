@@ -33,6 +33,8 @@
 
 let flS = null;   // { typeId, draft: [step], dirty, drag: index | null, rules: [unsaved rule rows] }
 const flOpenRoles = new Set();   // roles the person has unfolded in the people panel
+let flPeopleFind = "";           // what is typed in the panel's search box
+const FL_ICO_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></svg>';
 
 /* ---------- pure ---------- */
 
@@ -617,20 +619,30 @@ function flPaintPeople(){
     '<option value="' + esc(r.id) + '"' + (r.id === m.roleId ? " selected" : "") + '>' + esc(r.name) + '</option>').join("");
 
   /* Each role folds shut: a team of twenty is a list of roles with a
-     count, not a column of every name. A role opens when pressed, stays
-     as the person left it across redraws, and a role a step needs but
-     nobody holds starts open so the warning is on screen. */
+     count, not a column of every name. One line per role - the name, how
+     many hold it, what it may do - with the role's own edit button at the
+     end. A role opens when pressed, stays as the person left it across
+     redraws, and a role a step needs but nobody holds starts open so the
+     warning is on screen. Typing a name in the box narrows every role to
+     the people who match and opens the ones that have any. */
+  const q = (flPeopleFind || "").trim().toLowerCase();
+  const matches = m => !q || orgPersonName(m.uid).toLowerCase().indexOf(q) >= 0;
   const group = r => {
     const people = members.filter(m => m.roleId === r.id);
+    const shown = q ? people.filter(matches) : people;
+    if (q && !shown.length) return "";
     const gap = !people.length && usedBy.has(r.id);
-    const open = flOpenRoles.has(r.id) || gap;
+    const open = (q && shown.length) || flOpenRoles.has(r.id) || gap;
+    const meta = (people.length ? people.length + (people.length === 1 ? " person" : " people") : "nobody") + " · " + permSummary(r);
     return '<details class="fl-role' + (gap ? " is-gap" : "") + '" data-role-id="' + esc(r.id) + '"' + (open ? " open" : "") + '>' +
-      '<summary class="fl-role-head"><i class="fl-role-caret" aria-hidden="true"></i><b>' + esc(r.name) + '</b>' +
-        '<em class="fl-role-n">' + (people.length ? people.length + (people.length === 1 ? " person" : " people") : "nobody") + '</em>' +
-        '<small>' + esc(permSummary(r)) + '</small>' +
-        (owner && r.id !== "owner" ? '<button type="button" class="fl-link" data-role-edit="' + esc(r.id) + '">What they can do…</button>' : "") + '</summary>' +
-      (people.length
-        ? people.map(m => {
+      '<summary class="fl-role-head"><i class="fl-role-caret" aria-hidden="true"></i>' +
+        '<span class="fl-role-t"><b>' + esc(r.name) + '</b><small class="fl-role-n">' + esc(meta) + '</small></span>' +
+        (owner && r.id !== "owner"
+          ? '<button type="button" class="fl-role-edit" data-role-edit="' + esc(r.id) + '" title="What ' + esc(r.name) + ' can do" aria-label="What ' + esc(r.name) + ' can do">' + FL_ICO_EDIT + '</button>'
+          : "") + '</summary>' +
+      '<div class="fl-role-body">' +
+      (shown.length
+        ? shown.map(m => {
             const name = orgPersonName(m.uid);
             const canMove = owner && m.roleId !== "owner" && m.uid !== me;
             return '<div class="fl-person"' + (owner ? ' draggable="true"' : "") + ' data-uid="' + esc(m.uid) + '">' +
@@ -639,13 +651,15 @@ function flPaintPeople(){
             '</div>';
           }).join("")
         : '<p class="fl-note fl-note-sm">' + (usedBy.has(r.id) ? "Nobody yet, and a step needs one." : "Nobody yet.") + '</p>') +
-    '</details>';
+      '</div></details>';
   };
 
+  const list = roles.map(group).join("");
   $("flPeople").innerHTML =
     '<div class="fl-lane-head"><h4>People &amp; roles</h4>' +
-      '<p class="fl-note">A step is done by a role. ' + (owner ? 'Drag a person onto a step to give it to them. Change what a role may do, or move someone into another role, here.' : 'Who is in which role today.') + '</p></div>' +
-    roles.map(group).join("") +
+      '<p class="fl-note">' + (owner ? 'Open a role to see who holds it; drag a person onto a step to give it to them.' : 'Who is in which role today.') + '</p></div>' +
+    '<label class="fl-find"><input type="search" id="flFind" placeholder="Find a person…" aria-label="Find a person" value="' + esc(flPeopleFind || "") + '"></label>' +
+    '<div class="fl-roles">' + (list || '<p class="fl-note fl-note-sm">Nobody named like that.</p>') + '</div>' +
     (owner ? '<div class="org-actions fl-side-acts">' +
       '<button type="button" class="org-btn org-btn-sm" id="flInvite">Invite someone</button>' +
       '<button type="button" class="org-btn org-btn-sm" id="flNewRole">New role</button></div>' : "");
@@ -653,8 +667,16 @@ function flPaintPeople(){
   // remember which roles are open, so a redraw after a move or a save
   // does not fold the list the person was just looking at
   $("flPeople").querySelectorAll("details.fl-role").forEach(d => d.ontoggle = () => {
+    if (q) return;   // a search opens folds on its own behalf, not the person's
     if (d.open) flOpenRoles.add(d.dataset.roleId); else flOpenRoles.delete(d.dataset.roleId);
   });
+  const find = $("flFind");
+  find.oninput = () => {
+    flPeopleFind = find.value;
+    const at = find.selectionStart;
+    flPaintPeople();
+    const again = $("flFind"); again.focus(); try { again.setSelectionRange(at, at); } catch (e) {}
+  };
   if (!owner) return;
   $("flInvite").onclick = () => orgInviteSheet();
   $("flNewRole").onclick = () => orgRoleSheet(null);
