@@ -193,17 +193,17 @@ function flPaintCanvas(){
   const gapAt = new Set(hoTrackGaps(draft, members).map(g => g.at));
   const doneKey = itemDoneStatus(type);
 
+  // the two ends of the line are one row each: what it is, and what it
+  // becomes - the steps between them are the picture
   const start = '<div class="fl-node fl-start">' +
-    '<p class="fl-node-k">Start</p><h3>New ' + esc(type.name || type.id) + '</h3>' +
-    '<p class="fl-node-s">Made from Assign, kind "' + esc(type.name || type.id) + '". Starts as <b>' +
-      esc(flStatusName(type, ((type.statuses || [])[0] || {}).key)) + '</b>.</p>' +
+    '<p class="fl-node-k">Start</p><div class="fl-node-t"><h3>New ' + esc(type.name || type.id) + '</h3>' +
+    '<p class="fl-node-s">Made from Assign · starts as <b>' + esc(flStatusName(type, ((type.statuses || [])[0] || {}).key)) + '</b></p></div>' +
     (owner ? '<button type="button" class="fl-link" id="flEditKind">Fields &amp; statuses…</button>' : "") +
     '</div>';
 
   const end = '<div class="fl-node fl-end">' +
-    '<p class="fl-node-k">End</p><h3>Done</h3>' +
-    '<p class="fl-node-s">After the last step it is marked <b>' + esc(doneKey ? flStatusName(type, doneKey) : "done") + '</b>' +
-      ' and the person who created it is told.</p>' +
+    '<p class="fl-node-k">End</p><div class="fl-node-t"><h3>Done</h3>' +
+    '<p class="fl-node-s">Marked <b>' + esc(doneKey ? flStatusName(type, doneKey) : "done") + '</b> · whoever created it is told</p></div>' +
     '</div>';
 
   const plus = (i, together) => owner
@@ -282,8 +282,8 @@ function flPaintCanvas(){
         '<span class="fl-n">' + (i + 1) + '</span>' +
         '<input class="fl-name" type="text" maxlength="40" placeholder="What happens at this step" value="' + esc(st.label || "") + '"' + dis + '>' +
         (owner ? '<span class="fl-step-acts">' +
-          '<button type="button" class="fl-ic" data-move="-1" title="Move left" aria-label="Move left"' + (i === 0 ? " disabled" : "") + '>‹</button>' +
-          '<button type="button" class="fl-ic" data-move="1" title="Move right" aria-label="Move right"' + (i === draft.length - 1 ? " disabled" : "") + '>›</button>' +
+          '<button type="button" class="fl-ic" data-move="-1" title="Move up" aria-label="Move up"' + (i === 0 ? " disabled" : "") + '>↑</button>' +
+          '<button type="button" class="fl-ic" data-move="1" title="Move down" aria-label="Move down"' + (i === draft.length - 1 ? " disabled" : "") + '>↓</button>' +
           '<button type="button" class="fl-ic fl-ic-x" data-del="1" title="Remove this step" aria-label="Remove this step">×</button></span>' : "") +
       '</div>' +
       '<p class="fl-lbl">Who does it</p>' +

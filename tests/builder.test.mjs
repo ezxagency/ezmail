@@ -95,10 +95,10 @@ const ORG = `orgS = { orgId: "orgA", org: { name: "T" }, myRoleId: "owner",
 T("the canvas draws start, one card per step in order, and the end", () => {
   run(ORG);
   assert.match(doc.querySelector(".fl-start").textContent, /New Task/);
-  assert.match(doc.querySelector(".fl-start").textContent, /Starts as To do/);
+  assert.match(doc.querySelector(".fl-start").textContent, /starts as To do/);
   const names = [...doc.querySelectorAll(".fl-step .fl-name")].map(i => i.value);
   assert.deepEqual(plain(names), ["Write the draft", "Check it"]);
-  assert.match(doc.querySelector(".fl-end").textContent, /marked Done/);
+  assert.match(doc.querySelector(".fl-end").textContent, /Marked Done/);
   assert.match(doc.getElementById("flBar").textContent, /How it flows: Write the draft \(Staff\) → Check it \(Manager\) → done/);
 });
 

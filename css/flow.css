@@ -37,58 +37,57 @@ body.ui-next #flowScreen .admin-page-inner { max-width: none; padding: 32px 48px
 @media (max-width: 1100px) { .fl-cols { grid-template-columns: minmax(0, 1fr); } }
 .fl-main { min-width: 0; }
 
-/* ---- the canvas: start, steps, end, in a row that scrolls ---- */
-.fl-canvas {
-  display: flex; align-items: stretch; gap: 0; overflow-x: auto; overscroll-behavior-x: contain;
-  padding: 18px 6px 22px; margin: 0 -6px 16px;
-  scrollbar-width: thin;
-}
-.fl-node, .fl-step { flex: none; border-radius: 16px; }
+/* ---- the canvas: start, the steps, end - one column, read top to bottom ---- */
+.fl-main > .fl-canvas, .fl-main > .fl-lane { max-width: 640px; margin-left: auto; margin-right: auto; }
+.fl-canvas { display: flex; flex-direction: column; align-items: stretch; padding: 6px 0 4px; margin-bottom: 16px; }
+.fl-node, .fl-step { border-radius: 14px; }
+/* the two ends: one row each */
 .fl-node {
-  width: 220px; padding: 16px 18px; align-self: flex-start;
-  background: rgba(255,255,255,.05); border: 1px dashed rgba(255,255,255,.22);
+  display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+  background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.2);
 }
-.fl-node-k { margin: 0 0 4px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; opacity: .5; }
-.fl-node h3 { margin: 0 0 6px; font-size: 17px; }
-.fl-node-s { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; opacity: .7; }
+.fl-node-k { margin: 0; flex: none; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; opacity: .5; width: 34px; }
+.fl-node-t { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fl-node h3 { margin: 0; font-size: 15px; }
+.fl-node-s { margin: 0; font-size: 12px; opacity: .65; }
 .fl-node-s b { opacity: 1; }
+.fl-node .fl-link { flex: none; font-size: 12px; }
 .fl-end { border-color: rgba(120,200,140,.4); }
 
-/* the joins: an arrow with a "+" in it, because between two steps is
-   exactly where a new one goes */
+/* the joins: a short line down, with a "+" on it, because between two
+   steps is exactly where a new one goes */
 .fl-plus {
-  flex: none; align-self: flex-start; margin-top: 44px;
-  width: 56px; height: 28px; position: relative; cursor: pointer;
+  flex: none; align-self: center; position: relative; cursor: pointer;
+  width: 40px; height: 34px; margin: 0;
   font: inherit; font-size: 16px; font-weight: 700; color: inherit;
   background: none; border: 0; padding: 0; opacity: .55;
 }
 .fl-plus::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+  content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px;
   background: rgba(255,255,255,.3);
 }
 .fl-plus::after {
   content: "+"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: 24px; height: 24px; line-height: 22px; text-align: center; border-radius: 50%;
+  width: 22px; height: 22px; line-height: 20px; text-align: center; border-radius: 50%;
   background: #1d2028; border: 1px solid rgba(255,255,255,.3);
 }
-.fl-plus.is-off::after { content: "\2192"; border: 0; background: none; }
+.fl-plus.is-off::after { content: "\2193"; border: 0; background: none; }
 .fl-plus:not(.is-off):hover { opacity: 1; }
 .fl-plus:not(.is-off):hover::after { background: rgba(255,255,255,.92); color: #14161c; }
 
 /* ---- a step ---- */
 .fl-step {
-  width: 300px; padding: 12px 14px 14px;
+  width: 100%; box-sizing: border-box; padding: 10px 14px 12px;
   background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
-  box-shadow: 0 10px 28px rgba(0,0,0,.25);
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
   transition: box-shadow .16s ease, border-color .16s ease, opacity .16s ease;
 }
 .fl-step.gap { border-color: rgba(208,138,78,.5); }
 .fl-step.bad { border-color: rgba(226,90,70,.6); }
 .fl-step.is-drag { opacity: .45; }
 .fl-step.is-over { border-color: rgba(255,255,255,.7); box-shadow: 0 0 0 3px rgba(255,255,255,.18), 0 10px 28px rgba(0,0,0,.25); }
-/* the name is the card's subject and gets the whole width; the grip, the
-   number and the three small actions share the row above it */
-.fl-step-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 10px; }
+/* one head row: the grip, the number, the name, the three small actions */
+.fl-step-head { display: flex; align-items: center; gap: 6px 8px; margin-bottom: 6px; }
 .fl-grip { cursor: grab; opacity: .4; font-size: 14px; letter-spacing: -3px; user-select: none; }
 .fl-step:active .fl-grip { cursor: grabbing; }
 .fl-n {
@@ -98,10 +97,13 @@ body.ui-next #flowScreen .admin-page-inner { max-width: none; padding: 32px 48px
   background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.14);
 }
 .fl-name {
-  flex: 1 1 100%; order: 2; min-width: 0; font: inherit; font-size: 15px; font-weight: 600; color: inherit;
+  flex: 1 1 120px; min-width: 0; font: inherit; font-size: 15px; font-weight: 600; color: inherit;
   background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.14); border-radius: 0;
   padding: 4px 2px; min-height: 0;
 }
+/* the iOS layer restyles every text input; the name is a line on the card, not a field */
+body.ui-next .fl-name { background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.14); border-radius: 0; padding: 4px 2px; min-height: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; font-size: 15px; }
+body.ui-next .fl-name:focus-visible { border-bottom-color: rgba(255,255,255,.7); }
 .fl-name::placeholder { font-weight: 400; opacity: .5; }
 .fl-name:focus-visible { outline: 0; border-bottom-color: rgba(255,255,255,.7); }
 .fl-step-acts { display: flex; gap: 2px; flex: none; margin-left: auto; }
@@ -150,13 +152,13 @@ body.ui-next #flowScreen .admin-page-inner { max-width: none; padding: 32px 48px
 .fl-av.is-on { background: rgba(120,200,140,.22); border-color: rgba(120,200,140,.5); }
 .fl-av.is-on b { background: rgba(120,200,140,.5); }
 
-.fl-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.fl-opts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 8px; }
 .fl-opt > span:first-child, .fl-opt > .fl-lbl { display: block; margin: 0 0 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; opacity: .5; }
 .fl-days { display: flex; align-items: center; gap: 7px; }
 .fl-days input { width: 84px; font-size: 13px; padding: 6px 9px; border-radius: 8px; min-height: 0; }
 .fl-days em { font-style: normal; font-size: 12.5px; opacity: .6; }
 
-.fl-none { flex: none; align-self: center; width: 420px; max-width: 70vw; padding: 0 18px; }
+.fl-none { padding: 14px 4px; }
 .fl-none p { margin: 0 0 10px; font-size: 14px; opacity: .75; line-height: 1.5; }
 .fl-starts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .fl-starts > span { flex: 1 1 100%; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .5; }
@@ -259,6 +261,16 @@ body.ui-next #flowScreen .admin-page-inner { max-width: none; padding: 32px 48px
   background-position: calc(100% - 14px) 11px, calc(100% - 9px) 11px; }
 .fl-side-acts { margin-top: 14px; }
 
+/* the iOS layer sizes every field for a sheet; on a card they are small controls */
+body.ui-next :is(.fl-days input, .fl-choice-in, .fl-route input[type=text], .fl-route select, .fl-person-role, .fl-find input) {
+  min-height: 0; font-size: 12.5px; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+body.ui-next .fl-days input { padding: 6px 9px; border-radius: 8px; width: 84px; }
+body.ui-next .fl-choice-in { padding: 5px 10px; border-radius: 999px; width: 130px; }
+body.ui-next :is(.fl-route input[type=text], .fl-route select) { padding: 5px 9px; border-radius: 7px; }
+body.ui-next .fl-route input[type=text] { width: 90px; }
+body.ui-next .fl-find input { padding: 8px 12px; border-radius: 10px; font-size: 13px; }
+
 /* ---- the bar ---- */
 .fl-bar {
   position: sticky; bottom: 0; z-index: 2; margin-top: 18px;
@@ -276,19 +288,19 @@ body.ui-next #flowScreen .admin-page-inner { max-width: none; padding: 32px 48px
 
 @media (max-width: 640px) {
   body.ui-next #flowScreen .admin-page-inner { padding: 24px 16px 60px; }
-  .fl-step { width: 270px; }
-  .fl-none { width: 300px; }
+  .fl-node { flex-wrap: wrap; }
 }
 
-/* ---- steps that run together: one column under a shared label ---- */
+/* ---- steps that run together: side by side under a shared label ---- */
 .fl-par {
-  flex: none; display: flex; flex-direction: column; gap: 10px; align-self: flex-start;
-  padding: 10px; border-radius: 20px;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start;
+  padding: 10px; border-radius: 18px;
   background: rgba(255,255,255,.03); border: 1px dashed rgba(255,255,255,.22);
 }
-.fl-par-h { margin: 0 0 0 6px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
+.fl-par-h { flex: 1 1 100%; margin: 0 0 0 6px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
+.fl-par > .fl-step { flex: 1 1 240px; width: auto; }
 .fl-plus-par {
-  width: auto; height: auto; margin: 0; padding: 7px 12px; align-self: center;
+  flex: 1 1 100%; width: auto; height: auto; margin: 0; padding: 7px 12px; align-self: center;
   font-size: 12px; border: 1px dashed rgba(255,255,255,.3); border-radius: 999px;
 }
 .fl-plus-par::before, .fl-plus-par::after { content: none; }
