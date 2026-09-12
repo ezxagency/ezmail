@@ -202,6 +202,10 @@ function dkBlocks(r){
           + '<span>' + esc(f.meta || "") + '</span></span></button>').join("")
       + '</div></div>';
   }
+  /* Where the work stands with its reviewer, and the one thing to do
+     about it: submit, read the changes asked for, or complete it now
+     that it is approved. js/reviews.js draws it from the live watch. */
+  if (typeof rvCardBlock === "function") html += rvCardBlock(r);
   return html;
 }
 
@@ -217,8 +221,11 @@ function dkFoot(r){
   // on a track, Done is a hand-off: say so, and name it Finish at the end
   const h = r.handoff && !r.handoff.done ? r.handoff : null;
   const doneLabel = h ? (h.stop && h.stop.choices && h.stop.choices.length ? "Decide" : h.next ? "Pass on" : "Finish") : "Done";
-  const right = '<button type="button" class="dk-bt ' + (running ? "dk-bt-go" : "dk-bt-gh")
-    + ' dk-done">' + DK_ICO.tick + doneLabel + '</button>';
+  // approved work says so on the button, so the next action is the one
+  // the review block named and not a guess
+  const approved = typeof rvRowState === "function" && rvRowState(r) === "approved";
+  const right = '<button type="button" class="dk-bt ' + (running || approved ? "dk-bt-go" : "dk-bt-gh")
+    + ' dk-done' + (approved ? ' is-approved' : '') + '">' + DK_ICO.tick + doneLabel + (approved ? '<small>approved</small>' : '') + '</button>';
   return left + right;
 }
 
@@ -345,6 +352,7 @@ function dkRender(rows){
   host.querySelectorAll(".dk-start").forEach(b => b.onclick = () => dkStart(row));
   host.querySelectorAll(".dk-done").forEach(b => b.onclick = () => dkFinish(row));
   host.querySelectorAll(".dk-down").forEach(b => b.onclick = () => dkPutDown(row));
+  host.querySelectorAll(".dk-rv-bt").forEach(b => b.onclick = () => { if (typeof rvCardClick === "function") rvCardClick(b, row); });
   host.querySelectorAll(".dk-file").forEach(b => b.onclick = () => {
     const f = (row.attachments || [])[Number(b.dataset.file)];
     if (f && f.url) window.open(f.url, "_blank", "noopener");
@@ -497,7 +505,7 @@ function dkBind(host){
   dkBound = true;
 
   host.addEventListener("pointerdown", e => {
-    if (!dkRows.length || e.target.closest(".dk-bt, .dk-file, .dk-ab, .dk-dots")) return;
+    if (!dkRows.length || e.target.closest(".dk-bt, .dk-file, .dk-ab, .dk-dots, .dk-rv-bt, a")) return;
     dkDragging = true; dkVel = 0;
     dkStartX = dkLastX = e.clientX; dkStartPos = dkPos; dkLastT = e.timeStamp;
     host.classList.add("is-drag");

@@ -25,10 +25,12 @@
 /* Permission bundles, so a pack says "staff" instead of restating
    the grammar eight times and getting one of them subtly wrong. */
 const PACK_PERMS = {
+  // managers and leads review the work they receive (js/rating.js);
+  // the rules read the same row before they accept a decision
   manager: ["item:create:org", "item:read:org", "item:update:org", "item:delete:org",
-            "member:read:org", "member:invite:org", "workflow:read:org", "report:read:org"],
+            "member:read:org", "member:invite:org", "workflow:read:org", "report:read:org", "review:decide:org"],
   lead:    ["item:create:org", "item:read:org", "item:update:org",
-            "member:read:org", "workflow:read:org"],
+            "member:read:org", "workflow:read:org", "review:decide:org"],
   staff:   ["item:create:org", "item:read:org", "item:update:assigned", "workflow:read:org"],
   viewer:  ["item:read:org"]
 };

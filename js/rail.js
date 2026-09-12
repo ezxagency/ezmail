@@ -21,7 +21,7 @@
    added later appears in the rail without being registered twice. */
 const RL_LABELS = {
   "": "Home", mission: "Mission", history: "History",
-  team: "Team", work: "Work", org: "Org", flow: "Flow"
+  team: "Team", work: "Work", org: "Org", flow: "Flow", reviews: "Reviews"
 };
 
 const RL_OUT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>';

@@ -41,7 +41,7 @@ ctx.console = console;
 ctx.firebase = { initializeApp(){}, auth(){ return AUTH; }, firestore(){ return db; } };
 
 ["js/config.js", "js/rating.js", "js/permissions.js", "js/item-engine.js", "js/migrate.js",
- "js/items.js", "js/workflow-engine.js", "js/automation.js", "js/handoff.js",
+ "js/items.js", "js/reviews.js", "js/workflow-engine.js", "js/automation.js", "js/handoff.js",
  "js/packs.js", "js/notify.js", "js/org.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 
@@ -657,16 +657,21 @@ await T("Send back returns the work to the writer, with the decision on the card
   assert.ok(f.ok, JSON.stringify(f));
   item = await get("orgs/" + ORG + "/items/" + briefId);
   assert.deepEqual(plain(item.assigneeIds), ["staff1"], "Send back did not return it to the writer");
-  // the rating landed, about the writer, in the checker's name
-  const rev = await get("orgs/" + ORG + "/reviews/" + item.workflowRunId + ":s0");
+  // the decision landed in the writer's review document, in the checker's
+  // name, with the finish note as the feedback - and a send-back is not a
+  // rating, so nothing is scored yet
+  const rev = await get("orgs/" + ORG + "/reviews/" + briefId + ":s0:staff1");
   assert.ok(rev, "no review was written");
-  assert.equal(rev.aboutUid, "staff1"); assert.equal(rev.byUid, "lead1");
-  assert.equal(Math.round(rev.score * 100) / 100, 2.3);
-  assert.equal(rev.firstPass, false, "a send-back is not a first pass");
-  assert.equal(rev.attempt, 1); assert.equal(rev.revisions, 0);
-  assert.equal(rev.onTime, null, "no deadline means no on-time verdict");
-  assert.equal(rev.choice, "Send back");
+  assert.equal(rev.aboutUid, "staff1"); assert.equal(rev.status, "changes");
+  assert.equal(rev.decision.byUid, "lead1"); assert.equal(rev.decision.kind, "changes");
+  assert.equal(rev.decision.feedback, "Too long, cut it");
+  assert.equal(rev.score, null, "a send-back must not be scored");
+  assert.equal(rev.round, 1);
+  assert.equal(rev.submission.byUid, "staff1"); assert.equal(rev.submission.note, "First draft", "the step's own finish stands as the submission");
+  assert.equal(rev.submission.onTime, null, "no deadline means no on-time verdict");
   assert.deepEqual(plain(rev.history), []);
+  // the writer was told
+  assert.ok(find("notifications", n => n.toUid === "staff1" && n.kind === "review-decided" && /Changes requested/.test(n.msg)).length, "the writer was not told about the changes");
   assert.equal(plain(item.handoff).from.choice, "Send back", "the decision is not on the card");
   assert.equal(plain(item.handoff).from.note, "Too long, cut it");
   assert.equal(plain(item.handoff).stop.index, 1);
@@ -679,22 +684,35 @@ await T("Approve carries it on, and the second time round finishes it", async ()
   assert.ok(f.ok, JSON.stringify(f));
   AUTH.currentUser = { uid: "lead1", email: "l@x.com" };
   run(`orgInvalidate();`);
-  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "",
+  // a rating with no words is refused: the step does not record it
+  let before = await get("orgs/" + ORG + "/items/" + briefId);
+  const h = await runAsync(`return await itemsHandoffLoad(${JSON.stringify(before)});`);
+  const r0 = await runAsync(`return await rvRecordFromStep(${JSON.stringify(before)}, ${JSON.stringify(Object.assign({ id: "brief" }, await get("orgs/" + ORG + "/itemTypes/brief")))},
+    ${JSON.stringify(plain(h))}, { nodeId: "s1" }, { comment: "", choice: "Approve", review: { scores: { quality: 4, brief: 5, handoff: 4 }, sentBack: false } }, "lead1");`);
+  assert.equal(r0, null, "an approval without feedback was recorded");
+  let rev = await get("orgs/" + ORG + "/reviews/" + briefId + ":s0:staff1");
+  assert.equal(rev.status, "changes", "an approval without feedback was recorded");
+  // the same decision with its words, from the finish sheet
+  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(briefId)}, "Much better - exactly the brief",
     { choice: "Approve", review: { scores: { quality: 4, brief: 5, handoff: 4 }, sentBack: false } });`);
   assert.ok(f.ok, JSON.stringify(f));
   const item = await get("orgs/" + ORG + "/items/" + briefId);
   assert.equal(item.status, "done", "approved work did not finish");
-  // ONE rating per deliverable: the second look replaced the first and kept it in history
-  const rev = await get("orgs/" + ORG + "/reviews/" + item.workflowRunId + ":s0");
-  assert.equal(Math.round(rev.score * 100) / 100, 4.3);
-  assert.equal(rev.attempt, 2); assert.equal(rev.revisions, 1); assert.equal(rev.firstPass, false);
+  // ONE rating per contribution: the second look opened round 2 and kept round 1 in history
+  rev = await get("orgs/" + ORG + "/reviews/" + briefId + ":s0:staff1");
+  assert.equal(rev.status, "approved");
+  assert.equal(rev.weightedTenths, 43); assert.equal(rev.score, 4.3);
+  assert.equal(rev.round, 2); assert.equal(rev.revisions, 1); assert.equal(rev.firstPass, false);
   assert.equal(rev.history.length, 1);
-  assert.equal(Math.round(rev.history[0].score * 100) / 100, 2.3);
-  const all = find("orgs/" + ORG + "/reviews", r => r.runId === item.workflowRunId);
+  assert.equal(rev.history[0].decision.kind, "changes");
+  assert.equal(rev.history[0].decision.feedback, "Too long, cut it");
+  assert.equal(rev.submission.note, "Cut by half");
+  const all = find("orgs/" + ORG + "/reviews", r => r.itemId === briefId);
   assert.equal(all.length, 1, "a revision must not add a second rating");
   // and the board reads it back
   const rows = run(`JSON.stringify(rtBoard(${JSON.stringify(all)}, [{ uid: "staff1", name: "S" }], { min: 1 }))`);
   assert.equal(JSON.parse(rows)[0].n, 1);
+  assert.equal(JSON.parse(rows)[0].revisions, 1);
   assert.deepEqual(plain(item.assigneeIds), []);
   const runDoc = await get("orgs/" + ORG + "/runs/" + item.workflowRunId);
   assert.equal(runDoc.status, "completed");
@@ -737,6 +755,204 @@ await T("steps that run together are held by both people at once, and the step a
   item = await get("orgs/" + ORG + "/items/" + id);
   assert.deepEqual(plain(item.assigneeIds), ["owner1"], "the merge did not fire once both were done");
   // the tests after this one act as the owner again
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+});
+
+/* ---------- the review flow: submit, changes, resubmit, approve, complete ---------- */
+let reviewItemId = null;
+await T("a person submits their work for review: a link and a note, one document, the owner is told", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  await db.collection("orgs").doc(ORG).collection("itemTypes").doc("page")
+    .set({ name: "Page", fields: [], statuses: [{ key: "open", label: "Open" }, { key: "done", label: "Done" }] });
+  run(`orgInvalidate();`);
+  const type = Object.assign({ id: "page" }, await get("orgs/" + ORG + "/itemTypes/page"));
+  const c = await runAsync(`return await itemSave(${JSON.stringify(type)}, null, { kind: "create", title: "Landing page", brief: "Lead with the restock", fields: {}, assigneeIds: ["staff1"] });`);
+  assert.ok(c.ok, JSON.stringify(c));
+  reviewItemId = c.item.id;
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  // a submission needs a link or a note, and the link has to be a web address
+  let ctx = await runAsync(`return await rvCtxLoad(${JSON.stringify(reviewItemId)}, null);`);
+  assert.ok(ctx.ok, JSON.stringify(ctx));
+  assert.equal(ctx.ctx.brief, "Lead with the restock");
+  let r = await runAsync(`return await rvSubmit(${JSON.stringify(ctx.ctx)}, "", "");`);
+  assert.equal(r.error, "empty");
+  r = await runAsync(`return await rvSubmit(${JSON.stringify(ctx.ctx)}, "javascript:alert(1)", "here");`);
+  assert.equal(r.error, "bad-link");
+  r = await runAsync(`return await rvSubmit(${JSON.stringify(ctx.ctx)}, "https://docs.example.com/landing", "Draft one, hero copy in the doc");`);
+  assert.ok(r.ok, JSON.stringify(r));
+  const doc = await get("orgs/" + ORG + "/reviews/" + reviewItemId + ":work:staff1");
+  assert.ok(doc, "no review document");
+  assert.equal(doc.status, "submitted"); assert.equal(doc.round, 1); assert.equal(doc.version, 1);
+  assert.equal(doc.aboutUid, "staff1"); assert.equal(doc.reviewerUid, null);
+  assert.equal(doc.submission.link, "https://docs.example.com/landing");
+  assert.equal(doc.submission.onTime, null, "no deadline is not a verdict");
+  assert.equal(doc.score, null); assert.equal(doc.decision, null);
+  assert.equal(doc.brief, "Lead with the restock", "the reviewer's sheet needs the brief beside the work");
+  assert.ok(find("notifications", n => n.toUid === "owner1" && n.kind === "review-submitted").length, "the owner was not told");
+  // submitting again while it is in review is refused, not doubled
+  r = await runAsync(`return await rvSubmit(${JSON.stringify(ctx.ctx)}, "", "again");`);
+  assert.equal(r.error, "already-submitted");
+  // the card reads the state from the watch's rows
+  run(`rvMine = ${JSON.stringify(find("orgs/" + ORG + "/reviews", x => x.aboutUid === "staff1"))};`);
+  assert.equal(run(`rvRowState({ itemId: ${JSON.stringify(reviewItemId)}, id: "a" })`), "submitted");
+});
+
+await T("nobody decides their own work; a staff member cannot decide at all; the owner requests changes with feedback", async () => {
+  const id = reviewItemId + ":work:staff1";
+  let r = await runAsync(`return await rvDecide(${JSON.stringify(id)}, "changes", null, "I would change it", 1);`);
+  assert.equal(r.error, "not-allowed", "the person decided their own review");
+  await db.collection("orgs").doc(ORG).collection("members").doc("staff2").set({ uid: "staff2", roleId: "staff", joinedAt: 1 });
+  AUTH.currentUser = { uid: "staff2", email: "s2@x.com" };
+  run(`orgInvalidate();`);
+  r = await runAsync(`return await rvDecide(${JSON.stringify(id)}, "changes", null, "I would change it", 1);`);
+  assert.equal(r.error, "not-allowed", "a staff member without review:decide decided");
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  r = await runAsync(`return await rvDecide(${JSON.stringify(id)}, "changes", null, "   ", 1);`);
+  assert.equal(r.error, "feedback", "changes without feedback were accepted");
+  r = await runAsync(`return await rvDecide(${JSON.stringify(id)}, "approved", { quality: 4, brief: 5 }, "nice", 1);`);
+  assert.equal(r.error, "scores", "an approval with two scores was accepted");
+  r = await runAsync(`return await rvDecide(${JSON.stringify(id)}, "changes", null, "The hero leads with the discount; the brief says restock.", 1);`);
+  assert.ok(r.ok, JSON.stringify(r));
+  const doc = await get("orgs/" + ORG + "/reviews/" + id);
+  assert.equal(doc.status, "changes"); assert.equal(doc.version, 2);
+  assert.equal(doc.decision.byUid, "owner1"); assert.equal(doc.decision.scores, null);
+  assert.equal(doc.score, null, "changes must not score");
+  assert.ok(find("notifications", n => n.toUid === "staff1" && n.kind === "review-decided").length, "the person was not told");
+  // a second decision on the same round finds it already decided
+  r = await runAsync(`return await rvDecide(${JSON.stringify(id)}, "approved", { quality: 5, brief: 5, handoff: 5 }, "wait, it is fine", 1);`);
+  assert.equal(r.error, "changed", "a stale decision overwrote the first");
+});
+
+await T("the revision closes the round into history; the approval scores it once; the card says what to press", async () => {
+  const id = reviewItemId + ":work:staff1";
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  const ctx = await runAsync(`return await rvCtxLoad(${JSON.stringify(reviewItemId)}, null);`);
+  let r = await runAsync(`return await rvSubmit(${JSON.stringify(ctx.ctx)}, "https://docs.example.com/landing?v=2", "Restock leads now");`);
+  assert.ok(r.ok, JSON.stringify(r));
+  let doc = await get("orgs/" + ORG + "/reviews/" + id);
+  assert.equal(doc.status, "submitted"); assert.equal(doc.round, 2); assert.equal(doc.version, 3);
+  assert.equal(doc.history.length, 1);
+  assert.equal(doc.history[0].round, 1);
+  assert.equal(doc.history[0].submission.link, "https://docs.example.com/landing");
+  assert.equal(doc.history[0].decision.feedback, "The hero leads with the discount; the brief says restock.");
+  assert.equal(doc.decision, null);
+  // the owner hands it to an independent teammate: the lead reviews, in their own name
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  r = await runAsync(`return await rvDelegate(${JSON.stringify(id)}, "staff1");`);
+  assert.equal(r.error, "self", "the person was made their own reviewer");
+  r = await runAsync(`return await rvDelegate(${JSON.stringify(id)}, "lead1");`);
+  assert.ok(r.ok, JSON.stringify(r));
+  doc = await get("orgs/" + ORG + "/reviews/" + id);
+  assert.equal(doc.reviewerUid, "lead1"); assert.equal(doc.version, 4);
+  assert.ok(find("notifications", n => n.toUid === "lead1" && n.kind === "review-assigned").length, "the reviewer was not told");
+  AUTH.currentUser = { uid: "lead1", email: "l@x.com" };
+  run(`orgInvalidate();`);
+  r = await runAsync(`return await rvDecide(${JSON.stringify(id)}, "approved", { quality: 4, brief: 5, handoff: 4 }, "Restock first, clean hero, files named. A 4 on quality: the second section still reads long.", 4);`);
+  assert.ok(r.ok, JSON.stringify(r));
+  doc = await get("orgs/" + ORG + "/reviews/" + id);
+  assert.equal(doc.status, "approved"); assert.equal(doc.version, 5);
+  assert.equal(doc.weightedTenths, 43); assert.equal(doc.score, 4.3);
+  assert.deepEqual(plain(doc.scores), { quality: 4, brief: 5, handoff: 4 });
+  assert.equal(doc.byUid, "lead1"); assert.equal(doc.decision.byUid, "lead1");
+  assert.equal(doc.firstPass, false); assert.equal(doc.revisions, 1);
+  assert.equal(doc.history.length, 1, "approval must not touch the history");
+  assert.equal(doc.submission.note, "Restock leads now", "the reviewer rewrote the submission");
+  // one document, one credit, however many rounds
+  const all = find("orgs/" + ORG + "/reviews", x => x.itemId === reviewItemId);
+  assert.equal(all.length, 1);
+  const rows = JSON.parse(run(`JSON.stringify(rtBoard(${JSON.stringify(all)}, [{ uid: "staff1", name: "S" }], { min: 1 }))`));
+  assert.equal(rows[0].n, 1); assert.equal(rows[0].rating, 4.3); assert.equal(rows[0].revisions, 1); assert.equal(rows[0].firstPassPct, 0);
+  // the person's card: approved, and the button to press is named
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate(); rvMine = ${JSON.stringify(all)};`);
+  await runAsync(`await orgEnsure();`);
+  const row = { itemId: reviewItemId, id: "a", task: "Landing page" };
+  assert.equal(run(`rvRowState(${JSON.stringify(row)})`), "approved");
+  const block = run(`rvCardBlock(${JSON.stringify(row)})`);
+  assert.match(block, /Approved · 4\.30 \/ 5/); assert.match(block, /press <b>Done<\/b>/);
+  assert.match(run(`rvFinishLine(${JSON.stringify(row)})`), /Approved by/);
+  // resubmitting approved work that is not on a track is refused: it is finished
+  r = await runAsync(`return await rvSubmit(${JSON.stringify(ctx.ctx)}, "", "one more");`);
+  assert.equal(r.error, "already-approved");
+  // and completing it is the ordinary Done, which the review does not block
+  const f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(reviewItemId)}, "Shipped");`);
+  assert.ok(f.ok, JSON.stringify(f));
+  assert.equal((await get("orgs/" + ORG + "/items/" + reviewItemId)).status, "done");
+});
+
+await T("on a track: a step's submission is per step and per pass, a loop needs a fresh review, and parallel steps are reviewed apart", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  const type = Object.assign({ id: "brief" }, await get("orgs/" + ORG + "/itemTypes/brief"));
+  const c = await runAsync(`return await itemSave(${JSON.stringify(type)}, null, { kind: "create", title: "Brief #2", fields: { priority: "normal" }, assigneeIds: [] });`);
+  assert.ok(c.ok, JSON.stringify(c));
+  const id = c.item.id;
+  let item = await until(async () => { const it = await get("orgs/" + ORG + "/items/" + id); return it && it.workflowRunId ? it : null; }, "the run to start");
+  assert.equal(plain(item.handoff).stop.nodeId, "s0"); assert.equal(plain(item.handoff).stop.iteration, 1, "the card does not know which pass of the step this is");
+  // the writer submits the step's work; the checker (a lead, who may decide) approves it
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  let ctx = await runAsync(`return await rvCtxLoad(${JSON.stringify(id)}, "s0");`);
+  assert.ok(ctx.ok, JSON.stringify(ctx));
+  assert.equal(ctx.ctx.nodeId, "s0"); assert.equal(ctx.ctx.iteration, 1); assert.equal(ctx.ctx.stepLabel, "Write it");
+  let r = await runAsync(`return await rvSubmit(${JSON.stringify(ctx.ctx)}, "", "Draft in the doc");`);
+  assert.ok(r.ok, JSON.stringify(r));
+  const key = id + ":s0:staff1";
+  AUTH.currentUser = { uid: "lead1", email: "l@x.com" };
+  run(`orgInvalidate();`);
+  r = await runAsync(`return await rvDecide(${JSON.stringify(key)}, "approved", { quality: 5, brief: 5, handoff: 5 }, "Exactly right: brief followed to the letter, files ready.", 1);`);
+  assert.ok(r.ok, JSON.stringify(r));
+  // the writer passes it on; the checker sends it BACK - the loop re-enters the writing step
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate();`);
+  let f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(id)}, "Done");`);
+  assert.ok(f.ok, JSON.stringify(f));
+  AUTH.currentUser = { uid: "lead1", email: "l@x.com" };
+  run(`orgInvalidate();`);
+  f = await runAsync(`return await itemsFinishFromQueue(${JSON.stringify(id)}, "Client changed the offer - redo", { choice: "Send back" });`);
+  assert.ok(f.ok, JSON.stringify(f));
+  item = await get("orgs/" + ORG + "/items/" + id);
+  assert.equal(plain(item.handoff).stop.nodeId, "s0"); assert.equal(plain(item.handoff).stop.iteration, 2, "the second pass is not counted");
+  // the earlier approval does not stand for the new work: the card offers a fresh submission
+  AUTH.currentUser = { uid: "staff1", email: "s@x.com" };
+  run(`orgInvalidate(); rvMine = ${JSON.stringify(find("orgs/" + ORG + "/reviews", x => x.aboutUid === "staff1"))};`);
+  await runAsync(`await orgEnsure();`);
+  const row = { itemId: id, id: "x", handoff: plain(item.handoff) };
+  assert.equal(run(`rvRowState(${JSON.stringify(row)})`), "stale");
+  assert.match(run(`rvCardBlock(${JSON.stringify(row)})`), /earlier pass/);
+  assert.match(run(`rvCardBlock(${JSON.stringify(row)})`), /Submit for review/);
+  ctx = await runAsync(`return await rvCtxLoad(${JSON.stringify(id)}, "s0");`);
+  assert.equal(ctx.ctx.iteration, 2);
+  r = await runAsync(`return await rvSubmit(${JSON.stringify(ctx.ctx)}, "", "Redone for the new offer");`);
+  assert.ok(r.ok, JSON.stringify(r));
+  const doc = await get("orgs/" + ORG + "/reviews/" + key);
+  assert.equal(doc.status, "submitted"); assert.equal(doc.round, 2); assert.equal(doc.submission.iteration, 2);
+  assert.equal(doc.score, null, "the old score is still standing on a resubmitted document");
+  assert.equal(doc.history[0].decision.kind, "approved", "the earlier approval left the record");
+  assert.equal(find("orgs/" + ORG + "/reviews", x => x.itemId === id).length, 1, "the second pass made a second document");
+  // parallel steps: two people on two steps of one piece of work are two contributions
+  const ltype = Object.assign({ id: "launch" }, await get("orgs/" + ORG + "/itemTypes/launch"));
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  const lc = await runAsync(`return await itemSave(${JSON.stringify(ltype)}, null, { kind: "create", title: "Launch #2", fields: {}, assigneeIds: [] });`);
+  const lid = lc.item.id;
+  await until(async () => { const it = await get("orgs/" + ORG + "/items/" + lid); return it && it.workflowRunId ? it : null; }, "the run to start");
+  for (const [uid, node] of [["staff1", "s0"], ["lead1", "s1"]]) {
+    AUTH.currentUser = { uid, email: uid + "@x.com" };
+    run(`orgInvalidate();`);
+    const cx = await runAsync(`return await rvCtxLoad(${JSON.stringify(lid)}, null);`);
+    assert.ok(cx.ok, uid + ": " + JSON.stringify(cx));
+    assert.equal(cx.ctx.nodeId, node, uid + " was matched to the wrong step");
+    const rr = await runAsync(`return await rvSubmit(${JSON.stringify(cx.ctx)}, "", "my half");`);
+    assert.ok(rr.ok, JSON.stringify(rr));
+  }
+  const both = find("orgs/" + ORG + "/reviews", x => x.itemId === lid);
+  assert.deepEqual(both.map(x => x.id).sort(), [lid + ":s0:staff1", lid + ":s1:lead1"], "two contributors on parallel steps did not get two reviews");
   AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
   run(`orgInvalidate();`);
 });

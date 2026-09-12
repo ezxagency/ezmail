@@ -522,3 +522,41 @@ Use an explicit responsive 16–22px size for the redesigned clocks.
 *Guard:* `tests/shots.mjs` checks actual ring/control geometry, button
 heights, and seconds sizes across seven desktop/tablet/phone viewports,
 then captures the active, idle, and classic dashboards.
+
+### Reviews
+
+**A denial that unexpectedly succeeded poisoned every assertion after it.**
+The rules suite for reviews showed five failures; four were legitimate
+transitions refused with PERMISSION_DENIED and one was a "must be
+DENIED" write that had gone through. Only the last was the bug: the
+rules let a resubmission append an invented closed round to `history`
+(they checked that history grew by one, not what it grew by), so that
+write landed, bumped `version`, and every genuine write after it was a
+version behind. Bisecting the rules in isolation showed each clause
+sound; the cascade was in the fixture. The rule now requires the
+appended round to equal `{ round, submission, decision }` of the
+document it replaces (`rvRoundClosed()`).
+*Rule:* when a suite shows one assertion that passed where it should
+have failed, read that one first — an accepted write that should have
+been refused changes the state every later assertion stands on.
+*Guard:* `tests/firestore-rules.test.mjs` > "a resubmission that
+rewrites history DENIED", and the "rewritten in history" cases after
+the step-round write.
+
+**A rating with no words is a number nobody can act on.** The first
+review feature let a checker rate the step before with three scores and
+an optional note. The rubric's whole value is the explanation — why a 5
+is a 5 — so every decision now requires feedback, on the deck's finish
+sheet, on the Work page and in the rules, and a step rating without a
+note is refused rather than recorded (`rvRecordFromStep`, the flow test
+"a rating with no words is refused").
+
+**Protected and enforced-in-the-browser are different words, and the
+screen says which.** The review's decision, scores, history, version
+and who-may-decide are checked by `firestore.rules`. Which step the
+work is on, and whether a person may finish it, is still the item
+engine running in the browser under the knowingly-permissive
+items/runs rules. A review therefore records a judgement the server
+protects about work whose movement it does not yet — `js/reviews.js`
+says so at the top, so nobody reads the rules for reviews and assumes
+the run behind them is held to the same standard.

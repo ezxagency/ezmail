@@ -319,7 +319,9 @@ T("no run, no answers, no crash", () => {
 T("at the first stop: no one before, the next stop and its people named", () => {
   const st = start();
   const sum = H.hoSummary(bp, st.nodeRuns, MEMBERS, uid => ({ u1: "Mia", u2: "Sam", u3: "Ada" })[uid] || "", st.run);
-  assert.deepEqual(sum.stop, { label: "Agree terms", index: 1, count: 2 });
+  assert.equal(sum.stop.label, "Agree terms"); assert.equal(sum.stop.index, 1); assert.equal(sum.stop.count, 2);
+  // the step's id and pass ride along: a review is keyed by them
+  assert.equal(typeof sum.stop.nodeId, "string"); assert.equal(sum.stop.iteration, 1);
   assert.equal(sum.from, null);
   assert.equal(sum.next.label, "Deliver");
   assert.deepEqual(sum.next.holders.map(h => h.name), ["Sam", "Ada"]);
@@ -333,7 +335,7 @@ T("after a pass with a note: from names the passer and carries the note; the las
     { type: "complete", nodeRunId: nr.id, output: { comment: "Terms are signed, go" }, by: "u1" }, { now: 5 });
   next.nodeRuns.forEach(x => { if (x.id === nr.id) { x.completedBy = "u1"; x.completedAs = "holder"; } });
   const sum = H.hoSummary(bp, next.nodeRuns, MEMBERS, uid => uid === "u1" ? "Mia" : "", next.run);
-  assert.deepEqual(sum.stop, { label: "Deliver", index: 2, count: 2 });
+  assert.equal(sum.stop.label, "Deliver"); assert.equal(sum.stop.index, 2); assert.equal(sum.stop.count, 2); assert.equal(sum.stop.iteration, 1);
   assert.equal(sum.from.uid, "u1"); assert.equal(sum.from.name, "Mia");
   assert.equal(sum.from.note, "Terms are signed, go");
   assert.equal(sum.from.label, "Agree terms");

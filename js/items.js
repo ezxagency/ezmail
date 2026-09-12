@@ -223,8 +223,11 @@ async function itemsFinishFromQueue(itemId, comment, output){
       if (!r.ok) return { ok: false, error: r.error };
       // the rating rides beside the pass, about the step that handed the
       // work over - written after the advance, so a refused advance
-      // never leaves a rating for a pass that did not happen
-      if (output && output.review) await itemsRecordReview(item, type, h, mine, output, uid);
+      // never leaves a rating for a pass that did not happen. It lands in
+      // the same review document a submission would (js/reviews.js), so
+      // the board never holds two ratings for one contribution.
+      if (output && output.review && typeof rvRecordFromStep === "function")
+        await rvRecordFromStep(item, type, h, mine, Object.assign({ comment }, output), uid);
       return { ok: true, how: "advanced" };
     }
     // on a run but not their stop: finishing it from here would jump the
@@ -507,63 +510,6 @@ async function itemsStartHandoff(item, type){
 
   await itemsSyncFromRun(item, type, bp, started.run, started.nodeRuns);
   return started;
-}
-
-const reviewsCol = orgId => db.collection("orgs").doc(orgId).collection("reviews");
-
-/* One official rating per deliverable: the document is keyed by the run
-   and the STEP that was reviewed, so a second look after "Send back"
-   replaces the score rather than standing beside it, and what it
-   replaced is kept in `history`. `firstPass` is true only for a first
-   attempt that was not sent back; `revisions` counts the attempts before
-   this one; `onTime` compares the reviewed step's finish with its own
-   deadline, or is null when it had none - never false for "no budget". */
-async function itemsRecordReview(item, type, h, reviewerStop, output, uid){
-  try {
-    const rv = output.review || {};
-    const score = typeof rtScore === "function" ? rtScore(rv.scores) : null;
-    if (score == null) { console.warn("A review without three whole scores was not recorded."); return null; }
-    const legs = hoTrail(h.blueprint, h.nodeRuns).filter(t => t.status === "completed");
-    const last = legs.length ? legs[legs.length - 1] : null;
-    if (!last || !last.by || last.by === uid) return null;   // nothing received, or their own work
-    const attempts = (h.nodeRuns || []).filter(nr => nr.nodeId === last.nodeId && nr.status === "completed").length;
-    const choice = output.choice || null;
-    const back = !!(rv.sentBack);
-    const now = Date.now();
-    const s = await orgEnsure();
-    const ref = reviewsCol(s.orgId).doc(h.run.id + ":" + last.nodeId);
-    const prev = await ref.get();
-    const history = prev.exists ? ((prev.data().history || []).concat([{
-      scores: prev.data().scores || null, score: prev.data().score, choice: prev.data().choice || null,
-      at: prev.data().at || null, byUid: prev.data().byUid || null }])) : [];
-    const docData = {
-      orgId: s.orgId, itemId: item.id, runId: h.run.id, nodeId: last.nodeId, typeId: type.id,
-      title: item.title || "", stepLabel: last.label || last.nodeId,
-      aboutUid: last.by, byUid: uid, byStep: reviewerStop.nodeId,
-      scores: { quality: rv.scores.quality, brief: rv.scores.brief, handoff: rv.scores.handoff },
-      score, choice, sentBack: back,
-      attempt: attempts, revisions: Math.max(0, attempts - 1),
-      firstPass: attempts === 1 && !back,
-      onTime: last.dueAt ? ((last.completedAt || 0) <= last.dueAt) : null,
-      at: now, month: (typeof rtMonth === "function" ? rtMonth(now) : ""), history
-    };
-    await ref.set(docData);
-    return docData;
-  } catch (e) { console.error("Could not record the review:", e); return null; }
-}
-
-/* The org's reviews, newest first, for the board. Five hundred is a
-   year of a busy team; the board reads whole months, so a cut-off lands
-   inside a month only for a team past that. */
-async function itemsReviewsLoad(orgId, limit){
-  const snap = await reviewsCol(orgId).orderBy("at", "desc").limit(limit || 500).get();
-  return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-}
-
-/* Recently touched work, for capacity: who has how much open. */
-async function itemsRecentLoad(orgId, limit){
-  const snap = await itemsCol(orgId).orderBy("updatedAt", "desc").limit(limit || 400).get();
-  return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
 }
 
 /* Everything the screens read about a running handoff, in one place. */

@@ -128,8 +128,8 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 493 assertions, node + jsdom, seconds
-npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
+npm test        # 630 assertions, node + jsdom, seconds
+npm run test:rules   # 304 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
@@ -167,7 +167,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 744 pass as of this writing — a
+reaches through an org boundary. All 934 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -339,34 +339,59 @@ the page on screen. `flS` is the page's state (`draft`, `dirty`, `drag`);
 half. Owner-only for changes, like the sheets it fronts; anyone through
 the door sees the picture. `tests/builder.test.mjs` drives it in jsdom.
 
-Tenth piece: **reviewed quality**, `js/rating.js` (pure) + the "Team
-quality" panel on the admin home (`amQualityHTML()` in `js/admin.js`).
-A step marked `rates` (the builder's "Rates the work it receives"
-switch; the approve-or-send-back shape sets it) asks the person
-finishing it for three scores, 1 to 5, about the step that handed the
-work over: execution quality, brief accuracy, handoff readiness. The
-finish sheet on the deck and the Work page draw the same form
-(`rtFormHTML()` / `rtFormBind()`) and stay disabled until all three are
-picked; the scores ride in the stop's output beside the note and the
-choice, and `itemsRecordReview()` then writes ONE document per
-deliverable to `orgs/{orgId}/reviews/{runId}:{nodeId}` - a second look
-after Send back replaces the rating and keeps the old one in `history`,
-so a revision is one rating with `revisions` beside it, never two. The
-math is stated in one place: a task is quality × .5 + brief × .3 +
-handoff × .2 out of 5, a person is the mean of their tasks, full
-precision inside and two places on screen (`rtScore`, `rtBoard`).
-`firstPass` is a first attempt not sent back; `onTime` compares the
-reviewed step's finish with its own deadline and is null, never false,
-when it had none. Nobody is ranked under `RT_MIN_REVIEWS` (8) - the row
-says "Building data · 3 of 8" - and every percentage carries its count.
-The rules hold what the screen holds: a review is written in the
-reviewer's own name and never about themselves; every member reads
-them (their own feedback, and the board); only an owner deletes one.
-The board reads the org's reviews and its recently touched work in
-`amCollect()`, and a read that fails says "could not reach". Pressing a
-row opens the tasks behind the number. `tests/rating.test.mjs` pins
-the math; `tests/flow.test.mjs` proves the write, the replacement and
-the history; `tests/admin.test.mjs` draws the panel.
+Tenth piece: **task review and reviewed quality**, `js/rating.js`
+(pure: the math, the words, what a review IS) + `js/reviews.js` (the
+writes, the sheets, the Reviews & Feedback page, the live watch) +
+`css/reviews.css`, and the "Team performance" panel on the admin home
+(`amQualityHTML()` in `js/admin.js`). The flow: a person presses
+**Submit for review** on a card (a link and/or a handoff note, judged
+against the deadline on THEIR clock at submission - `rvDueAt`, stored,
+never recomputed); the reviewer opens it from Needs your review (admin
+home or the Reviews page) and sees the brief, the submission, the
+person and the task together, then either **Request changes** (feedback
+required) or **Approve & rate** (three whole scores 1..5 AND feedback,
+the form showing the rubric word and an example under each point); the
+person is told, reads it on the card or the page, and after changes
+**submits a revision**. An approval is the go-ahead, not the finish: the
+card's Done button reads "Pass on · approved" and the block names it,
+so the next action is explicit and the run/assignment is never touched
+by the review. ONE document per contribution at
+`orgs/{orgId}/reviews/{itemId}:{nodeId|work}:{aboutUid}` (`rvKey`):
+parallel steps and co-assignees are separate documents; every round of
+one contribution lives in that document, the closed rounds in `history`
+in order and never rewritten, so four rounds are one rating with
+`revisions: 3`. A step re-entered by a loop is a new pass
+(`handoff.stop.iteration`), and an approval given to an earlier pass is
+`stale` - offered a fresh submission, never reused. The math, once:
+`weightedTenths = q×5 + b×3 + h×2`, a contribution is tenths ÷ 10, a
+person is the mean of their approved contributions' tenths ÷ 10, full
+precision inside and two places on screen. Filters: This week (Monday
+start) / This month / All time, role, work type - a member with no role
+is "No role", never invented into one. Ranked from `RT_MIN_REVIEWS` (8)
+in the chosen period ("Building data · 3 of 8", a starting line, not a
+proof); every percentage carries its count; "on time" is only over work
+that had a deadline; unreviewed work is nothing, never zero; hours never
+enter it. Who decides: the owner, a role granted `review:decide:org`
+(the seeded Manager, the packs' manager and lead), or the teammate an
+owner names on the document (`reviewerUid`) - never the person, who
+also cannot choose their reviewer or touch a score. A step marked
+`rates` still rates the work it received, through `rvRecordFromStep()`,
+into the SAME document a submission would use, and now refuses without
+feedback. Every write is a transaction that checks the state the screen
+showed (`version`), so two decisions on one submission end in "changed",
+not a silent overwrite; `firestore.rules` holds the same line from the
+server side - version +1, history prefix immutable and the closed round
+exactly what it replaces, valid integer scores with the exact tenths,
+the decider's own name, no self-rating, delegation pinned to one field.
+Said plainly: the RATING data is server-protected; which step the work
+is on is still the browser-side item engine under the permissive
+items/runs rules the platform spec documents. `tests/rating.test.mjs`
+pins the math and the filters; `tests/flow.test.mjs` walks submit,
+changes, resubmit, delegate, approve, complete, the loop and parallel
+steps against the fake database; `tests/reviews.test.mjs` draws the
+card, the sheets and the page in jsdom (including escaping);
+`tests/firestore-rules.test.mjs` holds the transitions; `tests/admin.test.mjs`
+draws the board; `npm run shots` photographs all of it at 1920 and 390.
 
 **A track can branch, and it is still the engine's own blueprint.** A
 stop may carry `choices` (what the person picks when they finish -
@@ -455,7 +480,7 @@ suite is not a thing to seek permission for, it is a thing to fix.
   what rule 2 is about.
 - **Firestore rules + indexes**: `.github/workflows/deploy-rules.yml` ships
   them on any push to `main` that touches `firestore.rules` or
-  `firestore.indexes.json` — but only after the 259-assertion suite passes
+  `firestore.indexes.json` — but only after the 304-assertion suite passes
   against the edited rules. Never paste rules into the Firebase console by
   hand; the console and the repo drift apart the moment you do, and the
   repo is the version that gets tested.

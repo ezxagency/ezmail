@@ -274,22 +274,149 @@ service cloud.firestore {
         allow create, update, delete: if isOrgOwner(orgId);
       }
 
-      /* ---- Reviews (js/rating.js) ----
-         One rating per deliverable, written by the person who received
-         the work when they finish their own step. Two things the rules
-         hold that the screen also holds, because a screen is not a
-         gate: a review is written in the reviewer's own name, and nobody
-         rates themselves. Everyone in the org reads them - a person sees
-         their own feedback, and the board is drawn from them. Only an
-         owner deletes one, because a deleted review is a changed score. */
+      /* ---- Reviews (js/rating.js, js/reviews.js) ----
+         One document per contribution: the work, the step, the person.
+         A person submits their own work (a round); a reviewer - the
+         owner, a role granted review:decide, or the teammate an owner
+         named on the document - either requests changes or approves
+         with three whole scores and written feedback; the person
+         resubmits, which closes the round into `history`. What the
+         rules hold, because a screen is not a gate:
+           - nobody rates themselves, and a decision is in the decider's
+             own name
+           - the person cannot touch the scores, the decision, or who
+             reviews them; the reviewer cannot rewrite what was submitted
+           - every write bumps `version` by one, so two decisions on the
+             same submission cannot both land
+           - `history` only grows, and what is already there is never
+             rewritten
+           - an approval carries valid integer scores, feedback, and the
+             exact weighted tenths (quality x5 + brief x3 + handoff x2)
+         Everyone in the org reads them (a person's own feedback, and
+         the board). Only an owner deletes one: a deleted review is a
+         changed score. */
+      function rvNew() { return request.resource.data; }
+      function rvOld() { return resource.data; }
+      function rvDecidePerms(orgId) {
+        return exists(/databases/$(database)/documents/orgs/$(orgId)/roles/$(orgRoleId(orgId)))
+          && orgRolePerms(orgId).hasAny(['review:decide:org', 'review:*:org', '*:decide:org', '*:*:org']);
+      }
+      // the three ways to be somebody's reviewer, none of them being them
+      function rvMayDecide(orgId, d) {
+        return d.aboutUid != request.auth.uid
+          && (isOrgOwner(orgId)
+              || (d.reviewerUid is string && d.reviewerUid == request.auth.uid)
+              || rvDecidePerms(orgId));
+      }
+      function rvScoreOk(v) { return v is int && v >= 1 && v <= 5; }
+      function rvScoresOk(s) {
+        return s is map && s.keys().hasOnly(['quality', 'brief', 'handoff'])
+          && rvScoreOk(s.quality) && rvScoreOk(s.brief) && rvScoreOk(s.handoff);
+      }
+      function rvTextOk(v, max) { return v is string && v.size() <= max; }
+      function rvLinkOk(sub) {
+        return !('link' in sub) || sub.link == null
+          || (sub.link is string && sub.link.size() <= 2000 && sub.link.matches('https?://.*'));
+      }
+      function rvSubmissionOk(sub) {
+        return sub is map && sub.byUid is string && sub.at is int
+          && rvTextOk(sub.get('note', ''), 4000) && rvLinkOk(sub)
+          && (sub.get('iteration', null) == null || sub.iteration is int)
+          && (sub.get('dueAt', null) == null || sub.dueAt is int)
+          && (sub.get('onTime', null) == null || sub.onTime is bool);
+      }
+      // what every review document looks like, whatever its state
+      function rvShapeOk(orgId, d) {
+        return d.orgId == orgId && d.itemId is string && d.aboutUid is string
+          && d.status in ['submitted', 'changes', 'approved']
+          && d.round is int && d.round >= 1 && d.history is list
+          && d.version is int && d.createdAt is int && d.updatedAt is int
+          && (d.reviewerUid == null || (d.reviewerUid is string && d.reviewerUid != d.aboutUid))
+          && rvSubmissionOk(d.submission) && d.submission.byUid == d.aboutUid;
+      }
+      function rvNoRating(d) {
+        return d.score == null && d.weightedTenths == null && d.scores == null;
+      }
+      function rvSubmittedShape(d) {
+        return d.status == 'submitted' && d.decision == null && rvNoRating(d);
+      }
+      // a decision in the decider's name, with its words; an approval
+      // with its three scores and the exact arithmetic beside them
+      function rvDecidedShape(d) {
+        return d.status in ['changes', 'approved']
+          && d.decision is map && d.decision.kind == d.status
+          && d.decision.byUid == request.auth.uid && d.decision.at is int
+          && d.decision.feedback is string && d.decision.feedback.size() > 0 && d.decision.feedback.size() <= 4000
+          && ((d.status == 'changes' && d.decision.get('scores', null) == null && rvNoRating(d))
+              || (d.status == 'approved' && rvScoresOk(d.decision.scores) && d.scores == d.decision.scores
+                  && d.weightedTenths == d.decision.scores.quality * 5 + d.decision.scores.brief * 3 + d.decision.scores.handoff * 2
+                  && d.score is number && d.byUid == request.auth.uid && d.at == d.decision.at
+                  && d.firstPass == (d.round == 1) && d.revisions == d.round - 1));
+      }
+      // the person opens their first round; or a reviewer records a
+      // decision on work that reached them through a step that rates
+      // (the step's own finish stands as the submission)
+      function rvCreateOk(orgId) {
+        return rvShapeOk(orgId, rvNew()) && rvNew().round == 1 && rvNew().history.size() == 0 && rvNew().version == 1
+          && ((rvSubmittedShape(rvNew()) && rvNew().aboutUid == request.auth.uid && rvNew().reviewerUid == null)
+              || (rvDecidedShape(rvNew()) && rvMayDecide(orgId, rvNew())));
+      }
+      // identity never moves, the version steps by one, history only grows
+      function rvUpdateBase() {
+        return rvNew().version == rvOld().version + 1
+          && rvNew().itemId == rvOld().itemId && rvNew().aboutUid == rvOld().aboutUid
+          && rvNew().nodeId == rvOld().nodeId && rvNew().createdAt == rvOld().createdAt
+          && rvNew().history.size() >= rvOld().history.size()
+          && (rvOld().history.size() == 0
+              || rvNew().history[0:rvOld().history.size()] == rvOld().history);
+      }
+      // a new round closes the old one into history EXACTLY as it was:
+      // its number, its submission and its decision, nothing invented
+      function rvRoundClosed() {
+        return rvNew().round == rvOld().round + 1
+          && rvNew().history.size() == rvOld().history.size() + 1
+          && rvNew().history[rvOld().history.size()]
+             == { 'round': rvOld().round, 'submission': rvOld().submission, 'decision': rvOld().decision };
+      }
+      // the person resubmits: the closed round goes into history, the
+      // reviewer they were given stays, nothing rated survives
+      function rvResubmitOk() {
+        return request.auth.uid == rvOld().aboutUid
+          && rvOld().status in ['changes', 'approved']
+          && rvSubmittedShape(rvNew())
+          && rvRoundClosed()
+          && rvNew().reviewerUid == rvOld().reviewerUid;
+      }
+      // a reviewer decides the round that is open, and only that
+      function rvDecideOk(orgId) {
+        return rvOld().status == 'submitted'
+          && rvDecidedShape(rvNew()) && rvMayDecide(orgId, rvOld())
+          && rvNew().round == rvOld().round
+          && rvNew().history == rvOld().history
+          && rvNew().submission == rvOld().submission
+          && rvNew().reviewerUid == rvOld().reviewerUid;
+      }
+      // a step that rates, reached again after a decision: the reviewer
+      // opens the next round with the step's own finish and decides it
+      function rvStepRoundOk(orgId) {
+        return rvOld().status in ['changes', 'approved']
+          && rvDecidedShape(rvNew()) && rvMayDecide(orgId, rvOld())
+          && rvRoundClosed()
+          && rvNew().reviewerUid == rvOld().reviewerUid;
+      }
+      // an owner (or a role that decides) names a reviewer: that one
+      // field, never on a finished review, never the person themselves
+      function rvDelegateOk(orgId) {
+        return rvOld().status != 'approved'
+          && request.auth.uid != rvOld().aboutUid
+          && (isOrgOwner(orgId) || rvDecidePerms(orgId))
+          && rvNew().diff(rvOld()).affectedKeys().hasOnly(['reviewerUid', 'updatedAt', 'version']);
+      }
       match /reviews/{reviewId} {
         allow read: if isOrgMember(orgId);
-        allow create, update: if isOrgMember(orgId)
-          && request.resource.data.byUid == request.auth.uid
-          && request.resource.data.aboutUid is string
-          && request.resource.data.aboutUid != request.auth.uid
-          && request.resource.data.score is number
-          && request.resource.data.at is int;
+        allow create: if isOrgMember(orgId) && rvCreateOk(orgId);
+        allow update: if isOrgMember(orgId) && rvShapeOk(orgId, rvNew()) && rvUpdateBase()
+          && (rvResubmitOk() || rvDecideOk(orgId) || rvStepRoundOk(orgId) || rvDelegateOk(orgId));
         allow delete: if isOrgOwner(orgId);
       }
 

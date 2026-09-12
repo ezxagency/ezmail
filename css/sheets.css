@@ -28,7 +28,7 @@ label.fld > span{
    default - a white box with a black calendar glyph sitting in a dark sheet.
    color-scheme:dark also darkens the native picker popup.
    Keep font-size at 16px: anything smaller makes iOS Safari zoom on focus. */
-input[type=text],input[type=date],input[type=month],input[type=time],input[type=number],select,textarea{
+input[type=text],input[type=url],input[type=date],input[type=month],input[type=time],input[type=number],select,textarea{
   width:100%;font-family:var(--wk);font-size:16px;padding:16px 14px;
   border:1px solid rgba(255,255,255,.3);border-radius:14px;background:rgba(255,255,255,.08);color:var(--wk-white);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
@@ -281,7 +281,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--wk-white);outlin
   .table-card{corner-shape:var(--squircle-lg)}
   .af-panel{corner-shape:var(--squircle-lg)}
   .preview{corner-shape:var(--squircle-md)}
-  .star,.af-trigger,input[type=text],input[type=date],input[type=month],input[type=time],
+  .star,.af-trigger,input[type=text],input[type=url],input[type=date],input[type=month],input[type=time],
   input[type=number],select,textarea{corner-shape:var(--squircle-sm)}
   .af-check{corner-shape:var(--squircle-xs)}
 }

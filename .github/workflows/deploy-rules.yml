@@ -1,5 +1,5 @@
 # Replaces the copy-paste step: edit firestore.rules, push, and the rules
-# ship themselves. Nothing deploys until the 259-assertion suite passes
+# ship themselves. Nothing deploys until the 304-assertion suite passes
 # against the edited rules, so a bad rule can't reach the live database.
 name: Deploy Firestore rules
 

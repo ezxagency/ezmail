@@ -51,6 +51,8 @@ function amRouteAllowed(r){
   if (r === "org" || r === "flow") return !!(isAdmin || isMember) && (!nx || on);
   if (r === "history") return nx ? !on : !isAdmin;
   if (r === "mission") return !(nx && on);
+  // reviews are a person's own feedback and a reviewer's queue: both views
+  if (r === "reviews") return true;
   return true;
 }
 
@@ -103,7 +105,7 @@ function amApply(){
 /* A fresh sign-in must not inherit the last account's mode or home. */
 function amReset(){
   amHomeHide();
-  amLast = null; amOrgAsked = false;
+  amLast = null; amOrgAsked = false; amRt = { period: "month", roleId: "", typeId: "" };
   document.body.classList.remove("admin-mode");
   const sw = $("amSwitch"); if (sw) sw.classList.add("hidden");
   const dm = $("drawerMode"); if (dm) dm.classList.add("hidden");
@@ -211,107 +213,136 @@ async function amCollect(){
     (orgS.types || []).forEach(t => hoTrackGaps(t.track, orgS.members || []).forEach(g =>
       d.gaps.push({ type: t.name || "Work", at: g.at, label: g.label, roleId: g.roleId })));
   }
-  /* The board: the org's reviews and its recently touched work, read
-     by any member (the rules let a person see their own feedback, and
-     the board is the same documents). A failed read is recorded, so the
-     panel can say "could not reach" instead of "nobody reviewed yet". */
+  /* The board: the org's review documents, every status, read by any
+     member (the rules let a person see their own feedback, and the board
+     is the same documents). A failed read is recorded, so the panel can
+     say "could not reach" instead of "nobody reviewed yet". */
   const org = typeof orgS !== "undefined" && orgS ? orgS : null;
-  if (org && typeof itemsReviewsLoad === "function" && typeof rtBoard === "function"){
-    d.members = (org.members || []).map(m => ({ uid: m.uid, roleId: m.roleId,
+  if (org && typeof rvLoadAll === "function" && typeof rtBoard === "function"){
+    d.members = (org.members || []).map(m => ({ uid: m.uid, roleId: m.roleId || null,
       name: typeof orgPersonName === "function" ? orgPersonName(m.uid) : m.uid }));
     d.roles = org.roles || []; d.types = org.types || [];
-    d.reviews = null; d.items = null;
-    jobs.push(itemsReviewsLoad(org.orgId).then(r => { d.reviews = r; }).catch(e => { console.error(e); d.errors.reviews = true; }));
-    jobs.push(itemsRecentLoad(org.orgId).then(r => { d.items = r; }).catch(e => { console.error(e); d.errors.items = true; }));
+    d.reviews = null;
+    jobs.push(rvLoadAll(org.orgId).then(r => { d.reviews = r; }).catch(e => { console.error(e); d.errors.reviews = true; }));
   }
   await Promise.all(jobs);
   return d;
 }
 
-/* ---------- team quality: the board ---------- */
-let amRtPeriod = "month";   // the board's window; the trend always reads whole months
+/* ---------- team performance: the board ---------- */
+/* The filters the board is read through. The period is the viewer's own
+   calendar (js/rating.js > rtSince); role and kind of work narrow the
+   comparison to peers, and both are drawn from the org's own data - a
+   member with no role is "No role" and never invented into one. */
+let amRt = { period: "month", roleId: "", typeId: "" };
 
 function amQualityHTML(d){
   if (!d.members || typeof rtBoard !== "function") return "";
   const err = d.errors || {};
-  const at = new Date(d.at || Date.now());
-  const since = amRtPeriod === "month" ? new Date(at.getFullYear(), at.getMonth(), 1).getTime() : 0;
-  const rows = rtBoard(d.reviews || [], d.members, { now: d.at, since });
+  const me = amUid();
+  const since = rtSince(amRt.period, d.at);
+  const reviews = d.reviews || [];
+  const rows = rtBoard(reviews, d.members, { now: d.at, since, roleId: amRt.roleId || null, typeId: amRt.typeId || null });
+  const inRole = amRt.roleId ? d.members.filter(m => (m.roleId || null) === amRt.roleId).map(m => m.uid) : null;
+  const counts = rtCounts(reviews, { since, typeId: amRt.typeId || null, roleIds: inRole });
   const roleName = id => { const r = (d.roles || []).find(x => x.id === id); return r ? r.name : ""; };
-  const total = rows.reduce((t, r) => t + r.n, 0);
-  const standout = rtStandout(rows), improved = rtImproved(rows);
-  const doneOf = it => {
-    const t = (d.types || []).find(x => x.id === it.typeId);
-    const k = typeof itemDoneStatus === "function" ? itemDoneStatus(t) : "done";
-    return !!k && it.status === k;
-  };
-  const cap = d.items ? rtCapacity(d.items, d.members, doneOf) : null;
-  const pending = d.items ? d.items.filter(it => it.handoff && it.handoff.stop && it.handoff.stop.rates && !it.handoff.done && !doneOf(it)).length : 0;
-  const chip = (id, label) => '<button type="button" class="am-chip' + (amRtPeriod === id ? " is-on" : "") + '" data-act="rtperiod" data-id="' + id + '">' + label + '</button>';
-  const sign = x => (x > 0 ? "+" : "−") + rtFmt(Math.abs(x));
-  const trend = r => r.delta == null ? '<span class="am-trend is-none" title="Needs 3 reviews in each of two months">–</span>'
-    : r.delta > 0.05 ? '<span class="am-trend is-up">▲ ' + sign(r.delta) + '</span>'
-    : r.delta < -0.05 ? '<span class="am-trend is-down">▼ ' + sign(r.delta) + '</span>'
-    : '<span class="am-trend is-flat">→ same</span>';
+  const typeName = id => { const t = (d.types || []).find(x => x.id === id); return t ? t.name : ""; };
+  const standout = rtStandout(rows);
+  const periodWord = amRt.period === "week" ? "this week" : amRt.period === "month" ? "this month" : "all time";
+  /* what waits on ME: everything submitted if I review for the org, else
+     what was delegated to me - never my own work */
+  const may = typeof rvIsReviewer === "function" && rvIsReviewer();
+  const queue = reviews.filter(r => r.status === "submitted" && r.aboutUid !== me && (may || r.reviewerUid === me))
+    .sort((a, b) => ((a.submission && a.submission.at) || 0) - ((b.submission && b.submission.at) || 0));
+
+  const chip = (id, label) => '<button type="button" class="am-chip' + (amRt.period === id ? " is-on" : "") + '" data-act="rtperiod" data-id="' + id + '">' + label + '</button>';
+  const sel = (act, value, label, opts) => '<label class="am-sel"><span>' + label + '</span><select data-act="' + act + '">' +
+    '<option value="">All</option>' + opts.map(o => '<option value="' + esc(o.id) + '"' + (o.id === value ? ' selected' : '') + '>' + esc(o.name) + '</option>').join("") + '</select></label>';
 
   const card = (k, title, body) => '<div class="am-card am-card-' + k + '"><p class="am-card-k">' + title + '</p>' + body + '</div>';
   const cards =
-    card("standout", "Standout", standout
+    card("standout", "Standout performer", standout
       ? '<b>' + esc(standout.name) + '</b><span class="am-card-n">' + rtFmt(standout.rating) + ' <i>/ 5 · ' + standout.n + ' reviewed</i></span><small>' + esc(rtWhy(standout)) + '</small>'
-      : '<small>Nobody has ' + RT_MIN_REVIEWS + ' reviewed tasks yet' + (amRtPeriod === "month" ? " this month" : "") + '. The first to get there stands here.</small>') +
-    card("improved", "Most improved", improved
-      ? '<b>' + esc(improved.name) + '</b><span class="am-card-n">' + sign(improved.delta) + ' <i>vs last month</i></span><small>' + rtFmt(improved.lastMonth.avg) + ' → ' + rtFmt(improved.thisMonth.avg) + ' across ' + improved.thisMonth.n + ' reviews</small>'
-      : '<small>Needs ' + RT_MIN_TREND + ' reviews in each of two months to compare. Nobody has both yet.</small>') +
-    card("room", "Room for more", err.items
-      ? '<small class="am-err-t">Could not reach the work.</small>'
-      : cap && cap.length
-        ? '<ul class="am-cap">' + cap.slice(0, 4).map(c => '<li><span>' + esc(c.name) + '</span><b>' + c.open + ' open</b></li>').join("") + '</ul>'
-        : '<small>Nobody is seated yet.</small>');
+      : '<small>Nobody has ' + RT_MIN_REVIEWS + ' approved contributions ' + periodWord + (amRt.roleId || amRt.typeId ? " under these filters" : "") + '. The first to get there stands here.</small>') +
+    card("reviewed", "Reviewed deliverables", '<span class="am-card-n">' + counts.reviewed + ' <i>approved ' + periodWord + '</i></span><small>' + (counts.changes ? counts.changes + ' with changes requested, waiting on a revision.' : 'Nothing is waiting on a revision.') + '</small>') +
+    card("waiting", "Awaiting review", '<span class="am-card-n">' + counts.awaiting + ' <i>submitted</i></span><small>' + (queue.length ? queue.length + ' of them ' + (queue.length === 1 ? 'is' : 'are') + ' yours to decide, below.' : counts.awaiting ? 'Delegated to others; none waiting on you.' : 'The queue is empty.') + '</small>');
 
+  const when = at => at ? new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  const qrow = r => '<li class="am-row" data-act="rvopen" data-id="' + esc(r.id) + '"><i class="am-dot is-blue"></i>' +
+    '<div class="am-row-t"><b>' + esc(r.title || "Work") + '</b><span>' + esc(rvNameOf(r.aboutUid)) + (roleName(r.aboutRoleId) ? ' · ' + esc(roleName(r.aboutRoleId)) : '') +
+      esc([r.store, r.stepLabel].filter(Boolean).map(x => ' · ' + x).join("")) + ' · round ' + (r.round || 1) + ' · ' + esc(when(r.submission && r.submission.at)) +
+      (r.submission && r.submission.onTime === false ? ' · late' : '') + (r.reviewerUid ? ' · for ' + esc(rvNameOf(r.reviewerUid)) : '') + '</span></div>' +
+    '<button type="button" class="am-go" data-act="rvopen" data-id="' + esc(r.id) + '">Review</button></li>';
+  const queueHtml = '<div class="am-sub-h"><h3>Needs your review</h3>' + (queue.length ? '<em>' + queue.length + '</em>' : '') + '</div>' +
+    (err.reviews ? '<p class="am-err">Could not reach the reviews — check your connection.</p>'
+      : d.reviews === null ? '<p class="am-loading">Loading…</p>'
+      : queue.length ? '<ul class="am-list">' + queue.slice(0, 8).map(qrow).join("") + '</ul>' + (queue.length > 8 ? '<p class="am-empty">' + (queue.length - 8) + ' more on the Reviews page.</p>' : '')
+      : '<p class="am-empty">Nothing is waiting for your review.</p>');
+
+  const pct = (v, n, word) => '<span class="am-lb-num"><b>' + (v == null ? "–" : v + "%") + '</b><small>' + word + (n ? " · " + n : "") + '</small></span>';
   const row = r => '<li class="am-lb-row' + (r.ranked ? "" : " is-building") + '" data-act="rtperson" data-id="' + esc(r.uid) + '">' +
     '<span class="am-lb-rank">' + (r.ranked ? r.rank : "–") + '</span>' +
-    '<span class="am-lb-who"><b>' + esc(r.name) + '</b><small>' + esc(roleName(r.roleId) || "") + '</small></span>' +
+    '<span class="am-lb-who"><b>' + esc(r.name) + '</b><small>' + esc(roleName(r.roleId) || "No role") + '</small></span>' +
     '<span class="am-lb-rating">' + (r.ranked
       ? '<b>' + rtFmt(r.rating) + '</b><small>/ 5 · ' + r.n + ' reviewed</small>'
       : r.n ? '<b class="am-build">Building data</b><small>' + r.n + ' of ' + r.min + ' reviewed' + (r.rating != null ? ' · ' + rtFmt(r.rating) + ' so far' : '') + '</small>'
-            : '<b class="am-build">No reviews yet</b><small>nothing reviewed' + (amRtPeriod === "month" ? " this month" : "") + '</small>') + '</span>' +
-    '<span class="am-lb-num"><b>' + (r.firstPassPct == null ? "–" : r.firstPassPct + "%") + '</b><small>first pass</small></span>' +
-    '<span class="am-lb-num"><b>' + (r.onTimePct == null ? "–" : r.onTimePct + "%") + '</b><small>on time' + (r.onTimeN ? " · " + r.onTimeN : "") + '</small></span>' +
+            : '<b class="am-build">No reviews yet</b><small>nothing approved ' + periodWord + '</small>') + '</span>' +
+    '<span class="am-lb-num"><b>' + r.n + '</b><small>reviewed</small></span>' +
+    pct(r.onTimePct, r.onTimeN, "on time") +
+    pct(r.firstPassPct, r.n, "first pass") +
     '<span class="am-lb-num"><b>' + r.revisions + '</b><small>revisions</small></span>' +
-    '<span class="am-lb-trend">' + trend(r) + '</span>' +
     '</li>';
+  const head = '<li class="am-lb-head" aria-hidden="true"><span></span><span>Employee</span><span>Rating</span><span>Reviewed</span><span>On time</span><span>First pass</span><span>Revisions</span></li>';
 
   return '<section class="am-panel am-quality">' +
-    '<div class="am-panel-h"><h2>Team quality</h2><em>' + total + ' reviewed' + (pending ? ' · ' + pending + ' waiting on a review' : '') + '</em>' +
-      '<span class="am-chips">' + chip("month", "This month") + chip("all", "All time") + '</span></div>' +
-    (err.reviews ? '<p class="am-err">Could not reach the reviews — check your connection.</p>' : "") +
+    '<div class="am-panel-h"><h2>Team performance</h2><em>' + counts.reviewed + ' approved ' + periodWord + (counts.awaiting ? ' · ' + counts.awaiting + ' awaiting review' : '') + '</em></div>' +
+    '<div class="am-filters">' +
+      '<span class="am-chips">' + RT_PERIODS.map(p => chip(p[0], p[1])).join("") + '</span>' +
+      sel("rtrole", amRt.roleId, "Role", (d.roles || []).map(r => ({ id: r.id, name: r.name || r.id }))) +
+      sel("rttype", amRt.typeId, "Work type", (d.types || []).map(t => ({ id: t.id, name: t.name || t.id }))) +
+    '</div>' +
+    (err.reviews ? '<p class="am-err">Could not reach the reviews — the numbers below may be stale.</p>' : "") +
     '<div class="am-cards">' + cards + '</div>' +
-    (rows.length ? '<ul class="am-lb">' + rows.map(row).join("") + '</ul>' : '<p class="am-empty">Nobody is seated in the organization yet.</p>') +
-    '<p class="am-foot">A task\u2019s rating is quality \u00d7 50% + brief \u00d7 30% + handoff \u00d7 20%, out of 5, given by the person who received the work. ' +
-      'A person\u2019s rating is the mean of their reviewed tasks. Ranked from ' + RT_MIN_REVIEWS + ' reviewed tasks; a revision updates a rating rather than adding one. Press a row for the tasks behind it.</p>' +
+    '<div class="am-lb-wrap">' + (rows.length ? '<ul class="am-lb">' + head + rows.map(row).join("") + '</ul>' : '<p class="am-empty">' + (amRt.roleId ? "Nobody holds that role." : "Nobody is seated in the organization yet.") + '</p>') + '</div>' +
+    '<p class="am-foot">A contribution’s rating is execution quality × 50% + brief accuracy × 30% + handoff readiness × 20%, out of 5, given with written feedback by its reviewer. ' +
+      'A person’s rating is the mean of their approved contributions ' + periodWord + '. Ranked from ' + RT_MIN_REVIEWS + ' - a starting line, not a proof - and every percentage shows its count. ' +
+      'Revisions update a rating rather than adding one; unreviewed work counts as nothing, never zero. Press a row for the work behind it.</p>' +
+    queueHtml +
     '</section>';
 }
 
-/* Everything behind one person's number: each reviewed task, its three
-   scores, who reviewed it and what they decided. The number is only
-   worth what can be seen under it. */
+/* Everything behind one person's number: each approved contribution,
+   its three scores, who reviewed it, what they wrote, and the earlier
+   rounds - the number is only worth what can be seen under it. Reads
+   through the same filters as the board. */
 function amPersonSheet(uid){
   const d = amLast || {};
   const m = (d.members || []).find(x => x.uid === uid);
   if (!m || typeof openSheet !== "function") return;
-  const mine = (d.reviews || []).filter(r => r.aboutUid === uid).sort((a, b) => (b.at || 0) - (a.at || 0));
-  const who = id => { const x = (d.members || []).find(y => y.uid === id); return x ? x.name : "someone"; };
+  const since = rtSince(amRt.period, d.at);
+  const typeName = id => { const t = (d.types || []).find(x => x.id === id); return t ? t.name : ""; };
+  const docs = (d.reviews || []).filter(r => r.aboutUid === uid && (!amRt.typeId || r.typeId === amRt.typeId))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const rated = docs.map(r => ({ r, x: rvRating(r) })).filter(p => p.x && p.x.at >= since);
+  const open = docs.filter(r => r.status !== "approved");
   const when = at => at ? new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-  const rows = mine.map(r => '<li class="am-rv">' +
-    '<div class="am-rv-t"><b>' + esc(r.title || "Untitled") + '</b><small>' + esc(r.stepLabel || "") + ' · reviewed by ' + esc(who(r.byUid)) + ' · ' + esc(when(r.at)) + '</small></div>' +
-    '<div class="am-rv-s"><b>' + rtFmt(r.score) + '</b><small>q ' + (r.scores || {}).quality + ' · b ' + (r.scores || {}).brief + ' · h ' + (r.scores || {}).handoff + '</small></div>' +
-    '<div class="am-rv-f">' + (r.choice ? '<i>' + esc(r.choice) + '</i>' : "") + (r.revisions ? '<i>' + r.revisions + (r.revisions === 1 ? " revision" : " revisions") + '</i>' : r.firstPass ? '<i class="is-good">first pass</i>' : "") +
-      (r.onTime === true ? '<i class="is-good">on time</i>' : r.onTime === false ? '<i class="is-late">late</i>' : "") + '</div>' +
+  const periodWord = amRt.period === "week" ? "this week" : amRt.period === "month" ? "this month" : "all time";
+  const scoreLine = sc => sc ? '<small>' + RT_KEYS.map(k => k[0] + ' ' + sc[k]).join(' · ') + '</small>' : '';
+  const rows = rated.map(({ r, x }) => '<li class="am-rv">' +
+    '<div class="am-rv-t"><b>' + esc(x.title || "Untitled") + '</b><small>' + esc([r.store, x.stepLabel, typeName(r.typeId)].filter(Boolean).join(" · ")) + ' · reviewed by ' + esc(rvNameOf(x.byUid)) + ' · ' + esc(when(x.at)) + '</small>' +
+      (x.feedback ? '<p class="am-rv-fb">“' + esc(x.feedback) + '”</p>' : '') + '</div>' +
+    '<div class="am-rv-s"><b>' + rtFmt(x.score) + '</b>' + scoreLine(x.scores) + '</div>' +
+    '<div class="am-rv-f">' + (x.revisions ? '<i>' + x.revisions + (x.revisions === 1 ? " revision" : " revisions") + '</i>' : '<i class="is-good">first pass</i>') +
+      (x.onTime === true ? '<i class="is-good">on time</i>' : x.onTime === false ? '<i class="is-late">late</i>' : '<i>no deadline</i>') + '</div>' +
     '</li>').join("");
-  const avg = mine.length ? mine.reduce((t, r) => t + r.score, 0) / mine.length : null;
+  const pending = open.map(r => '<li class="am-rv is-open"><div class="am-rv-t"><b>' + esc(r.title || "Untitled") + '</b><small>' + esc([r.store, r.stepLabel].filter(Boolean).join(" · ")) + ' · ' + esc(rvStatusWord[r.status] || r.status) + ' · round ' + (r.round || 1) + '</small></div></li>').join("");
+  const avg = rtMeanTenths(rated.map(p => p.x.tenths));
   openSheet('<h3 class="sheet-title">' + esc(m.name) + '</h3>' +
-    '<p class="org-note">' + (mine.length ? rtFmt(avg) + ' / 5 across ' + mine.length + (mine.length === 1 ? ' reviewed task' : ' reviewed tasks') + ', all time.' : 'Nothing of theirs has been reviewed yet.') + '</p>' +
-    (rows ? '<ul class="am-rvs">' + rows + '</ul>' : ""));
+    '<p class="org-note">' + (rated.length ? rtFmt(avg) + ' / 5 across ' + rated.length + (rated.length === 1 ? ' approved contribution ' : ' approved contributions ') + periodWord + '.' : 'Nothing of theirs has been approved ' + periodWord + '.') +
+      (rated.length && rated.length < RT_MIN_REVIEWS ? ' Building data: ' + rated.length + ' of ' + RT_MIN_REVIEWS + '.' : '') + '</p>' +
+    (rows ? '<ul class="am-rvs">' + rows + '</ul>' : "") +
+    (pending ? '<p class="org-sub">Open</p><ul class="am-rvs">' + pending + '</ul>' : "") +
+    '<button class="btn btn-ghost btn-sm" id="amPsClose">Close</button>', () => { $("amPsClose").onclick = closeSheet; });
 }
 
 /* pure: the groups the home draws, from what was collected */
@@ -414,6 +445,15 @@ function amRenderHome(host, d){
   if (!host.dataset.amBound){
     host.dataset.amBound = "1";
     host.addEventListener("click", amClick);
+    // the two selects on the board: a change redraws through the filter
+    host.addEventListener("change", e => {
+      const el = e.target.closest("select[data-act]");
+      if (!el) return;
+      if (el.dataset.act === "rtrole") amRt.roleId = el.value;
+      else if (el.dataset.act === "rttype") amRt.typeId = el.value;
+      else return;
+      if (amLast) amRenderHome(host, amLast);
+    });
   }
 }
 
@@ -439,8 +479,9 @@ function amClick(e){
     case "team": case "work": case "org": case "flow": call("go", act); break;
     case "late": call("go", "team"); break;
     case "gap": call("go", "org"); break;
-    case "rtperiod": amRtPeriod = id === "all" ? "all" : "month"; if (amLast) amRenderHome($("adminHome"), amLast); break;
+    case "rtperiod": amRt.period = id; if (amLast) amRenderHome($("adminHome"), amLast); break;
     case "rtperson": amPersonSheet(id); break;
+    case "rvopen": { const r = ((d.reviews) || []).find(x => x.id === id); if (r && typeof rvReviewSheet === "function") rvReviewSheet(r); break; }
     case "refresh": amRefresh(); break;
   }
 }

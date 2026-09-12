@@ -411,14 +411,18 @@ async function wkPaintHandoff(item, type){
       ? '<p class="org-sub">What happens next</p><div class="org-chips wk-choices">' + choices.map(c =>
           '<button type="button" class="org-chip wk-choice" data-choice="' + esc(c) + '">' + esc(c) + '</button>').join("") + '</div>'
       : "") +
-    (rates ? rtFormHTML(orgPersonName(lastLeg.by)) : "") +
+    (rates ? rtFormHTML(orgPersonName(lastLeg.by)) +
+        '<label class="org-field"><span>Feedback for ' + esc(orgPersonName(lastLeg.by)) + ' (required)</span><textarea id="wkRateNote" rows="3" maxlength="' + RT_FEEDBACK_MAX + '" placeholder="What decided the scores - and if it is a 5, why it earned one."></textarea></label>' : "") +
     (canAct
       ? '<div class="org-actions"><button type="button" class="org-btn" id="wkAdvance"' + (choices.length || rates ? " disabled" : "") + '>' +
         (choices.length ? "Pick one above" : rates ? "Rate it first" : mine ? "Mark this done" : "Move it on (override)") + '</button></div>'
       : "");
 
   let picked = null, scores = null;
-  const ready = () => { const b = $("wkAdvance"); if (b) b.disabled = (choices.length && !picked) || (rates && !scores); };
+  // a rating needs its words as well as its three numbers
+  const noteOk = () => !rates || !!($("wkRateNote") && $("wkRateNote").value.trim());
+  const ready = () => { const b = $("wkAdvance"); if (b) b.disabled = (choices.length && !picked) || (rates && (!scores || !noteOk())); };
+  if (rates && $("wkRateNote")) $("wkRateNote").addEventListener("input", ready);
   box.querySelectorAll(".wk-choice").forEach(b => b.onclick = () => {
     picked = b.dataset.choice;
     box.querySelectorAll(".wk-choice").forEach(x => x.classList.toggle("is-on", x === b));
@@ -433,6 +437,7 @@ async function wkPaintHandoff(item, type){
       // sent back or not is what the choice says, when the step has one
       const c = picked && choices.length ? (item.handoff && item.handoff.stop && (item.handoff.stop.choices || []).find(x => x.value === picked)) : null;
       out.review = { scores, sentBack: !!(c && c.back) };
+      out.comment = $("wkRateNote").value.trim();
     }
     wkAdvance(item, type, acting.id, $("wkAdvance"), out);
   };
@@ -440,6 +445,9 @@ async function wkPaintHandoff(item, type){
 
 async function wkAdvance(item, type, nodeRunId, btn, output){
   btn.disabled = true; btn.textContent = "Passing it on…";
+  // read before the advance: the rating is about the step that handed the
+  // work here, and the trail is what says who that was
+  const before = output && output.review ? await itemsHandoffLoad(item) : null;
   const r = await itemsAdvanceHandoff(item, type, nodeRunId, output || {});
   if (!r.ok) {
     btn.disabled = false; btn.textContent = "Mark this done";
@@ -448,6 +456,11 @@ async function wkAdvance(item, type, nodeRunId, btn, output){
       : r.error === "needs-choice" ? "This step asks for a decision first."
       : "Could not move it on.");
     return;
+  }
+  if (before && typeof rvRecordFromStep === "function") {
+    const uid = auth.currentUser ? auth.currentUser.uid : null;
+    const stop = hoActiveStops(before.nodeRuns).find(nr => nr.id === nodeRunId) || { nodeId: null };
+    await rvRecordFromStep(item, type, before, stop, output, uid);
   }
   closeSheet();
   toast(r.as === "override" ? "Moved on as owner." : "Done — it has moved to whoever is next.");

@@ -124,6 +124,9 @@ const PERM_CATALOG = [
     { action: "update",  label: "Draw workflows" },
     { action: "publish", label: "Publish workflows" }
   ]},
+  { resource: "review", label: "Reviews", actions: [
+    { action: "decide", label: "Review and rate submitted work" }
+  ]},
   { resource: "automation", label: "Automations", actions: [
     { action: "read",   label: "See automations" },
     { action: "update", label: "Build automations" }

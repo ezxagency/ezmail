@@ -1007,9 +1007,12 @@ function markAssignmentDone(id){
   const me = (typeof auth !== "undefined" && auth && auth.currentUser) ? auth.currentUser.uid : null;
   const rates = !!(h && h.stop && h.stop.rates && h.from && h.from.uid && h.from.uid !== me && typeof rtFormHTML === "function");
   const go = h ? (choices ? "Pick what happens next" : h.next ? "Pass to " + h.next.label : "Finish") : "Mark done";
+  // what the reviewer said about this work, if it went for review
+  const reviewLine = typeof rvFinishLine === "function" ? rvFinishLine(row) : "";
   openSheet(`
     <h2>${esc(title)}</h2>
     <p class="hint">${choices ? `<b>${esc(row.task || "This")}</b> — decide what happens next, and leave a note.` : hint}</p>
+    ${reviewLine}
     ${choices ? `<div class="chips dn-choices" role="radiogroup">${choices.map(c =>
       `<button type="button" class="chip dn-choice" role="radio" aria-checked="false" data-choice="${esc(c.value)}">${esc(c.value)}<i>${
         c.back ? "↩ " : "→ "}${esc(c.to || "Done")}</i></button>`).join("")}</div>` : ""}
@@ -1027,8 +1030,12 @@ function markAssignmentDone(id){
     $("doneCancel").onclick = closeSheet;
     let picked = null, scores = null;
     // the button wakes only once everything the step asks for is there:
-    // a decision if it has choices, three scores if it rates
-    const ready = () => { $("doneSend").disabled = (choices && !picked) || (rates && !scores); };
+    // a decision if it has choices, three scores AND written feedback if
+    // it rates - a score with no words is what the rubric exists to stop
+    const ready = () => {
+      $("doneSend").disabled = (choices && !picked) || (rates && (!scores || !$("doneNote").value.trim()));
+      if (rates && scores && !$("doneNote").value.trim()) $("doneSend").textContent = "Write your feedback first";
+    };
     if (choices) {
       document.querySelectorAll(".dn-choice").forEach(b => b.onclick = () => {
         picked = b.dataset.choice;
@@ -1038,7 +1045,7 @@ function markAssignmentDone(id){
         ready();
       });
     }
-    if (rates) rtFormBind(document.querySelector("#sheetBody .rt-form"), sc => { scores = sc; ready(); });
+    if (rates) { rtFormBind(document.querySelector("#sheetBody .rt-form"), sc => { scores = sc; ready(); }); $("doneNote").addEventListener("input", ready); }
     if (choices || rates) ready();
     $("doneSend").onclick = () => {
       const out = {};

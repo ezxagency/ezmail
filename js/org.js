@@ -79,7 +79,7 @@ const ORG_SEED_ROLES = [
   { id: "manager", name: "Manager", permissions: [
       "item:create:org", "item:read:org", "item:update:org", "item:delete:org",
       "member:read:org", "member:invite:org", "member:hours:org",
-      "workflow:read:org", "report:read:org"] },
+      "workflow:read:org", "report:read:org", "review:decide:org"] },
   { id: "staff",   name: "Staff",   permissions: [
       "item:create:org", "item:read:org", "item:update:assigned", "workflow:read:org"] }
 ];

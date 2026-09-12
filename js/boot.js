@@ -54,6 +54,7 @@ async function startWorkerApp(){
   render();
   watchAssignedTasks();
   watchNotifications();
+  rvWatch();         // this account's reviews, and what waits on it as a reviewer
   syncDirectory();   // keep this account's name findable for @mentions
   backfillDirectory();   // admin only: seed the directory with the whole team
   applyRoute();   // honor a deep link (#/history etc.) present at sign-in

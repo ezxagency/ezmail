@@ -20,32 +20,33 @@
 
 <!-- versioned so a new deploy can never pair fresh HTML with stale cached
      assets - bump ?v= on every css/js change, same value everywhere -->
-<link rel="stylesheet" href="css/base.css?v=224">
-<link rel="stylesheet" href="css/dashboard.css?v=224">
-<link rel="stylesheet" href="css/drawer.css?v=224">
-<link rel="stylesheet" href="css/pages.css?v=224">
-<link rel="stylesheet" href="css/sheets.css?v=224">
-<link rel="stylesheet" href="css/tables.css?v=224">
-<link rel="stylesheet" href="css/responsive.css?v=224">
-<link rel="stylesheet" href="css/pomodoro.css?v=224">
-<link rel="stylesheet" href="css/personal.css?v=224">
-<link rel="stylesheet" href="css/assign.css?v=224">
-<link rel="stylesheet" href="css/org.css?v=224">
-<link rel="stylesheet" href="css/work.css?v=224">
-<link rel="stylesheet" href="css/flow.css?v=224">
-<link rel="stylesheet" href="css/scrubber.css?v=224">
-<link rel="stylesheet" href="css/deck.css?v=224">
-<link rel="stylesheet" href="css/week.css?v=224">
-<link rel="stylesheet" href="css/rail.css?v=224">
-<link rel="stylesheet" href="css/hero.css?v=224">
-<link rel="stylesheet" href="css/started.css?v=224">
-<link rel="stylesheet" href="css/v6.css?v=224">
+<link rel="stylesheet" href="css/base.css?v=225">
+<link rel="stylesheet" href="css/dashboard.css?v=225">
+<link rel="stylesheet" href="css/drawer.css?v=225">
+<link rel="stylesheet" href="css/pages.css?v=225">
+<link rel="stylesheet" href="css/sheets.css?v=225">
+<link rel="stylesheet" href="css/tables.css?v=225">
+<link rel="stylesheet" href="css/responsive.css?v=225">
+<link rel="stylesheet" href="css/pomodoro.css?v=225">
+<link rel="stylesheet" href="css/personal.css?v=225">
+<link rel="stylesheet" href="css/assign.css?v=225">
+<link rel="stylesheet" href="css/org.css?v=225">
+<link rel="stylesheet" href="css/work.css?v=225">
+<link rel="stylesheet" href="css/flow.css?v=225">
+<link rel="stylesheet" href="css/scrubber.css?v=225">
+<link rel="stylesheet" href="css/deck.css?v=225">
+<link rel="stylesheet" href="css/week.css?v=225">
+<link rel="stylesheet" href="css/rail.css?v=225">
+<link rel="stylesheet" href="css/hero.css?v=225">
+<link rel="stylesheet" href="css/started.css?v=225">
+<link rel="stylesheet" href="css/v6.css?v=225">
 <!-- iOS: glass, tints and motion over the new dashboard; .ui-next only -->
-<link rel="stylesheet" href="css/ios.css?v=224">
-<link rel="stylesheet" href="css/admin.css?v=224">
-<link rel="stylesheet" href="css/login.css?v=224">
+<link rel="stylesheet" href="css/ios.css?v=225">
+<link rel="stylesheet" href="css/admin.css?v=225">
+<link rel="stylesheet" href="css/reviews.css?v=225">
+<link rel="stylesheet" href="css/login.css?v=225">
 <!-- last on purpose: the premium layer standardizes motion over everything -->
-<link rel="stylesheet" href="css/premium.css?v=224">
+<link rel="stylesheet" href="css/premium.css?v=225">
 
 
 <div id="loginScreen" class="login-wrap">
@@ -539,6 +540,12 @@
         <span class="drawer-txt">Flow builder<small>Steps, rules &amp; people</small></span>
         <kbd class="drawer-kbd">7</kbd>
       </a>
+      <!-- shown once the account's organization is known (js/reviews.js > rvWatch) -->
+      <a class="drawer-item hidden" id="drawerReviews" href="#/reviews" data-route="reviews">
+        <span class="drawer-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.4l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8z"/></svg></span>
+        <span class="drawer-txt">Reviews<small>Feedback &amp; ratings</small></span>
+        <kbd class="drawer-kbd">8</kbd>
+      </a>
     </nav>
     <!-- the Admin / Me switch, for a phone where there is no rail;
          js/admin.js shows it only to an account with something to administer -->
@@ -665,6 +672,22 @@
     </div>
   </div>
 
+  <div class="admin-page fpage hidden" id="reviewsScreen">
+    <div class="admin-page-inner">
+      <div class="admin-page-head">
+        <div>
+          <p class="fpage-eyebrow">Submitted work, decided</p>
+          <h1 class="admin-page-title">Reviews &amp; Feedback</h1>
+        </div>
+        <button type="button" class="page-back" data-back>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          Back
+        </button>
+      </div>
+      <div id="reviewsBody"></div>
+    </div>
+  </div>
+
   <div class="admin-page fpage hidden" id="flowScreen">
     <div class="admin-page-inner">
       <div class="admin-page-head">
@@ -692,52 +715,53 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="js/config.js?v=224"></script>
-<script src="js/clock.js?v=224"></script>
+<script src="js/config.js?v=225"></script>
+<script src="js/clock.js?v=225"></script>
 <!-- reviewed quality: the math the finish sheets and the admin home share; pure -->
-<script src="js/rating.js?v=224"></script>
+<script src="js/rating.js?v=225"></script>
 <!-- pure grammar, no deps: authorization answers must stay testable -->
-<script src="js/permissions.js?v=224"></script>
+<script src="js/permissions.js?v=225"></script>
 <!-- the universal work object: types, values, facets, one chokepoint -->
-<script src="js/item-engine.js?v=224"></script>
+<script src="js/item-engine.js?v=225"></script>
 <!-- and its Firestore glue, kept dumb so phase 3 can swap its middle -->
 <!-- the shapes today's collections take as Items; pure, used by items.js -->
-<script src="js/migrate.js?v=224"></script>
-<script src="js/items.js?v=224"></script>
-<script src="js/render.js?v=224"></script>
-<script src="js/scrubber.js?v=224"></script>
-<script src="js/deck.js?v=224"></script>
-<script src="js/week.js?v=224"></script>
-<script src="js/hero.js?v=224"></script>
-<script src="js/started.js?v=224"></script>
-<script src="js/ui.js?v=224"></script>
-<script src="js/shift.js?v=224"></script>
-<script src="js/email.js?v=224"></script>
-<script src="js/nav.js?v=224"></script>
-<script src="js/rail.js?v=224"></script>
-<script src="js/admin.js?v=224"></script>
-<script src="js/boot.js?v=224"></script>
-<script src="js/team.js?v=224"></script>
-<script src="js/assign.js?v=224"></script>
-<script src="js/notify.js?v=224"></script>
-<script src="js/auth.js?v=224"></script>
-<script src="js/personal.js?v=224"></script>
-<script src="js/pomodoro.js?v=224"></script>
-<script src="js/workflow-engine.js?v=224"></script>
+<script src="js/migrate.js?v=225"></script>
+<script src="js/items.js?v=225"></script>
+<script src="js/reviews.js?v=225"></script>
+<script src="js/render.js?v=225"></script>
+<script src="js/scrubber.js?v=225"></script>
+<script src="js/deck.js?v=225"></script>
+<script src="js/week.js?v=225"></script>
+<script src="js/hero.js?v=225"></script>
+<script src="js/started.js?v=225"></script>
+<script src="js/ui.js?v=225"></script>
+<script src="js/shift.js?v=225"></script>
+<script src="js/email.js?v=225"></script>
+<script src="js/nav.js?v=225"></script>
+<script src="js/rail.js?v=225"></script>
+<script src="js/admin.js?v=225"></script>
+<script src="js/boot.js?v=225"></script>
+<script src="js/team.js?v=225"></script>
+<script src="js/assign.js?v=225"></script>
+<script src="js/notify.js?v=225"></script>
+<script src="js/auth.js?v=225"></script>
+<script src="js/personal.js?v=225"></script>
+<script src="js/pomodoro.js?v=225"></script>
+<script src="js/workflow-engine.js?v=225"></script>
 <!-- trigger, condition, action. AFTER the workflow engine on purpose:
      it evaluates conditions with wfEvalCondition, and in this app the
      script order IS the dependency graph -->
-<script src="js/automation.js?v=224"></script>
+<script src="js/automation.js?v=225"></script>
 <!-- work that moves person to person: a linear track compiled into a real
      blueprint the engine above runs. BEFORE packs, because a pack ships
      tracks and compiles them with this -->
-<script src="js/handoff.js?v=224"></script>
+<script src="js/handoff.js?v=225"></script>
 <!-- an industry as a JSON file. LAST of the pure modules on purpose:
      it validates packs against the field types, the permission grammar
      and the action kinds the three files above define -->
-<script src="js/packs.js?v=224"></script>
-<script src="js/org.js?v=224"></script>
+<script src="js/packs.js?v=225"></script>
+<script src="js/org.js?v=225"></script>
 <!-- the builder page draws the org above as one picture and saves through it -->
-<script src="js/flow.js?v=224"></script>
-<script src="js/work.js?v=224"></script>
-<script src="js/premium.js?v=224"></script>
+<script src="js/flow.js?v=225"></script>
+<script src="js/work.js?v=225"></script>
+<script src="js/premium.js?v=225"></script>

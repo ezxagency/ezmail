@@ -181,10 +181,22 @@ await page.evaluate(() => {
       note: "Re-cut the backlog into two-week blocks. Anything that slipped twice gets dropped or reassigned." }),
     t("r3", "Approve the final artwork", "Store Delta", "2026-09-08", {})
   ];
+  // one card has been through a review: the block says what was asked for
+  rvMine = [{ id: "r2:work:u1", itemId: "r2", nodeId: null, aboutUid: "u1", status: "changes", round: 1, reviewerUid: null,
+    submission: { link: "https://docs.example.com/backlog", note: "Cut into two-week blocks", at: Date.now() - 3 * 3600000, byUid: "u1", iteration: null, dueAt: null, onTime: null },
+    decision: { kind: "changes", feedback: "Two of the slipped items are still in - drop them or say why they stay.", scores: null, byUid: "u9", at: Date.now() - 3600000 },
+    history: [], title: "Second pass on the sprint backlog", store: "Studio North", updatedAt: Date.now(), version: 2 }];
   dkRender(rows);
   renderAssignedBrief(rows);
 });
 await shoot("next-on-shift");
+await page.evaluate(() => dkTo(1));
+await page.waitForTimeout(900);
+await page.evaluate(() => { dkPos = dkTarget; dkLayout(); });
+await shoot("next-card-review");
+await page.evaluate(() => { dkTo(0); });
+await page.waitForTimeout(700);
+await page.evaluate(() => { dkPos = dkTarget; dkLayout(); });
 
 // ---- the done moment: the finish has landed, the line is through the title ----
 await page.evaluate(() => { dkHold("r1"); dkStrike("r1"); });
@@ -348,23 +360,111 @@ await page.evaluate(() => {
     types: [{ id: "t", statuses: [{ key: "open" }, { key: "done" }] }],
     reviews: (function(){
       const DAY = 86400000, ym = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-      const mk = (about, score, daysAgo, extra) => Object.assign({ aboutUid: about, byUid: "u2", score, at: now - daysAgo * DAY, month: ym(new Date(now - daysAgo * DAY)),
-        firstPass: true, revisions: 0, onTime: true, title: "Spring launch email", stepLabel: "Copy", scores: { quality: 5, brief: 4, handoff: 5 } }, extra || {});
+      let n = 0;
+      const mk = (about, scores, daysAgo, extra) => {
+        const at = now - daysAgo * DAY, tenths = scores.quality * 5 + scores.brief * 3 + scores.handoff * 2, round = (extra && extra.round) || 1;
+        return Object.assign({ id: "w" + (++n) + ":work:" + about, itemId: "w" + n, nodeId: null, typeId: "t", aboutUid: about, aboutRoleId: null, reviewerUid: null,
+          status: "approved", round, submission: { link: "https://docs.example.com/w" + n, note: "Drafts are up", at: at - 3600000, byUid: about, iteration: null, dueAt: at, onTime: true },
+          decision: { kind: "approved", feedback: "Restock leads, the hero is clean and the files are named. A 4 on quality because section two runs long.", scores, byUid: "u2", at },
+          history: [], weightedTenths: tenths, score: tenths / 10, scores, byUid: "u2", at, month: ym(new Date(at)), firstPass: round === 1, revisions: round - 1, onTime: true,
+          title: "Spring launch email", stepLabel: "Copy", store: "Store Epsilon", updatedAt: at, version: 2 }, extra || {});
+      };
       const out = [];
-      for (let i = 0; i < 9; i++) out.push(mk("u3", 4.6, i + 1, { onTime: i !== 4 }));
-      for (let i = 0; i < 4; i++) out.push(mk("u3", 3.9, 35 + i));
-      for (let i = 0; i < 5; i++) out.push(mk("u4", 4.1, i + 2, { firstPass: i % 2 === 0, revisions: i % 2 }));
-      for (let i = 0; i < 3; i++) out.push(mk("u4", 3.2, 33 + i));
-      for (let i = 0; i < 9; i++) out.push(mk("u2", 4.2, i + 3));
+      for (let i = 0; i < 9; i++) out.push(mk("u3", { quality: 5, brief: 4, handoff: 5 }, i + 1, { onTime: i !== 4 }));
+      for (let i = 0; i < 4; i++) out.push(mk("u3", { quality: 4, brief: 4, handoff: 3 }, 35 + i));
+      for (let i = 0; i < 5; i++) out.push(mk("u4", { quality: 4, brief: 4, handoff: 4 }, i + 2, { round: i % 2 ? 2 : 1 }));
+      for (let i = 0; i < 3; i++) out.push(mk("u4", { quality: 3, brief: 3, handoff: 4 }, 33 + i));
+      for (let i = 0; i < 9; i++) out.push(mk("u2", { quality: 4, brief: 5, handoff: 4 }, i + 3));
+      // two waiting on the owner, one of them a second round
+      out.push({ id: "p1:work:u4", itemId: "p1", nodeId: null, typeId: "t", aboutUid: "u4", aboutRoleId: "staff", reviewerUid: null, status: "submitted", round: 2,
+        submission: { link: "https://docs.example.com/backlog", note: "Slipped items dropped; the two that stay are flagged with why.", at: now - 2 * 3600000, byUid: "u4", iteration: null, dueDate: null, dueAt: now + DAY, onTime: true },
+        decision: null, history: [{ round: 1, submission: { link: "https://docs.example.com/backlog", note: "Cut into two-week blocks", at: now - DAY, byUid: "u4" }, decision: { kind: "changes", feedback: "Two of the slipped items are still in.", scores: null, byUid: "u1", at: now - 20 * 3600000 } }],
+        title: "Second pass on the sprint backlog", store: "Studio North", stepLabel: "", brief: "Re-cut the backlog into two-week blocks. Anything that slipped twice gets dropped or reassigned.", score: null, weightedTenths: null, scores: null, updatedAt: now - 2 * 3600000, version: 3 });
+      out.push({ id: "p2:s1:u3", itemId: "p2", nodeId: "s1", typeId: "t", aboutUid: "u3", aboutRoleId: "staff", reviewerUid: null, status: "submitted", round: 1,
+        submission: { link: null, note: "Final artwork exported at 2x, fonts outlined.", at: now - 40 * 60000, byUid: "u3", iteration: 1, dueAt: now - 3600000, onTime: false },
+        decision: null, history: [], title: "Approve the final artwork", store: "Store Delta", stepLabel: "Design", brief: "", score: null, weightedTenths: null, scores: null, updatedAt: now - 40 * 60000, version: 1 });
       return out;
-    })(),
-    items: [{ typeId: "t", status: "open", assigneeIds: ["u3"] }, { typeId: "t", status: "open", assigneeIds: ["u3"] }, { typeId: "t", status: "open", assigneeIds: ["u2"], handoff: { stop: { rates: true }, done: false } },
-            { typeId: "t", status: "open", assigneeIds: ["u4"] }, { typeId: "t", status: "done", assigneeIds: ["u4"] }] });
+    })() });
+  orgS = Object.assign({}, orgS, { myRoleId: "owner", dir: { u1: { name: "Prashanna" }, u2: { name: "Sandy" }, u3: { name: "Ada" }, u4: { name: "Bo" } },
+    roles: [{ id: "owner", name: "Owner", permissions: ["*:*:org"] }, { id: "manager", name: "Manager", permissions: ["review:decide:org"] }, { id: "staff", name: "Staff", permissions: [] }],
+    members: [{ uid: "u1", roleId: "owner" }, { uid: "u2", roleId: "manager" }, { uid: "u3", roleId: "staff" }, { uid: "u4", roleId: "staff" }] });
   try { localStorage.removeItem("ez-adminmode-v1:u1"); } catch (e) {}
   amApply();
 });
 await page.waitForTimeout(700);
 await shoot("next-admin");
+// no page may scroll sideways, at any width - the board is the one
+// thing allowed to, inside its own scrolling box
+const noSideScroll = async label => {
+  const w = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth, document.body.scrollWidth]);
+  assert.ok(w[0] <= w[1] + 1 && w[2] <= w[1] + 1, label + ": the page scrolls sideways (" + w.join("/") + ")");
+};
+await noSideScroll("admin 1920");
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await shoot("next-admin-390");
+await noSideScroll("admin 390");
+// the board on a phone: it scrolls inside its own box, the page does not
+await page.evaluate(() => document.querySelector(".am-quality").scrollIntoView({ block: "start" }));
+await page.waitForTimeout(300);
+await shoot("next-admin-390-board");
+await noSideScroll("admin 390 board");
+await page.setViewportSize({ width: 1920, height: 1080 });
+await page.waitForTimeout(300);
+
+// ---- the reviewer's sheet: the brief, the work and the person together, then the decision ----
+await page.evaluate(() => { rvReviewSheet(amLast.reviews.find(r => r.id === "p1:work:u4")); });
+await page.waitForTimeout(500);
+await page.evaluate(() => {
+  document.querySelector('.rv-kind-bt[data-kind="approved"]').click();
+  document.querySelector('.rt-row[data-key="quality"] .rt-pt[data-v="4"]').click();
+  document.querySelector('.rt-row[data-key="brief"] .rt-pt[data-v="5"]').click();
+});
+await page.waitForTimeout(400);
+await shoot("next-review-sheet");
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await shoot("next-review-sheet-390");
+await noSideScroll("review sheet 390");
+await page.setViewportSize({ width: 1920, height: 1080 });
+await page.evaluate(() => closeSheet());
+await page.waitForTimeout(300);
+
+// ---- the Reviews & Feedback page, as the person whose work it is ----
+await page.evaluate(() => {
+  const now = Date.now(), H = 3600000;
+  const all = amLast.reviews;
+  rvMine = all.filter(r => r.aboutUid === "u4").map(r => Object.assign({}, r, { aboutUid: "u1" }));
+  rvMine.push({ id: "c1:work:u1", itemId: "c1", nodeId: null, typeId: "t", aboutUid: "u1", aboutRoleId: "staff", reviewerUid: "u2", status: "changes", round: 1,
+    submission: { link: "https://docs.example.com/pricelist", note: "Prices updated from the sheet", at: now - 5 * H, byUid: "u1", iteration: null, dueAt: null, onTime: null },
+    decision: { kind: "changes", feedback: "The March lines still show last quarter's numbers - check rows 14 to 22 against the sheet.", scores: null, byUid: "u2", at: now - 2 * H },
+    history: [], title: "Update the price list", store: "Studio North", stepLabel: "", score: null, weightedTenths: null, scores: null, updatedAt: now - 2 * H, version: 2 });
+  rvQueue = all.filter(r => r.status === "submitted");
+  go("reviews");
+});
+await page.waitForTimeout(500);
+await shoot("next-reviews");
+await noSideScroll("reviews 1920");
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await shoot("next-reviews-390");
+await noSideScroll("reviews 390");
+await page.setViewportSize({ width: 1920, height: 1080 });
+await page.waitForTimeout(300);
+
+// ---- the submit sheet ----
+await page.evaluate(() => {
+  openSheet('<h2>Submit for review</h2><p class="hint"><b>Write the spring launch email</b> · Store Epsilon · Copy</p>'
+    + '<div class="rv-brief"><p class="rv-k">The brief</p><p>Three-email sequence for the spring drop. Lead with the restock, not the discount.</p></div>'
+    + '<label class="fld"><span>Link to the work</span><input type="url" id="rvLink" value="https://docs.example.com/spring-launch"></label>'
+    + '<label class="fld"><span>Handoff note</span><textarea id="rvNote" rows="4">Subject lines A/B/C in the doc, body copy for email 1 final, 2 and 3 drafted.</textarea></label>'
+    + '<p class="rv-note" id="rvHint">A link or a note - at least one. Due Wed, Sep 30 on your clock; submitting after that counts as late.</p>'
+    + '<p class="rv-note">Goes to Sandy.</p><button class="btn btn-go" id="rvSend">Submit for review</button><button class="btn btn-ghost btn-sm" id="rvCancel">Cancel</button>');
+});
+await page.waitForTimeout(600);
+await shoot("next-submit-sheet");
+await page.evaluate(() => { closeSheet(); go(""); rvMine = null; rvQueue = null; });
+await page.waitForTimeout(400);
 
 // ---- the Team page, the admin's page laid across the desktop ----
 await page.evaluate(() => { go("team"); });

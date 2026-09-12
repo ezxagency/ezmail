@@ -97,9 +97,13 @@ await env.withSecurityRulesDisabled(async ctx => {
   // a seat - the scheduled shift length. Everything below tests that the
   // "one field" half is real and not just intended.
   await setDoc(doc(db, "orgs/orgA/roles/manager"),
-    { name: "Manager", permissions: ["item:read:org", "member:read:org", "member:hours:org"] });
+    { name: "Manager", permissions: ["item:read:org", "member:read:org", "member:hours:org", "review:decide:org"] });
   await setDoc(doc(db, "users/mgr1"), { email: "mgr@x.com", role: "worker" });
   await setDoc(doc(db, "orgs/orgA/members/mgr1"), { uid: "mgr1", roleId: "manager", joinedAt: 1 });
+  // a plain staff member of orgA who reviews nothing - the actor for "a
+  // member is not a reviewer", and the teammate an owner can name as one
+  await setDoc(doc(db, "users/staff9"), { email: "s9@x.com", role: "worker" });
+  await setDoc(doc(db, "orgs/orgA/members/staff9"), { uid: "staff9", roleId: "staff", joinedAt: 1 });
   await setDoc(doc(db, "orgs/orgB"), { name: "Org B", ownerUid: "worker2", createdAt: 1 });
   await setDoc(doc(db, "orgs/orgB/members/worker2"), { uid: "worker2", roleId: "owner", joinedAt: 1 });
   await setDoc(doc(db, "orgs/orgB/roles/owner"), { name: "Owner", permissions: ["*:*:org"] });
@@ -124,6 +128,7 @@ const newbie2 = env.authenticatedContext("newbie2", { email: "nb2@x.com" }).fire
 const assigner = env.authenticatedContext("assigner1", { email: "prashuchiha34@gmail.com" }).firestore();
 const worker = env.authenticatedContext("worker1", { email: "w1@x.com" }).firestore();
 const manager = env.authenticatedContext("mgr1", { email: "mgr@x.com" }).firestore();
+const staff9 = env.authenticatedContext("staff9", { email: "s9@x.com" }).firestore();
 const anon = env.unauthenticatedContext().firestore();
 const stranger = env.authenticatedContext("stranger1", { email: "stranger@evil.com" }).firestore();
 const unverified = env.authenticatedContext("unverified1", { email: "new@x.com" }).firestore();
@@ -229,20 +234,98 @@ await T("non-owner: delete a run DENIED (history is not a member's to erase)", a
 await T("a stranger reaches none of it", assertFails(getDoc(doc(stranger, "orgs/orgA/runs/run1"))));
 await T("Ez Agency's admin cannot read the member's org", assertFails(getDoc(doc(admin, "orgs/orgM"))));
 
-// ================= REVIEWS: one rating per deliverable, in the reviewer's name =================
-const review = (by, about) => ({ orgId: "orgA", itemId: "it1", runId: "run1", nodeId: "s0", typeId: "brief", title: "Brief #1", stepLabel: "Write",
-  aboutUid: about, byUid: by, scores: { quality: 4, brief: 5, handoff: 4 }, score: 4.3, choice: "Approve", sentBack: false,
-  attempt: 1, revisions: 0, firstPass: true, onTime: null, at: 5, month: "2026-09", history: [] });
-await T("member: rates the work another member handed them", assertSucceeds(setDoc(doc(worker, "orgs/orgA/reviews/run1:s0"), review("worker1", "worker2"))));
-await T("member: rates their OWN work DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/run1:s1"), review("worker1", "worker1"))));
-await T("member: a review in somebody else's name DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/run1:s2"), review("admin1", "worker2"))));
-await T("member: a review with no score DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/run1:s3"), Object.assign(review("worker1", "worker2"), { score: "4" }))));
-await T("member: a second look replaces the rating (same document)", assertSucceeds(setDoc(doc(worker, "orgs/orgA/reviews/run1:s0"), Object.assign(review("worker1", "worker2"), { score: 3.7, attempt: 2, revisions: 1, firstPass: false }))));
-await T("member: reads the org's reviews (their own feedback, the board)", assertSucceeds(getDoc(doc(worker, "orgs/orgA/reviews/run1:s0"))));
-await T("another org cannot read this org's reviews", assertFails(getDoc(doc(member, "orgs/orgA/reviews/run1:s0"))));
-await T("a stranger reaches no review", assertFails(getDoc(doc(stranger, "orgs/orgA/reviews/run1:s0"))));
-await T("non-owner: delete a review DENIED (a deleted review is a changed score)", assertFails(deleteDoc(doc(worker, "orgs/orgA/reviews/run1:s0"))));
-await T("owner: deletes a review", assertSucceeds(deleteDoc(doc(admin, "orgs/orgA/reviews/run1:s0"))));
+// ================= REVIEWS: submit, decide, resubmit - one document per contribution =================
+// The document as js/reviews.js writes it. setDoc replaces the whole
+// document, which is what a transaction's update amounts to from the
+// rules' side: request.resource.data is always the full next document.
+const NULLS = { weightedTenths: null, score: null, scores: null, byUid: null, at: null, month: null, firstPass: null, revisions: null, onTime: null };
+const sub = (about, extra) => Object.assign({ orgId: "orgA", itemId: "it1", runId: null, nodeId: null, typeId: "task", title: "A", store: "", stepLabel: "", brief: "the brief",
+  aboutUid: about, aboutRoleId: "staff", reviewerUid: null, status: "submitted", round: 1,
+  submission: { link: "https://docs.example.com/a", note: "here it is", at: 5, byUid: about, iteration: null, dueAt: null, onTime: null },
+  decision: null, history: [], createdAt: 5, updatedAt: 5, version: 1 }, NULLS, extra || {});
+const S = { quality: 4, brief: 5, handoff: 4 };   // 43 tenths
+const approve = (prev, by, scores, extra) => Object.assign({}, prev, {
+  status: "approved", decision: { kind: "approved", feedback: "Restock first, files named.", scores, byUid: by, at: 9 },
+  weightedTenths: scores.quality * 5 + scores.brief * 3 + scores.handoff * 2, score: (scores.quality * 5 + scores.brief * 3 + scores.handoff * 2) / 10,
+  scores, byUid: by, at: 9, month: "2026-09", firstPass: prev.round === 1, revisions: prev.round - 1, onTime: prev.submission.onTime,
+  updatedAt: 9, version: prev.version + 1 }, extra || {});
+const changes = (prev, by, extra) => Object.assign({}, prev, {
+  status: "changes", decision: { kind: "changes", feedback: "Lead with the restock.", scores: null, byUid: by, at: 9 },
+  updatedAt: 9, version: prev.version + 1 }, NULLS, extra || {});
+const resubmit = (prev, extra) => Object.assign({}, prev, {
+  status: "submitted", round: prev.round + 1, decision: null,
+  submission: { link: "https://docs.example.com/a2", note: "round two", at: 12, byUid: prev.aboutUid, iteration: null, dueAt: null, onTime: null },
+  history: prev.history.concat([{ round: prev.round, submission: prev.submission, decision: prev.decision }]),
+  updatedAt: 12, version: prev.version + 1 }, NULLS, extra || {});
+const R1 = "orgs/orgA/reviews/it1:work:worker1";
+
+// --- submitting ---
+await T("member: submits their own work for review", assertSucceeds(setDoc(doc(worker, R1), sub("worker1"))));
+await T("member: a submission in somebody else's name DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/it1:work:staff9"), sub("staff9"))));
+await T("member: picking their own reviewer on the way in DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/it2:work:worker1"), sub("worker1", { itemId: "it2", reviewerUid: "staff9" }))));
+await T("member: a submission with a javascript: link DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/it2:work:worker1"), sub("worker1", { itemId: "it2", submission: { link: "javascript:alert(1)", note: "", at: 5, byUid: "worker1" } }))));
+await T("member: a submission that arrives already scored DENIED", assertFails(setDoc(doc(worker, "orgs/orgA/reviews/it2:work:worker1"), approve(sub("worker1", { itemId: "it2" }), "admin1", S, { version: 1 }))));
+await T("member: rating their OWN work DENIED, even as a decision in their own name", assertFails(setDoc(doc(worker, R1), approve(sub("worker1"), "worker1", S))));
+await T("another org's owner reaches no review here", assertFails(getDoc(doc(member, R1))));
+await T("a stranger reaches no review", assertFails(getDoc(doc(stranger, R1))));
+await T("member: reads the org's reviews (their own feedback, the board)", assertSucceeds(getDoc(doc(worker, R1))));
+await T("member: lists the org's reviews", assertSucceeds(getDocs(collection(worker, "orgs/orgA/reviews"))));
+
+// --- deciding ---
+await T("plain member (no review:decide): deciding DENIED", assertFails(setDoc(doc(staff9, R1), approve(sub("worker1"), "staff9", S))));
+await T("owner: an approval without feedback DENIED", assertFails(setDoc(doc(admin, R1), approve(sub("worker1"), "admin1", S, { decision: { kind: "approved", feedback: "", scores: S, byUid: "admin1", at: 9 } }))));
+await T("owner: an approval with a score out of range DENIED", assertFails(setDoc(doc(admin, R1), approve(sub("worker1"), "admin1", { quality: 6, brief: 5, handoff: 4 }))));
+await T("owner: an approval with a fractional score DENIED", assertFails(setDoc(doc(admin, R1), approve(sub("worker1"), "admin1", { quality: 4.5, brief: 5, handoff: 4 }))));
+await T("owner: an approval whose tenths do not match the scores DENIED", assertFails(setDoc(doc(admin, R1), approve(sub("worker1"), "admin1", S, { weightedTenths: 50 }))));
+await T("owner: a decision in somebody else's name DENIED", assertFails(setDoc(doc(admin, R1), approve(sub("worker1"), "mgr1", S))));
+await T("owner: a decision that does not bump the version DENIED (two decisions cannot both land)", assertFails(setDoc(doc(admin, R1), approve(sub("worker1"), "admin1", S, { version: 1 }))));
+await T("owner: a decision that rewrites what was submitted DENIED", assertFails(setDoc(doc(admin, R1), approve(sub("worker1"), "admin1", S, { submission: Object.assign({}, sub("worker1").submission, { note: "edited" }) }))));
+await T("owner: requests changes with feedback", assertSucceeds(setDoc(doc(admin, R1), changes(sub("worker1"), "admin1"))));
+await T("owner: a second decision on a decided round DENIED (version has moved on)", assertFails(setDoc(doc(admin, R1), approve(sub("worker1"), "admin1", S))));
+await T("member: cannot edit the decision on their own review", assertFails(setDoc(doc(worker, R1), changes(sub("worker1"), "admin1", { decision: { kind: "changes", feedback: "fine actually", scores: null, byUid: "admin1", at: 9 }, version: 3 }))));
+
+// --- resubmitting ---
+const afterChanges = changes(sub("worker1"), "admin1");
+await T("member: a resubmission that drops the closed round from history DENIED", assertFails(setDoc(doc(worker, R1), resubmit(afterChanges, { history: [] }))));
+await T("member: a resubmission that rewrites history DENIED", assertFails(setDoc(doc(worker, R1), resubmit(afterChanges, { history: [{ round: 1, submission: afterChanges.submission, decision: { kind: "approved", feedback: "was fine", scores: S, byUid: "admin1", at: 9 } }] }))));
+await T("member: a resubmission that names a reviewer DENIED", assertFails(setDoc(doc(worker, R1), resubmit(afterChanges, { reviewerUid: "staff9" }))));
+await T("member: a resubmission that keeps a score DENIED", assertFails(setDoc(doc(worker, R1), resubmit(afterChanges, { score: 4.3, weightedTenths: 43, scores: S }))));
+await T("somebody else resubmitting a person's work DENIED", assertFails(setDoc(doc(staff9, R1), resubmit(afterChanges))));
+await T("member: resubmits after changes - the round closes into history", assertSucceeds(setDoc(doc(worker, R1), resubmit(afterChanges))));
+const round2 = resubmit(afterChanges);
+await T("manager (review:decide): approves round two with the exact tenths", assertSucceeds(setDoc(doc(manager, R1), approve(round2, "mgr1", S))));
+await T("member: reopening an approved review with the history intact (a loop sent it round again)", assertSucceeds(setDoc(doc(worker, R1), resubmit(approve(round2, "mgr1", S)))));
+await T("owner: tampering with a closed round in history DENIED", assertFails(setDoc(doc(admin, R1), Object.assign(resubmit(approve(round2, "mgr1", S)), {
+  history: [{ round: 1, submission: afterChanges.submission, decision: { kind: "changes", feedback: "REWRITTEN", scores: null, byUid: "admin1", at: 9 } }, resubmit(approve(round2, "mgr1", S)).history[1]],
+  version: resubmit(approve(round2, "mgr1", S)).version + 1 }))));
+
+// --- naming a reviewer ---
+const R3 = "orgs/orgA/reviews/it3:work:worker1";
+await setDoc(doc(worker, R3), sub("worker1", { itemId: "it3" }));
+await T("member: naming their own reviewer DENIED", assertFails(updateDoc(doc(worker, R3), { reviewerUid: "staff9", updatedAt: 7, version: 2 })));
+await T("owner: naming the person as their own reviewer DENIED", assertFails(updateDoc(doc(admin, R3), { reviewerUid: "worker1", updatedAt: 7, version: 2 })));
+await T("owner: naming a reviewer and a score in one write DENIED (one field, pinned)", assertFails(updateDoc(doc(admin, R3), { reviewerUid: "staff9", score: 5, updatedAt: 7, version: 2 })));
+await T("owner: names an independent teammate as reviewer", assertSucceeds(updateDoc(doc(admin, R3), { reviewerUid: "staff9", updatedAt: 7, version: 2 })));
+await T("named reviewer: decides the review they were given", assertSucceeds(setDoc(doc(staff9, R3), approve(sub("worker1", { itemId: "it3", reviewerUid: "staff9", version: 2 }), "staff9", S))));
+await T("owner: naming a reviewer on an approved review DENIED", assertFails(updateDoc(doc(admin, R3), { reviewerUid: "mgr1", updatedAt: 8, version: 4 })));
+await T("named reviewer: deciding a review they were NOT given DENIED", assertFails(setDoc(doc(staff9, "orgs/orgA/reviews/it4:work:worker1"), approve(sub("worker1", { itemId: "it4" }), "staff9", S, { version: 1 }))));
+
+// --- a step that rates: the reviewer opens and closes the round in one write ---
+const stepSub = about => ({ link: null, note: "the finish note", at: 5, byUid: about, iteration: 1, dueAt: null, onTime: null });
+const R5 = "orgs/orgA/reviews/it5:s0:worker1";
+await T("manager: records a step's rating with the step's own finish as the submission", assertSucceeds(setDoc(doc(manager, R5), approve(sub("worker1", { itemId: "it5", nodeId: "s0", submission: stepSub("worker1") }), "mgr1", S, { version: 1 }))));
+await T("plain member: recording a step's rating DENIED", assertFails(setDoc(doc(staff9, "orgs/orgA/reviews/it6:s0:worker1"), approve(sub("worker1", { itemId: "it6", nodeId: "s0", submission: stepSub("worker1") }), "staff9", S, { version: 1 }))));
+const stepDone = approve(sub("worker1", { itemId: "it5", nodeId: "s0", submission: stepSub("worker1") }), "mgr1", S, { version: 1 });
+// one write opens round two AND decides it, so the version steps once
+const stepRound2 = approve(Object.assign(resubmit(stepDone), { submission: Object.assign(stepSub("worker1"), { iteration: 2 }) }), "mgr1", S, { version: 2 });
+await T("manager: the step reached again opens round two and decides it, keeping round one", assertSucceeds(setDoc(doc(manager, R5), stepRound2)));
+await T("manager: the same again, with round one dropped from history DENIED", assertFails(setDoc(doc(manager, R5), approve(Object.assign(resubmit(stepRound2), { history: [] }), "mgr1", S, { version: 3 }))));
+await T("manager: the same again, with round two's decision rewritten in history DENIED", assertFails(setDoc(doc(manager, R5), approve(Object.assign(resubmit(stepRound2), { history: [stepRound2.history[0], { round: 2, submission: stepRound2.submission, decision: Object.assign({}, stepRound2.decision, { feedback: "REWRITTEN" }) }] }), "mgr1", S, { version: 3 }))));
+
+// --- deleting ---
+await T("non-owner: delete a review DENIED (a deleted review is a changed score)", assertFails(deleteDoc(doc(worker, R1))));
+await T("manager: delete a review DENIED", assertFails(deleteDoc(doc(manager, R1))));
+await T("owner: deletes a review", assertSucceeds(deleteDoc(doc(admin, R1))));
 
 // ================= THE DIRECTORY IS TENANT-SCOPED =================
 // It holds names and emails. "Every signed-in account may read it" was

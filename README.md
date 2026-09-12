@@ -50,7 +50,8 @@ js/   classic scripts sharing one global scope; loaded in order
   packs.js          an industry as data: 8 starter packs + their validator (pure)
   handoff.js        a linear track compiled to a real blueprint (pure)
   flow.js           the Flow builder page: one kind of work as one picture
-  rating.js         reviewed quality: three scores per handed-over task, the board (pure)
+  rating.js         reviews: the math (integer tenths), the rubric, what a review is, the board (pure)
+  reviews.js        submit / decide / resubmit (transactions), the sheets, the Reviews page, the watch
   work.js           the Work page: every control generated from the ItemType
   org.js            the Organization page: tenancy, the roster, the roles editor
   render.js         dashboard render loop, rings, per-second tick
@@ -129,7 +130,7 @@ slip before it ships rather than after.
 cd tests
 npm ci               # once
 npm test             # 485 assertions, node + jsdom, seconds
-npm run test:rules   # 259 rules assertions (needs Java + firebase-tools)
+npm run test:rules   # 304 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
 
@@ -143,7 +144,7 @@ push to `main` is the release.
 Firestore **rules and indexes** deploy themselves:
 `.github/workflows/deploy-rules.yml` ships them on any push to `main` that
 touches `firestore.rules` or `firestore.indexes.json`, and only after the
-259-assertion suite passes against the edited rules. It needs a
+304-assertion suite passes against the edited rules. It needs a
 `FIREBASE_SERVICE_ACCOUNT` secret (Settings → Secrets and variables →
 Actions); without it the workflow verifies the rules and skips the deploy
 with a warning instead of failing.

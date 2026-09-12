@@ -351,7 +351,11 @@ function hoSummary(blueprint, nodeRuns, members, nameOf, run){
     return { value: v, to: first ? ((first.config && first.config.label) || first.id) : (to.done ? "Done" : ""), back: !!(first && stops.indexOf(first) < idx) };
   });
   return {
-    stop: Object.assign({ label: (cur && cur.config && cur.config.label) || active.nodeId, index: idx + 1, count: stops.length },
+    // the step's id and which pass of it this is ride along, because a
+    // review (js/reviews.js) is keyed by the step and refuses to reuse an
+    // approval given to an earlier pass of the same step
+    stop: Object.assign({ label: (cur && cur.config && cur.config.label) || active.nodeId, index: idx + 1, count: stops.length,
+        nodeId: active.nodeId, iteration: (nodeRuns || []).filter(nr => nr && nr.nodeId === active.nodeId).length },
       choices.length ? { choices } : {}, cfg.rates ? { rates: true } : {}),
     from,
     next: nextOf(after),

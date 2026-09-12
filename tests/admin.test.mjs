@@ -42,7 +42,7 @@ const ctx = dom.getInternalVMContext();
 ctx.firebase = { initializeApp(){}, auth(){ return { currentUser: { uid: "u1", email: "a@b.c" } }; },
   firestore(){ return { collection(){ throw new Error("no network in this test"); } }; } };
 ctx.console = console;
-["js/config.js", "js/rating.js", "js/rail.js", "js/admin.js"].forEach(f =>
+["js/config.js", "js/rating.js", "js/permissions.js", "js/reviews.js", "js/rail.js", "js/admin.js"].forEach(f =>
   vm.runInContext(readFileSync(join(here, "..", f), "utf8"), ctx, { filename: f }));
 vm.runInContext(`var isAdmin = false, isMember = false, canAssignTasks = false;
   var assignedTasksSeen = null;
@@ -206,43 +206,87 @@ T("nothing to do says so; a read that failed says THAT, not 'nothing to do'", ()
   assert.ok(/could not reach the team/.test(h.querySelector(".am-pulse").textContent), "a failed team read was not said on the pulse");
 });
 
-/* ---------- team quality: the board under Needs you ---------- */
+/* ---------- team performance: the board under Needs you ---------- */
 const QD = () => {
   const now = new Date(2026, 8, 12).getTime(), DAY = 86400000;
-  const rv = (about, score, extra) => Object.assign({ aboutUid: about, byUid: "u9", score, at: now - DAY, month: "2026-09", firstPass: true, revisions: 0, onTime: true, title: "Brief", stepLabel: "Write", scores: { quality: 4, brief: 5, handoff: 4 } }, extra || {});
+  let n = 0;
+  // an approved review document, as js/reviews.js writes it
+  const rv = (about, scores, extra) => {
+    const tenths = scores.quality * 5 + scores.brief * 3 + scores.handoff * 2;
+    const at = now - DAY;
+    return Object.assign({ id: "it" + (++n) + ":work:" + about, itemId: "it" + n, nodeId: null, typeId: "t", aboutUid: about, aboutRoleId: null,
+      status: "approved", round: 1, submission: { link: null, note: "here", at: at - 1000, byUid: about, iteration: null, dueAt: at, onTime: true },
+      decision: { kind: "approved", feedback: "Clean and on brief.", scores, byUid: "u9", at }, history: [],
+      weightedTenths: tenths, score: tenths / 10, scores, byUid: "u9", at, month: "2026-09", firstPass: true, revisions: 0, onTime: true,
+      title: "Brief", stepLabel: "Write", store: "Alpha", updatedAt: at, version: 2 }, extra || {});
+  };
+  const pending = { id: "it99:work:u4", itemId: "it99", nodeId: null, typeId: "t", aboutUid: "u4", aboutRoleId: "staff", status: "submitted", round: 2,
+    submission: { link: "https://x.example/doc", note: "Second go", at: now - 3600000, byUid: "u4", iteration: null, dueAt: null, onTime: null },
+    decision: null, history: [{ round: 1, submission: { link: null, note: "first", at: now - 2 * DAY, byUid: "u4" }, decision: { kind: "changes", feedback: "Tighten it", scores: null, byUid: "u9", at: now - DAY } }],
+    reviewerUid: null, title: "Landing page", stepLabel: "", store: "Beta", score: null, weightedTenths: null, scores: null, updatedAt: now - 3600000, version: 3 };
   return {
     at: now, caps: { admin: false, assign: false, owner: true, member: true, org: true, orgName: "Ez" },
     pending: null, assigns: null, team: null, gaps: [], errors: {},
     members: [{ uid: "u2", name: "Sandy", roleId: "manager" }, { uid: "u3", name: "Ada", roleId: "staff" }, { uid: "u4", name: "Bo", roleId: "staff" }],
     roles: [{ id: "manager", name: "Manager" }, { id: "staff", name: "Staff" }],
-    types: [{ id: "t", statuses: [{ key: "open" }, { key: "done" }] }],
-    reviews: Array.from({ length: 9 }, () => rv("u3", 4.6)).concat(Array.from({ length: 2 }, () => rv("u4", 3.5))),
-    items: [{ typeId: "t", status: "open", assigneeIds: ["u3"] }, { typeId: "t", status: "done", assigneeIds: ["u4"] },
-            { typeId: "t", status: "open", assigneeIds: ["u2"], handoff: { stop: { rates: true }, done: false } }]
+    types: [{ id: "t", name: "Task", statuses: [{ key: "open" }, { key: "done" }] }, { id: "v", name: "Video", statuses: [] }],
+    reviews: Array.from({ length: 9 }, () => rv("u3", { quality: 5, brief: 4, handoff: 5 }))
+      .concat(Array.from({ length: 2 }, () => rv("u4", { quality: 3, brief: 4, handoff: 3 })))
+      .concat([rv("u2", { quality: 4, brief: 4, handoff: 4 }, { typeId: "v" }), pending])
   };
 };
-T("the board draws under Needs you: standout with a reason, ranked rows, and building data below the minimum", () => {
-  run(`amRtPeriod = "month";`);
+T("the board draws under Needs you: standout with a reason, the counts, ranked rows with every column, and building data below the minimum", () => {
+  run(`amRt = { period: "month", roleId: "", typeId: "" }; rvIsReviewer = () => true; orgPersonName = uid => ({ u2: "Sandy", u3: "Ada", u4: "Bo", u9: "Lead" })[uid] || uid;`);
   doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(QD())})`);
   const q = doc.querySelector(".am-quality");
-  assert.ok(q, "no quality panel");
+  assert.ok(q, "no performance panel");
   assert.match(q.querySelector(".am-card-standout").textContent, /Ada/);
-  assert.match(q.querySelector(".am-card-standout").textContent, /4\.60/);
+  assert.match(q.querySelector(".am-card-standout").textContent, /4\.70/, "5×.5 + 4×.3 + 5×.2 is 4.70");
   assert.match(q.querySelector(".am-card-standout").textContent, /Consistently strong work/);
+  assert.match(q.querySelector(".am-card-reviewed").textContent, /12/);
+  assert.match(q.querySelector(".am-card-waiting").textContent, /1/);
   const rows = [...q.querySelectorAll(".am-lb-row")];
   assert.deepEqual(rows.map(r => r.querySelector(".am-lb-who b").textContent), ["Ada", "Bo", "Sandy"]);
-  assert.match(rows[0].querySelector(".am-lb-rating").textContent, /4\.60/);
+  assert.deepEqual([...q.querySelectorAll(".am-lb-head span")].map(x => x.textContent), ["", "Employee", "Rating", "Reviewed", "On time", "First pass", "Revisions"]);
+  assert.match(rows[0].querySelector(".am-lb-rating").textContent, /4\.70/);
   assert.match(rows[0].querySelector(".am-lb-rating").textContent, /9 reviewed/);
+  assert.match(rows[0].textContent, /100%on time · 9/, "on time carries its count");
+  assert.match(rows[0].textContent, /100%first pass · 9/);
   assert.match(rows[1].querySelector(".am-lb-rating").textContent, /Building data/);
   assert.match(rows[1].querySelector(".am-lb-rating").textContent, /2 of 8 reviewed/);
-  assert.match(rows[2].querySelector(".am-lb-rating").textContent, /No reviews yet/);
-  assert.match(q.querySelector(".am-panel-h em").textContent, /11 reviewed · 1 waiting on a review/);
-  assert.match(q.querySelector(".am-card-room").textContent, /Bo0 open|Bo.*0 open/);
-  assert.match(q.querySelector(".am-foot").textContent, /quality × 50% \+ brief × 30% \+ handoff × 20%/);
+  assert.match(rows[1].querySelector(".am-lb-rating").textContent, /3\.30 so far/);
+  assert.match(rows[2].querySelector(".am-lb-rating").textContent, /1 of 8/);
+  assert.match(q.querySelector(".am-panel-h em").textContent, /12 approved this month · 1 awaiting review/);
+  // the queue: the pending submission is a row with Review on it, naming the person and the round
+  const qr = q.querySelector('.am-row[data-act="rvopen"]');
+  assert.ok(qr, "no Needs your review row");
+  assert.match(qr.textContent, /Landing page/); assert.match(qr.textContent, /Bo · Staff/); assert.match(qr.textContent, /round 2/);
+  assert.match(q.querySelector(".am-foot").textContent, /execution quality × 50% \+ brief accuracy × 30% \+ handoff readiness × 20%/);
+  assert.match(q.querySelector(".am-foot").textContent, /never zero/);
 });
-T("the period chip switches the window; a failed read says could not reach, not nobody reviewed", () => {
-  doc.querySelector('[data-act="rtperiod"][data-id="all"]').click();
-  assert.equal(run("amRtPeriod"), "all");
+T("the filters narrow the board: period, role, and kind of work; a failed read says could not reach", () => {
+  doc.querySelector('[data-act="rtperiod"][data-id="week"]').click();
+  assert.equal(run("amRt.period"), "week");
+  doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(QD())})`);
+  assert.match(doc.querySelector(".am-panel-h em").textContent, /12 approved this week/);
+  // role: only staff are compared, and the manager's row is gone
+  run(`amRt.roleId = "staff";`);
+  doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(QD())})`);
+  let rows = [...doc.querySelectorAll(".am-lb-row")].map(r => r.querySelector(".am-lb-who b").textContent);
+  assert.deepEqual(rows, ["Ada", "Bo"]);
+  assert.match(doc.querySelector(".am-card-reviewed").textContent, /11/, "the manager's approval must leave the count with the role filter");
+  // kind of work: only the video counts, and Ada has nothing under it
+  run(`amRt.roleId = ""; amRt.typeId = "v";`);
+  doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(QD())})`);
+  rows = [...doc.querySelectorAll(".am-lb-row")];
+  assert.match(rows.find(r => /Sandy/.test(r.textContent)).querySelector(".am-lb-rating").textContent, /1 of 8/);
+  assert.match(rows.find(r => /Ada/.test(r.textContent)).querySelector(".am-lb-rating").textContent, /No reviews yet/);
+  assert.match(doc.querySelector(".am-card-reviewed").textContent, /1/);
+  assert.equal(doc.querySelector('select[data-act="rttype"]').value, "v", "the select does not show the filter it applies");
+  // the selects drive the filter through the change handler
+  run(`amLast = ${JSON.stringify(QD())}; amRenderHome($("adminHome"), amLast);`);
+  const sel = doc.querySelector('select[data-act="rttype"]'); sel.value = ""; sel.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+  assert.equal(run("amRt.typeId"), "");
   const d = QD(); d.errors.reviews = true; d.reviews = null;
   doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(d)})`);
   assert.match(doc.querySelector(".am-quality").textContent, /Could not reach the reviews/);
@@ -251,7 +295,19 @@ T("the period chip switches the window; a failed read says could not reach, not 
   const bare = QD(); delete bare.members;
   doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(bare)})`);
   assert.equal(doc.querySelector(".am-quality"), null);
-  run(`amRtPeriod = "month";`);
+  run(`amRt = { period: "month", roleId: "", typeId: "" };`);
+});
+T("pressing a queue row opens the review sheet; pressing a person opens the work behind their number", () => {
+  run(`__calls.length = 0; rvReviewSheet = r => __calls.push(["review", r.id]); openSheet = html => __calls.push(["sheet", html]);`);
+  draw(QD());
+  doc.querySelector('.am-row[data-act="rvopen"] .am-go').click();
+  doc.querySelector('.am-lb-row[data-id="u3"]').click();
+  const calls = runJ("__calls");
+  assert.deepEqual(calls[0], ["review", "it99:work:u4"]);
+  assert.equal(calls[1][0], "sheet");
+  assert.match(calls[1][1], /Ada/); assert.match(calls[1][1], /4\.70 \/ 5 across 9 approved contributions this month/);
+  assert.match(calls[1][1], /Clean and on brief/, "the explanation behind the number is not in the sheet");
+  assert.match(calls[1][1], /reviewed by Lead/);
 });
 
 T("an owner who is not an Ez admin gets the org's part of the home and none of the team's", () => {

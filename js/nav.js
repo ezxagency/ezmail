@@ -4,7 +4,7 @@
    now, reached from the hamburger beside the wordmark. Routes live in the
    hash so the browser's back button and deep links both behave.
    ============================================================ */
-const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", team: "teamScreen", work: "workScreen", org: "orgScreen", flow: "flowScreen" };
+const PAGE_IDS = { mission: "missionScreen", history: "historyScreen", team: "teamScreen", work: "workScreen", org: "orgScreen", flow: "flowScreen", reviews: "reviewsScreen" };
 
 function currentRoute(){
   const h = location.hash.replace(/^#\/?/, "");
@@ -96,7 +96,7 @@ document.addEventListener("keydown", e => {
   if ($("sheet").classList.contains("on")) return;
   if (typeof cxIsOpen === "function" && cxIsOpen()) return;
   // the same digits the drawer prints beside each item - all eight of them
-  const map = { "1": "", "2": "mission", "3": "history", "4": "team", "5": "work", "6": "org", "7": "flow" };
+  const map = { "1": "", "2": "mission", "3": "history", "4": "team", "5": "work", "6": "org", "7": "flow", "8": "reviews" };
   if (!(e.key in map)) return;
   const r = map[e.key];
   if (!navAllowed(r)) return;
@@ -129,6 +129,10 @@ function applyRoute(){
   else if (r === "work") enterWorkPage();
   else if (r === "org") enterOrgPage();
   else if (r === "flow") enterFlowPage();
+  // the reviews page redraws itself from the live watch while it is open,
+  // and stops the moment it is not
+  if (typeof leaveReviewsPage === "function" && r !== "reviews") leaveReviewsPage();
+  if (r === "reviews" && typeof enterReviewsPage === "function") enterReviewsPage();
 }
 window.addEventListener("hashchange", applyRoute);
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(""));
