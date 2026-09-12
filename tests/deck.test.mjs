@@ -395,5 +395,30 @@ T("the spring covers the same ground in the same milliseconds at 60Hz and 120Hz"
   run(`delete globalThis.requestAnimationFrame;`);
 });
 
+/* The per-frame numbers the deck writes (--d, --o, --v) may only reach
+   properties the compositor changes without a repaint. Fed into a
+   gradient, a border, a shadow or a backdrop blur radius they repainted
+   every visible card sixty times a second, and the deck lagged the hand. */
+T("the deck's per-frame depth drives only transform, opacity and filter", () => {
+  const css = readFileSync(join(here, "..", "css", "ios.css"), "utf8");
+  const bad = [];
+  for (const m of css.matchAll(/([a-z-]+)\s*:\s*([^;{}]*var\(--[dov]\)[^;{}]*)/g)){
+    if (!/^(filter|-webkit-filter|opacity|transform)$/.test(m[1])) bad.push(m[1] + ": " + m[2].trim().slice(0, 60));
+  }
+  assert.deepEqual(bad, [], "painted properties driven per frame");
+});
+
+T("a trackpad's small deltas add up to one notch; a mouse notch moves at once", () => {
+  run(`dkReset(); S.status = "IDLE"; S.shift = null;
+       dkRender(Array.from({ length: 10 }, (_, i) => ({ id: "r" + i, task: "Task " + i })));`);
+  const wheel = (dy, t) => deck().dispatchEvent(new dom.window.WheelEvent("wheel", { deltaY: dy, bubbles: true, cancelable: true }));
+  wheel(100);
+  assert.equal(run(`dkTarget`), 1, "a mouse notch did not move a card");
+  wheel(10); wheel(10); wheel(10);
+  assert.equal(run(`dkTarget`), 1, "three small trackpad deltas moved a card each");
+  wheel(10); wheel(15);
+  assert.equal(run(`dkTarget`), 2, "fifty pixels of trackpad did not add up to a card");
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

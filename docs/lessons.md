@@ -362,6 +362,21 @@ tuned at, with a missing or absurd delta counting as one frame.
 *Guard:* `tests/deck.test.mjs` drives the spring over the same 200ms as
 twelve frames and as twenty-four and requires the same position.
 
+**Glass that changed every frame was repainted every frame.** To make
+the deck's glass move with the motion, its depth was fed into the
+gradient's alpha, the border colour, the shadow and the backdrop blur
+radius. Each of those is a PAINT: every visible card was rasterised
+again and its backdrop re-blurred on every frame the stack moved, and
+the deck lagged the wheel by a visible beat. The look was right; the
+property was wrong.
+*Rule:* a number written per frame may only reach `transform`, `opacity`
+and `filter` - what the compositor changes on the GPU without a repaint.
+Anything painted (backgrounds, borders, shadows, backdrop radii) is
+static, and is faded or slid by a promoted pseudo-element's opacity or
+transform instead.
+*Guard:* `tests/deck.test.mjs` reads `css/ios.css` and fails if `--d`,
+`--o` or `--v` appears in any other property.
+
 ### Cuts
 
 **Campaigns was cut, not migrated (2026-09-09).**

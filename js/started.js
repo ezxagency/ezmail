@@ -149,7 +149,7 @@ function stFrame(ts){
   const dt = (typeof ts === "number" && stPrevFrame) ? ts - stPrevFrame : 0;
   stPrevFrame = typeof ts === "number" ? ts : 0;
   const f = (dt > 0 && dt < 100) ? dt / 16.667 : 1;
-  stPos += (stTarget - stPos) * (1 - Math.pow(0.84, f));
+  stPos += (stTarget - stPos) * (1 - Math.pow(0.76, f));
   if (Math.abs(stTarget - stPos) < 0.0009) stPos = stTarget;
   stLayout();
   if (stPos === stTarget){ stRaf = 0; stPrevFrame = 0; return; }

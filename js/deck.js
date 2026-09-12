@@ -199,6 +199,10 @@ const DK_TILT = 15;      // degrees each neighbour rotates away. Gentler than th
                          // prototype's 26: these cards are full-column height, and a
                          // tall plane at 26 degrees reads as a fold rather than depth.
 const DK_DEPTH = 210;    // how far back each neighbour sits
+const DK_EASE = 0.76;    // what is LEFT of the distance after one 60Hz frame:
+                         // 24% closed per frame, settled in about a quarter
+                         // of a second. 0.84 took nearly half a second and
+                         // read as the deck lagging the hand.
 
 let dkId = null, dkIdx = 0, dkRows = [], dkBound = false;
 let dkPos = 0, dkVel = 0, dkTarget = 0, dkDragging = false, dkSettled = -1, dkRaf = 0;
@@ -405,7 +409,7 @@ function dkTick(ts){
       dkTarget = Math.max(0, Math.min(dkRows.length - 1, Math.round(dkPos + dkVel * 6)));
     } else {
       dkVel = 0;
-      dkPos += (dkTarget - dkPos) * (1 - Math.pow(0.84, f));
+      dkPos += (dkTarget - dkPos) * (1 - Math.pow(DK_EASE, f));
       if (Math.abs(dkTarget - dkPos) < 0.0009) dkPos = dkTarget;
     }
     // refuse to travel past the ends, with a little give
@@ -428,7 +432,8 @@ function dkTo(n){
 function dkGo(delta){ dkTo(Math.round(dkPos) + delta); }
 
 /* Bound once, on the container that survives every re-render. */
-let dkWheelAt = 0, dkStartX = 0, dkStartPos = 0, dkLastX = 0, dkLastT = 0;
+let dkWheelAt = 0, dkWheelAcc = 0, dkStartX = 0, dkStartPos = 0, dkLastX = 0, dkLastT = 0;
+const DK_NOTCH = 50;     // px of wheel that moves one card
 function dkBind(host){
   if (dkBound) return;
   dkBound = true;
@@ -468,19 +473,30 @@ function dkBind(host){
   /* One card per notch, as asked - not the prototype's free scrub. The
      event is only taken when it actually MOVES a card: at either end the
      page scrolls as it always would, because swallowing a scroll that
-     changes nothing is how a panel traps a cursor. */
+     changes nothing is how a panel traps a cursor.
+
+     A mouse notch is ~100px and moves a card at once. A trackpad sends a
+     stream of small deltas, so those ACCUMULATE to a notch's worth rather
+     than each moving a card - which is what let a two-finger nudge throw
+     the deck ten cards. The stream's remainder is dropped once the hand
+     has been still for a moment. The 260ms throttle that used to sit
+     here is gone: it was the lag between the hand and the deck. */
   host.addEventListener("wheel", e => {
     if (!dkRows.length) return;
-    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    let d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
     if (!d) return;
-    const dir = d > 0 ? 1 : -1;
-    const near = Math.round(dkPos);
-    if (near + dir < 0 || near + dir > dkRows.length - 1) return;
-    e.preventDefault();
+    if (e.deltaMode === 1) d *= 40; else if (e.deltaMode === 2) d *= 400;
     const now = e.timeStamp;
-    if (now - dkWheelAt < 260) return;
+    if (now - dkWheelAt > 220) dkWheelAcc = 0;
     dkWheelAt = now;
-    dkGo(dir);
+    const dir = d > 0 ? 1 : -1;
+    const near = Math.round(dkTarget);
+    if (near + dir < 0 || near + dir > dkRows.length - 1) { dkWheelAcc = 0; return; }
+    e.preventDefault();
+    dkWheelAcc += d;
+    if (Math.abs(dkWheelAcc) < DK_NOTCH) return;
+    dkWheelAcc = 0;
+    dkTo(near + dir);
   }, { passive: false });
 
   if (typeof window !== "undefined" && window.addEventListener){
