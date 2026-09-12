@@ -396,7 +396,45 @@ T("an incomplete stop is refused with a reason, not saved", () => {
   run(`orgTrackDraft = [{ label: "", roleId: "", status: "" }]; orgTrackSave(orgS.types[0]);`);
   const err = doc.getElementById("otkErr").textContent;
   assert.match(err, /needs a name/);
-  assert.match(err, /Who holds this stop/);
+  assert.match(err, /Who does this step/);
+  // and the step itself is marked, so the message and the box it is
+  // about are found together
+  assert.equal(doc.querySelectorAll("#sheetBody .org-stop.bad").length, 1);
+});
+
+T("every control in a step has a visible label, in plain words", () => {
+  // the owner's first question about the old editor was "what does that
+  // mean" - of a menu whose only explanation was its first entry.
+  // docs/lessons.md > "A control with no label"
+  const labels = [...doc.querySelectorAll("#sheetBody .org-stop .otk-lbl")].map(l => l.textContent.trim());
+  assert.deepEqual(plain(labels), ["Step name", "Who does it", "Days to finish optional", "Mark the work as optional"]);
+  const first = doc.querySelector(".otk-status option").textContent;
+  assert.match(first, /Don't change it/);
+  assert.doesNotMatch(first, /alone/);
+  // the label IS the control's label: each one wraps the control it names
+  doc.querySelectorAll("#sheetBody .org-stop .otk-field").forEach(l =>
+    assert.ok(l.querySelector("input,select"), "a label with nothing inside it"));
+});
+
+T("a blank track offers two ready-made shapes, and one press fills the steps", () => {
+  run(`orgTrackDraft = [{ label: "", roleId: "", assignees: [], status: "", dueAfter: null }]; orgTrackRender(orgS.types[0]);`);
+  const starts = [...doc.querySelectorAll(".otk-start")].map(b => b.textContent);
+  assert.equal(starts.length, 2, "two shapes: " + JSON.stringify(starts));
+  assert.match(starts[1], /then a manager checks it/);
+  doc.querySelectorAll(".otk-start")[1].onclick();
+  const draft = plain(run("orgTrackDraft"));
+  assert.deepEqual(draft.map(s => [s.label, s.roleId]), [["Do the work", "staff"], ["Check it", "manager"]]);
+  // the shapes are for a blank track only: once it has steps they are gone
+  assert.equal(doc.querySelector(".otk-start"), null);
+  assert.equal(doc.querySelectorAll("#sheetBody .org-stop").length, 2);
+});
+
+T("the line is read back as one sentence, and follows the typing", () => {
+  assert.match(doc.getElementById("otkPreview").textContent, /How it flows: Do the work \(Staff\) \u2192 Check it \(Manager\) \u2192 done/);
+  const name = doc.querySelector(".otk-label");
+  name.value = "Write the draft";
+  name.oninput();
+  assert.match(doc.getElementById("otkPreview").textContent, /Write the draft \(Staff\)/);
 });
 
 T("a valid track compiles to a blueprint the real engine accepts", () => {
@@ -417,8 +455,8 @@ T("the type shows its track, and offers to set one up when it has none", () => {
   assert.match(body, /Manager/);
   assert.ok(doc.querySelector(".org-track"), "no way in to the editor");
   run(`orgS.types[0].track = null; orgRender();`);
-  assert.match(doc.querySelector(".org-typefold").textContent, /No handoff/);
-  assert.match(doc.querySelector(".org-track").textContent, /Set up handoff/);
+  assert.match(doc.querySelector(".org-typefold").textContent, /No steps/);
+  assert.match(doc.querySelector(".org-track").textContent, /Set up steps/);
 });
 
 T("picking a role offers the people in it, none ticked by default", () => {
@@ -432,7 +470,7 @@ T("picking a role offers the people in it, none ticked by default", () => {
   const boxes = [...doc.querySelectorAll(".otk-person")];
   assert.deepEqual(plain(boxes.map(b => b.value)), ["u2", "u3"], "it offers the wrong role's people");
   assert.ok(boxes.every(b => !b.checked));
-  assert.match(doc.querySelector(".otk-who-head").textContent, /Anyone in this role \(2\)/);
+  assert.match(doc.querySelector(".otk-who-head").textContent, /Any of these 2 can do it/);
 });
 
 T("ticking some of them narrows the stop to those people", () => {
@@ -479,7 +517,7 @@ T("the editor shows days back, and reads them as milliseconds", () => {
 T("a nonsense budget is refused with a reason", () => {
   run(`orgTrackDraft = [{ label: "X", roleId: "manager", dueAfter: 0 }];`);
   const errs = run(`JSON.stringify(hoTrackErrors(orgTrackDraft, ["manager"], ["agreed"]))`);
-  assert.match(errs, /number of days above zero/);
+  assert.match(errs, /number above zero/);
 });
 
 T("a stop nobody holds is marked, and named underneath", () => {
@@ -495,7 +533,7 @@ T("a stop nobody holds is marked, and named underneath", () => {
     orgRender();`);
   const body = doc.querySelector(".org-typefold");
   assert.equal(body.querySelectorAll(".org-chip.gap").length, 1, "the empty stop is not marked");
-  assert.match(body.querySelector(".org-warn").textContent, /Work will stop at Agree the terms/);
+  assert.match(body.querySelector(".org-warn").textContent, /Work would wait at Agree the terms/);
   assert.match(body.querySelector(".org-warn").textContent, /nobody is Manager/);
 });
 

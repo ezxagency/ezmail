@@ -279,7 +279,7 @@ function cxPipeline(type){
     const inRole = st.roleId === HO_ANY ? members : members.filter(m => m.roleId === st.roleId);
     const named = st.assignees || [];
     const who = (named.length ? inRole.filter(m => named.indexOf(m.uid) >= 0) : inRole).map(m => nameOf(m.uid));
-    return { label: st.label || "Stop", who };
+    return { label: st.label || "Step", who };
   });
 }
 
@@ -991,8 +991,8 @@ function markAssignmentDone(id){
   const title = h ? (h.next ? "Pass it on" : "Finish it") : "Task complete";
   const hint = h
     ? (h.next
-        ? `<b>${esc(row.task || "This")}</b> goes to <b>${esc(h.next.label)}</b>${nextNames ? " · " + esc(nextNames) : (h.next.role ? " · nobody holds that stop yet" : "")}. Leave them a note.`
-        : `<b>${esc(row.task || "This")}</b> is at its last stop — finishing closes it.`)
+        ? `<b>${esc(row.task || "This")}</b> goes to <b>${esc(h.next.label)}</b>${nextNames ? " · " + esc(nextNames) : (h.next.role ? " · nobody is on that step yet" : "")}. Leave them a note.`
+        : `<b>${esc(row.task || "This")}</b> is on its last step — finishing closes it.`)
     : `<b>${esc([row.store, row.task].filter(Boolean).join(" · ") || "This task")}</b> — add a comment for the team.${isMember ? "" : " Tag someone with @ and they get an Accept / Decline hand-off in their inbox."}`;
   const placeholder = h && h.next ? `A note for ${nextNames || h.next.label}…` : "e.g. Drafts are up — @Jack please review";
   const go = h ? (h.next ? "Pass to " + h.next.label : "Finish") : "Mark done";

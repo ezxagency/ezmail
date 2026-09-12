@@ -237,6 +237,32 @@ switch and resume with an idle segment in the shift. `taskTally()` is
 the one place idle is skipped, and `js/team.js` now calls it rather
 than keeping copies that would each need the same fix.
 
+**A control with no label asks a question nobody can answer.**
+The handoff editor drew four controls per stop side by side - a name
+box, a role menu, a status menu and a days box - with nothing over any
+of them. The status menu's only explanation was its first entry, "Leave
+the status alone", and the owner's first message about the editor was
+a screenshot of that menu and "what does that mean". Every string on it
+was accurate; none of it said what the control was FOR. The words did
+not help either: "stop" reads as a halt, "holds" as possession, and the
+intro explained the mechanism ("chased", "assigned to me comes to mean
+my turn") rather than the shape.
+*Rule:* every control gets a label that says what it decides, in the
+words the person would use ("Who does it", "Days to finish", "Mark the
+work as"), and a form that builds a sequence reads the sequence back as
+one plain sentence ("Write the draft (Staff) → Check it (Manager) →
+done") - four menus per row are a decision nobody can check without it.
+A blank form offers a shape, because an owner asked to invent one from
+four empty controls will not. On screen the model's "stop" is a "step",
+everywhere - the deck, the composer, the Work page - one word for one
+thing.
+*Guard:* `tests/ui.test.mjs` lists the labels of every control in a
+step, refuses a status menu whose first entry says "alone", proves one
+press of a ready-made shape fills the steps, and reads the sentence
+back after typing. `hoDescribe()` is the pure half, in
+`tests/handoff.test.mjs`. `npm run shots` photographs the editor blank,
+filled, and at phone width.
+
 ### Load order and globals
 
 `js/` files are classic scripts in ONE global scope; the `<script>`

@@ -170,15 +170,15 @@ function dkBlocks(r){
   if (h){
     const nextWho = h.next ? h.next.holders.map(x => x.name).filter(Boolean).join(", ") : "";
     html += '<div class="dk-blk dk-hand">'
-      + '<p class="dk-blk-h">Handoff' + (h.stop ? ' · stop ' + h.stop.index + ' of ' + h.stop.count + ' · ' + esc(h.stop.label) : "") + '</p>'
+      + '<p class="dk-blk-h">Handoff' + (h.stop ? ' · step ' + h.stop.index + ' of ' + h.stop.count + ' · ' + esc(h.stop.label) : "") + '</p>'
       + (h.from
-          ? '<p class="dk-hand-from"><b>From ' + esc(h.from.name || h.from.label || "the last stop") + '</b>'
+          ? '<p class="dk-hand-from"><b>From ' + esc(h.from.name || h.from.label || "the last step") + '</b>'
             + (h.from.note ? ' · \u201c' + esc(h.from.note) + '\u201d' : ' · no note') + '</p>'
-          : '<p class="dk-hand-from"><b>First stop</b> · it starts with you</p>')
+          : '<p class="dk-hand-from"><b>First step</b> · it starts with you</p>')
       + (h.next
           ? '<p class="dk-hand-next"><b>Next</b> · ' + esc(h.next.label) + ' \u2192 '
-            + (nextWho ? esc(nextWho) : '<em>nobody holds ' + esc(h.next.role || "that stop") + ' yet</em>') + '</p>'
-          : '<p class="dk-hand-next"><b>Last stop</b> · finishing closes it</p>')
+            + (nextWho ? esc(nextWho) : '<em>nobody holds ' + esc(h.next.role || "that step") + ' yet</em>') + '</p>'
+          : '<p class="dk-hand-next"><b>Last step</b> · finishing closes it</p>')
       + '</div>';
   }
   const brief = r.note || r.snote;

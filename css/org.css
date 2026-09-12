@@ -283,6 +283,48 @@ button.org-row:not(:disabled):hover { background: rgba(255,255,255,.06); }
 }
 .otk-who .wk-check { display: block; font-size: 13px; padding: 2px 0; }
 
+/* ---- every control in a step carries a label ---- */
+/* the label sits OVER its control, in the same small caps the rest of
+   the page uses for a field name, so "Mark the work as" reads before
+   the menu it explains rather than being guessed from its first entry */
+.otk-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.otk-lbl { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .55; }
+.otk-lbl i { font-style: normal; text-transform: none; letter-spacing: 0; opacity: .75; margin-left: 5px; }
+.otk-field input, .otk-field select {
+  font-size: 14px; padding: 9px 12px; border-radius: 9px; width: 100%; min-height: 0;
+}
+.otk-field select { padding-right: 30px; background-position: calc(100% - 18px) 16px, calc(100% - 13px) 16px; }
+/* the two optional settings share a row and wrap beneath each other on
+   a phone; "optional" is on the label, so a step with neither is whole */
+.otk-opt { display: flex; flex-wrap: wrap; gap: 10px; }
+.otk-opt .otk-field { flex: 1 1 200px; }
+.otk-opt .otk-field-days { flex: 0 1 170px; }
+.otk-days-wrap { display: flex; align-items: center; gap: 8px; }
+.otk-days-wrap input { width: 96px; }
+.otk-days-wrap em { font-style: normal; font-size: 13px; opacity: .6; }
+.otk-hint { margin: 0; font-size: 12px; line-height: 1.5; opacity: .55; }
+.otk-who .otk-hint { margin-top: 4px; }
+
+/* ---- two ready-made shapes, while the track is blank ---- */
+.otk-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; }
+.otk-quick > span { flex: 1 1 100%; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .5; }
+.otk-start {
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; color: inherit;
+  padding: 8px 14px; border-radius: 999px;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+}
+.otk-start:hover { background: rgba(255,255,255,.14); }
+
+/* ---- the line, read back as one sentence ---- */
+.otk-preview {
+  margin: 14px 0 0; padding: 10px 12px; border-radius: 9px;
+  font-size: 13.5px; line-height: 1.5;
+  background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.16);
+}
+.otk-preview:empty { display: none; }
+.otk-err { color: #e0a08a; margin: 10px 0 0; }
+.org-stop.bad { border-color: rgba(226,90,70,.5); }
+
 /* The page's sections sit in two groups (js/org.js orgRender) so the new
    dashboard can lay them out as two columns. Here they are flattened and
    put back in the order this page has always had. */

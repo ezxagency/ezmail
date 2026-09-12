@@ -152,6 +152,19 @@ the same control with a choice attached.
 when the stop belongs to a role with several people and any of them may
 take it.
 
+**Setting it up.** The editor on the Organization page says "step",
+never "stop" - a stop reads as a halt to anyone who has not read the
+engine, and that is everyone the screen is for. Each step carries four
+labelled controls: *Step name*, *Who does it* (a role, narrowed to some
+of its people if wanted), *Days to finish* (optional) and *Mark the work
+as* (optional; the status the work shows while it sits at this step,
+"Don't change it" by default). A blank track offers two ready-made
+shapes - one person does it; one person does it, then a manager checks
+it - and the whole line is read back as one sentence under the steps:
+"Write the draft (Staff) → Check it (Manager) → done". The model keeps
+its names (`track`, `stops`, `hoTrackErrors`); only the screen changed.
+See `docs/lessons.md` > "A control with no label".
+
 **The trail.** Who held it, how long, what they answered — read from
 `nodeRuns`, which already records exactly this and is currently shown to
 nobody.

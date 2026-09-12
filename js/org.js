@@ -332,7 +332,7 @@ function orgRender(){
                     (owner ? '<span class="org-row-go">Edit</span>' : '') +
                   '</button>').join("") + '</div>'
               : '<p class="org-note">Nothing happens by itself when one of these changes.</p>') +
-            '<p class="org-sub">Handoff</p>' +
+            '<p class="org-sub">Steps</p>' +
             ((t.track || []).length
               ? (function(){
                   // a stop nobody holds is where work will silently stop, so
@@ -341,23 +341,23 @@ function orgRender(){
                   const gapAt = new Set(gaps.map(g => g.at));
                   return '<div class="org-chips org-stages">' + (t.track || []).map((st, i) =>
                     '<span class="org-chip' + (gapAt.has(i) ? " gap" : "") + '">' +
-                      esc(st.label || ("Stop " + (i + 1))) +
+                      esc(st.label || ("Step " + (i + 1))) +
                       '<i>' + esc(st.roleId === HO_ANY ? "anyone" : orgRoleName(st.roleId)) + '</i>' +
                       ((st.assignees || []).length ? '<u>' + st.assignees.length + ' named</u>' : "") +
                       (st.dueAfter ? '<u>' + Math.round(st.dueAfter / HO_DAY) + 'd</u>' : "") + '</span>').join("") +
                     '</div>' +
                     (gaps.length
-                      ? '<p class="org-warn">Work will stop at ' +
-                          esc(gaps.map(g => g.label || ("stop " + (g.at + 1))).join(", ")) +
+                      ? '<p class="org-warn">Work would wait at ' +
+                          esc(gaps.map(g => g.label || ("step " + (g.at + 1))).join(", ")) +
                           ' — nobody is ' +
                           esc([...new Set(gaps.map(g => g.roleId === HO_ANY ? "in this organization" : orgRoleName(g.roleId)))].join(" or ")) +
-                          '.</p>'
+                          ' right now.</p>'
                       : "");
                 })()
-              : '<p class="org-note">No handoff. Work of this kind sits where it is until somebody moves it by hand.</p>') +
+              : '<p class="org-note">No steps. Whoever is given this work does all of it.</p>') +
             (owner ? '<div class="org-actions">' +
               '<button type="button" class="org-btn org-btn-sm org-track" data-track="' + esc(t.id) + '">' +
-                ((t.track || []).length ? "Edit handoff" : "Set up handoff") + '</button>' +
+                ((t.track || []).length ? "Edit steps" : "Set up steps") + '</button>' +
               '<button type="button" class="org-btn org-btn-sm org-type" ' +
               'data-type="' + esc(t.id) + '">Edit this type</button></div>' : '') +
           '</div>' +
@@ -810,7 +810,7 @@ async function orgTypeSheet(type){
     '<h3 class="sheet-title">' + (type ? "Edit work type" : "New work type") + '</h3>' +
     '<label class="org-field"><span>Name</span>' +
       '<input id="orgTypeName" type="text" maxlength="40" value="' + esc(orgTypeDraft.name) + '" placeholder="Shift swap"></label>' +
-    '<p class="org-note">Statuses are the stages this work moves through, in order. The first one is where new work starts.</p>' +
+    '<p class="org-note">Statuses are the words the work can be marked with, in order — for example To do, Doing, Done. New work starts at the first one, and finishing every step marks it with the last.</p>' +
     '<label class="org-field"><span>Statuses, one per line</span>' +
       '<textarea id="orgTypeStatuses" rows="4">' + esc(orgTypeDraft.statuses.map(s => s.label || s.key).join("\n")) + '</textarea></label>' +
     '<div class="org-sec-head" style="margin-top:18px"><h3>Fields</h3>' +
@@ -1108,85 +1108,143 @@ async function orgResetOrg(btn){
   setTimeout(() => { try { location.reload(); } catch (e) { enterOrgPage(); } }, 600);
 }
 
-/* ---------- the handoff track ----------
-   A straight line of stops, each held by a role. It compiles to a real
-   blueprint (js/handoff.js) that the real engine runs - the open canvas
-   comes later, and this is what a baton actually needs in the meantime. */
+/* ---------- the steps editor ----------
+   A straight line of STEPS, each done by a role. (The code calls a step
+   a "stop" and the line a "track"; the screen says "step", because a
+   stop reads as a halt to anyone who has not read js/handoff.js, and
+   that is everyone the screen is for.) It compiles to a real blueprint
+   (js/handoff.js) that the real engine runs - the open canvas comes
+   later, and this is what a baton actually needs in the meantime.
+
+   Every control carries a visible label, and the whole line is read
+   back as one sentence under the steps. The first version put a name
+   box, a role menu, a status menu and a days box side by side with
+   nothing over them, and the owner's first question was "what does that
+   mean" - of the status menu, whose first entry read "Leave the status
+   alone". docs/lessons.md > "A control with no label". */
 
 let orgTrackDraft = [];
+
+const orgTrackBlank = () => ({ label: "", roleId: "", assignees: [], status: "", dueAfter: null });
 
 function orgTrackSheet(type){
   if (!type || !orgIsOwner()) return;
   orgTrackDraft = JSON.parse(JSON.stringify(type.track || []));
-  if (!orgTrackDraft.length) orgTrackDraft.push({ label: "", roleId: "", status: "" });
+  if (!orgTrackDraft.length) orgTrackDraft.push(orgTrackBlank());
   orgTrackRender(type);
 }
+
+/* Two ready-made shapes, offered while the track has nothing on it.
+   Most work is one of these, and a blank step with four empty controls
+   is the wrong first thing to see: it asks the owner to invent a shape
+   before it has shown them one. Roles are found by name, so the seeded
+   Staff and Manager are used where they exist and the nearest thing
+   where they do not - a shape is never offered with a role that is not
+   in this organization. */
+function orgTrackStarts(){
+  const roles = orgS.roles || [];
+  const find = names => {
+    const r = roles.find(x => names.indexOf(x.id) >= 0 || names.indexOf((x.name || "").toLowerCase()) >= 0);
+    return r ? r.id : null;
+  };
+  const doer = find(["staff", "worker", "team"]) || HO_ANY;
+  const checker = find(["manager", "lead", "supervisor"]) || (roles.some(r => r.id === "owner") ? "owner" : null);
+  const step = (label, roleId) => Object.assign(orgTrackBlank(), { label, roleId });
+  const out = [{ key: "one", label: "One person does it", steps: [step("Do the work", doer)] }];
+  if (checker && checker !== doer) out.push({
+    key: "check", label: "One person does it, then a " + orgRoleName(checker).toLowerCase() + " checks it",
+    steps: [step("Do the work", doer), step("Check it", checker)] });
+  return out;
+}
+
+// the line read back in plain words, so four menus per step become one
+// sentence the owner can check against what they meant
+const orgTrackPreview = () => {
+  const line = hoDescribe(orgTrackDraft, orgRoleName);
+  return line ? "How it flows: " + line : "";
+};
 
 function orgTrackRender(type){
   const roles = (orgS.roles || []);
   const statuses = (type.statuses || []);
-  const gapAt = new Set(hoTrackGaps(orgTrackDraft, orgS.members || []).map(g => g.at));
-  const rows = orgTrackDraft.map((st, i) =>
-    '<div class="org-stop' + (gapAt.has(i) ? " gap" : "") + '" data-i="' + i + '">' +
+  const members = orgS.members || [];
+  const gapAt = new Set(hoTrackGaps(orgTrackDraft, members).map(g => g.at));
+  const untouched = orgTrackDraft.length === 1 && !orgTrackDraft[0].label && !orgTrackDraft[0].roleId;
+  const starts = untouched ? orgTrackStarts() : [];
+
+  const rows = orgTrackDraft.map((st, i) => {
+    /* Narrowing WITHIN the role, never instead of it. "These two
+       managers" keeps the role, so somebody who stops being a manager
+       stops holding the step without anyone editing the track - which
+       a bare list of names would have lost. */
+    const people = st.roleId === HO_ANY ? members
+      : st.roleId ? members.filter(m => m.roleId === st.roleId) : [];
+    const on = st.assignees || [];
+    return '<div class="org-stop' + (gapAt.has(i) ? " gap" : "") + '" data-i="' + i + '">' +
       '<span class="org-stop-n">' + (i + 1) + '</span>' +
       '<div class="org-stop-body">' +
-        '<input class="otk-label" type="text" maxlength="40" placeholder="What happens here" value="' +
-          esc(st.label || "") + '">' +
-        '<div class="org-fieldrow">' +
+        '<label class="otk-field"><span class="otk-lbl">Step name</span>' +
+          '<input class="otk-label" type="text" maxlength="40" placeholder="e.g. Write the draft" value="' +
+            esc(st.label || "") + '"></label>' +
+        '<label class="otk-field"><span class="otk-lbl">Who does it</span>' +
           '<select class="otk-role">' +
-            '<option value="">Who holds it…</option>' +
-            '<option value="' + esc(HO_ANY) + '"' + (st.roleId === HO_ANY ? " selected" : "") + '>Anyone</option>' +
+            '<option value="">Pick a role…</option>' +
+            '<option value="' + esc(HO_ANY) + '"' + (st.roleId === HO_ANY ? " selected" : "") + '>Anyone in the organization</option>' +
             roles.map(r => '<option value="' + esc(r.id) + '"' +
               (r.id === st.roleId ? " selected" : "") + '>' + esc(r.name) + '</option>').join("") +
-          '</select>' +
-          '<select class="otk-status">' +
-            '<option value="">Leave the status alone</option>' +
-            statuses.map(x => '<option value="' + esc(x.key) + '"' +
-              (x.key === st.status ? " selected" : "") + '>Set to ' + esc(x.label) + '</option>').join("") +
-          '</select>' +
-          '<input class="otk-days" type="number" min="1" max="365" placeholder="Days" value="' +
-            esc(st.dueAfter ? String(Math.round(st.dueAfter / HO_DAY)) : "") + '">' +
+          '</select></label>' +
+        (people.length
+          ? '<div class="otk-who">' +
+              '<p class="otk-who-head">' + (on.length
+                ? esc("Only " + on.length + " of these " + people.length)
+                : esc("Any of these " + people.length + " can do it")) + '</p>' +
+              people.map(m => '<label class="wk-check"><input type="checkbox" class="otk-person" value="' +
+                esc(m.uid) + '"' + (on.indexOf(m.uid) >= 0 ? " checked" : "") + '> ' +
+                esc(orgPersonName(m.uid)) + '</label>').join("") +
+              '<p class="otk-hint">Tick people to limit this step to them. Tick nobody and any of them can do it.</p>' +
+            '</div>'
+          : "") +
+        '<div class="otk-opt">' +
+          '<label class="otk-field otk-field-days"><span class="otk-lbl">Days to finish <i>optional</i></span>' +
+            '<span class="otk-days-wrap"><input class="otk-days" type="number" min="1" max="365" placeholder="No limit" value="' +
+              esc(st.dueAfter ? String(Math.round(st.dueAfter / HO_DAY)) : "") + '"><em>days</em></span></label>' +
+          '<label class="otk-field otk-field-status"><span class="otk-lbl">Mark the work as <i>optional</i></span>' +
+            '<select class="otk-status">' +
+              '<option value="">Don\'t change it</option>' +
+              statuses.map(x => '<option value="' + esc(x.key) + '"' +
+                (x.key === st.status ? " selected" : "") + '>' + esc(x.label || x.key) + '</option>').join("") +
+            '</select></label>' +
         '</div>' +
-        /* Narrowing WITHIN the role, never instead of it. "These two
-           managers" keeps the role, so somebody who stops being a manager
-           stops holding the stop without anyone editing the track - which
-           a bare list of names would have lost. */
-        (function(){
-          const people = st.roleId === HO_ANY ? (orgS.members || [])
-            : st.roleId ? (orgS.members || []).filter(m => m.roleId === st.roleId) : [];
-          if (!people.length) return "";
-          const on = st.assignees || [];
-          return '<div class="otk-who">' +
-            '<p class="otk-who-head">' + (on.length
-              ? esc("Only " + on.length + " of " + people.length)
-              : esc("Anyone in this role (" + people.length + ")")) + '</p>' +
-            people.map(m => '<label class="wk-check"><input type="checkbox" class="otk-person" value="' +
-              esc(m.uid) + '"' + (on.indexOf(m.uid) >= 0 ? " checked" : "") + '> ' +
-              esc(orgPersonName(m.uid)) + '</label>').join("") +
-            '<p class="org-note" style="margin:4px 0 0;font-size:11.5px">Tick nobody to mean anyone in the role.</p>' +
-          '</div>';
-        })() +
+        '<p class="otk-hint">Give it days and the person is reminded if it takes longer. Pick a status and the work shows that word while it sits at this step.</p>' +
         (gapAt.has(i) ? '<p class="org-warn">Nobody is ' +
           esc(st.roleId === HO_ANY ? "in this organization" : orgRoleName(st.roleId)) +
-          ', so work would stop here.</p>' : "") +
+          ' right now, so work would wait here until somebody is.</p>' : "") +
       '</div>' +
-      '<button type="button" class="org-btn org-btn-sm org-btn-danger otk-del" aria-label="Remove stop">Remove</button>' +
-    '</div>').join("");
+      '<button type="button" class="org-btn org-btn-sm org-btn-danger otk-del" aria-label="Remove step">Remove</button>' +
+    '</div>';
+  }).join("");
 
   openSheet(
-    '<h3 class="sheet-title">Handoff for ' + esc(type.name || type.id) + '</h3>' +
-    '<p class="org-note">Work starts at the first stop and moves down as each one is finished. Give a stop a number of days and late work gets chased — when somebody opens the app, not overnight. Whoever holds a stop is the person it is assigned to — so "assigned to me" comes to mean "my turn".</p>' +
-    (gapAt.size ? '<p class="org-warn">Stops marked below have nobody in their role. You can still save this — work simply waits there until somebody is.</p>' : "") +
+    '<h3 class="sheet-title">Steps for ' + esc(type.name || type.id) + '</h3>' +
+    '<p class="org-note">New work goes to step 1. When that person marks it done, it moves to step 2, and so on. After the last step it is finished.</p>' +
+    (starts.length
+      ? '<div class="otk-quick"><span>Start with</span>' + starts.map(q =>
+          '<button type="button" class="otk-start" data-start="' + esc(q.key) + '">' + esc(q.label) + '</button>').join("") +
+        '</div>'
+      : "") +
+    (gapAt.size ? '<p class="org-warn">Some steps have nobody in their role yet. You can still save this — work simply waits there until somebody is.</p>' : "") +
     '<div class="org-stops">' + rows + '</div>' +
-    '<button type="button" class="org-btn org-btn-sm" id="otkAdd" style="margin-top:10px">Add a stop</button>' +
+    '<button type="button" class="org-btn org-btn-sm" id="otkAdd" style="margin-top:10px">Add a step</button>' +
+    '<p class="otk-preview" id="otkPreview">' + esc(orgTrackPreview()) + '</p>' +
     '<div id="otkErr"></div>' +
     '<div class="org-actions">' +
-      '<button type="button" class="org-btn" id="otkSave">Save handoff</button>' +
-      (type.workflowId ? '<button type="button" class="org-btn org-btn-danger" id="otkOff">Turn handoff off</button>' : '') +
+      '<button type="button" class="org-btn" id="otkSave">Save steps</button>' +
+      (type.workflowId ? '<button type="button" class="org-btn org-btn-danger" id="otkOff">Turn steps off</button>' : '') +
     '</div>',
     () => {
+      const body = $("sheetBody");
       const read = () => {
-        $("sheetBody").querySelectorAll(".org-stop").forEach(row => {
+        body.querySelectorAll(".org-stop").forEach(row => {
           const i = +row.dataset.i;
           const days = parseFloat(row.querySelector(".otk-days").value);
           const picked = [...row.querySelectorAll(".otk-person")].filter(c => c.checked).map(c => c.value);
@@ -1201,18 +1259,29 @@ function orgTrackRender(type){
           };
         });
       };
-      $("otkAdd").onclick = () => { read(); orgTrackDraft.push({ label: "", roleId: "", status: "" }); orgTrackRender(type); };
+      const preview = () => { read(); const p = $("otkPreview"); if (p) p.textContent = orgTrackPreview(); };
+      body.querySelectorAll(".otk-start").forEach(b => b.onclick = () => {
+        const q = orgTrackStarts().find(x => x.key === b.dataset.start);
+        if (!q) return;
+        orgTrackDraft = JSON.parse(JSON.stringify(q.steps));
+        orgTrackRender(type);
+      });
+      $("otkAdd").onclick = () => { read(); orgTrackDraft.push(orgTrackBlank()); orgTrackRender(type); };
       // a different role means different people to choose from, so the row
       // has to redraw - otherwise you would be ticking the last role's list
-      $("sheetBody").querySelectorAll(".otk-role").forEach(sel => sel.onchange = () => {
+      body.querySelectorAll(".otk-role").forEach(sel => sel.onchange = () => {
         read();
         orgTrackDraft[+sel.closest(".org-stop").dataset.i].assignees = [];
         orgTrackRender(type);
       });
-      $("sheetBody").querySelectorAll(".otk-del").forEach(b => b.onclick = () => {
+      // the sentence follows the typing, so what a step is called and who
+      // does it is checked as it is written rather than after a save
+      body.querySelectorAll(".otk-label").forEach(el => el.oninput = preview);
+      body.querySelectorAll(".otk-person").forEach(el => el.onchange = preview);
+      body.querySelectorAll(".otk-del").forEach(b => b.onclick = () => {
         read();
         orgTrackDraft.splice(+b.closest(".org-stop").dataset.i, 1);
-        if (!orgTrackDraft.length) orgTrackDraft.push({ label: "", roleId: "", status: "" });
+        if (!orgTrackDraft.length) orgTrackDraft.push(orgTrackBlank());
         orgTrackRender(type);
       });
       $("otkSave").onclick = () => { read(); orgTrackSave(type); };
@@ -1224,11 +1293,16 @@ async function orgTrackSave(type){
   const roleIds = (orgS.roles || []).map(r => r.id).concat([HO_ANY]);
   const statusKeys = (type.statuses || []).map(s => s.key);
   const errs = hoTrackErrors(orgTrackDraft, roleIds, statusKeys, orgS.members || []);
+  // the list names each step, and the step itself is marked, so the eye
+  // goes from the message to the box it is about without counting
+  document.querySelectorAll("#sheetBody .org-stop").forEach(row =>
+    row.classList.toggle("bad", errs.some(e => e.at === +row.dataset.i)));
   if (errs.length) {
-    $("otkErr").innerHTML = '<p class="org-note" style="color:#e0a08a">' +
-      errs.map(e => esc((e.at >= 0 ? "Stop " + (e.at + 1) + ": " : "") + e.message)).join("<br>") + '</p>';
+    $("otkErr").innerHTML = '<p class="org-note otk-err">' +
+      errs.map(e => esc((e.at >= 0 ? "Step " + (e.at + 1) + ": " : "") + e.message)).join("<br>") + '</p>';
     return;
   }
+  $("otkErr").innerHTML = "";
   const btn = $("otkSave");
   btn.disabled = true; btn.textContent = "Saving…";
   try {
@@ -1243,12 +1317,12 @@ async function orgTrackSave(type){
     if (!r.ok) throw new Error(r.error || "save-failed");
     orgInvalidate();
     closeSheet();
-    toast("Handoff saved. New " + (type.name || "work") + " will travel it.");
+    toast("Steps saved. New " + (type.name || "work") + " will follow them.");
     enterOrgPage();
   } catch (e) {
     console.error(e);
-    btn.disabled = false; btn.textContent = "Save handoff";
-    toast("Could not save the handoff.");
+    btn.disabled = false; btn.textContent = "Save steps";
+    toast("Could not save the steps.");
   }
 }
 
@@ -1260,7 +1334,7 @@ async function orgTrackOff(type){
     await itemTypeSave(Object.assign({}, type, { track: null, workflowId: null }));
     orgInvalidate();
     closeSheet();
-    toast("Handoff off. Work already moving keeps its track.");
+    toast("Steps off. Work already moving keeps its steps.");
     enterOrgPage();
   } catch (e) { console.error(e); toast("Could not turn it off."); }
 }

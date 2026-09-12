@@ -409,7 +409,7 @@ async function wkAdvance(item, type, nodeRunId, btn){
   const r = await itemsAdvanceHandoff(item, type, nodeRunId, {});
   if (!r.ok) {
     btn.disabled = false; btn.textContent = "Mark this done";
-    toast(r.error === "not-yours" ? "This stop is not yours to move."
+    toast(r.error === "not-yours" ? "This step is not yours to move."
       : r.error === "not-active" ? "Somebody already moved it on."
       : "Could not move it on.");
     return;

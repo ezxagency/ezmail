@@ -332,7 +332,12 @@ and who is next — so the deck reads it without reading the run. The card
 draws it, Done reads "Pass on" (or "Finish" at the last stop), the Done
 sheet is "Pass it on" naming the next people and asking for a note, and
 the next person's "assigned to you" notification carries the note.
-`tests/flow.test.mjs` walks the whole of it.
+`tests/flow.test.mjs` walks the whole of it. On screen a stop is a **step**,
+everywhere - the editor (`orgTrackRender()`, every control labelled, a
+blank track offered two ready-made shapes, the line read back as one
+sentence by `hoDescribe()`), the deck, the composer and the Work page;
+the code keeps `track` and `stop`. `docs/lessons.md` > "A control with
+no label" says why.
 
 **A temporary testing aid lives on the Organization page**: "Reset this
 organization to fresh" (`orgResetOrg()` → `itemsResetOrg()`), owner-only,

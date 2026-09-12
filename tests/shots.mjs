@@ -246,6 +246,37 @@ if (process.env.SHOTS_CLIP){
 await page.evaluate(() => { document.getElementById("sheet").classList.remove("on"); document.getElementById("scrim").classList.remove("on"); });
 await page.waitForTimeout(400);
 
+// ---- the steps editor: every control labelled, the line read back ----
+// Photographed because the first version shipped green and unreadable:
+// four unlabelled controls per step, and the owner asked what one meant.
+await page.evaluate(() => {
+  // the fixture org is for these three pictures only; the sections after
+  // this one read whatever orgS the boot left, so it is put back
+  window.__orgSBefore = orgS;
+  orgS = { orgId: "orgA", org: { name: "Ez Agency" }, myRoleId: "owner", automations: [],
+    members: [{ uid: "u1", roleId: "manager" }, { uid: "u2", roleId: "staff" }, { uid: "u3", roleId: "staff" }],
+    dir: { u1: { name: "Ada" }, u2: { name: "Bo" }, u3: { name: "Cy" } },
+    roles: [{ id: "owner", name: "Owner" }, { id: "manager", name: "Manager" }, { id: "staff", name: "Staff" }],
+    types: [{ id: "simpletask", name: "Task", fields: [],
+      statuses: [{ key: "to_do", label: "To do" }, { key: "doing", label: "Doing" }, { key: "done", label: "Done" }] }] };
+  orgTrackSheet(orgS.types[0]);
+});
+await page.waitForTimeout(500);
+await shoot("next-steps-blank");
+await page.evaluate(() => {
+  orgTrackDraft = [{ label: "Write the draft", roleId: "staff", assignees: [], status: "doing", dueAfter: 2 * 86400000 },
+                   { label: "Check it", roleId: "manager", assignees: [], status: "", dueAfter: null }];
+  orgTrackRender(orgS.types[0]);
+});
+await page.waitForTimeout(500);
+await shoot("next-steps-editor");
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(300);
+await shoot("next-steps-editor-390");
+await page.setViewportSize({ width: 1920, height: 1080 });
+await page.evaluate(() => { closeSheet(); orgS = window.__orgSBefore; });
+await page.waitForTimeout(400);
+
 // ---- five tasks started this shift: the stack is three deep and scrolls ----
 await page.evaluate(() => {
   const now = Date.now();

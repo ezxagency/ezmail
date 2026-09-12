@@ -62,12 +62,26 @@ T("a stop carries the status it means, which the engine ignores", () => {
 /* ---------- what is wrong with a track ---------- */
 const errs = (track) => H.hoTrackErrors(track, ROLES, STATUSES).map(e => e.message).join(" | ");
 T("a track with no stops is refused", () => {
-  assert.match(errs([]), /at least one stop/);
+  assert.match(errs([]), /at least one step/);
 });
 T("a stop needs a name and a holder", () => {
   assert.match(errs([{ label: "", roleId: "" }]), /needs a name/);
-  assert.match(errs([{ label: "", roleId: "" }]), /Who holds this stop/);
+  assert.match(errs([{ label: "", roleId: "" }]), /Who does this step/);
 });
+/* ---------- the track as one sentence ---------- */
+const NAMES = { manager: "Manager", staff: "Staff" };
+T("a track reads back as one plain sentence, ending in done", () => {
+  assert.equal(H.hoDescribe(TRACK, id => NAMES[id]), "Agree terms (Manager) \u2192 Deliver (Staff) \u2192 done");
+});
+T("an unfinished track is described honestly, not tidily", () => {
+  // a step with no name is numbered and one with no role says so - the
+  // preview has to show what is missing, or it is a sentence that lies
+  assert.equal(H.hoDescribe([{ label: "", roleId: "" }], id => NAMES[id]), "Step 1 (nobody chosen yet) \u2192 done");
+  assert.equal(H.hoDescribe([{ label: "Sign", roleId: H.HO_ANY, assignees: ["u1"] }], id => NAMES[id]),
+    "Sign (anyone, 1 named) \u2192 done");
+  assert.equal(H.hoDescribe([], id => NAMES[id]), "");
+});
+
 T("a stop cannot name a role the org does not have", () => {
   assert.match(errs([{ label: "X", roleId: "cfo" }]), /not a role in this organization/);
 });
@@ -86,7 +100,7 @@ T("every problem is reported, not just the first", () => {
 });
 T("a straight line has a sane length limit", () => {
   const many = Array.from({ length: H.HO_MAX_STOPS + 1 }, (_, i) => ({ label: "S" + i, roleId: "staff" }));
-  assert.match(errs(many), /straight line should carry/);
+  assert.match(errs(many), /more than 12 steps/);
 });
 
 /* ---------- the baton actually passes ---------- */
@@ -140,7 +154,7 @@ T("a narrowing nobody satisfies is a gap", () => {
 });
 T("the editor is told when a narrowing has gone stale", () => {
   const stale = H.hoTrackErrors(NARROW, ROLES, STATUSES, [{ uid: "u9", roleId: "staff" }]);
-  assert.match(stale.map(e => e.message).join(" "), /Nobody you picked is in that role/);
+  assert.match(stale.map(e => e.message).join(" "), /Nobody you ticked is in that role/);
   assert.equal(H.hoTrackErrors(NARROW, ROLES, STATUSES, MEMBERS).length, 0);
 });
 T("only the named people may move it on", () => {
@@ -241,8 +255,8 @@ T("a stop with no budget is never late", () => {
   assert.equal(H.hoDue(bp, start().nodeRuns, 9e12).due, false);
 });
 T("a budget has to be a number of days above zero", () => {
-  assert.match(errs([{ label: "X", roleId: "staff", dueAfter: 0 }]), /number of days above zero/);
-  assert.match(errs([{ label: "X", roleId: "staff", dueAfter: "soon" }]), /number of days above zero/);
+  assert.match(errs([{ label: "X", roleId: "staff", dueAfter: 0 }]), /number above zero/);
+  assert.match(errs([{ label: "X", roleId: "staff", dueAfter: "soon" }]), /number above zero/);
   assert.equal(H.hoTrackErrors([{ label: "X", roleId: "staff", dueAfter: DAY }], ROLES, STATUSES).length, 0);
   assert.equal(H.hoTrackErrors([{ label: "X", roleId: "staff" }], ROLES, STATUSES).length, 0);
 });

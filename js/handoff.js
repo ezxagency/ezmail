@@ -44,12 +44,12 @@ function hoTrackErrors(track, roleIds, statusKeys, members){
   const stops = track || [];
   const roles = new Set(roleIds || []);
   const statuses = new Set(statusKeys || []);
-  if (!stops.length) return [{ at: -1, message: "A handoff needs at least one stop." }];
+  if (!stops.length) return [{ at: -1, message: "Add at least one step." }];
   if (stops.length > HO_MAX_STOPS)
-    out.push({ at: -1, message: "That is more stops than a straight line should carry." });
+    out.push({ at: -1, message: "That is more than " + HO_MAX_STOPS + " steps. Keep it shorter." });
   stops.forEach((s, i) => {
-    if (!s || !(s.label || "").trim()) out.push({ at: i, message: "Every stop needs a name." });
-    if (!s || !s.roleId) out.push({ at: i, message: "Who holds this stop?" });
+    if (!s || !(s.label || "").trim()) out.push({ at: i, message: "Every step needs a name." });
+    if (!s || !s.roleId) out.push({ at: i, message: "Who does this step?" });
     else if (s.roleId !== HO_ANY && !roles.has(s.roleId))
       out.push({ at: i, message: '"' + s.roleId + '" is not a role in this organization.' });
     // a stop may leave the status alone, but it may not name one that
@@ -60,7 +60,7 @@ function hoTrackErrors(track, roleIds, statusKeys, members){
     // arrived, which reads as a bug rather than as a deadline
     if (s && s.dueAfter !== undefined && s.dueAfter !== null && s.dueAfter !== "" &&
         (typeof s.dueAfter !== "number" || !(s.dueAfter > 0)))
-      out.push({ at: i, message: "A time budget has to be a number of days above zero." });
+      out.push({ at: i, message: "Days to finish has to be a number above zero." });
     // narrowing to nobody who is actually in the role is a stop that can
     // never be held - the same silent stall as an empty role, arrived at
     // from the other direction
@@ -68,7 +68,7 @@ function hoTrackErrors(track, roleIds, statusKeys, members){
       const inRole = (members || []).filter(m =>
         s.roleId === HO_ANY || !s.roleId || m.roleId === s.roleId).map(m => m.uid);
       if (!s.assignees.some(u => inRole.indexOf(u) >= 0))
-        out.push({ at: i, message: "Nobody you picked is in that role any more." });
+        out.push({ at: i, message: "Nobody you ticked is in that role any more." });
     }
   });
   return out;
@@ -192,6 +192,28 @@ function hoTrackGaps(track, members){
     if (!held.length) out.push({ at: i, label: s.label, roleId: s.roleId });
   });
   return out;
+}
+
+/* The track as one sentence, in the words the editor previews it in:
+   "Write the draft (Staff) → Check it (Manager) → done". This exists
+   because the editor's controls describe ONE step each, and the thing
+   an owner is actually deciding is the whole line - reading it back as
+   a sentence is what turns four dropdowns into a decision they can
+   check. A step with no name yet is "Step n", and one with nobody
+   chosen says so rather than vanishing, so the preview is honest about
+   an unfinished track instead of tidy about it. `roleNameOf(id)` turns
+   a role id into its name; HO_ANY reads "anyone". */
+function hoDescribe(track, roleNameOf){
+  const stops = (track || []).filter(Boolean);
+  if (!stops.length) return "";
+  const nameOf = id => id === HO_ANY ? "anyone" : ((roleNameOf && roleNameOf(id)) || id);
+  const legs = stops.map((s, i) => {
+    const label = (s.label || "").trim() || ("Step " + (i + 1));
+    const who = s.roleId ? nameOf(s.roleId) : "nobody chosen yet";
+    const only = (s.assignees || []).length ? ", " + s.assignees.length + " named" : "";
+    return label + " (" + who + only + ")";
+  });
+  return legs.join(" \u2192 ") + " \u2192 done";
 }
 
 /* ---------- late ----------
@@ -352,7 +374,7 @@ function hoTrail(blueprint, nodeRuns){
 }
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { hoSummary, HO_MAX_STOPS, HO_ANY, HO_DAY, HO_NUDGE_EVERY,
+  module.exports = { hoSummary, hoDescribe, HO_MAX_STOPS, HO_ANY, HO_DAY, HO_NUDGE_EVERY,
     hoLate, hoDue, hoNeedsNudge, hoTrackErrors, hoTrackGaps, hoBuildBlueprint,
     hoActiveStops, hoHolders, hoStatus, hoMayAdvance, hoStalled, hoTrail };
 }
