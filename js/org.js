@@ -537,7 +537,7 @@ function orgRender(){
   $("orgBody").querySelectorAll(".org-track").forEach(b => {
     b.onclick = () => orgTrackSheet((orgS.types || []).find(t => t.id === b.dataset.track) || null);
   $("orgBody").querySelectorAll(".org-flow").forEach(b =>
-    b.onclick = () => { if (typeof flS !== "undefined") flS = { orgId: orgS.orgId, typeId: b.dataset.flow, draft: null, dirty: false, drag: null, rules: [] }; go("flow"); });
+    b.onclick = () => { if (typeof flS !== "undefined") flS = { orgId: orgS.orgId, typeId: b.dataset.flow, draft: null, dirty: false, drag: null, open: null }; go("flow"); });
   });
   $("orgBody").querySelectorAll(".org-member").forEach(b => {
     b.onclick = () => orgMemberSheet((orgS.members || []).find(m => m.uid === b.dataset.member) || null);

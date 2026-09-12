@@ -178,27 +178,7 @@ body.ui-next .fl-name:focus-visible { border-bottom-color: rgba(255,255,255,.7);
 .fl-lane-head h4 { margin: 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
 .fl-lane-head .fl-note { margin: 0; flex: 1 1 200px; }
 .fl-lane-head .org-btn-sm { margin-left: auto; }
-.fl-rule {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
-  padding: 9px 11px; border-radius: 10px; margin-bottom: 7px;
-  background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08);
-  font-size: 13.5px;
-}
-.fl-rule.is-new { border-style: dashed; }
 .fl-rule-w { opacity: .6; }
-.fl-rule-if { font-size: 12px; opacity: .6; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.07); }
-.fl-rule select, .fl-rule input[type=text] {
-  font-size: 13px; padding: 6px 10px; border-radius: 8px; min-height: 0; width: auto;
-}
-.fl-rule select { padding-right: 28px; background-position: calc(100% - 16px) 13px, calc(100% - 11px) 13px; }
-.fl-rule-p { display: inline-flex; flex-wrap: wrap; gap: 7px; align-items: center; }
-.fl-rule-p input[type=text] { width: 180px; }
-.fl-rule-acts { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
-.fl-rule-save {
-  font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
-  padding: 6px 12px; border-radius: 8px; border: 0;
-  background: rgba(255,255,255,.92); color: #14161c;
-}
 
 /* ---- people & roles ---- */
 /* the panel keeps to the window: it sticks, and past the window's height
@@ -305,6 +285,72 @@ body.ui-next .fl-find input { padding: 8px 12px; border-radius: 10px; font-size:
 }
 .fl-plus-par::before, .fl-plus-par::after { content: none; }
 .fl-plus-par:hover { background: rgba(255,255,255,.1); }
+
+/* ---- the summary line: what a step is, at a glance ---- */
+.fl-sum {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%;
+  margin: 2px 0 0; padding: 4px 0 2px 32px; cursor: pointer; text-align: left;
+  font: inherit; color: inherit; background: none; border: 0;
+}
+.fl-sum:hover .fl-sum-caret { opacity: 1; }
+.fl-sum-chip {
+  font-size: 12px; padding: 4px 9px; border-radius: 999px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); opacity: .85;
+}
+.fl-sum-chip.is-who { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.18); opacity: 1; font-weight: 600; }
+.fl-sum-chip.is-warn { color: #d9a273; border-color: rgba(208,138,78,.45); background: rgba(208,138,78,.1); opacity: 1; font-weight: 600; }
+.fl-sum-caret {
+  margin-left: auto; width: 0; height: 0; opacity: .45;
+  border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid currentColor;
+  transition: transform .2s ease, opacity .2s ease;
+}
+.fl-step.is-open .fl-sum-caret { transform: rotate(180deg); }
+.fl-step.is-shut { padding-bottom: 9px; }
+.fl-step.is-shut .fl-step-head { margin-bottom: 2px; }
+.fl-step.is-open { border-color: rgba(255,255,255,.28); box-shadow: 0 12px 30px rgba(0,0,0,.28); }
+.fl-step-body { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); }
+.fl-step.is-shut .fl-name { border-bottom-color: transparent; }
+@media (max-width: 640px) { .fl-sum { padding-left: 0; } }
+
+/* ---- rules: one sentence, one switch ---- */
+.fl-rules { display: flex; flex-direction: column; }
+.fl-rule {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 4px; border-top: 1px solid rgba(255,255,255,.08); font-size: 13.5px;
+}
+.fl-rule:first-child { border-top: 0; }
+.fl-rule.is-off .fl-rule-t, .fl-rule.is-off .fl-rule-ico { opacity: .45; }
+.fl-rule-ico { flex: none; width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,.07); opacity: .85; }
+.fl-rule-ico svg { width: 15px; height: 15px; }
+.fl-rule-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fl-rule-t b { font-weight: 500; line-height: 1.4; }
+.fl-rule-t small { font-size: 11.5px; opacity: .5; }
+.fl-rule-edit {
+  flex: none; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; color: inherit;
+  padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
+}
+.fl-rule-edit:hover { background: rgba(255,255,255,.14); }
+.fl-sw {
+  flex: none; width: 36px; height: 22px; border-radius: 999px; padding: 0; cursor: pointer; position: relative;
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.18); transition: background .2s ease;
+}
+.fl-sw i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; opacity: .8; transition: transform .2s ease; }
+.fl-sw.is-on { background: #30D158; border-color: transparent; }
+.fl-sw.is-on i { transform: translateX(14px); opacity: 1; }
+.fl-sw:disabled { opacity: .5; cursor: default; }
+
+/* the rule sheet */
+.fr-preview { margin: 0 0 14px; padding: 10px 13px; border-radius: 12px; font-size: 14px; line-height: 1.5; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); }
+.fr-sub { margin: 8px 0 0 0; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); }
+.fr-sub .fl-lbl:first-child { margin-top: 0; }
+.fr-msg, .fr-name { display: block; margin-top: 10px; }
+.fr-msg > span, .fr-name > span { display: block; margin: 0 0 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; opacity: .5; }
+.fr-name { margin-top: 14px; }
+#sheetBody .fl-lbl { margin-top: 14px; }
+#sheetBody .fl-rule-if { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; padding: 0; background: none; border: 0; opacity: 1; }
+body.ui-next #sheetBody :is(.fl-rule-if select, .fl-rule-if input[type=text]) { width: auto; max-width: 100%; min-height: 0; font-size: 13px; padding: 7px 10px; border-radius: 9px; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+body.ui-next #sheetBody .fl-rule-if select { padding-right: 26px; }
+body.ui-next #sheetBody :is(#frMsg, #frName) { min-height: 0; font-size: 14px; padding: 10px 12px; border-radius: 10px; }
 
 /* ---- after this step: choices, if-rules, together ---- */
 .fl-after { margin-top: 10px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 6px; }

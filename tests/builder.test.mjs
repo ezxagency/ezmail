@@ -102,7 +102,28 @@ T("the canvas draws start, one card per step in order, and the end", () => {
   assert.match(doc.getElementById("flBar").textContent, /How it flows: Write the draft \(Staff\) → Check it \(Manager\) → done/);
 });
 
+// a card is a summary line until it is opened; the controls live on the open one
+const open = i => run(`flS.open = ${i}; flPaintCanvas();`);
+
+T("shut, a card is one line: who does it, the days, what it marks, its choices; nothing else", () => {
+  const sum = doc.querySelector('.fl-step[data-i="0"] .fl-sum');
+  assert.ok(sum, "no summary line");
+  assert.ok(doc.querySelector('.fl-step[data-i="0"]').classList.contains("is-shut"));
+  assert.deepEqual(plain([...sum.querySelectorAll(".fl-sum-chip")].map(c => c.textContent)), ["Staff · any of 2", "2 days", "marks it Doing"]);
+  assert.equal(doc.querySelector('.fl-step[data-i="0"] .fl-step-body'), null, "a shut card must not carry its editor");
+  // pressing the line opens it, and only it
+  sum.onclick();
+  assert.ok(doc.querySelector('.fl-step[data-i="0"]').classList.contains("is-open"));
+  assert.ok(doc.querySelector('.fl-step[data-i="0"] .fl-step-body'));
+  assert.ok(doc.querySelector('.fl-step[data-i="1"]').classList.contains("is-shut"));
+  doc.querySelector('.fl-step[data-i="1"] .fl-sum').onclick();
+  assert.ok(doc.querySelector('.fl-step[data-i="0"]').classList.contains("is-shut"), "two cards open at once");
+  doc.querySelector('.fl-step[data-i="1"] .fl-sum').onclick();
+  assert.equal(doc.querySelector(".fl-step.is-open"), null, "pressing an open card's line should shut it");
+});
+
 T("a card shows who does it as role chips with head counts, and the people in that role", () => {
+  open(0);
   const card = doc.querySelector('.fl-step[data-i="0"]');
   const chips = [...card.querySelectorAll("[data-role]")].map(b => b.textContent);
   assert.deepEqual(plain(chips), ["Anyone", "Owner1", "Manager1", "Staff2", "QA0"]);
@@ -129,7 +150,7 @@ T("nothing is dirty until something changes, and then Save wakes up", () => {
 });
 
 T("pressing a role chip switches the role, clears the picks and redraws the people", () => {
-  run(`flS.draft[0].assignees = ["u2"]; flPaintCanvas();`);
+  run(`flS.draft[0].assignees = ["u2"]; flS.open = 0; flPaintCanvas();`);
   doc.querySelector('.fl-step[data-i="0"] [data-role="manager"]').onclick();
   assert.equal(run("flS.draft[0].roleId"), "manager");
   assert.deepEqual(plain(run("flS.draft[0].assignees")), []);
@@ -143,11 +164,12 @@ T("ticking a person narrows the step to them, and the sentence says so", () => {
   assert.match(doc.getElementById("flBar").textContent, /Draft it \(Manager, 1 named\)/);
 });
 
-T("the + between two steps inserts a step there; × removes it; ‹ › move it", () => {
+T("the + between two steps inserts a step there and opens it; × removes it; ↑ ↓ move it", () => {
   doc.querySelector('.fl-plus[data-at="1"]').onclick();
   let names = () => plain(run("flS.draft.map(s => s.label)"));
   assert.deepEqual(names(), ["Draft it", "", "Check it"]);
   assert.equal(doc.querySelectorAll(".fl-step").length, 3);
+  assert.ok(doc.querySelector('.fl-step[data-i="1"]').classList.contains("is-open"), "a new step should open for editing");
   doc.querySelector('.fl-step[data-i="1"] [data-del]').onclick();
   assert.deepEqual(names(), ["Draft it", "Check it"]);
   doc.querySelector('.fl-step[data-i="1"] [data-move="-1"]').onclick();
@@ -167,6 +189,7 @@ T("dropping a step on another reorders them", () => {
 });
 
 T("dropping a person on a step gives the step to them", () => {
+  open(1);
   drop('.fl-step[data-i="1"]', "person:u2", null);
   assert.equal(run("flS.draft[1].roleId"), "staff");
   assert.deepEqual(plain(run("flS.draft[1].assignees")), ["u2"]);
@@ -193,7 +216,7 @@ T("saving an incomplete step marks the card and says what is missing, before any
 
 /* ---------- after a step: choices, if-rules, together ---------- */
 T("a step can be given choices, each one drawn as a chip", () => {
-  run(ORG);
+  run(ORG); open(1);
   const card = doc.querySelector('.fl-step[data-i="1"]');
   assert.ok(card.querySelector(".fl-after"), "no after-this-step section");
   assert.equal(card.querySelectorAll(".fl-choice").length, 0);
@@ -270,7 +293,9 @@ T("ticking 'at the same time' groups the step with the one before, drawn as one 
 
 T("a step can be told to rate the work it receives; the first step cannot", () => {
   const second = () => doc.querySelector('.fl-step[data-i="1"]');
+  open(0);
   assert.equal(doc.querySelector('.fl-step[data-i="0"] .fl-rates-in'), null, "a first step receives nothing to rate");
+  open(1);
   const rt = second().querySelector(".fl-rates-in");
   assert.ok(rt, "no rates switch on the second step");
   rt.checked = true; rt.onchange({ target: rt });
@@ -293,43 +318,89 @@ T("the third ready-made shape is the approve-or-send-back loop", () => {
 });
 
 /* ---------- rules ---------- */
-T("the lane lists this kind's rules as sentences with their controls, and counts the org-wide ones", () => {
-  const rules = doc.querySelectorAll("#flRules .fl-rule");
-  assert.equal(rules.length, 1, "only the rule about Task belongs in Task's lane");
-  assert.equal(rules[0].querySelector(".fl-r-verb").value, "item.created");
-  assert.equal(rules[0].querySelector(".fl-p-role").value, "manager");
-  assert.equal(rules[0].querySelector(".fl-p-msg").value, "A new task");
-  assert.ok(rules[0].querySelector(".fl-rule-save").hidden, "Save hides until something changes");
-  assert.match(doc.getElementById("flRules").textContent, /1 rule applies to every kind of work/);
+T("a rule reads as one sentence: the kind, the trigger, the status it fires on, the field it checks, and who is told", () => {
+  const o = `{ typeName: "Task", fieldNameOf: k => ({ brand: "Brand" })[k] || k, personNameOf: u => ({ u2: "Bo" })[u] || u }`;
+  const say = r => run(`flRuleWords(${JSON.stringify(r)}, id => ({ manager: "Manager" })[id], k => ({ doing: "Doing", review: "Review" })[k], ${o})`);
+  assert.equal(say({ trigger: { verb: "item.created" }, actions: [{ kind: "notify", toRole: "manager", message: "New one" }] }), 'When a Task is created, tell Manager: "New one".');
+  assert.equal(say({ trigger: { verb: "item.status_changed" }, conditions: [{ source: "task", path: "status", op: "==", value: "review" }], actions: [{ kind: "notify", toWhom: "assignees" }] }), "When a Task is marked Review, tell whoever holds it.");
+  assert.equal(say({ trigger: { verb: "item.status_changed" }, actions: [{ kind: "set_status", status: "doing" }] }), "When its status changes, mark it Doing.");
+  assert.equal(say({ trigger: { verb: "item.assigned" }, conditions: [{ source: "field", path: "brand", op: "==", value: "Nike" }], actions: [{ kind: "assign", assigneeIds: ["u2"] }] }), "When a Task is given to someone and Brand is Nike, give it to Bo.");
+  assert.equal(say({ trigger: { verb: "item.updated" }, actions: [{ kind: "notify", toWhom: "creator", message: "" }] }), "When a Task is edited, tell whoever created it.");
 });
 
-T("adding a rule draws an unsaved sentence with Save showing", () => {
+T("the lane lists this kind's rules as sentences with a switch, and the org-wide ones tagged", () => {
+  run(ORG);
+  const rules = [...doc.querySelectorAll("#flRules .fl-rule")];
+  assert.equal(rules.length, 2, "this kind's rule and the every-kind rule");
+  assert.match(rules[0].querySelector(".fl-rule-t b").textContent, /^When a Task is created, tell Manager: "A new task"\.$/);
+  assert.match(rules[1].querySelector(".fl-rule-t small").textContent, /Every kind of work/);
+  assert.ok(rules[0].querySelector('.fl-sw[data-toggle="au1"]').classList.contains("is-on"), "an enabled rule shows its switch on");
+  assert.ok(rules[0].querySelector('[data-edit="au1"]'), "no Edit on a rule");
+  assert.match(doc.getElementById("flRules").textContent, /Happens by itself/);
+  assert.doesNotMatch(doc.getElementById("flRules").textContent, /item\./, "a verb key leaked onto the screen");
+});
+
+T("the rule sheet asks three things, offers this kind's own statuses and fields, and reads the rule back as it is built", () => {
   doc.getElementById("flRuleAdd").onclick();
-  const rows = doc.querySelectorAll("#flRules .fl-rule");
-  assert.equal(rows.length, 2);
-  assert.ok(rows[1].classList.contains("is-new"));
-  assert.ok(!rows[1].querySelector(".fl-rule-save").hidden);
+  const body = doc.getElementById("sheetBody");
+  assert.match(body.textContent, /New rule/);
+  assert.equal(doc.getElementById("frPreview").textContent, "When a Task is created, tell Manager.");
+  // "is marked…" opens the kind's statuses, never a typed key
+  body.querySelector('.fr-verb[data-v="item.status_changed"]').onclick();
+  assert.deepEqual(plain([...body.querySelectorAll(".fr-status")].map(b => b.textContent)), ["To do", "Doing", "Done"]);
+  body.querySelector('.fr-status[data-v="doing"]').onclick();
+  assert.equal(doc.getElementById("frPreview").textContent, "When a Task is marked Doing, tell Manager.");
+  // only if: the kind's fields, the comparison, the value
+  const ck = doc.getElementById("frCondKey");
+  assert.deepEqual(plain([...ck.options].map(o => o.textContent)), ["Always", "only if Brand"]);
+  ck.value = "brand"; ck.onchange();
+  doc.getElementById("frCondVal").value = "Nike"; doc.getElementById("frCondVal").oninput();
+  assert.equal(doc.getElementById("frPreview").textContent, "When a Task is marked Doing and Brand is Nike, tell Manager.");
+  // tell whoever holds it, saying something
+  body.querySelector('.fr-who[data-v="assignees"]').onclick();
+  doc.getElementById("frMsg").value = "Yours now"; doc.getElementById("frMsg").oninput();
+  assert.equal(doc.getElementById("frPreview").textContent, 'When a Task is marked Doing and Brand is Nike, tell whoever holds it: "Yours now".');
+  // then: mark it, with the statuses as chips
+  body.querySelector('.fr-kind[data-v="set_status"]').onclick();
+  assert.deepEqual(plain([...body.querySelectorAll(".fr-set-status")].map(b => b.textContent)), ["To do", "Doing", "Done"]);
+  body.querySelector('.fr-set-status[data-v="done"]').onclick();
+  assert.equal(doc.getElementById("frPreview").textContent, "When a Task is marked Doing and Brand is Nike, mark it Done.");
+  run("closeSheet();");
 });
 
-T("choosing 'move it to a status' offers the kind's own statuses, not a free text key", () => {
-  // the Organization sheet asks for the key "exactly as the work type
-  // spells it"; a builder that offers the labels cannot be misspelled
-  const row = doc.querySelectorAll("#flRules .fl-rule")[1];
-  const sel = row.querySelector(".fl-r-act");
-  sel.value = "set_status"; sel.onchange({ target: sel });
-  const again = doc.querySelectorAll("#flRules .fl-rule")[1];
-  const opts = [...again.querySelectorAll(".fl-p-status option")].map(o => o.textContent);
-  assert.deepEqual(plain(opts), ["To do", "Doing", "Done"]);
-  assert.ok(!again.querySelector(".fl-rule-save").hidden);
+T("the document a rule builds is what the engine reads: verb, status and field conditions, one action; an empty rule is refused with a reason", () => {
+  const type = plain(run("flType()"));
+  const w = { verb: "item.status_changed", status: "doing", cond: { key: "brand", op: "==", value: "Nike" }, act: { kind: "notify", toWhom: "assignees", message: " Yours now " } };
+  const built = plain(run(`flRuleBuild(${JSON.stringify(w)}, ${JSON.stringify(type)})`));
+  assert.deepEqual(built, { trigger: { verb: "item.status_changed", typeId: "task" },
+    conditions: [{ source: "task", path: "status", op: "==", value: "doing" }, { source: "field", path: "brand", op: "==", value: "Nike" }],
+    actions: [{ kind: "notify", toWhom: "assignees", message: "Yours now", toRole: null }] });
+  // and the engine agrees it fires on that, and only on that
+  const rule = Object.assign({ id: "r", enabled: true }, built);
+  const item = { id: "i", typeId: "task", status: "doing", assigneeIds: ["u2"], fields: { brand: "Nike" } };
+  const plan = plain(run(`autoPlan({ automations: [${JSON.stringify(rule)}], event: { verb: "item.status_changed" }, item: ${JSON.stringify(item)} })`));
+  assert.deepEqual(plan.fired, ["r"]);
+  assert.deepEqual(plan.steps[0].toUids, ["u2"], "whoever holds it should be told");
+  const miss = plain(run(`autoPlan({ automations: [${JSON.stringify(rule)}], event: { verb: "item.status_changed" }, item: ${JSON.stringify(Object.assign({}, item, { status: "done" }))} })`));
+  assert.deepEqual(miss.fired, [], "marked Done must not fire a rule about Doing");
+  assert.equal(run(`flRuleProblem({ verb: "item.created", cond: null, act: { kind: "assign", assigneeIds: [] } }, ${JSON.stringify(type)})`), "Who should it go to?");
+  assert.equal(run(`flRuleProblem({ verb: "item.status_changed", status: "", cond: null, act: { kind: "notify", toRole: "manager" } }, ${JSON.stringify(type)})`), "Pick which status.");
+  assert.equal(run(`flRuleProblem({ verb: "item.created", cond: { key: "brand", op: "==", value: "" }, act: { kind: "notify", toRole: "manager" } }, ${JSON.stringify(type)})`), "Say what the field has to be, or set it back to Always.");
+  assert.equal(run(`flRuleProblem({ verb: "item.created", cond: null, act: { kind: "notify", toRole: "manager" } }, ${JSON.stringify(type)})`), null);
 });
 
-T("deleting an unsaved rule just drops the row; a saved one asks twice", () => {
-  doc.querySelectorAll("#flRules .fl-rule")[1].querySelector(".fl-rule-del").onclick();
-  assert.equal(doc.querySelectorAll("#flRules .fl-rule").length, 1);
-  const del = doc.querySelector("#flRules .fl-rule .fl-rule-del");
+T("editing a saved rule opens it as it is; deleting asks twice", () => {
+  doc.querySelector('#flRules [data-edit="au1"]').onclick();
+  const body = doc.getElementById("sheetBody");
+  assert.match(body.textContent, /Edit rule/);
+  assert.ok(body.querySelector('.fr-verb[data-v="item.created"]').classList.contains("is-on"));
+  assert.ok(body.querySelector('.fr-who[data-v="role:manager"]').classList.contains("is-on"));
+  assert.equal(doc.getElementById("frMsg").value, "A new task");
+  const del = doc.getElementById("frDelete");
   del.onclick();
   assert.equal(del.textContent, "Delete?");
-  assert.equal(doc.querySelectorAll("#flRules .fl-rule").length, 1, "one tap must not delete");
+  assert.equal(run("orgS.automations.length"), 2, "one tap must not delete");
+  run("closeSheet();");
 });
 
 /* ---------- people ---------- */
@@ -389,7 +460,8 @@ T("typing a name narrows the panel to the people who match, opens their roles, a
 T("a manager sees the picture and can change none of it", () => {
   run(`orgS.myRoleId = "manager"; flS.draft = null; flS.dirty = false; flRender();`);
   assert.equal(doc.getElementById("flSave"), null);
-  assert.ok([...doc.querySelectorAll(".fl-step input, .fl-step button")].every(el => el.disabled), "a control an owner-only write would refuse must not be offered");
+  assert.ok([...doc.querySelectorAll(".fl-step input, .fl-step button:not(.fl-sum)")].every(el => el.disabled), "a control an owner-only write would refuse must not be offered");
+  assert.ok(doc.querySelector(".fl-step .fl-sum"), "a viewer may still open a step to read it");
   assert.equal(doc.querySelector(".fl-plus:not(.is-off)"), null);
   assert.equal(doc.getElementById("flRuleAdd"), null);
   assert.match(doc.getElementById("flowBody").textContent, /Only the owner can change this/);

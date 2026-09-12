@@ -79,9 +79,15 @@ function autoActionToStep(action, item){
     const next = action.mode === "set" ? ids : [...new Set([...now, ...ids])];
     return { kind: "intent", intent: { kind: "assign", assigneeIds: next } };
   }
-  if (action.kind === "notify")
-    return { kind: "notify", toUids: action.toUids || [], toRole: action.toRole || null,
+  if (action.kind === "notify") {
+    // "whoever holds it" and "whoever created it" are resolved from the
+    // item here, so the glue only ever delivers to people
+    const uids = (action.toUids || []).slice();
+    if (action.toWhom === "assignees") ((item && item.assigneeIds) || []).forEach(u => uids.push(u));
+    if (action.toWhom === "creator" && item && item.createdBy) uids.push(item.createdBy);
+    return { kind: "notify", toUids: [...new Set(uids)], toRole: action.toRole || null,
              message: action.message || "" };
+  }
   return null;
 }
 

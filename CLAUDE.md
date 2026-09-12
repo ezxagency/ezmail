@@ -338,6 +338,20 @@ the page on screen. `flS` is the page's state (`draft`, `dirty`, `drag`);
 `flMove()`, `flGive()`, `flToggle()` and `flRuleWords()` are the pure
 half. Owner-only for changes, like the sheets it fronts; anyone through
 the door sees the picture. `tests/builder.test.mjs` drives it in jsdom.
+The canvas reads top to bottom and AT A GLANCE: a step is one line -
+who does it (or an orange "nobody yet"), the days, what it marks the
+work as, its choices - until it is pressed open (`flS.open`, one at a
+time; a new step opens itself). A rule is one sentence with a switch
+("When a Task is marked Review, tell whoever holds it"), edited in a
+sheet that asks three things: WHEN (created / marked a status / given
+to someone / edited - "is marked X" is the `item.status_changed` verb
+plus a `task.status == X` condition, because the bare verb fires on
+every change and says nothing), ONLY IF (one field of the kind, from
+its own options), THEN (tell people - a role, whoever holds it, or
+whoever created it via `toWhom` - mark it, give it to someone, set a
+field). `flRuleBuild()` is the pure half the preview and the save both
+read; `flRuleProblem()` names what an empty rule still needs. Rules for
+every kind of work show in the lane too, tagged.
 
 Tenth piece: **task review and reviewed quality**, `js/rating.js`
 (pure: the math, the words, what a review IS) + `js/reviews.js` (the

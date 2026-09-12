@@ -558,11 +558,21 @@ await page.evaluate(() => {
       { id: "video", name: "Video", fields: [], statuses: [{ key: "idea", label: "Idea" }, { key: "done", label: "Done" }] }],
     automations: [{ id: "au1", name: "Tell the manager", enabled: true, trigger: { verb: "item.created", typeId: "simpletask" }, conditions: [],
                     actions: [{ kind: "notify", toRole: "manager", message: "A new task is in" }] }] };
-  flS = { orgId: "orgA", typeId: "simpletask", draft: null, dirty: false, drag: null, rules: [] };
+  flS = { orgId: "orgA", typeId: "simpletask", draft: null, dirty: false, drag: null, open: null };
   flRender();
 });
 await page.waitForTimeout(500);
 await shoot("next-flow");
+// one step open for editing
+await page.evaluate(() => { flS.open = 3; flPaintCanvas(); });
+await page.waitForTimeout(300);
+await shoot("next-flow-open");
+// the rule sheet, mid-edit
+await page.evaluate(() => { flRuleSheet(orgS.automations[0]); document.querySelector('.fr-verb[data-v="item.status_changed"]').onclick(); document.querySelector('.fr-status[data-v="doing"]').onclick(); });
+await page.waitForTimeout(500);
+await shoot("next-flow-rule");
+await page.evaluate(() => { closeSheet(); flS.open = null; flPaintCanvas(); });
+await page.waitForTimeout(300);
 // the people panel: roles folded, then one unfolded
 await page.evaluate(() => { const d = document.querySelector('#flPeople details.fl-role[data-role-id="staff"]'); if (d) d.open = true; });
 await page.waitForTimeout(300);

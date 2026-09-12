@@ -97,6 +97,14 @@ T("assign adding somebody already there changes nothing", () => {
   const s = A.autoActionToStep({ kind: "assign", assigneeIds: ["u1"] }, ITEM);
   assert.deepEqual(s.intent.assigneeIds, ["u1"]);
 });
+T("a notify can name whoever holds the work, or whoever created it, and they are resolved from the item", () => {
+  const it = Object.assign({}, ITEM, { assigneeIds: ["u5", "u6"], createdBy: "u9" });
+  assert.deepEqual(A.autoActionToStep({ kind: "notify", toWhom: "assignees", message: "m" }, it).toUids, ["u5", "u6"]);
+  assert.deepEqual(A.autoActionToStep({ kind: "notify", toWhom: "creator", message: "m" }, it).toUids, ["u9"]);
+  assert.deepEqual(A.autoActionToStep({ kind: "notify", toWhom: "creator", toUids: ["u9"] }, it).toUids, ["u9"], "the same person twice is one person");
+  assert.deepEqual(A.autoActionToStep({ kind: "notify", toWhom: "assignees" }, Object.assign({}, ITEM, { assigneeIds: [] })).toUids, [], "nobody holds it means nobody is told, not an error");
+});
+
 T("notify is not an intent - nothing about the item changes", () => {
   const s = A.autoActionToStep({ kind: "notify", toRole: "manager", message: "hi" }, ITEM);
   assert.equal(s.kind, "notify");

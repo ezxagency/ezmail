@@ -31,7 +31,7 @@
    `fl` prefix throughout: js/ files share one global scope.
    ============================================================ */
 
-let flS = null;   // { typeId, draft: [step], dirty, drag: index | null, rules: [unsaved rule rows] }
+let flS = null;   // { typeId, draft: [step], dirty, drag: index | null, open: index | null }
 const flOpenRoles = new Set();   // roles the person has unfolded in the people panel
 let flPeopleFind = "";           // what is typed in the panel's search box
 const FL_ICO_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></svg>';
@@ -76,16 +76,43 @@ const flBlankStep = () => ({ id: "st" + orgNewId(), label: "", roleId: "", assig
 /* A rule as one sentence, for the lane and for a rule's own name when the
    person did not give it one. Rules are stored as trigger + action
    documents; nobody thinks in those, so the lane never shows a verb key. */
-function flRuleWords(rule, roleNameOf, statusNameOf){
-  const t = ORG_TRIGGERS.find(x => x.verb === ((rule && rule.trigger) || {}).verb);
-  const a = ((rule && rule.actions) || [])[0] || {};
+/* A rule read back as one sentence - the thing the lane shows and the
+   sheet's title. `o` may carry typeName, fieldNameOf, personNameOf. The
+   trigger "is marked X" is the status_changed verb with a status
+   condition, because "its status changes" alone fires on every change
+   and says nothing an admin can act on. */
+function flRuleWords(rule, roleNameOf, statusNameOf, o){
+  o = o || {};
+  const r = rule || {}, t = r.trigger || {}, a = (r.actions || [])[0] || {};
+  const conds = r.conditions || [];
+  const st = conds.find(c => c && c.source === "task" && c.path === "status");
+  const fc = conds.find(c => c && c.source === "field");
+  const status = k => (statusNameOf && k && statusNameOf(k)) || k || "…";
+  const subject = o.typeName ? "a " + o.typeName : "work";
+  let when;
+  if (t.verb === "item.created") when = "When " + subject + " is created";
+  else if (t.verb === "item.status_changed") when = st ? "When " + (o.typeName ? "a " + o.typeName : "it") + " is marked " + status(st.value) : "When its status changes";
+  else if (t.verb === "item.assigned") when = "When " + (o.typeName ? "a " + o.typeName : "it") + " is given to someone";
+  else if (t.verb === "item.updated") when = "When " + (o.typeName ? "a " + o.typeName : "it") + " is edited";
+  else when = "When something happens";
+  if (fc) {
+    const opw = { "==": "is", "!=": "is not", contains: "contains", ">": "is over", "<": "is under" }[fc.op || "=="] || fc.op;
+    when += " and " + ((o.fieldNameOf && o.fieldNameOf(fc.path)) || fc.path) + " " + opw + " " + (fc.value === true ? "ticked" : fc.value === false ? "not ticked" : String(fc.value));
+  }
   let then = "";
-  if (a.kind === "notify") then = "tell " + ((roleNameOf && a.toRole && roleNameOf(a.toRole)) || "a role") + (a.message ? ': "' + a.message + '"' : "");
-  else if (a.kind === "set_status") then = "mark it " + ((statusNameOf && a.status && statusNameOf(a.status)) || a.status || "…");
-  else if (a.kind === "assign") then = "assign it to " + ((a.assigneeIds || []).length ? (a.assigneeIds.length === 1 ? "one person" : a.assigneeIds.length + " people") : "…");
-  else if (a.kind === "set_field") then = "set " + (a.key || "a field") + (a.value != null && a.value !== "" ? " to " + a.value : "");
+  if (a.kind === "notify") {
+    const who = a.toWhom === "assignees" ? "whoever holds it" : a.toWhom === "creator" ? "whoever created it"
+      : ((roleNameOf && a.toRole && roleNameOf(a.toRole)) || "a role");
+    then = "tell " + who + (a.message ? ': "' + a.message + '"' : "");
+  }
+  else if (a.kind === "set_status") then = "mark it " + status(a.status);
+  else if (a.kind === "assign") {
+    const ids = a.assigneeIds || [];
+    then = "give it to " + (ids.length ? (o.personNameOf ? ids.map(o.personNameOf).join(", ") : (ids.length === 1 ? "one person" : ids.length + " people")) : "…");
+  }
+  else if (a.kind === "set_field") then = "set " + ((o.fieldNameOf && a.key && o.fieldNameOf(a.key)) || a.key || "a field") + (a.value != null && a.value !== "" ? " to " + a.value : "");
   else then = "do nothing";
-  return "When " + (t ? t.label : "something happens") + ", " + then + ".";
+  return when + ", " + then + ".";
 }
 
 const flRuleBlank = (typeId, roles) => ({
@@ -103,7 +130,7 @@ function enterFlowPage(){
   orgLoad().then(s => {
     orgS = s;
     if (!orgS) { flRenderEmpty(); return; }
-    if (!flS || flS.orgId !== orgS.orgId) flS = { orgId: orgS.orgId, typeId: null, draft: null, dirty: false, drag: null, rules: [] };
+    if (!flS || flS.orgId !== orgS.orgId) flS = { orgId: orgS.orgId, typeId: null, draft: null, dirty: false, drag: null, open: null };
     flRender();
   }).catch(e => {
     console.error(e);
@@ -146,7 +173,7 @@ function flRender(){
   // means a fresh draft; the same kind keeps its unsaved edits
   if (!types.find(t => t.id === flS.typeId)) { flS.typeId = types[0].id; flS.draft = null; flS.dirty = false; }
   const type = flType();
-  if (!flS.draft) { flS.draft = hoStopIds(JSON.parse(JSON.stringify(type.track || []))); flS.dirty = false; flS.rules = []; }
+  if (!flS.draft) { flS.draft = hoStopIds(JSON.parse(JSON.stringify(type.track || []))); flS.dirty = false; flS.open = null; }
 
   const tabs = types.map(t => '<button type="button" class="fl-tab' + (t.id === type.id ? " is-on" : "") +
     '" data-type="' + esc(t.id) + '">' + esc(t.name || t.id) +
@@ -275,7 +302,25 @@ function flPaintCanvas(){
         (i > 0 && owner ? '<label class="fl-together"><input type="checkbox" class="fl-together-in"' + (st.together ? " checked" : "") + '> Runs at the same time as the step before it</label>' : "") +
         (i > 0 ? '<label class="fl-together fl-rates"><input type="checkbox" class="fl-rates-in"' + (st.rates ? " checked" : "") + (owner ? "" : " disabled") + '> Rates the work it receives <i>three scores, 1 to 5, feeds the leaderboard</i></label>' : "") +
       '</details>';
-    return '<div class="fl-step' + (gap ? " gap" : "") + (flS.drag === i ? " is-drag" : "") + '" data-i="' + i + '"' +
+    /* At a glance: one line says who does it, how long they have, what
+       it marks the work as, and what they decide. The controls only
+       appear on the card that is open, so a six-step flow reads as six
+       lines and not six forms. */
+    const isOpen = flS.open === i;
+    const names = on.length ? on.map(u => orgPersonName(u)).join(", ") : "";
+    const whoChip = !st.roleId ? '<span class="fl-sum-chip is-warn">Nobody chosen</span>'
+      : gap ? '<span class="fl-sum-chip is-warn">' + esc(st.roleId === HO_ANY ? "Anyone" : orgRoleName(st.roleId)) + ' · nobody yet</span>'
+      : '<span class="fl-sum-chip is-who">' + esc(st.roleId === HO_ANY ? "Anyone" : orgRoleName(st.roleId)) + (names ? ' · ' + esc(names) : (inRole.length > 1 ? ' · any of ' + inRole.length : '')) + '</span>';
+    const summary = '<button type="button" class="fl-sum" aria-expanded="' + (isOpen ? "true" : "false") + '" aria-label="' + (isOpen ? "Close" : "Open") + ' this step">' +
+      whoChip +
+      (st.dueAfter ? '<span class="fl-sum-chip">' + Math.round(st.dueAfter / HO_DAY) + (Math.round(st.dueAfter / HO_DAY) === 1 ? " day" : " days") + '</span>' : '') +
+      (st.status ? '<span class="fl-sum-chip">marks it ' + esc(flStatusName(type, st.status)) + '</span>' : '') +
+      (choices.length ? '<span class="fl-sum-chip">' + choices.map(esc).join(" / ") + '</span>' : '') +
+      (routes.length ? '<span class="fl-sum-chip">' + routes.length + (routes.length === 1 ? " if" : " ifs") + '</span>' : '') +
+      (st.rates ? '<span class="fl-sum-chip">rates</span>' : '') +
+      '<i class="fl-sum-caret" aria-hidden="true"></i>' +
+      '</button>';
+    return '<div class="fl-step' + (gap ? " gap" : "") + (flS.drag === i ? " is-drag" : "") + (isOpen ? " is-open" : " is-shut") + '" data-i="' + i + '"' +
         (owner ? ' draggable="true"' : "") + '>' +
       '<div class="fl-step-head">' +
         (owner ? '<span class="fl-grip" title="Drag to reorder" aria-hidden="true">⋮⋮</span>' : "") +
@@ -286,6 +331,8 @@ function flPaintCanvas(){
           '<button type="button" class="fl-ic" data-move="1" title="Move down" aria-label="Move down"' + (i === draft.length - 1 ? " disabled" : "") + '>↓</button>' +
           '<button type="button" class="fl-ic fl-ic-x" data-del="1" title="Remove this step" aria-label="Remove this step">×</button></span>' : "") +
       '</div>' +
+      summary +
+      (isOpen ? '<div class="fl-step-body">' +
       '<p class="fl-lbl">Who does it</p>' +
       '<div class="fl-chips">' +
         '<button type="button" class="fl-chip' + (st.roleId === HO_ANY ? " is-on" : "") + '" data-role="' + esc(HO_ANY) + '"' + dis + '>Anyone</button>' +
@@ -312,6 +359,7 @@ function flPaintCanvas(){
         '</div></div>' +
       '</div>' +
       after +
+      '</div>' : "") +
     '</div>';
   };
 
@@ -358,6 +406,7 @@ function flBindCanvas(){
     // member behind it keeps running alongside the new one
     if (b.dataset.together) st.together = true;
     flS.draft.splice(at, 0, st);
+    flS.open = at;   // a new step is the one being worked on
     touch(); redraw();
     const inp = c.querySelector('.fl-step[data-i="' + b.dataset.at + '"] .fl-name');
     if (inp) inp.focus();
@@ -366,12 +415,18 @@ function flBindCanvas(){
   c.querySelectorAll(".fl-step").forEach(card => {
     const i = +card.dataset.i;
     const st = () => flS.draft[i];
+    // the summary line opens the card's controls, and closes them again
+    const sum = card.querySelector(".fl-sum");
+    if (sum) sum.onclick = () => { flS.open = flS.open === i ? null : i; flPaintCanvas(); };
     card.querySelector(".fl-name").oninput = e => { st().label = e.target.value; touch(); };
     card.querySelectorAll("[data-move]").forEach(b => b.onclick = () => {
-      flS.draft = flMove(flS.draft, i, i + (+b.dataset.move)); touch(); redraw();
+      const to = i + (+b.dataset.move);
+      flS.draft = flMove(flS.draft, i, to);
+      if (flS.open === i) flS.open = to;
+      touch(); redraw();
     });
     const del = card.querySelector("[data-del]");
-    if (del) del.onclick = () => { flS.draft.splice(i, 1); touch(); redraw(); };
+    if (del) del.onclick = () => { flS.draft.splice(i, 1); if (flS.open === i) flS.open = null; touch(); redraw(); };
     card.querySelectorAll("[data-role]").forEach(b => b.onclick = () => {
       if (st().roleId === b.dataset.role) return;
       st().roleId = b.dataset.role; st().assignees = []; touch(); redraw();
@@ -382,7 +437,8 @@ function flBindCanvas(){
     card.querySelectorAll("[data-status]").forEach(b => b.onclick = () => {
       st().status = b.dataset.status; touch(); redraw();
     });
-    card.querySelector(".fl-days input").onchange = e => {
+    const days = card.querySelector(".fl-days input");
+    if (days) days.onchange = e => {
       const d = parseFloat(e.target.value);
       st().dueAfter = d > 0 ? d * HO_DAY : null; touch();
     };
@@ -469,136 +525,273 @@ function flBindCanvas(){
         const m = (orgS.members || []).find(x => x.uid === data.slice(7));
         if (m) { flS.draft[i] = flGive(st(), m); touch(); redraw(); }
       } else if (flS.drag !== null && flS.drag !== i) {
+        if (flS.open === flS.drag) flS.open = i;
         flS.draft = flMove(flS.draft, flS.drag, i); flS.drag = null; touch(); redraw();
       }
     };
   });
 }
 
-/* ---------- the rules lane ---------- */
+/* ---------- the rules lane ----------
+   A rule is one sentence with a switch: what happens by itself, and
+   whether it is on. Editing is a sheet that asks three things - WHEN
+   (created, marked a status, given to someone, edited), ONLY IF (one
+   field of this kind, optional) and THEN (tell people, mark it, give it
+   to someone, set a field). Rules for every kind of work show here too,
+   tagged, because what fires for this kind is what an admin needs to
+   see in one place. */
 
 function flRules(){
   const type = flType();
   return (orgS.automations || []).filter(a => (a.trigger || {}).typeId === type.id);
 }
+const flRuleIco = kind => ({
+  notify: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>',
+  set_status: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10l6 5-6 5H4z"/></svg>',
+  assign: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.4"/><path d="M3.5 20c0-3.3 2.9-5.6 6.5-5.6 1.5 0 2.9.4 4 1.1"/><path d="M18 14.5v6M15 17.5h6"/></svg>',
+  set_field: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></svg>'
+}[kind] || "");
+
+function flRuleOpts(type){
+  return { typeName: type ? (type.name || type.id) : null,
+    fieldNameOf: k => { const f = ((type && type.fields) || []).find(x => x.key === k); return f ? (f.label || f.key) : k; },
+    personNameOf: uid => orgPersonName(uid) };
+}
 
 function flPaintRules(){
   const type = flType(), owner = orgIsOwner();
-  const roles = (orgS.roles || []);
-  const saved = flRules();
-  const rows = saved.concat(flS.rules || []);
-  const others = (orgS.automations || []).filter(a => !(a.trigger || {}).typeId).length;
-
-  const opts = (list, val, key, label) => list.map(x =>
-    '<option value="' + esc(x[key]) + '"' + (x[key] === val ? " selected" : "") + '>' + esc(x[label]) + '</option>').join("");
-
-  const row = (a, k) => {
-    const act = (a.actions || [])[0] || { kind: "notify" };
-    const disabled = owner ? "" : " disabled";
-    let params = "";
-    if (act.kind === "notify")
-      params = '<select class="fl-p-role"' + disabled + '>' + opts(roles.filter(r => r.id !== "owner").concat(roles.filter(r => r.id === "owner")), act.toRole, "id", "name") + '</select>' +
-        '<input class="fl-p-msg" type="text" maxlength="140" placeholder="saying…" value="' + esc(act.message || "") + '"' + disabled + '>';
-    else if (act.kind === "set_status")
-      params = '<select class="fl-p-status"' + disabled + '>' + (type.statuses || []).map(s =>
-        '<option value="' + esc(s.key) + '"' + (s.key === act.status ? " selected" : "") + '>' + esc(s.label || s.key) + '</option>').join("") + '</select>';
-    else if (act.kind === "assign")
-      params = '<select class="fl-p-who"' + disabled + '>' + (orgS.members || []).map(m =>
-        '<option value="' + esc(m.uid) + '"' + ((act.assigneeIds || []).indexOf(m.uid) >= 0 ? " selected" : "") + '>' + esc(orgPersonName(m.uid)) + '</option>').join("") + '</select>';
-    else
-      params = '<select class="fl-p-key"' + disabled + '>' + (type.fields || []).map(f =>
-        '<option value="' + esc(f.key) + '"' + (f.key === act.key ? " selected" : "") + '>' + esc(f.label || f.key) + '</option>').join("") + '</select>' +
-        '<input class="fl-p-val" type="text" maxlength="60" placeholder="to…" value="' + esc(act.value == null ? "" : act.value) + '"' + disabled + '>';
-    const cond = (a.conditions || [])[0];
-    return '<div class="fl-rule' + (a.id ? "" : " is-new") + '" data-k="' + k + '">' +
-      '<span class="fl-rule-w">When</span>' +
-      '<select class="fl-r-verb"' + disabled + '>' + opts(ORG_TRIGGERS, (a.trigger || {}).verb, "verb", "label") + '</select>' +
-      (cond ? '<span class="fl-rule-if">if ' + esc(cond.path) + ' = ' + esc(String(cond.value)) + '</span>' : "") +
-      '<span class="fl-rule-w">then</span>' +
-      '<select class="fl-r-act"' + disabled + '>' + opts(ORG_AUTO_ACTIONS, act.kind, "kind", "label") + '</select>' +
-      '<span class="fl-rule-p">' + params + '</span>' +
-      (owner ? '<span class="fl-rule-acts">' +
-        '<button type="button" class="fl-rule-save" hidden>Save</button>' +
-        (a.id ? '<button type="button" class="fl-link fl-rule-more">More…</button>' : "") +
-        '<button type="button" class="fl-ic fl-ic-x fl-rule-del" title="Delete this rule" aria-label="Delete this rule">×</button>' +
-      '</span>' : "") +
+  const mine = flRules();
+  const every = (orgS.automations || []).filter(a => !(a.trigger || {}).typeId);
+  const words = (a, forType) => flRuleWords(a, orgRoleName, k => flStatusName(type, k), forType ? flRuleOpts(type) : flRuleOpts(null));
+  const row = (a, forType) => {
+    const kind = ((a.actions || [])[0] || {}).kind;
+    const on = a.enabled !== false;
+    return '<div class="fl-rule' + (on ? "" : " is-off") + '" data-id="' + esc(a.id) + '">' +
+      (owner ? '<button type="button" class="fl-sw' + (on ? " is-on" : "") + '" role="switch" aria-checked="' + (on ? "true" : "false") + '" data-toggle="' + esc(a.id) + '" title="' + (on ? "On - press to turn off" : "Off - press to turn on") + '"><i></i></button>' : '') +
+      '<span class="fl-rule-ico">' + flRuleIco(kind) + '</span>' +
+      '<span class="fl-rule-t"><b>' + esc(words(a, forType)) + '</b>' +
+        (!forType ? '<small>Every kind of work</small>' : (a.name && a.name !== words(a, forType) ? '<small>' + esc(a.name) + '</small>' : '')) + '</span>' +
+      (owner ? '<button type="button" class="fl-rule-edit" data-edit="' + esc(a.id) + '">Edit</button>' : '') +
     '</div>';
   };
-
   $("flRules").innerHTML =
-    '<div class="fl-lane-head"><h4>Rules for ' + esc(type.name || type.id) + '</h4>' +
-      '<p class="fl-note">A rule watches this kind of work and reacts: when something happens to a piece of it, the rule tells someone, marks it, fills a field or assigns it. Rules do not move work between steps - the steps and their choices do that.</p>' +
+    '<div class="fl-lane-head"><h4>Happens by itself</h4>' +
+      '<p class="fl-note">What the app does on its own when a ' + esc(type.name || type.id) + ' changes. Steps move the work; rules only react.</p>' +
       (owner ? '<button type="button" class="org-btn org-btn-sm" id="flRuleAdd">+ Add a rule</button>' : "") + '</div>' +
-    (rows.length ? rows.map(row).join("") : '<p class="fl-note">Nothing happens by itself yet for this kind.</p>') +
-    (others ? '<p class="fl-note fl-note-sm">' + others + (others === 1 ? " rule applies" : " rules apply") + ' to every kind of work. They are on the Organization page.</p>' : "");
+    (mine.length || every.length
+      ? '<div class="fl-rules">' + mine.map(a => row(a, true)).join("") + every.map(a => row(a, false)).join("") + '</div>'
+      : '<p class="fl-note fl-note-sm">Nothing happens by itself yet.' + (owner ? ' Add a rule to tell someone when work arrives, or to mark it when it is given away.' : '') + '</p>');
 
   if (!owner) return;
-  $("flRuleAdd").onclick = () => { flS.rules.push(flRuleBlank(type.id, roles)); flPaintRules(); };
-  $("flRules").querySelectorAll(".fl-rule").forEach(el => {
-    const k = +el.dataset.k;
-    const a = rows[k];
-    const save = el.querySelector(".fl-rule-save");
-    const changed = () => { save.hidden = false; };
-    el.querySelector(".fl-r-verb").onchange = changed;
-    el.querySelector(".fl-r-act").onchange = e => {
-      // a different action needs different blanks: rebuild this row with
-      // the kind changed and nothing saved yet
-      const next = JSON.parse(JSON.stringify(a));
-      next.actions = [{ kind: e.target.value }];
-      if (a.id) { const i = (orgS.automations || []).findIndex(x => x.id === a.id); if (i >= 0) orgS.automations[i] = next; }
-      else flS.rules[k - saved.length] = next;
-      flPaintRules();
-      const again = $("flRules").querySelector('.fl-rule[data-k="' + k + '"] .fl-rule-save');
-      if (again) again.hidden = false;
-    };
-    el.querySelectorAll(".fl-rule-p select, .fl-rule-p input").forEach(x => { x.onchange = changed; x.oninput = changed; });
-    if (!a.id) save.hidden = false;
-    save.onclick = () => flRuleSave(el, a);
-    const more = el.querySelector(".fl-rule-more");
-    if (more) more.onclick = () => orgAutomationSheet(a);
-    el.querySelector(".fl-rule-del").onclick = () => flRuleDelete(el, a, k - saved.length);
-  });
+  $("flRuleAdd").onclick = () => flRuleSheet(flRuleBlank(type.id, orgS.roles || []));
+  $("flRules").querySelectorAll("[data-edit]").forEach(b => b.onclick = () =>
+    flRuleSheet((orgS.automations || []).find(a => a.id === b.dataset.edit)));
+  $("flRules").querySelectorAll("[data-toggle]").forEach(b => b.onclick = () => flRuleToggle(b.dataset.toggle, b));
 }
 
-async function flRuleSave(el, a){
+/* On or off, without deleting: a rule that is wrong for this week is
+   not a rule to rebuild next week. */
+async function flRuleToggle(id, btn){
+  const a = (orgS.automations || []).find(x => x.id === id);
+  if (!a) return;
+  const next = a.enabled === false;
+  btn.disabled = true;
+  try {
+    await db.collection("orgs").doc(orgS.orgId).collection("automations").doc(id).update({ enabled: next, updatedAt: Date.now() });
+    itemsAutomationsCache = null;
+    a.enabled = next;
+    flPaintRules();
+    toast(next ? "Rule on." : "Rule off - it stays here until you delete it.");
+  } catch (e) { console.error(e); btn.disabled = false; toast("Could not change the rule."); }
+}
+
+/* The sheet: three questions, every answer a choice from this kind's
+   own statuses, fields, roles and people - nothing typed exactly. */
+function flRuleSheet(rule){
   const type = flType();
-  const verb = el.querySelector(".fl-r-verb").value;
-  const kind = el.querySelector(".fl-r-act").value;
-  const q = sel => { const x = el.querySelector(sel); return x ? x.value : ""; };
-  let action;
-  if (kind === "notify") action = { kind, toRole: q(".fl-p-role") || null, message: q(".fl-p-msg").trim() };
-  else if (kind === "set_status") action = { kind, status: q(".fl-p-status") };
-  else if (kind === "assign") action = { kind, assigneeIds: q(".fl-p-who") ? [q(".fl-p-who")] : [] };
-  else action = { kind, key: q(".fl-p-key"), value: q(".fl-p-val").trim() };
-  if (kind === "set_status" && !action.status) { toast("This kind has no statuses to move to."); return; }
-  if (kind === "set_field" && !action.key) { toast("This kind has no fields to set."); return; }
-  if (kind === "notify" && !action.toRole) { toast("Which role should be told?"); return; }
-  const rule = { name: (a.name || "").trim() || flRuleWords({ trigger: { verb }, actions: [action] }, orgRoleName, k => flStatusName(type, k)).slice(0, 60),
-    enabled: a.enabled !== false, trigger: Object.assign({}, a.trigger || {}, { verb, typeId: type.id }),
-    conditions: a.conditions || [], actions: [action], updatedAt: Date.now() };
-  const btn = el.querySelector(".fl-rule-save");
+  const roles = (orgS.roles || []).filter(r => r.id !== "owner").concat((orgS.roles || []).filter(r => r.id === "owner"));
+  const fields = type.fields || [], statuses = type.statuses || [], members = orgS.members || [];
+  const a = JSON.parse(JSON.stringify(rule));
+  a.trigger = a.trigger || { verb: "item.created" };
+  a.conditions = a.conditions || [];
+  a.actions = a.actions && a.actions.length ? a.actions : [{ kind: "notify" }];
+  const stc = a.conditions.find(c => c && c.source === "task" && c.path === "status");
+  const fc = a.conditions.find(c => c && c.source === "field");
+  // the working copy the controls edit; the document is built from it on save
+  const w = {
+    verb: a.trigger.verb || "item.created", status: stc ? stc.value : (statuses[0] || {}).key || "",
+    cond: fc ? { key: fc.path, op: fc.op || "==", value: fc.value } : null,
+    act: Object.assign({ kind: "notify" }, a.actions[0]),
+    everyKind: !a.trigger.typeId && !!a.id
+  };
+  if (w.act.kind === "notify" && !w.act.toWhom && !w.act.toRole) w.act.toRole = (roles[0] || {}).id || null;
+  const chip = (cls, v, label, on, extra) => '<button type="button" class="fl-chip' + (on ? " is-on" : "") + ' ' + cls + '" data-v="' + esc(v) + '"' + (extra || "") + '>' + label + '</button>';
+  const opt = (v, label, on) => '<option value="' + esc(v) + '"' + (on ? " selected" : "") + '>' + esc(label) + '</option>';
+
+  const paint = () => {
+    const fdef = w.cond ? fields.find(f => f.key === w.cond.key) : null;
+    const whenHtml =
+      '<div class="fl-chips">' +
+        chip("fr-verb", "item.created", "is created", w.verb === "item.created") +
+        (statuses.length ? chip("fr-verb", "item.status_changed", "is marked…", w.verb === "item.status_changed") : "") +
+        chip("fr-verb", "item.assigned", "is given to someone", w.verb === "item.assigned") +
+        chip("fr-verb", "item.updated", "is edited", w.verb === "item.updated") +
+      '</div>' +
+      (w.verb === "item.status_changed" ? '<div class="fl-chips fl-chips-sm fr-sub">' +
+        statuses.map(x => chip("fr-status", x.key, esc(x.label || x.key), w.status === x.key)).join("") + '</div>' : "");
+    const condHtml = !fields.length ? '<p class="fl-note fl-note-sm">This kind has no fields to check.</p>' :
+      '<div class="fl-rule-if">' +
+        '<select id="frCondKey"><option value="">Always</option>' + fields.map(f => opt(f.key, "only if " + (f.label || f.key), w.cond && w.cond.key === f.key)).join("") + '</select>' +
+        (w.cond ? '<select id="frCondOp">' + [["==", "is"], ["!=", "is not"], ["contains", "contains"], [">", "is over"], ["<", "is under"]].map(([v, l]) => opt(v, l, w.cond.op === v)).join("") + '</select>' +
+          (fdef && (fdef.type === "select" || fdef.type === "multiselect") && (fdef.options || []).length
+            ? '<select id="frCondVal">' + fdef.options.map(o => opt(o, o, String(w.cond.value) === o)).join("") + '</select>'
+            : fdef && fdef.type === "checkbox"
+              ? '<select id="frCondVal">' + opt("true", "ticked", w.cond.value === true) + opt("false", "not ticked", w.cond.value === false) + '</select>'
+              : '<input id="frCondVal" type="text" maxlength="60" placeholder="value" value="' + esc(w.cond.value == null ? "" : String(w.cond.value)) + '">') : "") +
+      '</div>';
+    const k = w.act.kind;
+    let params = "";
+    if (k === "notify") {
+      const who = w.act.toWhom || "role";
+      params = '<p class="fl-lbl">Tell</p><div class="fl-chips fl-chips-sm">' +
+        chip("fr-who", "assignees", "whoever holds it", who === "assignees") +
+        chip("fr-who", "creator", "whoever created it", who === "creator") +
+        roles.map(r => chip("fr-who", "role:" + r.id, esc(r.name) + '<i>' + members.filter(m => m.roleId === r.id).length + '</i>', who === "role" && w.act.toRole === r.id)).join("") + '</div>' +
+        '<label class="fl-opt fr-msg"><span>Saying</span><input id="frMsg" type="text" maxlength="140" placeholder="e.g. A new one is in - please pick it up" value="' + esc(w.act.message || "") + '"></label>';
+    } else if (k === "set_status") {
+      params = '<p class="fl-lbl">Mark it as</p>' + (statuses.length ? '<div class="fl-chips fl-chips-sm">' +
+        statuses.map(x => chip("fr-set-status", x.key, esc(x.label || x.key), w.act.status === x.key)).join("") + '</div>' : '<p class="fl-note fl-note-sm">This kind has no statuses.</p>');
+    } else if (k === "assign") {
+      params = '<p class="fl-lbl">Give it to <i>tick one or more</i></p><div class="fl-chips fl-chips-sm">' +
+        members.map(m => chip("fr-assign", m.uid, esc(orgPersonName(m.uid)), (w.act.assigneeIds || []).indexOf(m.uid) >= 0)).join("") + '</div>';
+    } else {
+      params = '<p class="fl-lbl">Set</p>' + (fields.length ? '<div class="fl-rule-if">' +
+        '<select id="frFieldKey">' + fields.map(f => opt(f.key, f.label || f.key, w.act.key === f.key)).join("") + '</select>' +
+        '<span class="fl-rule-w">to</span><input id="frFieldVal" type="text" maxlength="60" placeholder="value" value="' + esc(w.act.value == null ? "" : String(w.act.value)) + '"></div>'
+        : '<p class="fl-note fl-note-sm">This kind has no fields to set.</p>');
+    }
+    const thenHtml =
+      '<div class="fl-chips">' +
+        chip("fr-kind", "notify", "Tell people", k === "notify") +
+        chip("fr-kind", "set_status", "Mark it", k === "set_status") +
+        chip("fr-kind", "assign", "Give it to someone", k === "assign") +
+        chip("fr-kind", "set_field", "Set a field", k === "set_field") +
+      '</div><div class="fr-sub">' + params + '</div>';
+    const preview = flRuleWords(flRuleBuild(w, type), orgRoleName, kk => flStatusName(type, kk), flRuleOpts(w.everyKind ? null : type));
+
+    $("sheetBody").innerHTML =
+      '<h2>' + (a.id ? "Edit rule" : "New rule") + '</h2>' +
+      '<p class="fr-preview" id="frPreview">' + esc(preview) + '</p>' +
+      '<p class="fl-lbl">When a ' + esc(type.name || type.id) + (w.everyKind ? ' <i>(and every other kind)</i>' : '') + '…</p>' + whenHtml +
+      '<p class="fl-lbl">Only if</p>' + condHtml +
+      '<p class="fl-lbl">Then</p>' + thenHtml +
+      '<label class="fl-opt fr-name"><span>Name <i>optional</i></span><input id="frName" type="text" maxlength="60" placeholder="' + esc(preview.slice(0, 60)) + '" value="' + esc(a.name && a.name !== preview ? a.name : "") + '"></label>' +
+      '<div class="org-actions"><button type="button" class="org-btn" id="frSave">' + (a.id ? "Save rule" : "Add rule") + '</button>' +
+        (a.id ? '<button type="button" class="org-btn org-btn-danger" id="frDelete">Delete</button>' : '') +
+        '<button type="button" class="org-btn org-btn-sm" id="frCancel">Cancel</button></div>';
+    bind();
+  };
+  const bind = () => {
+    const q = sel => $("sheetBody").querySelector(sel);
+    const all = sel => [...$("sheetBody").querySelectorAll(sel)];
+    all(".fr-verb").forEach(b => b.onclick = () => { w.verb = b.dataset.v; paint(); });
+    all(".fr-status").forEach(b => b.onclick = () => { w.status = b.dataset.v; paint(); });
+    all(".fr-kind").forEach(b => b.onclick = () => { if (w.act.kind !== b.dataset.v) { w.act = { kind: b.dataset.v }; if (w.act.kind === "notify") w.act.toRole = (roles[0] || {}).id || null; } paint(); });
+    all(".fr-who").forEach(b => b.onclick = () => {
+      const v = b.dataset.v;
+      if (v.indexOf("role:") === 0) { w.act.toRole = v.slice(5); delete w.act.toWhom; } else { w.act.toWhom = v; w.act.toRole = null; }
+      paint();
+    });
+    all(".fr-set-status").forEach(b => b.onclick = () => { w.act.status = b.dataset.v; paint(); });
+    all(".fr-assign").forEach(b => b.onclick = () => {
+      const ids = w.act.assigneeIds || [];
+      w.act.assigneeIds = ids.indexOf(b.dataset.v) >= 0 ? ids.filter(x => x !== b.dataset.v) : ids.concat([b.dataset.v]);
+      paint();
+    });
+    const ck = q("#frCondKey");
+    if (ck) ck.onchange = () => { w.cond = ck.value ? { key: ck.value, op: "==", value: "" } : null; paint(); };
+    const co = q("#frCondOp");
+    if (co) co.onchange = () => { w.cond.op = co.value; refresh(); };
+    const cv = q("#frCondVal");
+    if (cv) cv.onchange = cv.oninput = () => {
+      const fdef = fields.find(f => f.key === w.cond.key);
+      w.cond.value = fdef && fdef.type === "checkbox" ? cv.value === "true" : (fdef && typeof itemCoerce === "function" ? itemCoerce(fdef, cv.value) : cv.value);
+      refresh();
+    };
+    const msg = q("#frMsg"); if (msg) msg.oninput = () => { w.act.message = msg.value; refresh(); };
+    const fk = q("#frFieldKey"); if (fk) fk.onchange = () => { w.act.key = fk.value; refresh(); };
+    const fv = q("#frFieldVal"); if (fv) fv.oninput = () => { w.act.value = fv.value; refresh(); };
+    q("#frCancel").onclick = closeSheet;
+    q("#frSave").onclick = () => flRuleCommit(a, w, type, (q("#frName").value || "").trim());
+    if (q("#frDelete")) q("#frDelete").onclick = () => flRuleDelete(a, q("#frDelete"));
+  };
+  // typing changes the sentence, not the whole sheet
+  const refresh = () => {
+    const p = $("frPreview");
+    if (p) p.textContent = flRuleWords(flRuleBuild(w, type), orgRoleName, kk => flStatusName(type, kk), flRuleOpts(w.everyKind ? null : type));
+  };
+  openSheet("", paint);
+}
+
+/* The document the working copy means. Pure, so the preview and the
+   save cannot disagree about what a rule says. */
+function flRuleBuild(w, type){
+  const conditions = [];
+  if (w.verb === "item.status_changed" && w.status) conditions.push({ source: "task", path: "status", op: "==", value: w.status });
+  if (w.cond && w.cond.key) conditions.push({ source: "field", path: w.cond.key, op: w.cond.op || "==", value: w.cond.value });
+  const act = Object.assign({}, w.act);
+  if (act.kind === "notify") { act.message = (act.message || "").trim(); if (act.toWhom) act.toRole = null; else delete act.toWhom; }
+  if (act.kind === "set_field") act.value = (act.value || "").trim();
+  const trigger = { verb: w.verb };
+  if (!w.everyKind && type) trigger.typeId = type.id;
+  return { trigger, conditions, actions: [act] };
+}
+
+/* What a rule still needs before it can be saved, in words the sheet
+   shows - a rule that would do nothing is refused here, not wondered
+   about later. */
+function flRuleProblem(w, type){
+  if (w.verb === "item.status_changed" && !w.status) return "Pick which status.";
+  if (w.cond && w.cond.key && (w.cond.value === "" || w.cond.value == null)) return "Say what the field has to be, or set it back to Always.";
+  const a = w.act;
+  if (a.kind === "notify" && !a.toWhom && !a.toRole) return "Who should be told?";
+  if (a.kind === "set_status" && !a.status) return "Which status should it be marked?";
+  if (a.kind === "assign" && !(a.assigneeIds || []).length) return "Who should it go to?";
+  if (a.kind === "set_field" && !a.key) return "Which field should it set?";
+  return null;
+}
+
+async function flRuleCommit(a, w, type, name){
+  const problem = flRuleProblem(w, type);
+  if (problem) { toast(problem); return; }
+  const built = flRuleBuild(w, type);
+  const words = flRuleWords(built, orgRoleName, k => flStatusName(type, k), flRuleOpts(w.everyKind ? null : type));
+  const rule = { name: name || words.slice(0, 60), enabled: a.enabled !== false,
+    trigger: built.trigger, conditions: built.conditions, actions: built.actions, updatedAt: Date.now() };
+  const btn = $("frSave");
   btn.disabled = true; btn.textContent = "Saving…";
   try {
     const id = a.id || ("au" + orgNewId());
     await db.collection("orgs").doc(orgS.orgId).collection("automations").doc(id).set(rule);
     itemsAutomationsCache = null;
+    closeSheet();
     toast(a.id ? "Rule saved." : "Rule added.");
     flReload();
   } catch (e) {
     console.error(e);
-    btn.disabled = false; btn.textContent = "Save";
+    btn.disabled = false; btn.textContent = a.id ? "Save rule" : "Add rule";
     toast("Could not save the rule.");
   }
 }
 
-async function flRuleDelete(el, a, newIndex){
-  if (!a.id) { flS.rules.splice(newIndex, 1); flPaintRules(); return; }
-  const btn = el.querySelector(".fl-rule-del");
+async function flRuleDelete(a, btn){
+  if (!a.id) return;
   // two taps: the second is the confirmation, same as everywhere else here
-  if (btn.dataset.armed !== "1") { btn.dataset.armed = "1"; btn.textContent = "Delete?"; btn.classList.add("is-armed"); return; }
+  if (btn.dataset.armed !== "1") { btn.dataset.armed = "1"; btn.textContent = "Delete?"; return; }
   try {
     await db.collection("orgs").doc(orgS.orgId).collection("automations").doc(a.id).delete();
     itemsAutomationsCache = null;
+    closeSheet();
     toast("Rule deleted.");
     flReload();
   } catch (e) { console.error(e); toast("Could not delete the rule."); }
@@ -759,7 +952,7 @@ async function flSave(){
 // after any write: the org is read again, the same kind stays on screen
 function flReload(){
   orgInvalidate();
-  if (flS) { flS.draft = flS.dirty ? flS.draft : null; flS.rules = []; }
+  if (flS) { flS.draft = flS.dirty ? flS.draft : null; }
   enterFlowPage();
 }
 
