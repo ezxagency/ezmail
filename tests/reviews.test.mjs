@@ -233,7 +233,7 @@ await T("the reviewer's sheet holds the brief, the work and the person together,
   for (const [k, v] of [["quality", 4], ["brief", 5], ["handoff", 4]])
     sheet().querySelector('.rt-row[data-key="' + k + '"] .rt-pt[data-v="' + v + '"]').click();
   assert.match(sheet().querySelector('.rt-row[data-key="quality"] .rt-word').textContent, /4 · Strong/);
-  assert.match(sheet().querySelector('.rt-row[data-key="brief"] .rt-eg').textContent, /Read the brief better/);
+  assert.match(sheet().querySelector('.rt-row[data-key="brief"] .rt-eg').textContent, /Understood the goal better/);
   assert.match(sheet().querySelector("[data-rt-total]").textContent, /4\.30 \/ 5/);
   assert.equal(bt.disabled, true, "an approval without feedback was enabled");
   assert.equal(bt.textContent, "Write the feedback first");

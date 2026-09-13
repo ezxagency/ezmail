@@ -47,33 +47,36 @@ const RT_TENTHS  = { quality: 5, brief: 3, handoff: 2 };       // the same weigh
 const RT_KEYS = ["quality", "brief", "handoff"];
 const RT_LABELS = { quality: "Execution quality", brief: "Brief accuracy", handoff: "Handoff readiness" };
 const RT_HINTS = {
-  quality: "The copy, design or build itself - is it good work?",
-  brief: "Did it do what was asked - the content, the brand, the instructions?",
-  handoff: "Could the next person pick it up - right files, working links, organised, complete?"
+  quality: "The work itself - is it done well, correct and complete?",
+  brief: "Did it do what was asked - the instructions, the standard, the details that mattered?",
+  handoff: "Could the next person pick it up - everything there, clearly labelled, nothing to chase?"
 };
-/* What each score means, with examples in the vocabulary of the work
-   this team does - so a 4 and a 5 are different things and not a mood. */
+/* What each score means, with examples that fit ANY kind of work - a
+   report, a build, a delivery, a design, a spreadsheet, a service call -
+   so a 4 and a 5 are different things and not a mood. The first version
+   spoke only of copy and design; a team doing anything else could not
+   see itself in it. */
 const RT_EXAMPLES = {
   quality: [
-    "Cannot be used: wrong product, broken layout, copy that has to be rewritten from scratch.",
-    "The bones are there but most of it needs redoing - off-brand tone, mismatched design, code that fails.",
-    "Solid and usable as delivered: clean copy, a design on grid, a build that works.",
-    "Better than asked: a sharper hook, a considered layout, edge cases handled without being told.",
-    "Work you would show as the example - the kind the client forwards, the design the team copies."
+    "Cannot be used: the wrong thing was delivered, or it is broken or wrong enough to redo from scratch.",
+    "The outline is there but most of it needs redoing - errors throughout, a rough finish, does not hold up when checked.",
+    "Solid and usable as delivered: accurate, complete, finished to the standard the job needs.",
+    "Better than asked: cleaner, sharper or more thorough than it had to be, with the edge cases handled without being told.",
+    "Work you would hold up as the example - the version everyone else's gets measured against."
   ],
   brief: [
-    "Answered a different brief: wrong audience, wrong offer, ignored the instructions.",
-    "Hit some of it, missed key parts - the discount led when the brief said restock, a required section is absent.",
-    "Everything the brief asked for is there and nothing it forbade.",
-    "Followed the brief and caught what it implied - the tone the brand guide meant, the size the channel needs.",
-    "Read the brief better than the brief did: flagged a gap, proposed the fix, delivered both."
+    "Answered a different task: wrong scope, wrong audience or customer, the instructions ignored.",
+    "Hit some of it, missed key parts - a required piece is missing, or a stated must-do was skipped.",
+    "Everything that was asked for is there, and nothing that was ruled out.",
+    "Followed the instructions and caught what they implied - the format the reader needs, the standard the situation calls for.",
+    "Understood the goal better than the instructions did: flagged a gap, proposed the fix, delivered both."
   ],
   handoff: [
-    "Nothing to pick up: no files, dead link, nobody could tell what was delivered.",
-    "It is there but somebody has to chase - missing assets, a private link, unlabelled versions.",
-    "The next person can start: link works, files named, a note says what is what.",
+    "Nothing to pick up: no files, a dead link, nobody could tell what was delivered.",
+    "It is there but somebody has to chase - pieces missing, access not granted, versions unlabelled.",
+    "The next person can start: the link works, the files are named, a note says what is what.",
     "Organised for the next step: sources included, versions labelled, the note anticipates the questions.",
-    "Zero friction: everything the next three steps will need is already in place and explained."
+    "Zero friction: everything the next few steps will need is already in place and explained."
   ]
 };
 const RT_SCALE = ["Unusable", "Needs substantial work", "Meets expectations", "Strong", "Exceptional"];
