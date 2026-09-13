@@ -204,6 +204,27 @@ await page.evaluate(() => {
   renderAssignedBrief(rows);
 });
 await shoot("next-on-shift");
+// ---- the composer, as an admin opens it ----
+await page.evaluate(() => {
+  openComposer();
+  cxSetData({ members: [{ uid: "u2", name: "Sandy", open: 2 }, { uid: "u3", name: "Kim", open: 0 }, { uid: "u4", name: "Desmond", open: 5 }, { uid: "u5", name: "Ada", open: 1 }],
+    stores: ["Store Epsilon", "Studio North", "Store Delta"], tasks: ["Write the launch email", "Design the hero", "Cut the teaser", "Approve the artwork", "Restock count"],
+    types: [{ id: "t1", name: "Video", workflowId: "w1", track: [{ label: "Script", roleId: "staff" }, { label: "Edit", roleId: "staff" }] }, { id: "t2", name: "Sponsorship" }],
+    roles: [{ craft: "design", label: "All design", uids: ["u3", "u4"] }], err: {} });
+});
+await shoot("next-composer");
+await page.evaluate(() => {
+  cxPick({ kind: "task", value: "Design the hero" }); cxPick({ kind: "who", value: "u2" }); cxPick({ kind: "store", value: "Store Epsilon" });
+  $("cxNote").value = "Hero for the spring drop. Lead with the restock, not the discount."; cx.note = $("cxNote").value;
+  cx.due = cxDueQuick()[1].date; $("cxDue").value = cx.due; cxPaintPickers();
+});
+await shoot("next-composer-filled");
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(200);
+await shoot("next-composer-390");
+await page.setViewportSize({ width: 1920, height: 1080 });
+await page.evaluate(() => closeComposer());
+await page.waitForTimeout(300);
 await page.evaluate(() => dkTo(1));
 await page.waitForTimeout(900);
 await page.evaluate(() => { dkPos = dkTarget; dkLayout(); });

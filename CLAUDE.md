@@ -128,7 +128,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 652 assertions, node + jsdom, seconds
+npm test        # 664 assertions, node + jsdom, seconds
 npm run test:rules   # 304 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -467,8 +467,18 @@ summary named one running step". The card also lists the other people
 on the reader's step with each one's review state (`rvPeerLines()`,
 fed by `rvPeersWatch()` watching their review documents by id).
 
-**Work travels with its note.** The composer speaks work types
-(`cxKind`, the KIND row): a Task is the classic assignment, any other
+**Work travels with its note.** The composer (`openComposer()` in
+`js/assign.js`, `css/assign.css`) is a guided picker since 2026-09-13
+(the owner: "boring and not easy"): the kind row, a search bar that
+also coins a task or a store, then three numbered steps - What (task
+chips), Who (people tiles with their open count, team chips; a tracked
+kind shows its route instead), Where (store chips, All locations) -
+the brief, quick due chips (`cxDueQuick`), and a pinned footer whose
+sentence reads the send back or names what is still missing
+(`cxSummary`, `cxMissing`). `cxSetData()` hands it options and outranks
+a load still in flight; a failed read says "could not load", never an
+empty team. `tests/composer.test.mjs` drives it in jsdom. It speaks work
+types (`cxKind`, the KIND row): a Task is the classic assignment, any other
 kind is an Item of that kind made by `itemsCreateFromComposer()`. A kind
 with a track takes no people — creation starts its run and the first
 stop's holders get it, which is what the track is for; the composer

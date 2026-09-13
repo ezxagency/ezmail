@@ -17,21 +17,25 @@
 }
 .cx-scrim.on{opacity:1;pointer-events:auto}
 
+/* The dialog: a column - the bar at the top, the pickers scrolling in
+   the middle, the summary and the send pinned at the bottom - so the
+   button is always in reach however many tasks the org has named. */
 .cx{
   position:fixed;left:0;right:0;z-index:65;margin:0 auto;
-  top:clamp(12px,8vh,110px);width:min(94vw,560px);
-  max-height:calc(100dvh - clamp(12px,8vh,110px) - 16px);overflow-y:auto;
+  top:clamp(12px,6vh,80px);width:min(94vw,720px);
+  max-height:calc(100dvh - clamp(12px,6vh,80px) - 16px);
+  display:flex;flex-direction:column;
   background:rgba(12,14,20,.96);color:var(--wk-white);
   backdrop-filter:blur(30px) saturate(140%);-webkit-backdrop-filter:blur(30px) saturate(140%);
-  border:1px solid rgba(255,255,255,.16);border-radius:22px;
+  border:1px solid rgba(255,255,255,.16);border-radius:24px;
   box-shadow:0 30px 80px rgba(0,0,0,.55);
-  padding:14px 18px calc(env(safe-area-inset-bottom) + 18px);
+  padding:14px 0 0;
   opacity:0;transform:translateY(-10px) scale(.98);pointer-events:none;
   transition:opacity .2s ease,transform .22s cubic-bezier(.22,1,.36,1);
 }
 .cx.on{opacity:1;transform:none;pointer-events:auto}
 
-.cx-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 12px}
+.cx-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 12px;padding:0 20px}
 .cx-top-l{display:flex;align-items:center;gap:9px;min-width:0}
 .cx-mark{flex:none;display:flex;width:18px;height:18px;color:var(--wk-white)}
 .cx-mark svg{width:100%;height:100%}
@@ -47,22 +51,22 @@
 .cx-x svg{width:19px;height:19px}
 .cx-x:hover{background:rgba(255,255,255,.1)}
 
-/* ---------- the bar itself ---------- */
+/* ---------- the bar: search, and the way to coin a task or a store ---------- */
 .cx-inputrow{
-  display:flex;align-items:center;gap:10px;padding:0 14px;
-  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.28);border-radius:14px;
+  display:flex;align-items:center;gap:10px;padding:0 14px;margin:0 20px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.22);border-radius:14px;
   transition:border-color .15s ease;
 }
-.cx-inputrow:focus-within{border-color:rgba(255,255,255,.65)}
+.cx-inputrow:focus-within{border-color:rgba(10,132,255,.8)}
 .cx-prompt{
   flex:none;font-family:var(--mono);font-size:19px;font-weight:700;
-  color:var(--wk-white);transform:translateY(-1px);
+  color:var(--wk-white-60);transform:translateY(-1px);
 }
 /* the global sheet input styling is a glass box of its own - inside the
    bar the input is bare, the row carries the box */
 .cx input[type=text]{
-  flex:1;min-width:0;background:none;border:0;border-radius:0;padding:15px 0;
-  font-size:16px;color:var(--wk-white);
+  flex:1;min-width:0;background:none;border:0;border-radius:0;padding:13px 0;
+  font-size:15px;color:var(--wk-white);
   backdrop-filter:none;-webkit-backdrop-filter:none;
 }
 .cx input[type=text]:focus{outline:none}
@@ -71,8 +75,8 @@
   border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:3px 6px;
 }
 
-/* ---------- suggestion deck ---------- */
-.cx-sugs{margin-top:8px}
+/* ---------- search results ---------- */
+.cx-sugs{margin:8px 20px 0}
 .cx-sugs:empty{display:none}
 .cx-sug{
   width:100%;display:flex;align-items:center;gap:11px;
@@ -93,65 +97,111 @@
 .cx-none{
   margin:0;padding:12px;font-family:var(--wk);font-size:13px;color:var(--wk-white-60);
 }
+/* while a search is typed the pickers dim so the answer reads first */
+.cx.is-searching .cx-body{opacity:.45}
 
-/* ---------- the sentence ---------- */
-.cx-line{margin:14px 0 2px}
-.cx-row{
-  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
-  padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.14);
+/* ---------- the pickers ---------- */
+.cx-body{flex:1;min-height:0;overflow-y:auto;padding:4px 20px 8px;transition:opacity .15s ease}
+.cx-sec{padding:14px 0 12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.cx-sec:last-child{border-bottom:0}
+.cx-sec-h{display:flex;align-items:baseline;gap:10px;margin:0 0 10px;flex-wrap:wrap}
+.cx-sec-h i{
+  flex:none;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  align-self:center;font-style:normal;font-family:var(--wk);font-size:11px;font-weight:700;
+  background:rgba(255,255,255,.12);color:var(--wk-white);
 }
-.cx-row:last-child{border-bottom:0}
-.cx-verb{
-  flex:none;width:46px;
-  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.22em;
-  color:var(--wk-white-60);
-}
-.cx-chip{
-  display:inline-flex;align-items:center;gap:6px;
-  padding:6px 6px 6px 13px;border-radius:999px;
-  background:rgba(255,244,229,.14);border:1px solid rgba(255,255,255,.28);
+.cx-sec-h b{font-family:var(--wk);font-size:14px;font-weight:700;letter-spacing:.02em;color:var(--wk-white)}
+.cx-sec-h span{font-family:var(--wk);font-size:12px;color:var(--wk-white-60);line-height:1.45}
+.cx-cloud{display:flex;flex-wrap:wrap;gap:8px}
+.cx-wait,.cx-fail{margin:0;width:100%;font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);line-height:1.5}
+.cx-fail{color:#ff9d97}
+
+/* a chip: off is quiet glass, on is the app's blue with a tick */
+.cx-pick{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 14px;border-radius:999px;cursor:pointer;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
   font-family:var(--wk);font-size:13.5px;font-weight:600;color:var(--wk-white);
-  overflow-wrap:anywhere;animation:cxChipIn .2s cubic-bezier(.22,1,.36,1);
+  overflow-wrap:anywhere;text-align:left;
+  transition:background .15s ease,border-color .15s ease,transform .12s ease;
 }
-.cx-chip.no-x{padding-right:13px}
-@keyframes cxChipIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
-.cx-chip-x{
-  flex:none;width:19px;height:19px;border-radius:50%;cursor:pointer;padding:0;
-  background:rgba(255,255,255,.1);border:0;color:var(--wk-white-70);
-  display:flex;align-items:center;justify-content:center;
+.cx-pick:hover{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.3)}
+.cx-pick:active{transform:scale(.97)}
+.cx-pick.is-on{background:linear-gradient(180deg,#2B95FF,#0A84FF);border-color:transparent;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
+.cx-pick small{font-size:11px;font-weight:500;opacity:.7}
+.cx-pick-tick{display:inline-flex;width:13px;height:13px;flex:none}
+.cx-pick-tick svg{width:100%;height:100%}
+.cx-pick-all{border-style:dashed}
+.cx-pick-all.is-on{border-style:solid}
+
+/* people: a tile each, with a face and how loaded they are */
+.cx-people{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.cx-person{
+  display:flex;align-items:center;gap:10px;min-width:0;
+  padding:8px 10px 8px 8px;border-radius:14px;cursor:pointer;text-align:left;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--wk-white);
+  font-family:var(--wk);
+  transition:background .15s ease,border-color .15s ease,transform .12s ease;
 }
-.cx-chip-x svg{width:11px;height:11px}
-.cx-chip-x:hover{background:rgba(255,92,92,.22);color:#FF8E8E}
-.cx-slot{
-  padding:6px 13px;border-radius:999px;cursor:pointer;
-  background:none;border:1.5px dashed rgba(255,255,255,.32);
-  font-family:var(--wk);font-size:12.5px;color:var(--wk-white-60);
+.cx-person:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3)}
+.cx-person:active{transform:scale(.98)}
+.cx-person.is-on{background:rgba(10,132,255,.22);border-color:rgba(10,132,255,.7)}
+.cx-person.is-locked{cursor:default}
+.cx-av{
+  flex:none;width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.14);font-size:14px;font-weight:700;color:var(--wk-white);
 }
-.cx-slot:hover{border-color:rgba(255,255,255,.6);color:var(--wk-white)}
+.cx-person.is-on .cx-av{background:linear-gradient(180deg,#2B95FF,#0A84FF);color:#fff}
+.cx-person-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.cx-person-t b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-person-t small{font-size:11px;color:var(--wk-white-60)}
+.cx-person-t small.is-clear{color:var(--wk-green)}
+.cx-person .cx-pick-tick{color:#5FB2FF}
+.cx-teams{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+
+/* the route a tracked kind takes, in place of people */
+.cx-route{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.cx-stop{display:inline-flex;align-items:center;gap:6px;font-family:var(--wk);font-size:12.5px;color:var(--wk-white)}
+.cx-stop i{font-style:normal;color:var(--wk-white-60);margin-right:2px}
+.cx-stop small{font-size:11px;color:var(--wk-white-60)}
+.cx-stop.is-gap small{color:#FF9F0A}
 
 /* ---------- brief + due ---------- */
 .cx-label{
-  display:block;margin:14px 0 8px;
+  display:block;margin:0 0 6px;
   font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.22em;
   text-transform:uppercase;color:var(--wk-white-60);
 }
-.cx textarea{min-height:76px;font-size:15px}
-.cx-due{display:flex;gap:12px;margin-top:4px}
+.cx textarea{min-height:72px;font-size:14.5px;width:100%}
+.cx-due-quick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.cx-due{display:flex;gap:12px}
 .cx-due label{flex:1;min-width:0}
-.cx-due .cx-label{margin:10px 0 8px}
-.cx-due input[type=date],.cx-due input[type=time]{padding:12px;min-height:0;font-size:14px}
+.cx-due input[type=date],.cx-due input[type=time]{padding:11px 12px;min-height:0;font-size:14px;width:100%}
 
-/* ---------- send ---------- */
+/* ---------- the read-back and the send, pinned ---------- */
+.cx-foot{
+  flex:none;padding:12px 20px calc(env(safe-area-inset-bottom) + 16px);
+  border-top:1px solid rgba(255,255,255,.1);
+  background:rgba(12,14,20,.96);border-radius:0 0 24px 24px;
+}
+.cx-sum{margin:0 0 10px;font-family:var(--wk);font-size:13px;line-height:1.5;color:var(--wk-white-70);min-height:1.5em}
 .cx-send{
-  display:block;width:100%;margin-top:16px;padding:16px;border-radius:14px;cursor:pointer;
-  background:var(--wk-white);border:0;color:#12131a;
+  display:block;width:100%;padding:15px;border-radius:14px;cursor:pointer;
+  background:linear-gradient(180deg,#2B95FF,#0A84FF);border:0;color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 10px 24px rgba(10,132,255,.3);
   font-family:var(--wk);font-size:15px;font-weight:700;letter-spacing:.02em;
   transition:filter .15s ease,opacity .2s ease;
 }
 .cx-send:hover:not(:disabled){filter:brightness(1.08)}
-.cx-send:disabled{opacity:.35;cursor:default}
+.cx-send:disabled{opacity:.35;cursor:default;box-shadow:none}
 
 .cx :focus-visible{outline:2px solid var(--wk-white);outline-offset:2px}
+
+@media (max-width:560px){
+  .cx{top:0;width:100vw;max-height:100dvh;border-radius:0;padding-top:calc(env(safe-area-inset-top) + 12px)}
+  .cx-foot{border-radius:0}
+  .cx-people{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+}
 
 /* ---------- entry points ----------
    One glyph everywhere (CX_ICON in assign.js / inline in index.html): the
@@ -169,12 +219,12 @@
 .cx-btn-ico svg{width:100%;height:100%}
 
 @media (prefers-reduced-motion:reduce){
-  .cx,.cx-scrim,.cx-chip{transition:none;animation:none}
+  .cx,.cx-scrim,.cx-pick,.cx-person{transition:none;animation:none}
 }
 
 @supports (corner-shape:superellipse(1)){
   .cx{corner-shape:var(--squircle-xl)}
-  .cx-inputrow,.cx-send{corner-shape:var(--squircle-sm)}
+  .cx-inputrow,.cx-send,.cx-person,.cx-route{corner-shape:var(--squircle-sm)}
   .cx-sug,.cx-tag{corner-shape:var(--squircle-xs)}
 }
 
@@ -190,7 +240,8 @@
 .atask-broken b{ color:#ff8a80; font-weight:600; }
 
 /* ---------- the kind of work ---------- */
-.cx-kinds{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.cx-kinds{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 20px 12px}
+.cx-verb{flex:none;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--wk-white-60);margin-right:4px}
 .cx-kinds.hidden{display:none}
 .cx-kind{
   padding:7px 12px;border-radius:999px;cursor:pointer;
@@ -201,12 +252,6 @@
 .cx-kind i{font-style:normal;margin-left:6px;opacity:.6}
 .cx-kind:hover{background:rgba(255,255,255,.12);color:var(--wk-white)}
 .cx-kind.is-on{background:linear-gradient(180deg,#2B95FF,#0A84FF);border-color:transparent;color:#fff}
-/* the track, in place of TO */
-.cx-via{flex-wrap:wrap;row-gap:6px}
-.cx-stop{display:inline-flex;align-items:center;gap:6px;font-family:var(--wk);font-size:12px;color:var(--wk-white)}
-.cx-stop i{font-style:normal;color:var(--wk-white-60);margin-right:2px}
-.cx-stop small{font-size:11px;color:var(--wk-white-60)}
-.cx-stop.is-gap small{color:#FF9F0A}
 
 /* ---- a branching step's decision on the finish sheet ---- */
 /* each choice says where it sends the work, and nothing is pressed for

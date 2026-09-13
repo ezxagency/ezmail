@@ -78,7 +78,10 @@ const cxReady = () => !!cx && (cxTracked() || cx.who.length > 0) && cx.stores.le
    lists learn instead of going stale. */
 async function cxLoadOptions(){
   let rows = [];
-  try { rows = await fetchAssignRows(); } catch (e) { console.error(e); rows = assignRows || []; }
+  // a read that fails is recorded, so the pickers can say "could not
+  // load" rather than offering an empty team as if nobody worked here
+  const err = { rows: false, members: false, dir: false, types: false };
+  try { rows = await fetchAssignRows(); } catch (e) { console.error(e); rows = assignRows || []; err.rows = true; }
 
   const openBy = new Map();
   rows.forEach(r => { if (!r.done && r.toUid) openBy.set(r.toUid, (openBy.get(r.toUid) || 0) + 1); });
@@ -92,7 +95,7 @@ async function cxLoadOptions(){
       if (!s) return;
       members.push({ uid: doc.id, name: s.worker || data.email || "Unnamed", open: openBy.get(doc.id) || 0 });
     });
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error(e); err.members = true; }
   members.sort((a, b) => a.name.localeCompare(b.name));
 
   const storeSeen = new Map();
@@ -120,8 +123,8 @@ async function cxLoadOptions(){
     roles = [...byCraft.entries()]
       .filter(([, uids]) => uids.length)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([craft, uids]) => ({ craft, label: "ALL " + craft.toUpperCase(), uids }));
-  } catch (e) { console.error(e); }
+      .map(([craft, uids]) => ({ craft, label: "All " + craft, uids }));
+  } catch (e) { console.error(e); err.dir = true; }
 
   // the org's kinds of work, so the composer can send a Sponsorship and
   // not only a Task. The migrated Task kind IS the classic assignment.
@@ -130,9 +133,9 @@ async function cxLoadOptions(){
     const o = typeof orgEnsure === "function" ? await orgEnsure() : null;
     types = ((o && o.types) || []).filter(t => t.id !== MIGRATE_TASK_TYPE.id)
       .slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error(e); err.types = true; }
 
-  return { members, stores, tasks, types, roles };
+  return { members, stores, tasks, types, roles, err };
 }
 
 function openComposer(preUid, preName, editThread, preKind){
@@ -168,32 +171,63 @@ function openComposer(preUid, preName, editThread, preKind){
   }
   cxData = null; cxSugList = []; cxHi = 0; cxKindHint = null;
   cxPrevFocus = document.activeElement;
+  const seq = ++cxOpenSeq;
 
+  /* The surface (2026-09-13, the owner: "boring and not easy"). It used
+     to be a bare command bar - you had to know what to type - over three
+     dashed placeholders. Now everything there is to choose is ON SCREEN:
+     the tasks, the people (with how loaded each one is) and the stores
+     as tappable chips under three numbered steps, quick due chips, and a
+     sentence at the bottom that reads back the send or names what is
+     still missing. The bar stays, as a search and the way to coin a task
+     or a store that is not on the list yet. */
   $("cx").innerHTML = `
     <div class="cx-top">
       <span class="cx-top-l">
         <span class="cx-mark" aria-hidden="true">${CX_ICON}</span>
-        <span class="cx-eyebrow">${edit ? "Edit assignment" : "New assignment"}</span>
+        <span class="cx-eyebrow">${edit ? "Edit assignment" : "Assign work"}</span>
       </span>
       <button type="button" class="cx-x" id="cxClose" aria-label="Close">${CX_X}</button>
     </div>
     <div class="cx-kinds" id="cxKinds" role="radiogroup" aria-label="Kind of work"></div>
     <div class="cx-inputrow">
       <span class="cx-prompt" aria-hidden="true">›</span>
-      <input type="text" id="cxInput" placeholder="Type a name, a store or a task…"
+      <input type="text" id="cxInput" placeholder="Search, or type a new task or store…"
              autocomplete="off" spellcheck="false" enterkeyhint="done"
              role="combobox" aria-expanded="false" aria-controls="cxSugs" aria-autocomplete="list">
       <kbd class="cx-kbd" aria-hidden="true">↵</kbd>
     </div>
     <div class="cx-sugs" id="cxSugs" role="listbox" aria-label="Suggestions"></div>
-    <div class="cx-line" id="cxLine"></div>
-    <label class="cx-label" for="cxNote">Brief</label>
-    <textarea id="cxNote" placeholder="What does done look like? It rides along with every task in this send."></textarea>
-    <div class="cx-due">
-      <label><span class="cx-label">Due date</span><input type="date" id="cxDue"></label>
-      <label><span class="cx-label">Due time</span><input type="time" id="cxDueTime"></label>
+    <div class="cx-body" id="cxBody">
+      <section class="cx-sec" id="cxSecTask">
+        <div class="cx-sec-h"><i>1</i><b>What</b><span id="cxTaskHint">Tap a task, or type a new one above</span></div>
+        <div class="cx-cloud" id="cxTasks"></div>
+      </section>
+      <section class="cx-sec" id="cxSecWho">
+        <div class="cx-sec-h"><i>2</i><b id="cxWhoTitle">Who</b><span id="cxWhoHint">Tap one or more people</span></div>
+        <div class="cx-people" id="cxPeople"></div>
+      </section>
+      <section class="cx-sec" id="cxSecStore">
+        <div class="cx-sec-h"><i>3</i><b>Where</b><span>Tap a store, or all of them</span></div>
+        <div class="cx-cloud" id="cxStores"></div>
+      </section>
+      <section class="cx-sec">
+        <div class="cx-sec-h"><b>Brief</b><span>What does done look like? It rides along with every task in this send.</span></div>
+        <textarea id="cxNote" placeholder="e.g. Three-email sequence for the spring drop. Lead with the restock, not the discount."></textarea>
+      </section>
+      <section class="cx-sec">
+        <div class="cx-sec-h"><b>Due</b><span>Optional</span></div>
+        <div class="cx-due-quick" id="cxDueQuick"></div>
+        <div class="cx-due">
+          <label><span class="cx-label">Date</span><input type="date" id="cxDue"></label>
+          <label><span class="cx-label">Time</span><input type="time" id="cxDueTime"></label>
+        </div>
+      </section>
     </div>
-    <button type="button" class="cx-send" id="cxSend" disabled>Assign work</button>`;
+    <div class="cx-foot">
+      <p class="cx-sum" id="cxSum"></p>
+      <button type="button" class="cx-send" id="cxSend" disabled>Assign work</button>
+    </div>`;
 
   const input = $("cxInput");
   input.oninput = () => { cxKindHint = null; cxHi = 0; cxPaintSugs(); };
@@ -210,18 +244,16 @@ function openComposer(preUid, preName, editThread, preKind){
     } else if (e.key === "Backspace" && !input.value){
       const last = cx.order.pop();
       if (!last) return;
-      if (last.kind === "who") cx.who = cx.who.filter(p => p.uid !== last.v);
-      else if (last.kind === "store") cx.stores = cx.stores.filter(s => s !== last.v);
-      else cx.tasks = cx.tasks.filter(t => t !== last.v);
-      cxPaintLine(); cxPaintSugs();
+      cxRemove(last.kind, last.v, true);
+      cxPaintPickers(); cxPaintSugs();
     }
   };
   $("cxNote").value = cx.note;
   $("cxNote").oninput = () => { cx.note = $("cxNote").value; cxPaintSend(); };
   if (cx.due) $("cxDue").value = cx.due;
   if (cx.dueTime) $("cxDueTime").value = cx.dueTime;
-  $("cxDue").onchange = () => { cx.due = $("cxDue").value; };
-  $("cxDueTime").onchange = () => { cx.dueTime = $("cxDueTime").value; };
+  $("cxDue").onchange = () => { cx.due = $("cxDue").value; cxPaintDue(); cxPaintSend(); };
+  $("cxDueTime").onchange = () => { cx.dueTime = $("cxDueTime").value; cxPaintSend(); };
   $("cxClose").onclick = closeComposer;
   $("cxSend").onclick = cxSubmit;
   // Esc peels one layer per press: text in the bar first, then the dialog.
@@ -236,18 +268,28 @@ function openComposer(preUid, preName, editThread, preKind){
     }
   };
 
-  cxPaintLine();
+  cxPaintPickers();
   $("cxScrim").classList.add("on");
   $("cx").classList.add("on");
   input.focus();
 
-  // the roster/stores/tasks land async; the deck fills in once they do
+  // the roster/stores/tasks land async; the pickers fill in once they do.
+  // A later open, or data set by hand meanwhile, outranks this answer.
   cxLoadOptions().then(d => {
-    if (!cxIsOpen()) return;
-    cxData = d;
-    cxPaintKinds();
-    cxPaintSugs();
+    if (!cxIsOpen() || seq !== cxOpenSeq) return;
+    cxSetData(d);
   });
+}
+let cxOpenSeq = 0;
+/* Hand the composer its options (the loader, a test, the screenshot run)
+   and paint them. Bumps the sequence so a load still in flight cannot
+   overwrite what was set here. */
+function cxSetData(d){
+  cxOpenSeq++;
+  cxData = d;
+  cxPaintKinds();
+  cxPaintPickers();
+  cxPaintSugs();
 }
 
 /* ---------- the kind ---------- */
@@ -262,18 +304,18 @@ function cxPaintKinds(){
   const chip = (id, label, tracked, on) =>
     '<button type="button" class="cx-kind' + (on ? " is-on" : "") + (tracked ? " is-tracked" : "") + '" data-kind="' + esc(id) + '" role="radio" aria-checked="' + on + '">'
     + esc(label) + (tracked ? '<i aria-hidden="true">→</i>' : "") + '</button>';
-  box.innerHTML = '<span class="cx-verb">KIND</span>'
+  box.innerHTML = '<span class="cx-verb">Kind</span>'
     + chip("", "Task", false, !cx.kind)
     + types.map(t => chip(t.id, t.name || t.id, !!(t.workflowId && (t.track || []).length), cx.kind === t.id)).join("");
   box.querySelectorAll(".cx-kind").forEach(b => b.onclick = () => {
     cx.kind = b.dataset.kind || null;
-    cxPaintKinds(); cxPaintLine(); cxPaintSugs();
+    cxPaintKinds(); cxPaintPickers(); cxPaintSugs();
     $("cxInput").focus();
   });
 }
 
 /* The track's stops with the people who hold each today - what the
-   sentence shows in place of TO when the kind has a track. */
+   Who step shows in place of people when the kind has a track. */
 function cxPipeline(type){
   const members = (typeof orgS !== "undefined" && orgS && orgS.members) || [];
   const nameOf = uid => typeof orgPersonName === "function" ? orgPersonName(uid) : uid;
@@ -302,62 +344,165 @@ function closeComposer(){
   if (cxPrevFocus && cxPrevFocus.focus) cxPrevFocus.focus();
   cxPrevFocus = null;
 }
-$("cxScrim").onclick = () => closeComposer();
+// under Node (the pure helpers are required by tests/composer.test.mjs) there is no document
+if (typeof $ === "function" && typeof document !== "undefined" && $("cxScrim")) $("cxScrim").onclick = () => closeComposer();
 
-/* ---------- the sentence ---------- */
-function cxChip(kind, value, label, removable){
-  return `<span class="cx-chip${removable ? "" : " no-x"}">${esc(label)}${removable
-    ? `<button type="button" class="cx-chip-x" data-kind="${kind}" data-v="${esc(value)}" aria-label="Remove ${esc(label)}">${CX_X}</button>`
-    : ""}</span>`;
+/* ---------- the pickers ---------- */
+
+/* Take a pick back. `keepOrder` when the caller already popped it. */
+function cxRemove(kind, v, keepOrder){
+  if (!cx) return;
+  if (kind === "who") cx.who = cx.who.filter(p => p.uid !== v);
+  else if (kind === "store") cx.stores = cx.stores.filter(s => s !== v);
+  else cx.tasks = cx.tasks.filter(t => t !== v);
+  if (!keepOrder) cx.order = cx.order.filter(o => !(o.kind === kind && o.v === v));
+}
+/* Tap a chip: on if it was off, off if it was on. */
+function cxToggle(kind, v){
+  if (!cx) return;
+  const on = kind === "who" ? cx.who.some(p => p.uid === v)
+    : kind === "store" ? cx.stores.includes(v) : cx.tasks.includes(v);
+  if (on) cxRemove(kind, v);
+  else cxPick({ kind, value: v }, true);
+  cxPaintPickers(); cxPaintSugs();
 }
 
-function cxPaintLine(){
-  const line = $("cxLine");
-  if (!line || !cx) return;
-  const row = (verb, kind, chips, slotText) => `
-    <div class="cx-row">
-      <span class="cx-verb">${verb}</span>
-      ${chips.join("")}
-      ${slotText ? `<button type="button" class="cx-slot" data-kind="${kind}">${slotText}</button>` : ""}
-    </div>`;
-  const type = cxKind();
-  const toRow = cxTracked()
-    // a tracked kind has no TO: the track says where it goes, stop by stop
-    ? '<div class="cx-row cx-via"><span class="cx-verb">VIA</span>'
-      + cxPipeline(type).map((st, i) => '<span class="cx-stop' + (st.who.length ? "" : " is-gap") + '">'
-          + (i ? '<i>→</i>' : "") + esc(st.label) + '<small>' + esc(st.who.join(", ") || "nobody yet") + '</small></span>').join("")
-      + '</div>'
-    : row("TO", "who", cx.who.map(p => cxChip("who", p.uid, p.name, !cx.edit)), cx.who.length ? "" : "who?");
-  line.innerHTML =
-    row("SEND", "task", cx.tasks.map(t => cxChip("task", t, t, true)), cx.tasks.length ? "" : "what task?")
-    + toRow
-    + row("AT", "store", cx.stores.map(s => cxChip("store", s, s, true)), cx.stores.length ? "" : "which store?");
-  line.querySelectorAll(".cx-chip-x").forEach(b => b.onclick = () => {
+const cxInitial = name => { const s = String(name || "").trim(); return s ? s[0].toUpperCase() : "·"; };
+
+/* The quick due dates: today, tomorrow, a week out - as YYYY-MM-DD in the
+   local calendar, which is what the date input and every "is it late"
+   check compare against. Pure. */
+function cxDueQuick(now){
+  const d0 = new Date(now || Date.now());
+  const ymd = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const at = n => { const d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + n); return ymd(d); };
+  return [{ label: "Today", date: at(0) }, { label: "Tomorrow", date: at(1) }, { label: "In a week", date: at(7) }];
+}
+
+/* What the send still needs, in the order the steps ask. Pure. */
+function cxMissing(state, tracked){
+  const out = [];
+  if (!state) return out;
+  if (!state.tasks.length) out.push("a task");
+  if (!tracked && !state.who.length) out.push("someone to do it");
+  if (!state.stores.length) out.push("a store");
+  if ((state.note || "").trim().length < 3) out.push("a brief");
+  return out;
+}
+/* The sentence under the pickers: the send read back in words, or what
+   is still missing. Pure given the state and what a tracked kind's
+   first step is called. */
+function cxSummary(state, tracked, firstStep){
+  if (!state) return "";
+  const missing = cxMissing(state, tracked);
+  if (missing.length) return "Still needed: " + missing.join(", ") + ".";
+  const what = state.tasks.length === 1 ? state.tasks[0] : state.tasks.length + " tasks";
+  const who = tracked ? "→ " + (firstStep || "its first step")
+    : "→ " + (state.who.length <= 2 ? state.who.map(p => p.name).join(" and ") : state.who.length + " people");
+  const where = state.stores.length === 1 ? state.stores[0] : state.stores.length + " stores";
+  const due = state.due ? " · due " + new Date(state.due + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+    + (state.dueTime ? " " + afTimeLabel(state.dueTime) : "") : "";
+  return what + " " + who + " · " + where + due;
+}
+
+function cxPaintPickers(){
+  if (!cx || !$("cxTasks")) return;
+  const d = cxData;
+  const err = (d && d.err) || {};
+  const on = (list, v) => list.includes(v);
+  const chip = (kind, v, label, isOn, extra) =>
+    '<button type="button" class="cx-pick' + (isOn ? " is-on" : "") + (extra && extra.cls ? " " + extra.cls : "") + '" data-kind="' + esc(kind) + '" data-v="' + esc(v) + '" aria-pressed="' + !!isOn + '">'
+    + (isOn ? '<i class="cx-pick-tick" aria-hidden="true">' + AF_TICK + '</i>' : "") + esc(label)
+    + (extra && extra.meta ? '<small>' + esc(extra.meta) + '</small>' : "") + '</button>';
+  const loading = '<p class="cx-wait">Loading…</p>';
+  const failed = what => '<p class="cx-fail">Could not load the ' + what + ' — check your connection. You can still type one above.</p>';
+
+  // WHAT: the known tasks, the chosen ones first (a coined one is chosen and not known)
+  const tasks = d ? [...cx.tasks.filter(t => !d.tasks.includes(t)), ...d.tasks] : cx.tasks.slice();
+  $("cxTasks").innerHTML = (!d ? loading : err.rows ? failed("tasks") : "")
+    + tasks.map(t => chip("task", t, t, on(cx.tasks, t))).join("")
+    + (d && !tasks.length && !err.rows ? '<p class="cx-wait">No tasks named yet — type one above.</p>' : "");
+
+  // WHO: people as tiles with their load, and the teams; or the route, for a tracked kind
+  const type = cxKind(), tracked = cxTracked();
+  const who = $("cxPeople");
+  if (tracked){
+    $("cxWhoTitle").textContent = "Who";
+    $("cxWhoHint").textContent = "Goes by its steps · nobody to pick";
+    who.innerHTML = '<div class="cx-route">' + cxPipeline(type).map((st, i) => '<span class="cx-stop' + (st.who.length ? "" : " is-gap") + '">'
+      + (i ? '<i>→</i>' : "") + esc(st.label) + '<small>' + esc(st.who.join(", ") || "nobody yet") + '</small></span>').join("") + '</div>';
+  } else if (cx.edit){
+    $("cxWhoTitle").textContent = "Who";
+    $("cxWhoHint").textContent = "This assignment stays with them";
+    who.innerHTML = cx.who.map(p => '<span class="cx-person is-on is-locked"><b class="cx-av">' + esc(cxInitial(p.name)) + '</b><span class="cx-person-t"><b>' + esc(p.name) + '</b></span></span>').join("");
+  } else {
+    $("cxWhoTitle").textContent = "Who";
+    $("cxWhoHint").textContent = "Tap one or more people";
+    const members = d ? d.members : [];
+    const chosenUnknown = cx.who.filter(p => !members.some(m => m.uid === p.uid));
+    const tile = (uid, name, meta, isOn) => '<button type="button" class="cx-person' + (isOn ? " is-on" : "") + '" data-kind="who" data-v="' + esc(uid) + '" aria-pressed="' + !!isOn + '">'
+      + '<b class="cx-av">' + esc(cxInitial(name)) + '</b><span class="cx-person-t"><b>' + esc(name) + '</b>'
+      + (meta ? '<small' + (meta === "clear" ? ' class="is-clear"' : "") + '>' + esc(meta) + '</small>' : "") + '</span>'
+      + (isOn ? '<i class="cx-pick-tick" aria-hidden="true">' + AF_TICK + '</i>' : "") + '</button>';
+    who.innerHTML = (!d ? loading : err.members ? failed("team") : "")
+      + chosenUnknown.map(p => tile(p.uid, p.name, "", true)).join("")
+      + members.map(m => tile(m.uid, m.name, m.open ? m.open + " open" : "clear", cx.who.some(p => p.uid === m.uid))).join("")
+      + (d && d.roles.length ? '<div class="cx-teams">' + d.roles.map(r => chip("role", r.craft, r.label, r.uids.every(u => cx.who.some(p => p.uid === u)), { meta: r.uids.length + (r.uids.length === 1 ? " person" : " people"), cls: "cx-pick-team" })).join("") + '</div>' : "")
+      + (d && !members.length && !err.members ? '<p class="cx-wait">Nobody has signed in yet.</p>' : "");
+  }
+
+  // WHERE: the stores, and all of them at once
+  const stores = d ? [...cx.stores.filter(s => !d.stores.includes(s)), ...d.stores] : cx.stores.slice();
+  const allOn = d && d.stores.length > 1 && d.stores.every(s => cx.stores.includes(s));
+  $("cxStores").innerHTML = (!d ? loading : "")
+    + (d && d.stores.length > 1 ? chip("all", "", "All locations", allOn, { meta: d.stores.length + " stores", cls: "cx-pick-all" }) : "")
+    + stores.map(s => chip("store", s, s, on(cx.stores, s))).join("")
+    + (d && !stores.length ? '<p class="cx-wait">No stores named yet — type one above.</p>' : "");
+
+  cxPaintDue();
+
+  // one handler for every chip and tile: a tap toggles
+  // (the quick due chips wear .cx-pick for the look and keep their own handler)
+  $("cxBody").querySelectorAll(".cx-pick:not(.cx-pick-due), .cx-person:not(.is-locked)").forEach(b => b.onclick = () => {
     const k = b.dataset.kind, v = b.dataset.v;
-    if (k === "who") cx.who = cx.who.filter(p => p.uid !== v);
-    else if (k === "store") cx.stores = cx.stores.filter(s => s !== v);
-    else cx.tasks = cx.tasks.filter(t => t !== v);
-    cx.order = cx.order.filter(o => !(o.kind === k && o.v === v));
-    cxPaintLine(); cxPaintSugs();
-    $("cxInput").focus();
-  });
-  // a tapped placeholder tells the deck which lane to guide toward
-  line.querySelectorAll(".cx-slot").forEach(b => b.onclick = () => {
-    cxKindHint = b.dataset.kind;
-    cxPaintSugs();
-    $("cxInput").focus();
+    if (k === "all"){
+      const every = d.stores.every(s => cx.stores.includes(s));
+      if (every) d.stores.forEach(s => cxRemove("store", s));
+      else cxPick({ kind: "all" }, true);
+      cxPaintPickers(); cxPaintSugs();
+    } else if (k === "role"){
+      const r = d.roles.find(x => x.craft === v);
+      const every = r && r.uids.every(u => cx.who.some(p => p.uid === u));
+      if (every) r.uids.forEach(u => cxRemove("who", u));
+      else cxPick({ kind: "role", value: v }, true);
+      cxPaintPickers(); cxPaintSugs();
+    } else cxToggle(k, v);
   });
   cxPaintSend();
 }
 
+function cxPaintDue(){
+  const box = $("cxDueQuick");
+  if (!box || !cx) return;
+  box.innerHTML = cxDueQuick().map(q => '<button type="button" class="cx-pick cx-pick-due' + (cx.due === q.date ? " is-on" : "") + '" data-date="' + q.date + '" aria-pressed="' + (cx.due === q.date) + '">' + q.label + '</button>').join("");
+  box.querySelectorAll(".cx-pick-due").forEach(b => b.onclick = () => {
+    cx.due = cx.due === b.dataset.date ? "" : b.dataset.date;
+    if ($("cxDue")) $("cxDue").value = cx.due;
+    cxPaintDue(); cxPaintSend();
+  });
+}
+
 function cxPaintSend(){
-  const btn = $("cxSend");
+  const btn = $("cxSend"), sum = $("cxSum");
   if (!btn || !cx) return;
   btn.disabled = !cxReady();
+  const type = cxKind();
+  const first = cxTracked() ? (cxPipeline(type)[0] || null) : null;
+  if (sum) sum.textContent = cxSummary(cx, cxTracked(), first ? first.label : "");
   if (cx.edit){ btn.textContent = "Save changes"; return; }
   if (!cxReady()){ btn.textContent = "Assign work"; return; }
   if (cxTracked()){
-    const t = cxKind(), first = cxPipeline(t)[0];
+    const t = cxKind();
     const n = cx.stores.length * cx.tasks.length;
     btn.textContent = `Start ${n} ${n === 1 ? t.name : t.name + "s"} → ${first ? first.label : "first stop"}`;
     return;
@@ -367,7 +512,7 @@ function cxPaintSend(){
   btn.textContent = `Assign ${n} task${n === 1 ? "" : "s"} → ${who}`;
 }
 
-/* ---------- the deck ---------- */
+/* ---------- the search ---------- */
 function cxSuggestions(qRaw){
   const q = qRaw.trim().toLowerCase();
   if (!cxData) return q ? [{ kind: "none", label: "Loading the roster…" }] : [];
@@ -378,23 +523,8 @@ function cxSuggestions(qRaw){
   const out = [];
   const push = (kind, value, label, meta) => out.push({ kind, value, label, meta });
 
-  if (!q){
-    // empty bar: guide toward whichever lane the sentence still needs
-    const hint = cxKindHint
-      || (!cx.tasks.length ? "task" : (!cx.who.length && !cxTracked()) ? "who" : !cx.stores.length ? "store" : null);
-    if (hint === "who" && !cx.edit){
-      [...members].sort((a, b) => a.open - b.open).slice(0, 4)
-        .forEach(m => push("who", m.uid, m.name, m.open ? m.open + " open" : "clear"));
-      cxData.roles.slice(0, 2).forEach(r => push("role", r.craft, r.label, r.uids.length + " ppl"));
-    } else if (hint === "store"){
-      if (stores.length > 1 && !cx.stores.length)
-        push("all", "", "ALL LOCATIONS", cxData.stores.length + " stores");
-      stores.slice(0, 5).forEach(s => push("store", s, s));
-    } else if (hint === "task"){
-      tasks.slice(0, 6).forEach(t => push("task", t, t));
-    }
-    return out;
-  }
+  // the empty bar offers nothing: the pickers below are the offer
+  if (!q) return out;
 
   // substring match everywhere, earlier hits first
   const rank = list => list
@@ -403,7 +533,7 @@ function cxSuggestions(qRaw){
     .sort((a, b) => a.i - b.i || a.x.l.localeCompare(b.x.l))
     .map(r => r.x);
 
-  if (!cx.edit){
+  if (!cx.edit && !cxTracked()){
     rank(members.map(m => ({ l: m.name.toLowerCase(), m }))).slice(0, 3)
       .forEach(({ m }) => push("who", m.uid, m.name, m.open ? m.open + " open" : "clear"));
     rank(cxData.roles.map(r => ({ l: r.label.toLowerCase(), r }))).slice(0, 2)
@@ -443,34 +573,40 @@ function cxPaintSugs(){
   const hasRows = cxSugList.some(s => s.kind !== "none");
   input.setAttribute("aria-expanded", String(hasRows));
   input.setAttribute("aria-activedescendant", hasRows ? "cxSug" + cxHi : "");
+  // while a search is typed the pickers step back, so the answer is the
+  // first thing under the bar; an empty bar shows the pickers again
+  $("cx").classList.toggle("is-searching", !!input.value.trim());
   box.querySelectorAll(".cx-sug").forEach(b =>
     b.onclick = () => cxPick(cxSugList[Number(b.id.slice(5))]));
 }
 
-function cxPick(s){
+/* Add what was picked - from the search or a chip. `quiet` leaves the
+   bar and the pickers to the caller. */
+function cxPick(s, quiet){
   if (!s || s.kind === "none" || !cx) return;
   const add = (kind, v) => cx.order.push({ kind, v });
   if (s.kind === "who"){
-    const m = cxData.members.find(x => x.uid === s.value);
+    const m = cxData ? cxData.members.find(x => x.uid === s.value) : null;
     if (m && !cx.who.some(p => p.uid === m.uid)){ cx.who.push({ uid: m.uid, name: m.name }); add("who", m.uid); }
   } else if (s.kind === "role"){
-    const r = cxData.roles.find(x => x.craft === s.value);
+    const r = cxData ? cxData.roles.find(x => x.craft === s.value) : null;
     if (r) r.uids.forEach(uid => {
       const m = cxData.members.find(x => x.uid === uid);
       if (m && !cx.who.some(p => p.uid === uid)){ cx.who.push({ uid, name: m.name }); add("who", uid); }
     });
   } else if (s.kind === "all"){
-    cxData.stores.forEach(st => { if (!cx.stores.includes(st)){ cx.stores.push(st); add("store", st); } });
+    (cxData ? cxData.stores : []).forEach(st => { if (!cx.stores.includes(st)){ cx.stores.push(st); add("store", st); } });
   } else if (s.kind === "store" || s.kind === "new-store"){
     if (!cx.stores.includes(s.value)){ cx.stores.push(s.value); add("store", s.value); }
   } else if (!cx.tasks.includes(s.value)){
     cx.tasks.push(s.value); add("task", s.value);
   }
+  if (quiet) return;
   cxKindHint = null;
   const input = $("cxInput");
   input.value = "";
   cxHi = 0;
-  cxPaintLine();
+  cxPaintPickers();
   cxPaintSugs();
   input.focus();
 }
@@ -1242,3 +1378,6 @@ async function exportWorkerExcel(name, email, hist){
   toast("Excel file downloaded");
 }
 
+if (typeof module !== "undefined" && module.exports){
+  module.exports = { cxDueQuick, cxMissing, cxSummary };
+}
