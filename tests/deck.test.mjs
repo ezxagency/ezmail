@@ -21,7 +21,7 @@ import { createRequire } from "node:module";
 import { strict as assert } from "node:assert";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { dkPick } = createRequire(import.meta.url)(join(here, "..", "js", "deck.js"));
+const { dkPick, dkLastShift } = createRequire(import.meta.url)(join(here, "..", "js", "deck.js"));
 
 let pass = 0, fail = 0;
 const T = (name, fn) => {
@@ -55,6 +55,23 @@ T("finishing the LAST card falls back onto the new last one", () => {
   const p = dkPick(rows(["a", "b"]), "c", 2);
   assert.equal(p.idx, 1);
   assert.equal(p.id, "b");
+});
+
+/* The empty card's one fact: the most recent closed shift. */
+T("dkLastShift picks the latest closed shift, measures it, and counts its distinct tasks", () => {
+  assert.equal(dkLastShift([]), null);
+  assert.equal(dkLastShift(null), null);
+  const h = [
+    { startedAt: 100, endedAt: 4000, netMs: 3500, segs: [{ task: "A", itemId: "a" }, { task: "A", itemId: "a" }, { task: "B", itemId: "b" }, { task: null }] },
+    { startedAt: 10, endedAt: 50, netMs: 30, segs: [] },
+    { startedAt: 5000, endedAt: null }
+  ];
+  const last = dkLastShift(h);
+  assert.equal(last.endedAt, 4000, "not the latest closed shift");
+  assert.equal(last.netMs, 3500);
+  assert.equal(last.tasks, 2, "two segments of one task counted twice, or the idle gap counted");
+  // a record without netMs is measured, breaks taken off
+  assert.equal(dkLastShift([{ startedAt: 1, endedAt: 1001, breakMs: 200 }]).netMs, 800);
 });
 
 T("a remembered index from a longer deck cannot point off the end", () => {
@@ -119,6 +136,21 @@ T("the header is Your work, with a count sentence", () => {
   assert.ok(sub.includes("3 tasks"), "the sentence does not count the work: " + sub);
   assert.ok(sub.includes("2 overdue"));
   assert.ok(deck().querySelector(".dk-sub b i"), "the overdue count lost its red dot");
+});
+
+T("nothing assigned is a short card that names the last shift; a failed org read does not", () => {
+  run(`dkReset(); S.status="IDLE"; S.shift=null; S.history=[{ startedAt: Date.now()-8*3600000, endedAt: Date.now()-3600000, netMs: 6*3600000,
+       segs:[{ task:"Copy", itemId:"c" }, { task:"Design", itemId:"d" }] }]; assignedEmptyReason = null; dkRender([]);`);
+  const c = deck().querySelector(".dk-card-empty");
+  assert.ok(c, "no empty card");
+  assert.match(c.textContent, /No tasks assigned/);
+  assert.match(c.querySelector(".dk-empty-last").textContent, /Last shift/);
+  assert.match(c.querySelector(".dk-empty-last").textContent, /6h/);
+  assert.match(c.querySelector(".dk-empty-last").textContent, /2 tasks/);
+  run(`assignedEmptyReason = "org-error"; dkRender([]);`);
+  assert.match(deck().querySelector(".dk-card-empty").textContent, /Could not reach/);
+  assert.equal(deck().querySelector(".dk-empty-last"), null, "a failed read still boasted a last shift");
+  run(`assignedEmptyReason = null; S.history = [];`);
 });
 
 T("one card per piece of work, all of them in the stack", () => {

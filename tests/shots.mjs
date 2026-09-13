@@ -232,10 +232,19 @@ for (const [width, height] of [[1920,1080], [1440,900], [1280,720], [1024,600], 
       seconds: [...document.querySelectorAll('.clock-panel .ring-sec')].map(el => parseFloat(getComputedStyle(el).fontSize)),
       clock: rect(document.querySelector('.clock')),
       shiftbar: rect(document.querySelector('.shiftbar')),
-      rings: [...document.querySelectorAll('.clock-panel .ring')].map(rect)
+      rings: [...document.querySelectorAll('.clock-panel .ring')].map(rect),
+      week: rect(document.getElementById('weekRow')),
+      band: rect(document.querySelector('.band')),
+      side: rect(document.querySelector('.assign-panel'))
     };
   });
   const label = `${width}x${height}`;
+  // the week row (hours, bars, streak) is sized off its column: it never
+  // runs under the deck, which it did at 1275 wide (2026-09-13)
+  if (width >= 1024) {
+    assert.ok(layout.week.right <= layout.side.left - 8, `${label}: the week row runs under the deck (${Math.round(layout.week.right)} vs ${Math.round(layout.side.left)})`);
+    assert.ok(layout.week.right <= layout.band.right, `${label}: the week row overflows the band`);
+  }
   assert.ok(layout.buttons[0].top - Math.max(...layout.panels.map(r => r.bottom)) >= 16, `${label}: clocks overlap dock`);
   assert.ok(layout.buttons.every(r => r.height >= 44 && r.height <= 60), `${label}: buttons should stay compact and tappable`);
   assert.ok(layout.seconds.every(size => size >= 16), `${label}: seconds should be readable`);
@@ -342,6 +351,20 @@ await page.evaluate(() => {
   render(); dkRender([]); renderAssignedBrief([]);
 });
 await shoot("next-idle");
+// the state the owner photographed: a 1275-wide window, nothing assigned
+await page.setViewportSize({ width: 1275, height: 680 });
+await page.waitForTimeout(150);
+{
+  const r = await page.evaluate(() => {
+    const b = el => el.getBoundingClientRect();
+    return { week: b(document.getElementById("weekRow")).right, side: b(document.querySelector(".assign-panel")).left,
+             empty: b(document.querySelector(".dk-card-empty")).height, stage: b(document.querySelector(".dk-stage")).height };
+  });
+  assert.ok(r.week <= r.side - 8, `1275: the week row runs under the deck (${Math.round(r.week)} vs ${Math.round(r.side)})`);
+  assert.ok(r.empty < r.stage * 0.8, `1275: the empty card is still a column-tall slab (${Math.round(r.empty)} of ${Math.round(r.stage)})`);
+}
+await shoot("next-idle-1275");
+await page.setViewportSize({ width: 1920, height: 1080 });
 
 // ---- Admin view: the home that replaces the stage for an admin ----
 await page.evaluate(() => {

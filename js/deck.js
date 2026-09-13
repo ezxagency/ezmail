@@ -316,9 +316,24 @@ function dkSubtitle(rows){
     + ' <em>·</em> <span>' + soon + ' due today</span></p>';
 }
 
+/* The most recent closed shift, for the empty card: when, how long, and
+   how many different tasks. Pure; null when there is none. `netMs` is
+   what the closed record carries; a record without it is measured. */
+function dkLastShift(history){
+  const list = (history || []).filter(h => h && h.startedAt && h.endedAt);
+  if (!list.length) return null;
+  const h = list.reduce((a, b) => (b.endedAt > a.endedAt ? b : a));
+  const net = typeof h.netMs === "number" ? h.netMs : Math.max(0, h.endedAt - h.startedAt - (h.breakMs || 0));
+  const tasks = new Set((h.segs || []).filter(s => s && s.task).map(s => (s.itemId || s.task)));
+  return { endedAt: h.endedAt, netMs: net, tasks: tasks.size };
+}
+const DK_ICO_INBOX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 13.5 6 6h12l2.5 7.5V18a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18z"/><path d="M3.5 13.5H9a3 3 0 0 0 6 0h5.5"/></svg>';
 function dkEmptyHTML(){
   const why = typeof assignedEmptyReason !== "undefined" ? assignedEmptyReason : null;
+  const last = !why ? dkLastShift(typeof S !== "undefined" ? S.history : null) : null;
+  const when = last ? new Date(last.endedAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "";
   return '<article class="dk-card dk-card-empty is-front">'
+    + '<span class="dk-empty-i" aria-hidden="true">' + DK_ICO_INBOX + '</span>'
     + '<h3 class="dk-title">' + (why === "no-org" ? "You are not in an organization yet"
         : why === "org-error" ? "Could not reach your organization"
         : "No tasks assigned") + '</h3>'
@@ -327,7 +342,10 @@ function dkEmptyHTML(){
         : why === "org-error"
         ? "Your work is there — this device could not load it. Check your connection and refresh."
         : "New work lands here, from your admin and from any rule that assigns by itself.")
-    + '</p></article>';
+    + '</p>'
+    + (last ? '<p class="dk-empty-last"><b>Last shift</b><span>' + esc(when) + ' · ' + esc(humanDur(last.netMs)) + '</span>'
+        + (last.tasks ? ' · ' + last.tasks + (last.tasks === 1 ? ' task' : ' tasks') : '') + '</p>' : '')
+    + '</article>';
 }
 
 function dkRender(rows){
@@ -606,5 +624,5 @@ function dkReset(){
 }
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { dkPick };
+  module.exports = { dkPick, dkLastShift };
 }

@@ -100,13 +100,29 @@
 @keyframes dkGone{to{opacity:0}}
 /* Nothing assigned is still a CARD - the column keeps its shape rather
    than collapsing - but it is not IN the stack, so it does not move. */
+/* Nothing assigned is a short card, not a column-tall blank: it says so,
+   and gives the one fact this device already holds - the last shift. */
 .dk-card-empty{
-  position:absolute;inset:0;left:0;width:100%;max-width:none;
-  transform:none;justify-content:center;align-items:center;text-align:center;
-  padding:40px 34px;
+  position:absolute;top:0;left:0;right:0;bottom:auto;width:100%;max-width:none;
+  height:auto;min-height:0;
+  transform:none;justify-content:flex-start;align-items:center;text-align:center;
+  padding:34px 30px 30px;
 }
+.dk-empty-i{
+  width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);margin-bottom:16px;
+  color:var(--wk-white-70);
+}
+.dk-empty-i svg{width:24px;height:24px}
 .dk-card-empty .dk-title{font-size:18px}
-.dk-card-empty .dk-from{margin-top:10px;max-width:36ch;line-height:1.55}
+.dk-card-empty .dk-from{margin-top:8px;max-width:36ch;line-height:1.55}
+.dk-empty-last{
+  margin:18px 0 0;padding:12px 16px;border-radius:14px;width:100%;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);
+  font-size:12.5px;line-height:1.5;color:var(--wk-white-70);
+}
+.dk-empty-last b{display:block;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--wk-white-60);margin-bottom:3px;font-weight:600}
+.dk-empty-last span{color:var(--wk-white)}
 
 /* ---------- card content ---------- */
 .dk-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px;flex:none;min-height:27px}

@@ -128,7 +128,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 649 assertions, node + jsdom, seconds
+npm test        # 652 assertions, node + jsdom, seconds
 npm run test:rules   # 304 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -230,7 +230,10 @@ an admin-capable account (`amCapable()`) gets the hours and the bars
 without it, the owner's ask on 2026-09-13. The open shift is added live,
 because a row that ignored the hours you are working right now would be
 wrong all day and right only after clock-out. `wr` prefix, not `wk`:
-`js/work.js` already owns `wk` in the one shared scope.
+`js/work.js` already owns `wk` in the one shared scope. The row is
+sized in container units off the band (`docs/lessons.md` > "A row sized
+in viewport units"), and the deck's empty card is a short card naming
+the last closed shift (`dkLastShift()`), not a column-tall blank.
 
 Fourth piece: the **left rail**, which replaces the hamburger. It keeps
 no list of pages — `js/rail.js` builds it from the drawer's own items and

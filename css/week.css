@@ -4,13 +4,20 @@
    a 64px band, the streak as a pill on the right.
    ============================================================ */
 #weekRow{display:none}
+/* The row is sized off the BAND it sits in, not the window. The band is
+   the left column, and the deck takes a fixed slice of the window - so at
+   1275px the column is 640px wide while vw-based bars and gaps still
+   assumed the comp's 1184. The row ran under the deck. Container units
+   (cqw) follow the column; the vw lines above each cqw line are the
+   fallback for a browser without them. */
+.ui-next .app.panes .band{container-type:inline-size;container-name:band}
 .ui-next #weekRow{
-  display:flex;align-items:flex-end;gap:clamp(16px,3vw,64px);
+  display:flex;align-items:flex-end;gap:clamp(16px,3vw,64px);gap:clamp(12px,4cqw,64px);
   margin-top:16px;
   /* the band spans the whole window; the row is the MAIN column's width,
      so the streak pill lands at the end of the row rather than stranded
-     in the middle of the page */
-  max-width:860px;
+     in the middle of the page - and never wider than the column */
+  max-width:860px;max-width:min(860px, 100%);min-width:0;
   font-family:var(--wk);
 }
 
@@ -24,10 +31,10 @@
   color:var(--wk-white);font-variant-numeric:tabular-nums;
 }
 
-.wrow-bars{display:flex;align-items:flex-end;gap:clamp(6px,.7vw,11px);flex:none}
+.wrow-bars{display:flex;align-items:flex-end;gap:clamp(6px,.7vw,11px);gap:clamp(4px,.9cqw,11px);flex:none}
 .wrow-day{display:flex;flex-direction:column;align-items:center;gap:7px}
 .wrow-bar{
-  display:block;width:clamp(28px,3vw,52px);border-radius:5px;
+  display:block;width:clamp(28px,3vw,52px);width:clamp(22px,4.6cqw,52px);border-radius:5px;
   background:rgba(255,255,255,.30);
   transition:height .3s var(--pz-ease);
 }
@@ -48,9 +55,14 @@
   padding:9px 16px;border-radius:999px;
   background:rgba(255,255,255,.10);
   font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--wk-white);
+  white-space:nowrap;
 }
 .wrow-streak svg{width:15px;height:15px;color:#ff9d4d}
 .wrow-streak.is-none{display:none}
 
-/* the bars are the first thing to go when the header runs out of room */
+/* the bars are the first thing to go when the header runs out of room:
+   hours + two gaps + seven bars at their smallest + the pill need about
+   430px of the band's CONTENT box (which is what a container query and
+   cqw measure - the band's padding is outside it) */
 @media (max-width:1099px){ .ui-next .wrow-bars{display:none} }
+@container band (max-width:440px){ .ui-next .wrow-bars{display:none} }

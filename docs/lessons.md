@@ -649,3 +649,21 @@ first version of the watch having pre-filled the slot with "none" and
 so said "not sent" before it had asked.
 *Guard:* `tests/reviews.test.mjs` > "the card lists the others on my
 step with where each one's review stands, live".
+
+**A row sized in viewport units sat in a column that was not the
+viewport.** The week row's bars and gaps were `vw`-sized off the comp's
+1184px middle column, but the deck takes a fixed slice of the window,
+so at 1275px wide the column was 640px and the row was wider than it -
+it ran under the deck, the streak pill half hidden (the owner's
+screenshot, 2026-09-13). The band is now a size container and the row
+measures itself in `cqw`; the bars hide below the content width they
+need (`@container band (max-width:440px)`), and the first threshold was
+wrong because a container query measures the CONTENT box - the band's
+96px of padding is outside it. `tests/shots.mjs` measured it, which is
+how the wrong threshold was caught.
+*Rule:* anything laid out inside a column measures the column, never
+the window. `vw` is only right for something that spans the window.
+*Guard:* `tests/shots.mjs` > the layout loop asserts the week row ends
+before the deck begins at every desktop width, and the 1275-wide idle
+shot asserts it and that the empty card is not a column-tall slab.
+
