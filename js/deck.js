@@ -162,6 +162,14 @@ function dkDuePill(r){
 /* Brief, checklist and attachments are drawn ONLY when the work carries
    them. The comp shows a full card because its fixture is full; inventing
    rows here would put words on screen that nobody wrote. */
+/* The running step this reader holds, or the first when the summary
+   predates `stops` (js/handoff.js > hoMyStop). */
+function dkMyStop(h){
+  if (!h) return null;
+  const uid = (typeof auth !== "undefined" && auth && auth.currentUser) ? auth.currentUser.uid : null;
+  return typeof hoMyStop === "function" ? hoMyStop(h, uid) : (h.stop || null);
+}
+
 function dkBlocks(r){
   let html = "";
   /* Work on a track says where it is: the stop, who passed it here and
@@ -169,8 +177,13 @@ function dkBlocks(r){
   const h = r.handoff && !r.handoff.done ? r.handoff : null;
   if (h){
     const nextWho = h.next ? h.next.holders.map(x => x.name).filter(Boolean).join(", ") : "";
+    /* MY step. Steps that run together give one piece of work several
+       running steps, and the summary's first may be the other person's;
+       the card names the one this reader holds, and the rest alongside. */
+    const stop = dkMyStop(h);
+    const beside = (h.stops || []).filter(x => x && stop && x.nodeId !== stop.nodeId);
     html += '<div class="dk-blk dk-hand">'
-      + '<p class="dk-blk-h">Handoff' + (h.stop ? ' · step ' + h.stop.index + ' of ' + h.stop.count + ' · ' + esc(h.stop.label) : "") + '</p>'
+      + '<p class="dk-blk-h">Handoff' + (stop ? ' · step ' + stop.index + ' of ' + stop.count + ' · ' + esc(stop.label) : "") + '</p>'
       + (h.from
           ? '<p class="dk-hand-from"><b>From ' + esc(h.from.name || h.from.label || "the last step") + '</b>'
             + (h.from.note ? ' · \u201c' + esc(h.from.note) + '\u201d' : ' · no note') + '</p>'
@@ -179,6 +192,13 @@ function dkBlocks(r){
           ? '<p class="dk-hand-next"><b>Next</b> · ' + esc(h.next.label) + (h.next.also && h.next.also.length ? ' + ' + esc(h.next.also.join(" + ")) + ' together' : '') + ' \u2192 '
             + (nextWho ? esc(nextWho) : '<em>nobody holds ' + esc(h.next.role || "that step") + ' yet</em>') + '</p>'
           : '<p class="dk-hand-next"><b>Last step</b> · finishing closes it</p>')
+      + (beside.length
+          ? '<p class="dk-hand-beside"><b>Alongside</b> · ' + beside.map(x => esc(x.label) + ' \u2192 '
+              + ((x.holders || []).map(p => p.name).filter(Boolean).join(", ") || '<em>nobody yet</em>')).join(' · ') + '</p>'
+          : '')
+      // the other people on this same step, and where each one's review
+      // stands - drawn by js/reviews.js from the documents it watches
+      + (typeof rvPeerLines === "function" ? rvPeerLines(r) : '')
       + '</div>';
   }
   const brief = r.note || r.snote;
@@ -220,7 +240,8 @@ function dkFoot(r){
     : '<button type="button" class="dk-bt dk-bt-go dk-start">' + DK_ICO.clock + 'Start task</button>';
   // on a track, Done is a hand-off: say so, and name it Finish at the end
   const h = r.handoff && !r.handoff.done ? r.handoff : null;
-  const doneLabel = h ? (h.stop && h.stop.choices && h.stop.choices.length ? "Decide" : h.next ? "Pass on" : "Finish") : "Done";
+  const stop = dkMyStop(h);
+  const doneLabel = h ? (stop && stop.choices && stop.choices.length ? "Decide" : h.next ? "Pass on" : "Finish") : "Done";
   // approved work says so on the button, so the next action is the one
   // the review block named and not a guess
   const approved = typeof rvRowState === "function" && rvRowState(r) === "approved";
@@ -315,6 +336,9 @@ function dkRender(rows){
   // mid-done: the picture is held, the rows wait (see dkHold)
   if (dkHeld){ dkHeld.rows = rows || []; return; }
   dkRows = rows || [];
+  // the people sharing a step with this reader are watched by name:
+  // js/reviews.js keeps the set equal to what these rows need
+  if (typeof rvPeersWatch === "function") rvPeersWatch(dkRows);
   const pick = dkPick(dkRows, dkId, dkIdx);
   const wasIdx = dkIdx;
   dkIdx = pick.idx; dkId = pick.id;

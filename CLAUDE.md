@@ -128,7 +128,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 644 assertions, node + jsdom, seconds
+npm test        # 649 assertions, node + jsdom, seconds
 npm run test:rules   # 304 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -451,7 +451,14 @@ and the engine's refusal comes back as `needs-choice`. The Organization
 sheet cannot draw any of this and KEEPS it on read-back
 (`Object.assign` over the draft), saying what the builder set. Every
 branch shape runs through the real engine in `tests/handoff.test.mjs`
-and end to end in `tests/flow.test.mjs`.
+and end to end in `tests/flow.test.mjs`. While a group runs, the item
+carries EVERY running step (`handoff.stops`, each with `holders`) and
+`handoff.stop` stays the first for older readers; `hoMyStop(handoff,
+uid)` picks the reader's own, which is what the card, the review key,
+the finish sheet and `rvCtxLoad()` use - `docs/lessons.md` > "The
+summary named one running step". The card also lists the other people
+on the reader's step with each one's review state (`rvPeerLines()`,
+fed by `rvPeersWatch()` watching their review documents by id).
 
 **Work travels with its note.** The composer speaks work types
 (`cxKind`, the KIND row): a Task is the classic assignment, any other

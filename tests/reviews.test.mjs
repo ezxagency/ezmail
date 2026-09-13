@@ -139,6 +139,67 @@ await T("submitted: the card says who has it; the finish sheet's line says the r
   run(`rvStop();`);
 });
 
+/* ---------- the people on my step ----------
+   Reported 2026-09-13: two people on one step could not see each other.
+   The card watches each co-holder's review document by its exact id and
+   says where they stand; a missing document is "not sent yet", a failed
+   read is said as such. */
+const rowTogether = { id: "it2", itemId: "it2", task: "Draft the piece", handoff: {
+  stop: { label: "Review", index: 1, count: 2, nodeId: "s0", iteration: 1, holders: [{ uid: "staff1", name: "Sam" }, { uid: "staff2", name: "Sasha" }] },
+  stops: [{ label: "Review", index: 1, count: 2, nodeId: "s0", iteration: 1, holders: [{ uid: "staff1", name: "Sam" }, { uid: "staff2", name: "Sasha" }] }],
+  from: null, next: { label: "Publish", role: "staff", holders: [] }, done: false } };
+await T("the card lists the others on my step with where each one's review stands, live", async () => {
+  await as("staff1");
+  run(`rvMine = [];`);
+  assert.deepEqual(JSON.parse(run(`JSON.stringify(rvPeerKeys([${JSON.stringify(rowTogether)}, { id: "plain", task: "x" }], "staff1"))`)), ["it2:s0:staff2"], "the keys are not the co-holders' documents");
+  assert.equal(run(`rvPeerLines({ id: "solo", itemId: "solo", handoff: { stop: { nodeId: "s0", holders: [{ uid: "staff1", name: "Sam" }] }, done: false } })`), "", "alone on a step, the card still drew a list");
+  run(`__dk = 0; rvPeersWatch([${JSON.stringify(rowTogether)}]);`);
+  let lines = run(`rvPeerLines(${JSON.stringify(rowTogether)})`);
+  assert.match(lines, /loading/); assert.doesNotMatch(lines, /not sent/, "said not sent before the database had answered");
+  await tick(); await tick();
+  lines = run(`rvPeerLines(${JSON.stringify(rowTogether)})`);
+  assert.match(lines, /With you on this step/);
+  assert.match(lines, /Sasha/); assert.match(lines, /not sent for review yet/);
+  assert.doesNotMatch(lines, /Sam/, "the reader is listed as their own teammate");
+  assert.ok(run(`__dk`) >= 1, "the first answer did not redraw the deck");
+  // the teammate submits: the card moves without anybody pressing anything
+  run(`__dk = 0;`);
+  await db.collection("orgs").doc(ORG).collection("reviews").doc("it2:s0:staff2").set({ orgId: ORG, itemId: "it2", nodeId: "s0", aboutUid: "staff2", reviewerUid: null,
+    status: "submitted", round: 2, submission: { link: null, note: "<b>mine</b>", at: 1700000000000, byUid: "staff2", iteration: 1, dueAt: null, onTime: null },
+    decision: null, history: [], version: 3, updatedAt: 2 });
+  await tick(); await tick();
+  lines = run(`rvPeerLines(${JSON.stringify(rowTogether)})`);
+  assert.match(lines, /Sasha<\/b> · in review · round 2 · sent/, "the teammate's submission is not shown: " + lines);
+  assert.doesNotMatch(lines, /<b>mine/, "a note was drawn as markup");
+  assert.ok(run(`__dk`) >= 1, "the teammate moving did not redraw the deck");
+  // and the whole card carries it under the handoff, drawn through the deck's own block
+  // an approval on an earlier pass of the step is said as such, never as approved now
+  run(`rvPeers["it2:s0:staff2"] = Object.assign({}, rvPeers["it2:s0:staff2"], { status: "approved", submission: Object.assign({}, rvPeers["it2:s0:staff2"].submission, { iteration: 0 }) });`);
+  assert.match(run(`rvPeerLines(${JSON.stringify(rowTogether)})`), /approved on an earlier pass/);
+  // a read that failed says so, and never "not sent"
+  run(`rvPeers["it2:s0:staff2"] = false;`);
+  lines = run(`rvPeerLines(${JSON.stringify(rowTogether)})`);
+  assert.match(lines, /could not reach/); assert.doesNotMatch(lines, /not sent/);
+  // rows change: watches follow, and none is left behind
+  run(`rvPeersWatch([]);`);
+  assert.equal(run(`Object.keys(rvPeerUnsubs).length + Object.keys(rvPeers).length`), 0, "a watch or a document was left behind");
+  run(`rvStop();`);
+});
+await T("my own review is keyed by MY step, not the first running one", async () => {
+  await as("staff1");
+  const row3 = { id: "it3", itemId: "it3", task: "Two steps", handoff: {
+    stop: { label: "Draw", index: 2, count: 3, nodeId: "s1", iteration: 1, holders: [{ uid: "staff2", name: "Sasha" }] },
+    stops: [{ label: "Draw", index: 2, count: 3, nodeId: "s1", iteration: 1, holders: [{ uid: "staff2", name: "Sasha" }] },
+            { label: "Check", index: 3, count: 3, nodeId: "s2", iteration: 2, holders: [{ uid: "staff1", name: "Sam" }] }],
+    from: null, next: null, done: false } };
+  run(`rvMine = [{ id: "it3:s2:staff1", itemId: "it3", nodeId: "s2", aboutUid: "staff1", status: "changes", round: 1, reviewerUid: null,
+    submission: { link: null, note: "x", at: 1, byUid: "staff1", iteration: 2, dueAt: null, onTime: null },
+    decision: { kind: "changes", feedback: "Tighter", scores: null, byUid: "lead1", at: 2 }, history: [], version: 2 }];`);
+  assert.equal(run(`rvRowState(${JSON.stringify(row3)})`), "changes", "the card read the review of the other person's step");
+  assert.match(run(`rvCardBlock(${JSON.stringify(row3)})`), /Changes requested/);
+  assert.equal(run(`rvPeerLines(${JSON.stringify(row3)})`), "", "alone on my step, yet a list was drawn");
+});
+
 /* ---------- the review sheet ---------- */
 await T("a staff member who is not the reviewer sees the review read-only; the person sees it as their own", async () => {
   await as("staff2");

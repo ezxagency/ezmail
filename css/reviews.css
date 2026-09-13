@@ -172,3 +172,20 @@ body:not(.ui-next) #reviewsBody .am-dot.is-green{background:#30D158}
 @media (max-width:700px){
   .am-cards{grid-template-columns:1fr}
 }
+
+/* ---------- the people on my step (js/reviews.js > rvPeerLines) ---------- */
+.dk-hand-beside{margin:4px 0 0;font-size:13px;line-height:1.55;color:var(--wk-white-70)}
+.dk-hand-beside b{color:var(--wk-white);font-weight:600}
+.dk-hand-beside em{font-style:normal;color:#FF9F0A}
+.dk-hand-with{margin:8px 0 0;font-size:13px;line-height:1.55;color:var(--wk-white-70)}
+.dk-hand-with b{color:var(--wk-white);font-weight:600}
+.dk-with{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:2px}
+.dk-with-p{font-size:12.5px;line-height:1.5;color:var(--wk-white-60);padding-left:14px;position:relative}
+.dk-with-p b{color:var(--wk-white-70);font-weight:600}
+.dk-with-p::before{content:"";position:absolute;left:0;top:.55em;width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.28)}
+.dk-with-p.is-submitted::before{background:#0A84FF}
+.dk-with-p.is-changes::before{background:#FF9F0A}
+.dk-with-p.is-approved::before{background:#30D158}
+.dk-with-p.is-stale::before{background:rgba(48,209,88,.45)}
+.dk-with-p.is-err{color:#ff9d97}
+.dk-with-p.is-err::before{background:#ff453a}

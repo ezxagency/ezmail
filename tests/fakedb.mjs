@@ -77,6 +77,7 @@ export function makeDb(){
   });
 
   const fire = () => listeners.forEach(l => {
+    if (l.doc) { l.cb(snapDoc(l.path, store.get(l.path))); return; }
     const docs = docsIn(l.path, l.filters, l.group);
     l.cb({ size: docs.length, empty: !docs.length, docs, forEach: f => docs.forEach(f) });
   });
@@ -107,6 +108,14 @@ export function makeDb(){
         store.set(path, next); fire(); return undefined;
       },
       async delete(){ store.delete(path); fire(); return undefined; },
+      // the real one: a listener on ONE document, told once now (exists
+      // or not) and again on every write to it
+      onSnapshot(cb){
+        const l = { path, doc: true, cb };
+        listeners.push(l);
+        Promise.resolve().then(() => cb(snapDoc(path, store.get(path))));
+        return () => { const i = listeners.indexOf(l); if (i >= 0) listeners.splice(i, 1); };
+      },
       collection(name){ return colRef(path + "/" + name); }
     };
   }

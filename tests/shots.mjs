@@ -163,7 +163,10 @@ await page.evaluate(() => {
   const rows = [
     t("r1", "Write the spring launch email", "Store Epsilon", "2026-09-30", {
       itemId: "r1",
-      handoff: { stop: { label: "Copy", index: 2, count: 4 },
+      // two steps run together; this reader holds the second, with a teammate
+      handoff: { stop: { label: "Product shots", index: 2, count: 4, nodeId: "s1", iteration: 1, holders: [{ uid: "u3", name: "Kim" }] },
+        stops: [{ label: "Product shots", index: 2, count: 4, nodeId: "s1", iteration: 1, holders: [{ uid: "u3", name: "Kim" }] },
+                { label: "Copy", index: 3, count: 4, nodeId: "s2", iteration: 1, holders: [{ uid: "u1", name: "Prashanna" }, { uid: "u2", name: "Sandy" }] }],
         from: { uid: "u9", name: "Ada", label: "Brief", note: "Brief is final — lead with the restock, the discount is a footnote.", at: Date.now() - 2 * 3600000 },
         next: { label: "Design review", role: "designer", holders: [{ uid: "u2", name: "Sandy" }] }, done: false },
       note: "Three-email sequence for the spring drop. Lead with the restock, not the discount — last quarter the discount-led version underperformed by 18%.",
@@ -186,6 +189,12 @@ await page.evaluate(() => {
     submission: { link: "https://docs.example.com/backlog", note: "Cut into two-week blocks", at: Date.now() - 3 * 3600000, byUid: "u1", iteration: null, dueAt: null, onTime: null },
     decision: { kind: "changes", feedback: "Two of the slipped items are still in - drop them or say why they stay.", scores: null, byUid: "u9", at: Date.now() - 3600000 },
     history: [], title: "Second pass on the sprint backlog", store: "Studio North", updatedAt: Date.now(), version: 2 }];
+  // the teammate on the same step has already sent theirs: the stubbed
+  // database answers nothing, so the watch is stood down and the answer set by hand
+  rvPeersWatch = () => {};
+  rvPeers = { "r1:s2:u2": { id: "r1:s2:u2", itemId: "r1", nodeId: "s2", aboutUid: "u2", status: "submitted", round: 1, reviewerUid: null,
+    submission: { link: "https://docs.example.com/copy", note: "Draft up", at: Date.now() - 50 * 60000, byUid: "u2", iteration: 1, dueAt: null, onTime: null },
+    decision: null, history: [], version: 1 } };
   dkRender(rows);
   renderAssignedBrief(rows);
 });

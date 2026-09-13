@@ -607,3 +607,45 @@ items/runs rules. A review therefore records a judgement the server
 protects about work whose movement it does not yet — `js/reviews.js`
 says so at the top, so nobody reads the rules for reviews and assumes
 the run behind them is held to the same standard.
+
+**The summary named one running step, and the person on the other was
+told it was not theirs.** Steps that run together give one piece of
+work several running steps at once, held by different people, and
+`hoSummary()` wrote onto the item only the first (`handoff.stop`). Every
+screen read that one: the card named the other person's step, offered
+its choices, and Submit for review handed `rvCtxLoad()` its id - which
+correctly found the reader did not hold it and said "this step is not
+with you right now" about work that was plainly on their deck. Found by
+the owner on 2026-09-13, holding "Review" while "Make a 2D drawing" ran
+alongside it. The item is one document shared by everyone on it, so it
+cannot carry "my step"; it now carries EVERY running step
+(`handoff.stops`, each with its `holders`), and `hoMyStop(handoff, uid)`
+picks the reader's own - on the card, in the review key, in the finish
+sheet's choices and rating. `rvCtxLoad()` prefers the step it was
+handed when the reader holds it and otherwise any running step they do,
+refusing only when they hold none, because a card drawn from a summary
+written before `stops` existed still names the wrong one until its next
+sync.
+*Rule:* a fact written onto a shared document is the same for every
+reader; anything that differs by reader ("my step") must be derived at
+read time from what the document carries for all of them.
+*Guard:* `tests/handoff.test.mjs` > "while steps run together the
+summary carries every running step" and "hoMyStop gives each person the
+running step THEY hold"; `tests/flow.test.mjs` walks the card's own path
+(the first step's id, handed by the person on the second) and expects
+their step back; `tests/deck.test.mjs` > "with steps running together
+the card names MY step".
+
+**Two people on one step could not see each other.** A step held by
+several people - a role with two members, or two named on it - was one
+step on two decks, and each card knew only its reader's review. The card
+now lists the others on the reader's step with where each one's
+submission stands (`rvPeerLines()`), read live from their own review
+documents, each watched by its exact id (`rvPeersWatch()`, the set kept
+equal to what the deck's rows need). An unanswered slot reads "loading",
+a missing document "not sent yet", and a failed read says so - the fake
+database grew a per-document `onSnapshot` to prove the live half, the
+first version of the watch having pre-filled the slot with "none" and
+so said "not sent" before it had asked.
+*Guard:* `tests/reviews.test.mjs` > "the card lists the others on my
+step with where each one's review stands, live".

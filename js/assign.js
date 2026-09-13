@@ -1007,12 +1007,15 @@ function markAssignmentDone(id){
      can see it goes back to Write the draft. Nothing is pressed for them,
      and the button stays off until one is - the engine refuses a stop
      that promised a choice and got none. */
-  const choices = h && h.stop && h.stop.choices && h.stop.choices.length ? h.stop.choices : null;
+  // MY step: steps that run together put several on one row, and the
+  // choices and the rating belong to the one this person holds
+  const me = (typeof auth !== "undefined" && auth && auth.currentUser) ? auth.currentUser.uid : null;
+  const stop = h ? (typeof hoMyStop === "function" ? hoMyStop(h, me) : h.stop) : null;
+  const choices = stop && stop.choices && stop.choices.length ? stop.choices : null;
   /* A step that RATES asks three scores about the work it received -
      the previous step, done by somebody else. Never about your own
      work, and never on a first step: there is nothing received. */
-  const me = (typeof auth !== "undefined" && auth && auth.currentUser) ? auth.currentUser.uid : null;
-  const rates = !!(h && h.stop && h.stop.rates && h.from && h.from.uid && h.from.uid !== me && typeof rtFormHTML === "function");
+  const rates = !!(stop && stop.rates && h.from && h.from.uid && h.from.uid !== me && typeof rtFormHTML === "function");
   const go = h ? (choices ? "Pick what happens next" : h.next ? "Pass to " + h.next.label : "Finish") : "Mark done";
   // what the reviewer said about this work, if it went for review
   const reviewLine = typeof rvFinishLine === "function" ? rvFinishLine(row) : "";

@@ -442,6 +442,35 @@ T("the summary says the next steps run together", () => {
   assert.equal(sum.next.label, "Design");
   assert.deepEqual(plain(sum.next.also), ["Copy"]);
 });
+/* Reported 2026-09-13: two steps ran together, the owner held the second,
+   and Submit for review said "this step is not with you". The summary
+   named only the FIRST running step, so every screen offered the owner
+   somebody else's step. */
+T("while steps run together the summary carries every running step, each with its holders", () => {
+  const st = finishWith(parBp, startOn(parBp), {});
+  const sum = H.hoSummary(parBp, st.nodeRuns, MEMBERS, uid => ({ u2: "Sam", u3: "Ada" })[uid] || "", null);
+  assert.equal(sum.stop.label, "Design", "the first running step is still `stop`, for every older reader");
+  assert.deepEqual(plain(sum.stops).map(x => [x.label, x.nodeId, x.index, x.iteration, x.holders.map(h => h.uid + ":" + h.name).join(",")]),
+    [["Design", "s1", 2, 1, "u2:Sam"], ["Copy", "s2", 3, 1, "u3:Ada"]]);
+  assert.deepEqual(plain(sum.stop.holders), [{ uid: "u2", name: "Sam" }], "the first step does not say who holds it");
+  assert.equal(sum.next.label, "Check", "the step after the group is what both pass to");
+  // one running step: `stops` is that one, so a reader never special-cases it
+  const one = H.hoSummary(parBp, startOn(parBp).nodeRuns, MEMBERS, uid => uid, null);
+  assert.deepEqual(plain(one.stops).map(x => x.nodeId), ["s0"]);
+  assert.deepEqual(plain(one.stops[0].holders).map(h => h.uid), ["u1"]);
+});
+T("hoMyStop gives each person the running step THEY hold, and the first to anyone else", () => {
+  const st = finishWith(parBp, startOn(parBp), {});
+  const sum = plain(H.hoSummary(parBp, st.nodeRuns, MEMBERS, uid => uid, null));
+  assert.equal(H.hoMyStop(sum, "u3").label, "Copy", "the person on the second step was given the first");
+  assert.equal(H.hoMyStop(sum, "u2").label, "Design");
+  assert.equal(H.hoMyStop(sum, "u9").label, "Design", "an owner on no step gets the first, as before");
+  assert.equal(H.hoMyStop(sum, null).label, "Design");
+  // a summary written before `stops` existed still answers
+  assert.equal(H.hoMyStop({ stop: { label: "Old", nodeId: "s0" }, next: null, done: false }, "u3").label, "Old");
+  assert.equal(H.hoMyStop({ stop: null, done: true }, "u3"), null);
+  assert.equal(H.hoMyStop(null, "u3"), null);
+});
 T("groups are found from the list, and the sentence says together and where a branch goes", () => {
   assert.deepEqual(plain(H.hoGroups(H.hoStopIds(PAR))), [{ from: 0, to: 0 }, { from: 1, to: 2 }, { from: 3, to: 3 }]);
   assert.equal(H.hoDescribe(PAR, id => ({ manager: "Manager", staff: "Staff" })[id]),

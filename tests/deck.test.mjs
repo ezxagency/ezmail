@@ -375,6 +375,33 @@ T("at the first stop it started with you; at the last, Done becomes Finish; off 
   assert.equal(front().querySelector(".dk-done").textContent.trim(), "Done");
 });
 
+/* Steps that run together: one piece of work, two running steps, two
+   people. The summary's first step is the OTHER person's; this reader
+   (u1) holds the second, and the card must name theirs - and the
+   choices, and so the Done label, are their step's too. */
+T("with steps running together the card names MY step, says what runs alongside, and Done follows my step", () => {
+  run(`dkReset(); S.status = "IDLE"; S.shift = null; dkRender([{ id: "g1", itemId: "g1", task: "Draft the piece",
+    handoff: {
+      stop: { label: "Make a 2D drawing", index: 2, count: 4, nodeId: "s1", iteration: 1, holders: [{ uid: "u7", name: "Test1" }] },
+      stops: [
+        { label: "Make a 2D drawing", index: 2, count: 4, nodeId: "s1", iteration: 1, holders: [{ uid: "u7", name: "Test1" }] },
+        { label: "Review his drawing", index: 3, count: 4, nodeId: "s2", iteration: 1, holders: [{ uid: "u1", name: "Me" }, { uid: "u8", name: "Kim" }],
+          choices: [{ value: "Approve", to: "Publish", back: false }, { value: "Send back", to: "Make a 2D drawing", back: true }] }],
+      from: { uid: "u9", name: "Ada", label: "One final concept", note: "Go", at: 1 },
+      next: { label: "Publish", role: "staff", holders: [{ uid: "u7", name: "Test1" }] }, done: false } }]);`);
+  const c = front();
+  const head = c.querySelector(".dk-hand .dk-blk-h").textContent;
+  assert.ok(/step 3 of 4 · Review his drawing/.test(head), "the card named the other person's step: " + head);
+  const beside = c.querySelector(".dk-hand-beside");
+  assert.ok(beside && /Alongside · Make a 2D drawing → Test1/.test(beside.textContent), "the step running alongside is not named: " + (beside && beside.textContent));
+  assert.equal(c.querySelector(".dk-done").textContent.trim(), "Decide", "Done did not follow MY step's choices");
+  // a summary from before `stops` existed, or one running step: no Alongside, the first step as ever
+  run(`dkReset(); dkRender([{ id: "g2", itemId: "g2", task: "Old",
+    handoff: { stop: { label: "Edit", index: 2, count: 3 }, from: null, next: null, done: false } }]);`);
+  assert.ok(/step 2 of 3 · Edit/.test(front().querySelector(".dk-hand .dk-blk-h").textContent));
+  assert.equal(front().querySelector(".dk-hand-beside"), null);
+});
+
 /* The bug this exists for: Start task writes the SHIFT and never touches
    the assignments, so the snapshot watcher that draws the deck never
    fired. The card went on offering Start task on work that was already

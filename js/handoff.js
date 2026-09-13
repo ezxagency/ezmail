@@ -319,8 +319,6 @@ function hoSummary(blueprint, nodeRuns, members, nameOf, run){
     choice: (last.output && last.output.choice) || null
   } : null;
   if (!active) return { stop: null, from, next: null, done: !!(run && run.status === "completed") || legs.length > 0 };
-  const idx = stops.findIndex(n => n.id === active.nodeId);
-  const cur = idx >= 0 ? stops[idx] : null;
   const holdersOf = node => {
     const cfg = node.config || {}, roster = members || [];
     const inRole = cfg.role === HO_ANY ? roster.map(m => m.uid)
@@ -337,42 +335,66 @@ function hoSummary(blueprint, nodeRuns, members, nameOf, run){
     if (after.stops.length > 1) n.also = after.stops.slice(1).map(x => (x.config && x.config.label) || x.id);
     return n;
   };
-  const after = hoAfter(blueprint, active.nodeId);
-  // where each choice sends the work: the branch whose rule names it,
-  // else the "otherwise" path - said in the target's own words, so the
-  // sheet can offer "Send back -> Write the draft" rather than a bare word
-  const cfg = (cur && cur.config) || {};
-  const choices = (cfg.choices || []).map(v => {
-    const split = ((blueprint && blueprint.nodes) || []).find(n => n.type === "split" &&
-      ((blueprint.edges || []).some(e => e.from === active.nodeId && e.to === n.id)));
-    const br = split ? ((split.config || {}).branches || []).find(b => b.condition && b.condition.path === "choice" && b.condition.value === v) : null;
-    const to = br ? hoAfter(blueprint, split.id, br.id) : after;
-    const first = to.stops[0];
-    return { value: v, to: first ? ((first.config && first.config.label) || first.id) : (to.done ? "Done" : ""), back: !!(first && stops.indexOf(first) < idx) };
-  });
-  return {
+  /* One record per RUNNING step. Steps that run together are all
+     running at once, held by different people, and the item is one
+     document shared by all of them - so the summary carries every one,
+     and each screen picks the step ITS reader holds (hoMyStop). Before
+     this the summary named only the first, and the person holding the
+     second was offered a submission, a decision and a Done for a step
+     that was never theirs. */
+  const stopOf = nr => {
+    const idx = stops.findIndex(n => n.id === nr.nodeId);
+    const cur = idx >= 0 ? stops[idx] : null;
+    const cfg = (cur && cur.config) || {};
+    const after = hoAfter(blueprint, nr.nodeId);
+    // where each choice sends the work: the branch whose rule names it,
+    // else the "otherwise" path - said in the target's own words, so the
+    // sheet can offer "Send back -> Write the draft" rather than a bare word
+    const choices = (cfg.choices || []).map(v => {
+      const split = ((blueprint && blueprint.nodes) || []).find(n => n.type === "split" &&
+        ((blueprint.edges || []).some(e => e.from === nr.nodeId && e.to === n.id)));
+      const br = split ? ((split.config || {}).branches || []).find(b => b.condition && b.condition.path === "choice" && b.condition.value === v) : null;
+      const to = br ? hoAfter(blueprint, split.id, br.id) : after;
+      const first = to.stops[0];
+      return { value: v, to: first ? ((first.config && first.config.label) || first.id) : (to.done ? "Done" : ""), back: !!(first && stops.indexOf(first) < idx) };
+    });
     // the step's id and which pass of it this is ride along, because a
     // review (js/reviews.js) is keyed by the step and refuses to reuse an
-    // approval given to an earlier pass of the same step
-    stop: Object.assign({ label: (cur && cur.config && cur.config.label) || active.nodeId, index: idx + 1, count: stops.length,
-        nodeId: active.nodeId, iteration: (nodeRuns || []).filter(nr => nr && nr.nodeId === active.nodeId).length },
-      choices.length ? { choices } : {}, cfg.rates ? { rates: true } : {}),
+    // approval given to an earlier pass of the same step; and who holds
+    // it, so the people on one step can see each other
+    return Object.assign({ label: (cur && cur.config && cur.config.label) || nr.nodeId, index: idx + 1, count: stops.length,
+        nodeId: nr.nodeId, iteration: (nodeRuns || []).filter(x => x && x.nodeId === nr.nodeId).length,
+        holders: cur ? holdersOf(cur) : [] },
+      choices.length ? { choices } : {}, cfg.rates ? { rates: true } : {}, { after });
+  };
+  const running = hoActiveStops(nodeRuns).map(stopOf);
+  // what comes next is the same for every member of a group - they all
+  // meet at the step after it - so one `next` serves every running step
+  const next = nextOf(running[0].after);
+  running.forEach(x => { delete x.after; });
+  return {
+    stop: running[0],
+    // every running step, in the run's order; one entry when nothing runs together
+    stops: running.map(x => Object.assign({}, x)),
     from,
-    next: nextOf(after),
+    next,
     done: false
   };
 }
 
-/* Stops nobody can act on, found from the TRACK rather than from any
-   running work.
+/* The running step THIS person holds, from a summary the run wrote onto
+   the work. Steps that run together give one piece of work several
+   running steps at once; `handoff.stop` is the first, and a person
+   holding the second must be shown, and offered, their own. Falls back
+   to the first for a summary written before `stops` existed, and for a
+   reader on no step (an owner overriding), who gets the first as before. */
+function hoMyStop(handoff, uid){
+  if (!handoff || handoff.done) return null;
+  const all = Array.isArray(handoff.stops) && handoff.stops.length ? handoff.stops : (handoff.stop ? [handoff.stop] : []);
+  if (!all.length) return null;
+  return all.find(x => uid && (x.holders || []).some(h => h && h.uid === uid)) || all[0];
+}
 
-   hoStalled() below answers "this job is stuck" once a job already is.
-   This answers "this track will stick" before anything has been created,
-   costs no reads at all, and covers work that does not exist yet - because
-   in a straight line there is exactly one way to stall, and it is a stop
-   whose role has nobody in it.
-
-   Finding the cause beats finding each casualty. */
 function hoTrackGaps(track, members){
   const roster = members || [];
   const out = [];
@@ -582,5 +604,5 @@ function hoTrail(blueprint, nodeRuns){
 if (typeof module !== "undefined" && module.exports){
   module.exports = { hoSummary, hoDescribe, hoStopIds, hoGroups, hoAfter, HO_FIELD_OPS, HO_MAX_STOPS, HO_ANY, HO_DAY, HO_NUDGE_EVERY,
     hoLate, hoDue, hoNeedsNudge, hoTrackErrors, hoTrackGaps, hoBuildBlueprint,
-    hoActiveStops, hoHolders, hoStatus, hoMayAdvance, hoStalled, hoTrail };
+    hoActiveStops, hoHolders, hoStatus, hoMayAdvance, hoStalled, hoTrail, hoMyStop };
 }

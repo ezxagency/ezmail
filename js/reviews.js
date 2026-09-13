@@ -82,18 +82,27 @@ function rvReviewersFor(review){
 /* The document for one of my rows on the deck, and the state it puts
    the card in. A row on a track is reviewed per STEP - the summary the
    run writes onto the item carries the step's id and iteration. */
+/* The running step of this row that I hold. Steps that run together
+   give one row several running steps, held by different people; the
+   summary's first is somebody else's when mine is the second, and a
+   review keyed by it would be about their work, not mine. */
+function rvStopOf(row){
+  const h = row && row.handoff && !row.handoff.done ? row.handoff : null;
+  if (!h) return null;
+  return typeof hoMyStop === "function" ? hoMyStop(h, rvUid()) : (h.stop || null);
+}
 function rvForRow(row){
   const uid = rvUid();
   if (!row || !uid || !Array.isArray(rvMine)) return null;
   const itemId = row.itemId || row.id;
-  const h = row.handoff && !row.handoff.done ? row.handoff : null;
-  const nodeId = h && h.stop ? (h.stop.nodeId || null) : null;
+  const st = rvStopOf(row);
+  const nodeId = st ? (st.nodeId || null) : null;
   const key = rvKey(itemId, nodeId, uid);
   return rvMine.find(r => r.id === key) || null;
 }
 function rvRowState(row){
-  const h = row && row.handoff && !row.handoff.done ? row.handoff : null;
-  const iteration = h && h.stop && h.stop.iteration != null ? h.stop.iteration : null;
+  const st = rvStopOf(row);
+  const iteration = st && st.iteration != null ? st.iteration : null;
   return rvState(rvForRow(row), iteration);
 }
 /* Whether a row can be submitted at all: it is a piece of org work I
@@ -132,8 +141,11 @@ async function rvCtxLoad(itemId, wantNodeId){
     const h = await itemsHandoffLoad(item);
     if (!h) return { ok: false, error: "no-run" };
     const stops = hoActiveStops(h.nodeRuns);
-    const mine = stops.find(nr => hoMayAdvance(h.blueprint, nr, uid, h.members, false).ok
-      && (!wantNodeId || nr.nodeId === wantNodeId));
+    const held = stops.filter(nr => hoMayAdvance(h.blueprint, nr, uid, h.members, false).ok);
+    // the step the card named, if it is mine; otherwise whichever running
+    // step is - the card's summary may predate `stops`, and name the step
+    // that runs alongside mine. Refused only when I hold none of them.
+    const mine = held.find(nr => nr.nodeId === wantNodeId) || held[0] || null;
     if (!mine) return { ok: false, error: "not-your-step" };
     const node = ((h.blueprint && h.blueprint.nodes) || []).find(n => n.id === mine.nodeId);
     ctx.nodeId = mine.nodeId;
@@ -397,9 +409,94 @@ function rvWatch(){
 function rvStop(){
   rvUnsubs.forEach(u => { try { u(); } catch (e) {} });
   rvUnsubs = []; rvMine = null; rvQueue = null;
+  rvPeersStop();
   const item = $("drawerReviews");
   if (item) item.classList.add("hidden");
 }
+/* ---------- the people on my step ----------
+   A step that runs together, or one held by several people, is one step
+   on several decks - and each person could only see their own review.
+   Every co-holder's document is watched by its exact id (rvKey of the
+   same work, the same step, their uid), so the card can say where each
+   of them stands. Missing means not sent yet; `false` means the read
+   failed, which is said as such and never as "not sent". */
+let rvPeers = {};          // key -> document | null (none yet) | false (could not reach)
+let rvPeerUnsubs = {};     // key -> unsubscribe
+/* The keys the deck's rows need: for each row on a track, my step's other holders. */
+function rvPeerKeys(rows, uid){
+  const out = [];
+  (rows || []).forEach(row => {
+    if (!row || row.orphanType) return;
+    const itemId = row.itemId || row.id;
+    const h = row.handoff && !row.handoff.done ? row.handoff : null;
+    const st = h ? (typeof hoMyStop === "function" ? hoMyStop(h, uid) : h.stop) : null;
+    if (!st || !itemId) return;
+    (st.holders || []).forEach(p => { if (p && p.uid && p.uid !== uid) out.push(rvKey(itemId, st.nodeId || null, p.uid)); });
+  });
+  return [...new Set(out)];
+}
+function rvPeersWatch(rows){
+  const uid = rvUid();
+  const s = typeof orgS !== "undefined" ? orgS : null;
+  if (!uid || !s || !s.orgId) { rvPeersStop(); return; }
+  const want = rvPeerKeys(rows, uid);
+  const wantSet = new Set(want);
+  Object.keys(rvPeerUnsubs).forEach(k => {
+    if (wantSet.has(k)) return;
+    try { rvPeerUnsubs[k](); } catch (e) {}
+    delete rvPeerUnsubs[k]; delete rvPeers[k];
+  });
+  want.forEach(k => {
+    if (rvPeerUnsubs[k]) return;
+    // nothing in the slot until the database answers: the card says
+    // "loading", never "not sent" about a question it has not asked
+    try {
+      rvPeerUnsubs[k] = rvCol(s.orgId).doc(k).onSnapshot(d => {
+        const next = d.exists ? Object.assign({ id: d.id }, d.data()) : null;
+        // the first answer is the one the card was drawn without; a later
+        // one is a teammate moving, and the card says so
+        const changed = !(k in rvPeers) || JSON.stringify(rvPeers[k]) !== JSON.stringify(next);
+        rvPeers[k] = next;
+        if (changed) rvPaint();
+      }, e => { console.error(e); rvPeers[k] = false; rvPaint(); });
+    } catch (e) { console.error(e); rvPeerUnsubs[k] = () => {}; rvPeers[k] = false; }
+  });
+}
+function rvPeersStop(){
+  Object.keys(rvPeerUnsubs).forEach(k => { try { rvPeerUnsubs[k](); } catch (e) {} });
+  rvPeerUnsubs = {}; rvPeers = {};
+}
+/* The lines the card draws under its step: one per other person on it,
+   with where their submission stands. Nothing when I am alone on it. */
+function rvPeerLines(row){
+  const uid = rvUid();
+  const st = rvStopOf(row);
+  if (!st || !uid) return "";
+  const itemId = row.itemId || row.id;
+  const others = (st.holders || []).filter(p => p && p.uid && p.uid !== uid);
+  if (!others.length) return "";
+  const line = p => {
+    const key = rvKey(itemId, st.nodeId || null, p.uid);
+    const r = rvPeers[key];
+    const name = p.name || rvNameOf(p.uid);
+    let word, cls;
+    if (!(key in rvPeers)) { word = "loading\u2026"; cls = "is-dim"; }
+    else if (r === false) { word = "could not reach their review"; cls = "is-err"; }
+    else if (!r) { word = "not sent for review yet"; cls = "is-none"; }
+    else {
+      const state = rvState(r, st.iteration != null ? st.iteration : null);
+      cls = "is-" + state;
+      word = state === "submitted" ? "in review" + (r.round > 1 ? " · round " + r.round : "") + (r.submission && r.submission.at ? " · sent " + rvWhen(r.submission.at) : "")
+        : state === "changes" ? "changes requested"
+        : state === "approved" ? "approved"
+        : state === "stale" ? "approved on an earlier pass"
+        : "not sent for review yet";
+    }
+    return '<li class="dk-with-p ' + cls + '"><b>' + esc(name) + '</b> · ' + esc(word) + '</li>';
+  };
+  return '<p class="dk-hand-with"><b>With you on this step</b></p><ul class="dk-with">' + others.map(line).join("") + '</ul>';
+}
+
 function rvPaint(){
   if (typeof dkRefresh === "function") dkRefresh();
   if (rvPageOpen) rvRenderPage();
@@ -452,14 +549,15 @@ function rvCardBlock(row){
    above names, so the two agree. */
 function rvDoneLabel(row){
   const h = row && row.handoff && !row.handoff.done ? row.handoff : null;
-  return h ? (h.stop && h.stop.choices && h.stop.choices.length ? "Decide" : h.next ? "Pass on" : "Finish") : "Done";
+  const st = rvStopOf(row);
+  return h ? (st && st.choices && st.choices.length ? "Decide" : h.next ? "Pass on" : "Finish") : "Done";
 }
 const rvShort = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
 
 /* A card's Review buttons, routed from the deck's click handler. */
 function rvCardClick(el, row){
   if (!el || !row) return false;
-  if (el.classList.contains("dk-rv-submit")) { rvSubmitSheet(row.itemId || row.id, row.handoff && !row.handoff.done && row.handoff.stop ? row.handoff.stop.nodeId : null); return true; }
+  if (el.classList.contains("dk-rv-submit")) { const st = rvStopOf(row); rvSubmitSheet(row.itemId || row.id, st ? st.nodeId : null); return true; }
   if (el.classList.contains("dk-rv-open")) { const r = rvForRow(row); if (r) rvResultSheet(r); return true; }
   return false;
 }

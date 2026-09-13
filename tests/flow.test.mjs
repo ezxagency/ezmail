@@ -941,10 +941,21 @@ await T("on a track: a step's submission is per step and per pass, a loop needs 
   run(`orgInvalidate();`);
   const lc = await runAsync(`return await itemSave(${JSON.stringify(ltype)}, null, { kind: "create", title: "Launch #2", fields: {}, assigneeIds: [] });`);
   const lid = lc.item.id;
-  await until(async () => { const it = await get("orgs/" + ORG + "/items/" + lid); return it && it.workflowRunId ? it : null; }, "the run to start");
+  const litem = await until(async () => { const it = await get("orgs/" + ORG + "/items/" + lid); return it && it.workflowRunId ? it : null; }, "the run to start");
+  // the summary the card reads back names BOTH running steps and who holds each (written, and read)
+  const lstops = plain(litem.handoff.stops);
+  assert.deepEqual(lstops.map(x => x.nodeId), ["s0", "s1"], "the item does not carry every running step: " + JSON.stringify(litem.handoff));
+  assert.ok(lstops[0].holders.some(h => h.uid === "staff1") && lstops[1].holders.some(h => h.uid === "lead1"), "the steps do not say who holds them");
+  assert.ok(lstops[0].holders.every(h => typeof h.name === "string"), "a holder without a name field");
+  assert.equal(litem.handoff.stop.nodeId, "s0");
+  // THE BUG (2026-09-13): the card handed rvCtxLoad the FIRST running step's id. For the
+  // person on the second that is somebody else's step, and they were told it was not with them.
   for (const [uid, node] of [["staff1", "s0"], ["lead1", "s1"]]) {
     AUTH.currentUser = { uid, email: uid + "@x.com" };
     run(`orgInvalidate();`);
+    const fromCard = await runAsync(`return await rvCtxLoad(${JSON.stringify(lid)}, ${JSON.stringify(litem.handoff.stop.nodeId)});`);
+    assert.ok(fromCard.ok, uid + " was refused for the step the card named: " + JSON.stringify(fromCard));
+    assert.equal(fromCard.ctx.nodeId, node, uid + " from the card was matched to the wrong step");
     const cx = await runAsync(`return await rvCtxLoad(${JSON.stringify(lid)}, null);`);
     assert.ok(cx.ok, uid + ": " + JSON.stringify(cx));
     assert.equal(cx.ctx.nodeId, node, uid + " was matched to the wrong step");
@@ -953,6 +964,12 @@ await T("on a track: a step's submission is per step and per pass, a loop needs 
   }
   const both = find("orgs/" + ORG + "/reviews", x => x.itemId === lid);
   assert.deepEqual(both.map(x => x.id).sort(), [lid + ":s0:staff1", lid + ":s1:lead1"], "two contributors on parallel steps did not get two reviews");
+  // somebody on NEITHER running step is still refused - the fallback picks among steps they hold, not any
+  // step; the owner holds neither here, and may override a finish but never submit somebody else's work
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  const nobody = await runAsync(`return await rvCtxLoad(${JSON.stringify(lid)}, "s0");`);
+  assert.deepEqual(plain(nobody), { ok: false, error: "not-your-step" }, JSON.stringify(nobody));
   AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
   run(`orgInvalidate();`);
 });
