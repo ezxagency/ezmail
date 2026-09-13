@@ -52,6 +52,27 @@ function rlShell(){
     + '</div>';
   $("railAvatar").onclick = () => { if (typeof showProfile === "function") showProfile(); };
   $("railSignOut").onclick = () => { if (auth) auth.signOut(); };
+  rlAdoptActions();
+}
+
+/* The band's action row - assign, the bell, the admin shield, sign out -
+   is a flex child of the band, and the band wraps: on a 1275-wide window
+   the row dropped under the week row and sat in the middle of the screen
+   (the owner's screenshot, 2026-09-13). On the new screen the ROW moves
+   out of the band to be a child of the app shell, where css/rail.css pins
+   it into the rail column above the avatar (and to the band's top-right
+   corner on a phone, where there is no rail). The buttons keep their ids
+   and handlers - nothing is duplicated, so nothing can drift. It cannot
+   stay in the band and be position:fixed: the band rises in with a
+   transform on first paint, which makes it the containing block. The
+   classic screen never calls this and keeps its band as it was. */
+function rlAdoptActions(){
+  if (typeof uiNextOn !== "function" || !uiNextOn()) return;
+  const app = $("appScreen"), band = $("band");
+  const acts = band && band.querySelector(".band-actions");
+  if (!app || !acts) return;
+  acts.classList.add("is-railed");
+  app.appendChild(acts);
 }
 
 function rlBuild(){

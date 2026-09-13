@@ -93,3 +93,31 @@
 .rail-out:hover{color:var(--wk-white)}
 
 @media (prefers-reduced-motion:reduce){ .rail-mark{transition:none} }
+
+/* ---------- the band's action row, adopted (js/rail.js > rlAdoptActions) ----------
+   Desktop: a column in the rail, above the avatar and sign-out. The
+   band's own sign-out is redundant there - the rail has one - and hides.
+   Phone: the band's top-right corner, where the row used to land. */
+@media (min-width:1024px){
+  .ui-next .app > .band-actions{
+    position:fixed;left:0;bottom:126px;width:116px;z-index:36;
+    display:flex;flex-direction:column;align-items:center;gap:12px;margin:0;
+  }
+  .ui-next .app > .band-actions .admin-icon-btn{
+    width:40px;height:40px;max-width:none;max-height:none;min-width:0;padding:0;margin:0;
+    border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+  }
+  .ui-next .app > .band-actions .admin-icon-btn svg{width:19px;height:19px}
+  .ui-next .app > .band-actions .notif-badge{top:-6px;right:-6px;min-width:18px;height:18px;font-size:10px}
+  .ui-next .app > .band-actions #bandSignOut{display:none}
+}
+@media (max-width:1023px){
+  .ui-next .app > .band-actions{
+    position:absolute;top:calc(env(safe-area-inset-top) + 14px);right:14px;z-index:5;margin:0;
+    display:flex;flex-direction:row;align-items:center;gap:8px;
+  }
+  /* no padding reserved for it: only the wordmark row shares its height,
+     and the wordmark is narrower than the space beside the buttons; a
+     reservation across the whole band wrapped the name underneath */
+}
+

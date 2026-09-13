@@ -128,6 +128,30 @@ T("the avatar copies the drawer's, photo and all", () => {
   assert.ok(av().style.backgroundImage.includes("data:image/png"));
 });
 
+/* The band's action row is adopted into the app shell on the new screen,
+   ids intact, and left in the band on the classic one. */
+T("on the new screen the band's action row leaves the band for the app shell; on the classic screen it stays", () => {
+  doc.body.insertAdjacentHTML("beforeend", `<div class="app" id="appScreen"><header class="band" id="band">
+    <div class="band-actions"><button id="notifBell" class="admin-icon-btn"></button><button id="bandSignOut" class="admin-icon-btn"></button></div>
+  </header></div>`);
+  // config.js puts ui-next on the body at load (the new screen is the default): take it off for the classic case
+  const hadNext = doc.body.classList.contains("ui-next");
+  doc.body.classList.remove("ui-next");
+  run(`rlShelled = false; $("rail").innerHTML = ""; rlSync();`);
+  assert.equal(doc.querySelector(".band-actions").parentElement.id, "band", "the classic screen lost its band actions");
+  doc.body.classList.add("ui-next");
+  run(`rlShelled = false; $("rail").innerHTML = ""; rlSync();`);
+  const acts = doc.querySelector(".band-actions");
+  assert.equal(acts.parentElement.id, "appScreen", "the row was not adopted");
+  assert.ok(acts.classList.contains("is-railed"));
+  assert.ok(doc.getElementById("notifBell") && doc.getElementById("bandSignOut"), "the buttons lost their ids");
+  assert.equal(doc.querySelectorAll(".band-actions").length, 1, "the row was copied, not moved");
+  run(`rlSync();`);
+  assert.equal(doc.querySelectorAll(".band-actions").length, 1);
+  doc.body.classList.toggle("ui-next", hadNext);
+  doc.getElementById("appScreen").remove();
+});
+
 T("syncing before the drawer exists is quiet, not a crash", () => {
   const bare = new JSDOM(`<!doctype html><html><body><aside id="rail"></aside></body></html>`,
     { runScripts: "outside-only", url: "https://ezclockn.com/" });

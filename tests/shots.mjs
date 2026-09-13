@@ -123,6 +123,11 @@ await page.evaluate(() => {
   app.classList.add("panes", "has-tasks");
 
   isAdmin = false; isMember = false;
+  // a signed-in worker has the bell (with something in it) and sign out
+  document.getElementById("notifBell").classList.remove("hidden");
+  document.getElementById("notifBadge").textContent = "3";
+  document.getElementById("notifBadge").classList.remove("hidden");
+  document.getElementById("bandSignOut").classList.remove("hidden");
   S.worker = "Prashanna";
   S.status = "ACTIVE";
   /* Segments carry the ITEM they were spent on, which is what makes two of
@@ -235,10 +240,27 @@ for (const [width, height] of [[1920,1080], [1440,900], [1280,720], [1024,600], 
       rings: [...document.querySelectorAll('.clock-panel .ring')].map(rect),
       week: rect(document.getElementById('weekRow')),
       band: rect(document.querySelector('.band')),
-      side: rect(document.querySelector('.assign-panel'))
+      side: rect(document.querySelector('.assign-panel')),
+      bell: rect(document.getElementById('notifBell')),
+      avatar: rect(document.getElementById('railAvatar')),
+      word: rect(document.querySelector('.brand-word')),
+      bandOut: getComputedStyle(document.getElementById('bandSignOut')).display,
+      actsParent: document.querySelector('.band-actions').parentElement.id
     };
   });
   const label = `${width}x${height}`;
+  // the bell and sign out: in the rail above the avatar on desktop (the
+  // band's own sign out hidden - the rail has one), top-right on a phone,
+  // never in the middle of the screen (2026-09-13)
+  assert.equal(layout.actsParent, "appScreen", `${label}: the action row is still in the band`);
+  if (width >= 1024) {
+    assert.ok(layout.bell.left >= 0 && layout.bell.right <= 116, `${label}: the bell is not in the rail (${Math.round(layout.bell.left)}-${Math.round(layout.bell.right)})`);
+    assert.ok(layout.bell.bottom <= layout.avatar.top, `${label}: the bell overlaps the avatar`);
+    assert.equal(layout.bandOut, "none", `${label}: two sign-out buttons`);
+  } else {
+    assert.ok(layout.bell.top < 90 && layout.bell.right <= width, `${label}: the bell is not at the top-right (${Math.round(layout.bell.top)})`);
+    assert.ok(layout.bell.left >= layout.word.right, `${label}: the bell sits on the wordmark`);
+  }
   // the week row (hours, bars, streak) is sized off its column: it never
   // runs under the deck, which it did at 1275 wide (2026-09-13)
   if (width >= 1024) {
