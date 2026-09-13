@@ -128,7 +128,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 643 assertions, node + jsdom, seconds
+npm test        # 644 assertions, node + jsdom, seconds
 npm run test:rules   # 304 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -167,7 +167,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 947 pass as of this writing — a
+reaches through an org boundary. All 948 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -336,7 +336,11 @@ canvas edits the same `track` the steps sheet edits and saves it through
 `orgTrackCommit()` in `js/org.js`, the one write path both screens
 share (which also starts every open piece of that kind that is on no
 run yet, and says how many - work made before the steps were saved is
-otherwise held by nobody); rules are the same automations documents (the lane offers a
+otherwise held by nobody); the builder's bar calls that PUBLISH, the
+owner's word: it saves, makes the steps live, sends waiting work to
+step 1, and a live kind reads "Live · new Task follows these steps"
+with a "Start a Task" button that opens the composer on that kind
+(`openComposer(null, null, null, typeId)`); rules are the same automations documents (the lane offers a
 kind's own statuses and fields where the Organization sheet asks for a
 key typed exactly); a role's permissions, a kind's fields and an invite
 open the sheets that already exist. Those sheets call `enterOrgPage()`

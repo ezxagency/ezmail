@@ -135,7 +135,7 @@ async function cxLoadOptions(){
   return { members, stores, tasks, types, roles };
 }
 
-function openComposer(preUid, preName, editThread){
+function openComposer(preUid, preName, editThread, preKind){
   const edit = editThread || null;
   const openRows = edit ? edit.rows.filter(r => !r.done) : [];
   // editing prefills from the thread's still-open rows; the due date is the
@@ -153,7 +153,9 @@ function openComposer(preUid, preName, editThread){
     who: [], stores: [], tasks: [],
     note: openRows.length ? (openRows[0].note || "") : "",
     due, dueTime,
-    kind: null
+    // the Flow builder's "Start a Video" opens on that kind; the chip row
+    // draws it selected once the types land
+    kind: (!editThread && preKind) || null
   };
   if (edit){
     cx.who = [{ uid: openRows[0].toUid, name: openRows[0].toName }];

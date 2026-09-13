@@ -139,14 +139,24 @@ T("every kind has a tab, and the tab carries how many steps it has", () => {
   assert.ok(doc.querySelector(".fl-tab-new"), "an owner can make a new kind from here");
 });
 
-T("nothing is dirty until something changes, and then Save wakes up", () => {
-  assert.ok(doc.getElementById("flSave").disabled);
-  assert.match(doc.querySelector(".fl-state").textContent, /Saved/);
+/* The bar's one verb is Publish (the owner's word, 2026-09-13): it saves
+   the steps and makes them what new work follows. A published kind says
+   it is live and offers to start a piece of work right there. */
+T("a published kind reads Live and offers Start; a change reads Unsaved and Publish", () => {
+  assert.match(doc.querySelector(".fl-state").textContent, /Live · new Task follows these steps/);
+  assert.equal(doc.getElementById("flSave").textContent, "Publish again");
+  assert.ok(doc.getElementById("flStart"), "no way to start a Task from the builder");
+  assert.equal(doc.getElementById("flStart").textContent, "Start a Task");
+  run(`__cx = null; openComposer = (a, b, c, kind) => { __cx = [a, b, c, kind]; };`);
+  doc.getElementById("flStart").onclick();
+  assert.deepEqual(plain(run("__cx")), [null, null, null, "task"], "the composer did not open on this kind");
   const inp = doc.querySelector('.fl-step[data-i="0"] .fl-name');
   inp.value = "Draft it"; inp.oninput({ target: inp });
   assert.equal(run("flS.draft[0].label"), "Draft it");
   assert.ok(!doc.getElementById("flSave").disabled);
+  assert.equal(doc.getElementById("flSave").textContent, "Publish");
   assert.match(doc.querySelector(".fl-state").textContent, /Unsaved/);
+  assert.equal(doc.getElementById("flStart"), null, "unsaved steps must not offer to start work on them");
 });
 
 T("pressing a role chip switches the role, clears the picks and redraws the people", () => {
@@ -301,6 +311,17 @@ T("a step can be told to rate the work it receives; the first step cannot", () =
   rt.checked = true; rt.onchange({ target: rt });
   assert.equal(run("flS.draft[1].rates"), true);
   assert.match(second().querySelector(".fl-after > summary").textContent, /rates/);
+});
+
+T("a kind with no steps yet reads Not published, and Publish waits for a step", () => {
+  run(`flS.draft = []; flS.dirty = false; orgS.types[0].workflowId = null; flPaintCanvas(); flPaintBar();`);
+  assert.match(doc.querySelector(".fl-state").textContent, /Not published/);
+  assert.ok(doc.getElementById("flSave").disabled, "nothing to publish yet");
+  assert.equal(doc.getElementById("flStart"), null);
+  doc.querySelectorAll(".fl-start-btn")[0].onclick();
+  assert.ok(!doc.getElementById("flSave").disabled);
+  assert.equal(doc.getElementById("flSave").textContent, "Publish");
+  run(ORG);
 });
 
 T("the third ready-made shape is the approve-or-send-back loop", () => {

@@ -937,16 +937,26 @@ async function flMoveRole(uid, roleId, sel){
 function flPaintBar(){
   const type = flType(), owner = orgIsOwner();
   const line = hoDescribe(flS.draft, flRoleName);
+  const live = !!(type.workflowId && (type.track || []).length);
   $("flBar").innerHTML =
     '<p class="fl-sentence">' + (line ? esc("How it flows: " + line) : esc("No steps: whoever is given a " + (type.name || "task") + " does all of it.")) + '</p>' +
     '<div id="flErr"></div>' +
     (owner ? '<div class="fl-bar-acts">' +
-      '<span class="fl-state' + (flS.dirty ? " is-dirty" : "") + '">' + (flS.dirty ? "Unsaved changes" : "Saved") + '</span>' +
-      '<button type="button" class="org-btn" id="flSave"' + (flS.dirty ? "" : " disabled") + '>Save steps</button>' +
-      (type.workflowId && (type.track || []).length ? '<button type="button" class="org-btn org-btn-sm org-btn-danger" id="flOff">Turn steps off</button>' : "") +
+      '<span class="fl-state' + (flS.dirty ? " is-dirty" : live ? " is-live" : "") + '">' +
+        (flS.dirty ? "Unsaved changes" : live ? "Live · new " + esc(type.name || "work") + " follows these steps" : "Not published") + '</span>' +
+      /* Publish is the one verb: it saves the steps, makes them what new
+         work follows, and sends any of this kind that was waiting on no
+         step to step 1. The owner asked for it by that name (2026-09-13)
+         after "Save steps" left them unsure the flow was on. */
+      '<button type="button" class="org-btn" id="flSave"' + (flS.draft.length ? "" : " disabled") + '>' + (flS.dirty || !live ? "Publish" : "Publish again") + '</button>' +
+      (live && !flS.dirty ? '<button type="button" class="org-btn org-btn-sm" id="flStart">Start a ' + esc(type.name || "task") + '</button>' : "") +
+      (live ? '<button type="button" class="org-btn org-btn-sm org-btn-danger" id="flOff">Turn steps off</button>' : "") +
     '</div>' : "");
   if (!owner) return;
   $("flSave").onclick = flSave;
+  // the work starts here too: the composer opens on this kind, so the
+  // first stop's people get it and the toast names them
+  if ($("flStart")) $("flStart").onclick = () => { if (typeof openComposer === "function") openComposer(null, null, null, type.id); };
   if ($("flOff")) $("flOff").onclick = () => orgTrackOff(type);
 }
 
@@ -961,10 +971,10 @@ async function flSave(){
     return;
   }
   const btn = $("flSave");
-  btn.disabled = true; btn.textContent = "Saving…";
+  btn.disabled = true; btn.textContent = "Publishing…";
   const r = await orgTrackCommit(type, flS.draft);
   if (!r.ok) {
-    btn.disabled = false; btn.textContent = "Save steps";
+    btn.disabled = false; btn.textContent = "Publish";
     $("flErr").innerHTML = '<p class="fl-err">' + esc(r.error || "Could not save the steps.") + '</p>';
     return;
   }

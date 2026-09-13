@@ -265,6 +265,7 @@ body.ui-next .fl-find input { padding: 8px 12px; border-radius: 10px; font-size:
 .fl-bar-acts { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .fl-state { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .5; }
 .fl-state.is-dirty { opacity: 1; color: #f0c27a; }
+.fl-state.is-live { opacity: .85; color: #7fd6a4; text-transform: none; letter-spacing: 0; font-size: 12.5px; }
 
 @media (max-width: 640px) {
   body.ui-next #flowScreen .admin-page-inner { padding: 24px 16px 60px; }

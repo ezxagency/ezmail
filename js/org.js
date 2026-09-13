@@ -1389,7 +1389,7 @@ async function orgTrackSave(type){
 // any that was waiting on no step has been sent to the first one
 function orgTrackSavedWords(type, r){
   const name = type.name || "work";
-  let t = "Steps saved. New " + name + " will follow them.";
+  let t = "Published. New " + name + " follows these steps.";
   if (r && r.started) t += " " + r.started + " waiting " + name + (r.started === 1 ? "" : "s") + " sent to step 1.";
   if (r && r.unstarted) t += " " + r.unstarted + " could not be started - see Home.";
   return t;
