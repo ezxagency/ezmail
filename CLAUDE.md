@@ -225,7 +225,9 @@ the press itself — `docs/lessons.md` > "A card faded before".
 Third piece: the **week row** under the wordmark. `js/week.js` derives
 this week's hours, seven day bars and the clock-in streak from
 `S.history` — the closed shifts already sitting in `appState/{uid}` — so
-it costs no read, no query and no index. The open shift is added live,
+it costs no read, no query and no index. The streak pill is a worker's:
+an admin-capable account (`amCapable()`) gets the hours and the bars
+without it, the owner's ask on 2026-09-13. The open shift is added live,
 because a row that ignored the hours you are working right now would be
 wrong all day and right only after clock-out. `wr` prefix, not `wk`:
 `js/work.js` already owns `wk` in the one shared scope.
@@ -301,7 +303,9 @@ once. Now an account with something to administer (`amCapable()`: an Ez
 admin, an assigner, an org owner or hours-manager) has a switch in the
 rail (and in the drawer on a phone) between two views. **Me** is the
 worker's screen, gated exactly as a worker's. **Admin** replaces the
-whole stage with the admin home: "Needs you" (approvals, completions to
+whole stage with the admin home: "Needs your review" first
+(`amReviewQueueHTML()`, the owner's ask on 2026-09-13 - it used to sit
+under the performance board), then "Needs you" (approvals, completions to
 acknowledge, overdue work, handoff gaps — each row carrying its action),
 "Team now" (who is on shift, live), today's numbers, and quick actions;
 the rail carries Home, Team, Work, Organization. Admin is the default and

@@ -122,8 +122,10 @@ function wrRender(host){
     +   '<b>' + esc(plan.total ? humanDur(plan.total) : "0m") + '</b></div>'
     + '<div class="wrow-bars">' + bars + '</div>'
     // no streak is not a streak of zero: an empty pill would be a boast
-    // about nothing, so it simply is not there
-    + (plan.streak > 0
+    // about nothing, so it simply is not there. An account with something
+    // to administer gets none either (the owner's ask, 2026-09-13): the
+    // streak is a worker's thing, and the admin's week row keeps the hours
+    + (plan.streak > 0 && !(typeof amCapable === "function" && amCapable())
         ? '<div class="wrow-streak">' + WR_FLAME
           + '<span>' + plan.streak + ' day' + (plan.streak === 1 ? "" : "s") + ' streak</span></div>'
         : '<div class="wrow-streak is-none"></div>');

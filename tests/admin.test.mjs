@@ -291,10 +291,18 @@ T("the board draws under Needs you: standout with a reason, the counts, ranked r
   assert.match(rows[1].querySelector(".am-lb-rating").textContent, /3\.30 so far/);
   assert.match(rows[2].querySelector(".am-lb-rating").textContent, /1 of 8/);
   assert.match(q.querySelector(".am-panel-h em").textContent, /12 approved this month · 1 awaiting review/);
-  // the queue: the pending submission is a row with Review on it, naming the person and the round
-  const qr = q.querySelector('.am-row[data-act="rvopen"]');
+  // the queue: the pending submission is a row with Review on it, naming the person and the round -
+  // in its OWN panel, first on the page (the owner's ask, 2026-09-13), not under the board
+  const rq = doc.querySelector(".am-rvq");
+  assert.ok(rq, "no Needs your review panel");
+  assert.equal(q.querySelector('.am-row[data-act="rvopen"]'), null, "the queue is still under the board");
+  const qr = rq.querySelector('.am-row[data-act="rvopen"]');
   assert.ok(qr, "no Needs your review row");
   assert.match(qr.textContent, /Landing page/); assert.match(qr.textContent, /Bo · Staff/); assert.match(qr.textContent, /round 2/);
+  const order = [...doc.querySelectorAll("#adminHome > *")].map(x => x.className.split(" ")[0] + (x.classList.contains("am-rvq") ? " am-rvq" : ""));
+  assert.ok(order.indexOf("am-panel am-rvq") === 1 && order[0] === "am-head", "the review queue is not right under the header: " + order.join(", "));
+  assert.ok(order.indexOf("am-panel am-rvq") < [...doc.querySelectorAll("#adminHome > *")].findIndex(x => x.classList.contains("am-needs")), "the queue sits below Needs you");
+  assert.match(q.querySelector(".am-card-waiting").textContent, /at the top of this page/);
   assert.match(q.querySelector(".am-foot").textContent, /execution quality × 50% \+ brief accuracy × 30% \+ handoff readiness × 20%/);
   assert.match(q.querySelector(".am-foot").textContent, /never zero/);
 });
@@ -302,7 +310,7 @@ T("the filters narrow the board: period, role, and kind of work; a failed read s
   doc.querySelector('[data-act="rtperiod"][data-id="week"]').click();
   assert.equal(run("amRt.period"), "week");
   doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(QD())})`);
-  assert.match(doc.querySelector(".am-panel-h em").textContent, /12 approved this week/);
+  assert.match(doc.querySelector(".am-quality .am-panel-h em").textContent, /12 approved this week/);
   // role: only staff are compared, and the manager's row is gone
   run(`amRt.roleId = "staff";`);
   doc.getElementById("adminHome").innerHTML = run(`amHomeHTML(${JSON.stringify(QD())})`);

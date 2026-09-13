@@ -83,6 +83,10 @@ function amApply(){
 
   if (typeof rlSync === "function") rlSync();
   amSwitchSync(cap, on);
+  // the week row withholds its streak from an admin-capable account, and
+  // that standing can arrive after the row was drawn (the org role loads
+  // after sign-in) - redraw it now rather than on the next minute
+  if (nx && typeof wrRefresh === "function") wrRefresh();
   if (on) amHomeShow(); else amHomeHide();
   // the deck follows the mode too - but only once its snapshot has landed,
   // or Me view would open on "No tasks assigned" while the rows were still
@@ -269,11 +273,7 @@ function amQualityHTML(d){
   const typeName = id => { const t = (d.types || []).find(x => x.id === id); return t ? t.name : ""; };
   const standout = rtStandout(rows);
   const periodWord = amRt.period === "week" ? "this week" : amRt.period === "month" ? "this month" : "all time";
-  /* what waits on ME: everything submitted if I review for the org, else
-     what was delegated to me - never my own work */
-  const may = typeof rvIsReviewer === "function" && rvIsReviewer();
-  const queue = reviews.filter(r => r.status === "submitted" && r.aboutUid !== me && (may || r.reviewerUid === me))
-    .sort((a, b) => ((a.submission && a.submission.at) || 0) - ((b.submission && b.submission.at) || 0));
+  const queue = amReviewQueue(d);
 
   const chip = (id, label) => '<button type="button" class="am-chip' + (amRt.period === id ? " is-on" : "") + '" data-act="rtperiod" data-id="' + id + '">' + label + '</button>';
   const sel = (act, value, label, opts) => '<label class="am-sel"><span>' + label + '</span><select data-act="' + act + '">' +
@@ -285,19 +285,7 @@ function amQualityHTML(d){
       ? '<b>' + esc(standout.name) + '</b><span class="am-card-n">' + rtFmt(standout.rating) + ' <i>/ 5 · ' + standout.n + ' reviewed</i></span><small>' + esc(rtWhy(standout)) + '</small>'
       : '<small>Nobody has ' + RT_MIN_REVIEWS + ' approved contributions ' + periodWord + (amRt.roleId || amRt.typeId ? " under these filters" : "") + '. The first to get there stands here.</small>') +
     card("reviewed", "Reviewed deliverables", '<span class="am-card-n">' + counts.reviewed + ' <i>approved ' + periodWord + '</i></span><small>' + (counts.changes ? counts.changes + ' with changes requested, waiting on a revision.' : 'Nothing is waiting on a revision.') + '</small>') +
-    card("waiting", "Awaiting review", '<span class="am-card-n">' + counts.awaiting + ' <i>submitted</i></span><small>' + (queue.length ? queue.length + ' of them ' + (queue.length === 1 ? 'is' : 'are') + ' yours to decide, below.' : counts.awaiting ? 'Delegated to others; none waiting on you.' : 'The queue is empty.') + '</small>');
-
-  const when = at => at ? new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-  const qrow = r => '<li class="am-row" data-act="rvopen" data-id="' + esc(r.id) + '"><i class="am-dot is-blue"></i>' +
-    '<div class="am-row-t"><b>' + esc(r.title || "Work") + '</b><span>' + esc(rvNameOf(r.aboutUid)) + (roleName(r.aboutRoleId) ? ' · ' + esc(roleName(r.aboutRoleId)) : '') +
-      esc([r.store, r.stepLabel].filter(Boolean).map(x => ' · ' + x).join("")) + ' · round ' + (r.round || 1) + ' · ' + esc(when(r.submission && r.submission.at)) +
-      (r.submission && r.submission.onTime === false ? ' · late' : '') + (r.reviewerUid ? ' · for ' + esc(rvNameOf(r.reviewerUid)) : '') + '</span></div>' +
-    '<button type="button" class="am-go" data-act="rvopen" data-id="' + esc(r.id) + '">Review</button></li>';
-  const queueHtml = '<div class="am-sub-h"><h3>Needs your review</h3>' + (queue.length ? '<em>' + queue.length + '</em>' : '') + '</div>' +
-    (err.reviews ? '<p class="am-err">Could not reach the reviews — check your connection.</p>'
-      : d.reviews === null ? '<p class="am-loading">Loading…</p>'
-      : queue.length ? '<ul class="am-list">' + queue.slice(0, 8).map(qrow).join("") + '</ul>' + (queue.length > 8 ? '<p class="am-empty">' + (queue.length - 8) + ' more on the Reviews page.</p>' : '')
-      : '<p class="am-empty">Nothing is waiting for your review.</p>');
+    card("waiting", "Awaiting review", '<span class="am-card-n">' + counts.awaiting + ' <i>submitted</i></span><small>' + (queue.length ? queue.length + ' of them ' + (queue.length === 1 ? 'is' : 'are') + ' yours to decide, at the top of this page.' : counts.awaiting ? 'Delegated to others; none waiting on you.' : 'The queue is empty.') + '</small>');
 
   const pct = (v, n, word) => '<span class="am-lb-num"><b>' + (v == null ? "–" : v + "%") + '</b><small>' + word + (n ? " · " + n : "") + '</small></span>';
   const row = r => '<li class="am-lb-row' + (r.ranked ? "" : " is-building") + '" data-act="rtperson" data-id="' + esc(r.uid) + '">' +
@@ -327,7 +315,39 @@ function amQualityHTML(d){
     '<p class="am-foot">A contribution’s rating is execution quality × 50% + brief accuracy × 30% + handoff readiness × 20%, out of 5, given with written feedback by its reviewer. ' +
       'A person’s rating is the mean of their approved contributions ' + periodWord + '. Ranked from ' + RT_MIN_REVIEWS + ' - a starting line, not a proof - and every percentage shows its count. ' +
       'Revisions update a rating rather than adding one; unreviewed work counts as nothing, never zero. Press a row for the work behind it.</p>' +
-    queueHtml +
+    '</section>';
+}
+
+/* What waits on ME as a reviewer: everything submitted if I review for
+   the org, else what was delegated to me - never my own work. Oldest
+   first: the one that has waited longest is the one to open. */
+function amReviewQueue(d){
+  const me = amUid();
+  const may = typeof rvIsReviewer === "function" && rvIsReviewer();
+  return (d.reviews || []).filter(r => r.status === "submitted" && r.aboutUid !== me && (may || r.reviewerUid === me))
+    .sort((a, b) => ((a.submission && a.submission.at) || 0) - ((b.submission && b.submission.at) || 0));
+}
+/* The FIRST panel on the admin home (the owner's ask, 2026-09-13: it sat
+   under the whole performance board, below the fold). Each row is the
+   work, the person, the step and the round, with Review on it. A read
+   that failed says so; an empty queue says that, not nothing. */
+function amReviewQueueHTML(d){
+  if (!d.members || typeof rtBoard !== "function") return "";
+  const err = d.errors || {};
+  const queue = amReviewQueue(d);
+  const roleName = id => { const r = (d.roles || []).find(x => x.id === id); return r ? r.name : ""; };
+  const when = at => at ? new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  const qrow = r => '<li class="am-row" data-act="rvopen" data-id="' + esc(r.id) + '"><i class="am-dot is-blue"></i>' +
+    '<div class="am-row-t"><b>' + esc(r.title || "Work") + '</b><span>' + esc(rvNameOf(r.aboutUid)) + (roleName(r.aboutRoleId) ? ' · ' + esc(roleName(r.aboutRoleId)) : '') +
+      esc([r.store, r.stepLabel].filter(Boolean).map(x => ' · ' + x).join("")) + ' · round ' + (r.round || 1) + ' · ' + esc(when(r.submission && r.submission.at)) +
+      (r.submission && r.submission.onTime === false ? ' · late' : '') + (r.reviewerUid ? ' · for ' + esc(rvNameOf(r.reviewerUid)) : '') + '</span></div>' +
+    '<button type="button" class="am-go" data-act="rvopen" data-id="' + esc(r.id) + '">Review</button></li>';
+  return '<section class="am-panel am-rvq' + (queue.length ? ' has-rows' : '') + '">' +
+    '<div class="am-panel-h"><h2>Needs your review</h2>' + (queue.length ? '<em>' + queue.length + '</em>' : '') + '</div>' +
+    (err.reviews ? '<p class="am-err">Could not reach the reviews — check your connection.</p>'
+      : d.reviews === null ? '<p class="am-loading">Loading…</p>'
+      : queue.length ? '<ul class="am-list">' + queue.slice(0, 8).map(qrow).join("") + '</ul>' + (queue.length > 8 ? '<p class="am-empty">' + (queue.length - 8) + ' more on the Reviews page.</p>' : '')
+      : '<p class="am-empty">Nothing is waiting for your review.</p>') +
     '</section>';
 }
 
@@ -463,6 +483,9 @@ function amHomeHTML(d){
     + '<div class="am-acts">' + acts
     +   '<button type="button" class="am-act am-refresh" data-act="refresh" aria-label="Refresh" title="Refresh">' + AM_ICO.refresh + '</button></div>'
     + '</header>'
+    // what waits on the reviewer comes FIRST: it is the thing an admin
+    // opens the page to do, and it used to sit under the whole board
+    + amReviewQueueHTML(d)
     + pulse
     + '<section class="am-panel am-needs">' + needsHead + needsBody + '</section>'
     + amQualityHTML(d);
@@ -526,5 +549,5 @@ function amClick(e){
 }
 
 if (typeof module !== "undefined" && module.exports){
-  module.exports = { amDerive, amQualityHTML };
+  module.exports = { amDerive, amQualityHTML, amReviewQueueHTML, amReviewQueue };
 }

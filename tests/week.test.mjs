@@ -162,5 +162,17 @@ T("one day is a day, not 1 days", () => {
   assert.ok(row().textContent.includes("1 day streak"));
 });
 
+/* The owner's ask (2026-09-13): an account with something to administer
+   gets no streak pill. The hours and the bars stay. */
+T("an admin-capable account gets no streak pill; a worker keeps it", () => {
+  run(`amCapable = () => true; wrRender($("weekRow"));`);
+  assert.ok(!row().textContent.includes("streak"), "the admin still got a streak");
+  assert.equal(row().querySelectorAll(".wrow-streak.is-none").length, 1, "the row lost its end slot");
+  assert.ok(row().textContent.includes("This week"), "the hours went with the streak");
+  assert.equal(row().querySelectorAll(".wrow-day").length, 7);
+  run(`amCapable = () => false; wrRender($("weekRow"));`);
+  assert.ok(row().textContent.includes("1 day streak"), "a worker lost the streak too");
+});
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
