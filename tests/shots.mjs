@@ -472,6 +472,11 @@ await page.evaluate(() => {
   amApply();
 });
 await page.waitForTimeout(700);
+{
+  const r = await page.evaluate(() => { const b = document.getElementById("amSwitch").getBoundingClientRect(); return { top: b.top, right: b.right, w: b.width, text: document.getElementById("amSwitch").textContent.trim() }; });
+  assert.ok(r.top < 60 && r.right > 1920 - 60, `the mode switch is not at the top right (${Math.round(r.top)}, ${Math.round(r.right)})`);
+  assert.equal(r.text, "", "the mode switch still has words");
+}
 await shoot("next-admin");
 // no page may scroll sideways, at any width - the board is the one
 // thing allowed to, inside its own scrolling box

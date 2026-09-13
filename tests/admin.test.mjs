@@ -67,6 +67,7 @@ T("a worker has no switch and gets the worker screen, gated as before", () => {
   assert.ok(hidden("drawerTeam") && hidden("drawerOrg") && !hidden("drawerHistory") && !hidden("drawerMission"));
   assert.ok(hidden("adminHome"), "the admin home is showing to a worker");
   assert.ok(hidden("amSwitch"), "a worker can see the switch");
+  assert.ok(!body().contains("has-mode-switch"), "the deck makes room for a switch a worker does not have");
   assert.ok(hidden("drawerMode"));
   assert.deepEqual(["team", "org", "history", "mission", "work", ""].map(r => run(`amRouteAllowed(${JSON.stringify(r)})`)),
     [false, false, true, true, true, true]);
@@ -79,6 +80,13 @@ T("an admin lands in Admin view: the home, Team and Organization; not Mission or
   assert.ok(!hidden("drawerTeam") && !hidden("drawerOrg") && hidden("drawerHistory") && hidden("drawerMission"));
   assert.ok(!hidden("adminHome"), "the home is hidden in Admin view");
   assert.ok(!hidden("amSwitch") && doc.getElementById("amSwitch").classList.contains("is-admin"));
+  // top right of the screen, icons only (2026-09-13): a child of the app shell, no words, labels for a reader
+  const sw = doc.getElementById("amSwitch");
+  assert.equal(sw.parentElement.id, "appScreen", "the switch is not at the app level");
+  assert.equal(sw.textContent.trim(), "", "the switch still carries words");
+  assert.deepEqual([...sw.querySelectorAll("button")].map(b => b.getAttribute("aria-label")), ["Admin view", "My shift"]);
+  assert.ok(sw.querySelectorAll("button svg").length === 2, "an option has no icon");
+  assert.ok(body().contains("has-mode-switch"));
   assert.ok(!hidden("assignLaunch") && !hidden("adminAccessBtn"));
   assert.ok(!doc.getElementById("appScreen").classList.contains("has-team"), "the classic Team pane is on under the new dashboard");
   assert.ok(hidden("teamPanel"));

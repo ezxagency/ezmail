@@ -1,33 +1,39 @@
 /* ============================================================
-   ADMIN MODE — the switch in the rail, and the admin home that
+   ADMIN MODE — the switch at the top right, and the admin home that
    replaces the worker's stage while it is on. .ui-next only.
    ============================================================ */
 
-/* ---------- the switch ---------- */
-.rail-mode{
-  position:relative;display:flex;flex-direction:column;
-  width:82px;margin:16px 0 0;padding:3px;border-radius:14px;
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
-  backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);
+/* ---------- the switch: top right, icons only ---------- */
+.mode-top{display:none}
+@media (min-width:1024px){
+  .ui-next .mode-top{
+    position:fixed;top:18px;right:22px;z-index:36;
+    display:flex;align-items:center;
+    padding:3px;border-radius:999px;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 8px 24px rgba(0,0,0,.3);
+    backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);
+  }
+  .ui-next .mode-top.hidden{display:none}
+  /* the deck's header keeps its arrows clear of it */
+  body.ui-next.has-mode-switch .dk-head{padding-right:104px}
 }
-.rail-mode-opt{
-  position:relative;z-index:1;display:flex;align-items:center;gap:7px;
-  height:32px;padding:0 9px;border:0;border-radius:11px;background:none;cursor:pointer;
-  color:var(--wk-white-60);font-family:var(--wk);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-  transition:color .25s ease;
+.mode-top-opt{
+  position:relative;z-index:1;display:flex;align-items:center;justify-content:center;
+  width:40px;height:36px;border:0;border-radius:999px;background:none;cursor:pointer;
+  color:var(--wk-white-60);transition:color .25s ease;
 }
-.rail-mode-opt svg{width:15px;height:15px;flex:none}
-.rail-mode-opt[aria-selected="true"]{color:var(--wk-white)}
-.rail-mode-thumb{
-  position:absolute;left:3px;right:3px;top:3px;height:32px;border-radius:11px;
-  background:rgba(10,132,255,.28);border:1px solid rgba(10,132,255,.45);
+.mode-top-opt svg{width:18px;height:18px;flex:none}
+.mode-top-opt[aria-selected="true"]{color:var(--wk-white)}
+.mode-top-thumb{
+  position:absolute;left:3px;top:3px;width:40px;height:36px;border-radius:999px;
+  background:rgba(10,132,255,.32);border:1px solid rgba(10,132,255,.5);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
-  transform:translateY(32px);
+  transform:translateX(40px);
   transition:transform .45s var(--pz-spring), background .25s ease;
 }
-.rail-mode.is-admin .rail-mode-thumb{transform:translateY(0)}
-.rail-mode:not(.is-admin) .rail-mode-thumb{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.2)}
+.mode-top.is-admin .mode-top-thumb{transform:translateX(0)}
+.mode-top:not(.is-admin) .mode-top-thumb{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.22)}
 
 /* the same switch as a row in the drawer, for phones */
 .drawer-mode{
@@ -146,7 +152,7 @@ body.ui-next.admin-mode #adminHome{padding:6px 16px 40px}
 .am-x svg{width:13px;height:13px}
 .am-x:hover{color:#FF453A;border-color:rgba(255,69,58,.5)}
 
-@media (prefers-reduced-motion:reduce){ .rail-mode-thumb{transition:none} }
+@media (prefers-reduced-motion:reduce){ .mode-top-thumb{transition:none} }
 
 /* ============================================================
    THE TEAM PAGE — the admin's page gets the whole desktop. Under

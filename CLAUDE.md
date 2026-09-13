@@ -303,8 +303,11 @@ with `classic-unchanged.png` every run.
 Eighth piece: **Admin mode**, `js/admin.js` + `css/admin.css`. An admin
 used to get everything a worker gets plus the admin furniture, all at
 once. Now an account with something to administer (`amCapable()`: an Ez
-admin, an assigner, an org owner or hours-manager) has a switch in the
-rail (and in the drawer on a phone) between two views. **Me** is the
+admin, an assigner, an org owner or hours-manager) has a switch at the
+top right of the screen - two icons, the shield and the clock, no words
+(the owner's ask on 2026-09-13; `amSwitchSync()` mounts it on the app
+shell and `body.has-mode-switch` keeps the deck's arrows clear of it) -
+and a worded row in the drawer on a phone, between two views. **Me** is the
 worker's screen, gated exactly as a worker's. **Admin** replaces the
 whole stage with the admin home: "Needs your review" first
 (`amReviewQueueHTML()`, the owner's ask on 2026-09-13 - it used to sit

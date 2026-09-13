@@ -124,19 +124,22 @@ const AM_ICO = {
 };
 
 function amSwitchSync(cap, on){
-  const rail = $("rail");
-  if (rail && !$("amSwitch")){
-    const badge = rail.querySelector(".rail-badge");
-    if (badge){
-      const el = document.createElement("div");
-      el.className = "rail-mode hidden"; el.id = "amSwitch";
-      el.setAttribute("role", "tablist"); el.setAttribute("aria-label", "View");
-      el.innerHTML = '<span class="rail-mode-thumb"></span>'
-        + '<button type="button" class="rail-mode-opt" data-mode="admin" role="tab" title="Admin view">' + AM_ICO.admin + '<span>Admin</span></button>'
-        + '<button type="button" class="rail-mode-opt" data-mode="me" role="tab" title="My shift">' + AM_ICO.me + '<span>Me</span></button>';
-      badge.insertAdjacentElement("afterend", el);
-      el.querySelectorAll(".rail-mode-opt").forEach(b => b.onclick = () => amSet(b.dataset.mode === "admin"));
-    }
+  /* The switch sits at the TOP RIGHT of the screen, icons only - the
+     shield for Admin, the clock for Me - the owner's ask on 2026-09-13
+     (it used to be a worded pill under the rail's badge). It is a child
+     of the app shell, so it goes with the app when the login screen
+     shows, and css/admin.css pins it. Words live in the labels and the
+     tooltips, so a screen reader still hears them. */
+  const app = $("appScreen");
+  if (app && !$("amSwitch")){
+    const el = document.createElement("div");
+    el.className = "mode-top hidden"; el.id = "amSwitch";
+    el.setAttribute("role", "tablist"); el.setAttribute("aria-label", "View");
+    el.innerHTML = '<span class="mode-top-thumb"></span>'
+      + '<button type="button" class="mode-top-opt" data-mode="admin" role="tab" title="Admin view" aria-label="Admin view">' + AM_ICO.admin + '</button>'
+      + '<button type="button" class="mode-top-opt" data-mode="me" role="tab" title="My shift" aria-label="My shift">' + AM_ICO.me + '</button>';
+    app.appendChild(el);
+    el.querySelectorAll(".mode-top-opt").forEach(b => b.onclick = () => amSet(b.dataset.mode === "admin"));
   }
   // the switch is a redesign feature: the classic screen never shows it
   const nx = uiNextOn();
@@ -144,9 +147,11 @@ function amSwitchSync(cap, on){
   if (sw){
     sw.classList.toggle("hidden", !(cap && nx));
     sw.classList.toggle("is-admin", on);
-    sw.querySelectorAll(".rail-mode-opt").forEach(b =>
+    sw.querySelectorAll(".mode-top-opt").forEach(b =>
       b.setAttribute("aria-selected", String((b.dataset.mode === "admin") === on)));
   }
+  // the deck's header makes room for it (css/admin.css)
+  document.body.classList.toggle("has-mode-switch", !!(cap && nx));
   const dm = $("drawerMode");
   if (dm){
     dm.classList.toggle("hidden", !(cap && nx));
