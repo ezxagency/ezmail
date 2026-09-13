@@ -210,6 +210,37 @@ WHY it is empty. It also has to distinguish "in no org" from "could not
 reach the org", because the first version of this fix told somebody to
 get themselves added to an org they were already in.
 
+**Work made before its steps existed was on nobody's list, and the
+home said nothing.** 2026-09-13: the owner built a seven-step flow for
+a kind called TEST and the people on step 1 got nothing. The engine,
+the blueprint, the run start and the queue query were all right - the
+fake database walks the exact shape green, even after it was made to
+refuse `undefined` the way the real SDK does. What was wrong was the
+gap AROUND them: work of a tracked kind with no run (created before
+the steps were saved, or whose run failed to start) is held by nobody,
+so no list shows it, and the one self-heal (`itemsFinishFromQueue`)
+sits behind a Finish that nobody can press. Three fixes, all shape 1
+and shape 6: saving the steps starts every waiting piece of that kind
+(`itemsStartStuck`, and the toast says how many); the composer waits
+for the run to start before it says "started → step 1", and says
+"saved, but the steps did not start" when it did not
+(`itemsCreateFromComposer` returns `unstarted`); and the admin home
+lists what is stuck by kind with a Start button - AND what is with the
+admin themself, because an owner lands on the Admin home and "assigned
+to me" lives on the Me screen behind a switch, which read as "I got
+nothing". Guards: `tests/flow.test.mjs` "work created before the steps
+existed", "saving the steps sends that work to step 1", "the composer
+tells the truth"; `tests/admin.test.mjs` "the home says what is with
+you". Rule: a state the app can detect and cannot show is a bug
+report waiting to be filed; every place that can see it says it.
+
+**The fake now refuses `undefined` in a write.** The real SDK fails
+the whole set() or update() on an `undefined` anywhere in the data
+("Unsupported field value"); `JSON.stringify` dropped the key and let
+the write through, which is the quiet success `fakedb.mjs` exists to
+refuse. It also refuses an array directly inside an array. Reads stay
+lenient (a missing document's data() is `undefined`).
+
 **A rule that can only name what already exists cannot say what should
 happen next.** The check step's route target listed the other steps and
 Done, so "If they pick Approve go to" offered "1. Do the work" and

@@ -341,6 +341,7 @@ await page.evaluate(() => {
   amCollect = async () => ({ at: now,
     caps: { admin: true, assign: true, owner: true, member: false, org: true, orgName: "Ez Agency" },
     pending: [{ uid: "p1", name: "Jordan Lee", email: "jordan@ezagency.com" }],
+    mine: 2, stuck: [{ typeId: "test", type: "TEST", n: 1 }],
     assigns: [
       { id: "a1", done: true, ack: false, toName: "Sandy", store: "Store Epsilon", task: "Write the spring launch email", comment: "Drafts are up", doneAt: now - 20 * 60000 },
       { id: "a2", done: false, dueDate: "2026-09-02", store: "Studio North", task: "Second pass on the sprint backlog", toName: "Prashanna" },

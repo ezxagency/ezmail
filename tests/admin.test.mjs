@@ -206,6 +206,40 @@ T("nothing to do says so; a read that failed says THAT, not 'nothing to do'", ()
   assert.ok(/could not reach the team/.test(h.querySelector(".am-pulse").textContent), "a failed team read was not said on the pulse");
 });
 
+/* The two things the home said nothing about, and both were reported
+   as "the flow does not work" (2026-09-13): work that is WITH the admin
+   sits on the Me screen behind the switch, and tracked work on no step
+   sits on nobody's list at all. */
+T("the home says what is with you, and what tracked work is stuck on no step; pressing them switches to Me or starts the runs", () => {
+  const f = fixture(); f.mine = 3; f.stuck = [{ typeId: "test", type: "TEST", n: 2 }];
+  const h = draw(f);
+  const me = h.querySelector('.am-row[data-act="me"]');
+  assert.ok(me, "no row for the work with the admin");
+  assert.match(me.textContent, /3 pieces of work are with you/);
+  assert.match(me.textContent, /Me screen/);
+  const st = h.querySelector('.am-row[data-act="stuck"]');
+  assert.ok(st, "no row for work stuck on no step");
+  assert.match(st.textContent, /2 TEST are on no step/);
+  assert.equal(st.dataset.id, "test");
+  assert.ok(st.querySelector('.am-go[data-act="stuck"]'), "no Start button");
+  run(`__calls.length = 0; amSet = on => __calls.push(["amSet", on]);
+    orgS = { types: [{ id: "test", name: "TEST", workflowId: "bp1" }] };
+    itemsStartStuck = t => { __calls.push(["start", t.id]); return Promise.resolve({ started: 2, failed: 0, total: 2 }); };
+    amRefresh = () => {};`);
+  me.querySelector(".am-go").click();
+  st.querySelector(".am-go").click();
+  assert.deepEqual(runJ("__calls"), [["amSet", false], ["start", "test"]]);
+  // nothing with you and nothing stuck: no rows, no claim
+  const q = fixture(); q.mine = 0; q.stuck = [];
+  const h2 = draw(q);
+  assert.ok(!h2.querySelector('.am-row[data-act="me"]') && !h2.querySelector('.am-row[data-act="stuck"]'));
+  // a read that failed says so rather than showing nothing
+  const b = fixture(); b.mine = null; b.stuck = null; b.errors = { mine: true, stuck: true };
+  const h3 = draw(b);
+  assert.match(h3.textContent, /Could not reach the work assigned to you/);
+  assert.match(h3.textContent, /Could not check for work stuck on no step/);
+});
+
 /* ---------- team performance: the board under Needs you ---------- */
 const QD = () => {
   const now = new Date(2026, 8, 12).getTime(), DAY = 86400000;

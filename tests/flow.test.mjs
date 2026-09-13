@@ -957,6 +957,75 @@ await T("on a track: a step's submission is per step and per pass, a loop needs 
   run(`orgInvalidate();`);
 });
 
+/* ---------- work made before its kind had steps ----------
+   Reported 2026-09-13: the owner built a seven-step flow, and the people
+   on step 1 got nothing. Work created before the steps were saved is of
+   a tracked kind and on no run - nobody holds it, so no list shows it,
+   and the self-heal on Finish never fires because nobody can press it.
+   Saving the steps now starts it. */
+let stuckType = null, stuckId = null;
+await T("work created before the steps existed is on nobody's list", async () => {
+  AUTH.currentUser = { uid: "owner1", email: "owner@x.com" };
+  run(`orgInvalidate();`);
+  const t = await runAsync(`return await itemTypeSave({ name: "TEST", fields: [], statuses: [{ key: "open", label: "Open" }, { key: "done", label: "Done" }] });`);
+  run(`orgInvalidate();`);
+  stuckType = Object.assign({ id: t.id }, await get("orgs/" + ORG + "/itemTypes/" + t.id));
+  assert.equal(stuckType.workflowId, null);
+  const r = await runAsync(`return await itemsCreateFromComposer({ tasks: ["Logo"], stores: ["Shop"], who: [], note: "", due: "", dueTime: "" }, ${JSON.stringify(stuckType)}, { fromName: "P" });`);
+  // untracked and nobody named: the composer's own gate would not have let this send, but the Work page can
+  const c = await runAsync(`return await itemSave(${JSON.stringify(stuckType)}, null, { kind: "create", title: "Logo", fields: {}, assigneeIds: [] });`);
+  assert.ok(c.ok, JSON.stringify(c));
+  stuckId = c.item.id;
+  const it = await get("orgs/" + ORG + "/items/" + stuckId);
+  assert.ok(!it.workflowRunId && !(it.assigneeIds || []).length, "it should be held by nobody yet");
+  assert.equal(r.unstarted.length, 0, "an untracked kind has nothing to start");
+});
+
+await T("saving the steps sends that work to step 1, and says so", async () => {
+  const track = [
+    { label: "One final Concept", roleId: "lead", assignees: [], status: "", dueAfter: null },
+    { label: "Review the concept", roleId: "owner", assignees: [], status: "", dueAfter: null, together: true },
+    { label: "Make it", roleId: "staff", assignees: ["staff1"], status: "", dueAfter: null }];
+  const r = await runAsync(`return await orgTrackCommit(${JSON.stringify(stuckType)}, ${JSON.stringify(track)});`);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(r.started, 1, "the waiting work was not started: " + JSON.stringify(r));
+  assert.equal(r.unstarted, 0);
+  const it = await get("orgs/" + ORG + "/items/" + stuckId);
+  assert.ok(it.workflowRunId, "still on no run");
+  assert.deepEqual(plain(it.assigneeIds).sort(), ["lead1", "owner1"], "step 1's people do not hold it");
+  assert.ok(it.facets.indexOf("assignee:lead1") >= 0, "the queue query cannot see it");
+  assert.equal(it.handoff.stop.label, "One final Concept");
+  assert.match(run(`orgTrackSavedWords({ name: "TEST" }, ${JSON.stringify(r)})`), /1 waiting TEST sent to step 1/);
+  // saving again starts nothing twice, and finished work is left alone
+  run(`orgInvalidate();`);
+  const type2 = Object.assign({ id: stuckType.id }, await get("orgs/" + ORG + "/itemTypes/" + stuckType.id));
+  const d = await runAsync(`return await itemSave(${JSON.stringify(Object.assign({}, type2, { workflowId: null }))}, null, { kind: "create", title: "Old", fields: {}, assigneeIds: [] });`);
+  await runAsync(`return await itemSave(${JSON.stringify(Object.assign({}, type2, { workflowId: null }))}, ${JSON.stringify(d.item)}, { kind: "set_status", status: "done" });`);
+  const again = await runAsync(`return await itemsStartStuck(${JSON.stringify(type2)});`);
+  assert.deepEqual(plain(again), { started: 0, failed: 0, total: 0 }, JSON.stringify(again));
+  // and the owner's home lists what is stuck, by kind
+  await runAsync(`await itemSave(${JSON.stringify(Object.assign({}, type2, { workflowId: null }))}, null, { kind: "create", title: "Another", fields: {}, assigneeIds: [] });`);
+  const stuck = await runAsync(`return await itemsStuckOf(${JSON.stringify(type2)});`);
+  assert.equal(stuck.length, 1);
+  assert.equal(stuck[0].title, "Another");
+});
+
+await T("the composer tells the truth when the steps did not start", async () => {
+  run(`orgInvalidate();`);
+  const type2 = Object.assign({ id: stuckType.id }, await get("orgs/" + ORG + "/itemTypes/" + stuckType.id));
+  const broken = Object.assign({}, type2, { workflowId: "bp_not_there" });
+  const r = await runAsync(`return await itemsCreateFromComposer({ tasks: ["Poster"], stores: ["Shop"], who: [], note: "", due: "", dueTime: "" }, ${JSON.stringify(broken)}, { fromName: "P" });`);
+  assert.ok(r.ok, "the save itself did land: " + JSON.stringify(r));
+  assert.deepEqual(plain(r.unstarted), plain(r.created), "a run that did not start was reported as started");
+  const it = await get("orgs/" + ORG + "/items/" + r.created[0]);
+  assert.ok(!it.workflowRunId, "no run should exist");
+  // and a kind whose blueprint IS there reports nothing unstarted
+  const ok = await runAsync(`return await itemsCreateFromComposer({ tasks: ["Card"], stores: ["Shop"], who: [], note: "", due: "", dueTime: "" }, ${JSON.stringify(type2)}, { fromName: "P" });`);
+  assert.ok(ok.ok && ok.tracked && ok.unstarted.length === 0, JSON.stringify(ok));
+  const it2 = await get("orgs/" + ORG + "/items/" + ok.created[0]);
+  assert.deepEqual(plain(it2.assigneeIds).sort(), ["lead1", "owner1"]);
+});
+
 await T("starting over clears the work and the runs, and nothing else", async () => {
   const typesBefore = find("orgs/" + ORG + "/itemTypes").length;
   const rolesBefore = find("orgs/" + ORG + "/roles").length;

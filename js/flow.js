@@ -969,7 +969,7 @@ async function flSave(){
     return;
   }
   flS.dirty = false; flS.draft = null;
-  toast("Steps saved. New " + (type.name || "work") + " will follow them.");
+  toast(orgTrackSavedWords(type, r));
   flReload();
 }
 

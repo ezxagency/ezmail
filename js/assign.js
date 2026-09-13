@@ -514,9 +514,14 @@ async function cxSubmit(){
     }
     const first = r.tracked ? cxPipeline(kind)[0] : null;
     const n = r.created.length;
-    toast(r.tracked
-      ? `${n === 1 ? state.tasks[0] : n + " " + kind.name + "s"} started → ${first ? first.label + (first.who.length ? " · " + first.who.join(", ") : "") : "first stop"}`
-      : `${n === 1 ? state.tasks[0] : n + " " + kind.name + "s"} assigned to ${state.who.map(p => p.name).join(", ")}`);
+    const what = n === 1 ? state.tasks[0] : n + " " + kind.name + "s";
+    // saved is not started: work whose run did not start is on nobody's
+    // list, and saying "started → step 1" would send everyone looking
+    toast((r.unstarted || []).length
+      ? `${what} saved, but the steps did not start, so nobody holds it yet. The owner can start it from Home.`
+      : r.tracked
+      ? `${what} started → ${first ? first.label + (first.who.length ? " · " + first.who.join(", ") : "") : "first stop"}`
+      : `${what} assigned to ${state.who.map(p => p.name).join(", ")}`);
     closeComposer();
     if (isAdmin) loadTeamPane();
     return;

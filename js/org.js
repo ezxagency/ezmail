@@ -1381,8 +1381,18 @@ async function orgTrackSave(type){
     return;
   }
   closeSheet();
-  toast("Steps saved. New " + (type.name || "work") + " will follow them.");
+  toast(orgTrackSavedWords(type, r));
   enterOrgPage();
+}
+
+// what saving the steps did, in one line: the new work follows them, and
+// any that was waiting on no step has been sent to the first one
+function orgTrackSavedWords(type, r){
+  const name = type.name || "work";
+  let t = "Steps saved. New " + name + " will follow them.";
+  if (r && r.started) t += " " + r.started + " waiting " + name + (r.started === 1 ? "" : "s") + " sent to step 1.";
+  if (r && r.unstarted) t += " " + r.unstarted + " could not be started - see Home.";
+  return t;
 }
 
 /* The one write that makes a track real: compile it, validate it with
@@ -1399,10 +1409,14 @@ async function orgTrackCommit(type, track){
     const bad = wfValidate(bp);
     if (bad.length) return { ok: false, error: bad[0].msg };
     await db.collection("orgs").doc(orgS.orgId).collection("blueprints").doc(bpId).set(bp);
-    const r = await itemTypeSave(Object.assign({}, type, { track: hoStopIds(track), workflowId: bpId }));
+    const saved = Object.assign({}, type, { track: hoStopIds(track), workflowId: bpId });
+    const r = await itemTypeSave(saved);
     if (!r.ok) return { ok: false, error: r.error || "save-failed" };
     orgInvalidate();
-    return { ok: true, workflowId: bpId };
+    // work of this kind made before it had steps is on nobody's list: it
+    // starts on step 1 now, and the caller says so
+    const stuck = await itemsStartStuck(saved);
+    return { ok: true, workflowId: bpId, started: stuck.started, unstarted: stuck.failed };
   } catch (e) {
     console.error(e);
     return { ok: false, error: "Could not save the steps." };

@@ -11,7 +11,30 @@
    empty, because a fake that silently does nothing would reproduce the
    very class of bug it is here to catch. */
 
-const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+/* The real SDK refuses a write carrying `undefined` ANYWHERE in it
+   ("Unsupported field value: undefined") - the whole set() or update()
+   fails, not the one field. JSON.stringify would drop the key and let
+   the write through, which is precisely the quiet success this fake
+   exists to refuse. Also refused: an array directly inside an array,
+   which Firestore cannot store either. */
+const undefAt = (v, path) => {
+  if (v === undefined) return path || "(root)";
+  if (v === null || typeof v !== "object") return null;
+  if (Array.isArray(v)) {
+    for (let i = 0; i < v.length; i++) {
+      if (Array.isArray(v[i])) return (path || "") + "[" + i + "] (nested array)";
+      const r = undefAt(v[i], (path || "") + "[" + i + "]"); if (r) return r;
+    }
+    return null;
+  }
+  for (const k of Object.keys(v)) { const r = undefAt(v[k], path ? path + "." + k : k); if (r) return r; }
+  return null;
+};
+const clone = (v, what) => {
+  const bad = undefAt(v, what || "");
+  if (bad) throw new Error("INVALID_ARGUMENT: Unsupported field value: undefined at " + bad);
+  return JSON.parse(JSON.stringify(v));
+};
 
 export function makeDb(){
   const store = new Map();               // "a/b/c" -> data
@@ -49,7 +72,7 @@ export function makeDb(){
   const snapDoc = (path, data) => ({
     id: seg(path).pop(),
     exists: data !== undefined,
-    data: () => clone(data),
+    data: () => data === undefined ? undefined : JSON.parse(JSON.stringify(data)),
     ref: { path, parent: { parent: { id: seg(path).slice(-3, -2)[0] || null } } }
   });
 

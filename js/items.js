@@ -129,9 +129,12 @@ async function itemSave(type, item, intent, opts){
   // doing so made the same action mean two different things depending
   // on which screen you did it from.
   itemsNotifyAssigned(decision.events, decision.item);
-  // a new piece of work whose kind has a track starts travelling it
+  // a new piece of work whose kind has a track starts travelling it.
+  // Still not awaited - the save has already landed and been reported -
+  // but the promise rides on the answer, so a caller that wants to say
+  // "started → step 1" can wait and say the truth instead of a guess.
   if (intent.kind === "create" && type && type.workflowId)
-    itemsStartHandoff(decision.item, type);
+    decision.handoff = itemsStartHandoff(decision.item, type).catch(e => { console.error(e); return null; });
   return decision;
 }
 
@@ -453,14 +456,43 @@ async function itemsCreateFromComposer(state, type, from){
   const pairs = [];
   (state.stores || []).forEach(st => (state.tasks || []).forEach(t => pairs.push({ store: st, task: t })));
   const people = tracked ? [null] : (state.who || []);
-  const created = [], failed = [];
+  const created = [], failed = [], unstarted = [];
   for (const p of people) for (const pr of pairs) {
     const r = await itemSave(type, null, { kind: "create", title: pr.task, fields: {},
       assigneeIds: p ? [p.uid] : [], brief: (state.note || "").trim(), store: pr.store,
       fromName: (from && from.fromName) || "", dueAt: due });
-    if (r.ok) created.push(r.item.id); else failed.push(r.error || "save-failed");
+    if (!r.ok) { failed.push(r.error || "save-failed"); continue; }
+    created.push(r.item.id);
+    // tracked work is saved AND started, two writes: the second failing
+    // leaves work that exists and that nobody holds, which the composer
+    // must not announce as "started → step 1"
+    if (tracked) { const st = r.handoff ? await r.handoff : null; if (!st) unstarted.push(r.item.id); }
   }
-  return { ok: !failed.length && created.length > 0, created, failed, tracked };
+  return { ok: !failed.length && created.length > 0, created, failed, tracked, unstarted };
+}
+
+/* Work of a tracked kind that is on no run: created before the kind had
+   steps, or whose run failed to start. Nobody holds it, so nobody can
+   press the Finish that would heal it (itemsFinishFromQueue), and it
+   sits on no list at all. Start each one's run now - the same
+   self-healing as the org pointer, run from the places that can see
+   the problem: saving the steps, and the owner's home. */
+async function itemsStuckOf(type){
+  if (!type || !type.workflowId) return [];
+  const done = itemDoneStatus(type) || "done";
+  const rows = await itemsByFacet("type:" + itemSlug(type.id), 500);
+  return rows.filter(it => !it.workflowRunId && it.status !== done);
+}
+async function itemsStartStuck(type){
+  const out = { started: 0, failed: 0, total: 0 };
+  let rows;
+  try { rows = await itemsStuckOf(type); } catch (e) { console.error(e); return out; }
+  out.total = rows.length;
+  for (const it of rows) {
+    const st = await itemsStartHandoff(it, type).catch(e => { console.error(e); return null; });
+    if (st) out.started++; else out.failed++;
+  }
+  return out;
 }
 
 /* ---------- handoff: work that moves person to person ----------

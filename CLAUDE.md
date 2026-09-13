@@ -128,7 +128,7 @@ The whole design this serves is `docs/dashboard-v6-spec.md`.
 ```
 cd tests
 npm ci          # once
-npm test        # 639 assertions, node + jsdom, seconds
+npm test        # 643 assertions, node + jsdom, seconds
 npm run test:rules   # 304 rules assertions (needs Java + firebase-tools)
 npm run test:all     # both
 ```
@@ -167,7 +167,7 @@ yes would pass the first half and mean nothing.
 emulator across six actor types — admin, assigner, worker, pending
 stranger, unverified signup, and the unauthenticated client-link holder —
 plus the tenancy matrix, where the property under test is that no role
-reaches through an org boundary. All 943 pass as of this writing — a
+reaches through an org boundary. All 947 pass as of this writing — a
 failure is a real regression, not a flake.
 
 ## The redesign lives behind a flag
@@ -315,7 +315,12 @@ account may WRITE (still `isAdmin`, `canAssignTasks`, the org role, and
 false and the role decides as before. Every read the home makes is one
 the account already makes on the Team or Org page, behind the same
 predicate, and a read that fails is shown as "could not reach", never as
-"nothing to do".
+"nothing to do". Two rows the home carries for an org member: what is
+WITH them (a count, pointing at the Me screen, because an owner lands
+here and "assigned to me" is behind the switch) and, for the owner,
+tracked work on no step by kind with a Start button (`itemsStuckOf`,
+`itemsStartStuck`) - see `docs/lessons.md` > "Work made before its
+steps existed".
 
 Ninth piece: the **Flow builder**, `js/flow.js` + `css/flow.css`, route
 `#/flow`, the same door as Organization (`amRouteAllowed`). The
@@ -329,7 +334,9 @@ step to give it to them, cards are dragged to reorder (arrows too, for a
 phone), the + between two cards inserts one. It invents NO model: the
 canvas edits the same `track` the steps sheet edits and saves it through
 `orgTrackCommit()` in `js/org.js`, the one write path both screens
-share; rules are the same automations documents (the lane offers a
+share (which also starts every open piece of that kind that is on no
+run yet, and says how many - work made before the steps were saved is
+otherwise held by nobody); rules are the same automations documents (the lane offers a
 kind's own statuses and fields where the Organization sheet asks for a
 key typed exactly); a role's permissions, a kind's fields and an invite
 open the sheets that already exist. Those sheets call `enterOrgPage()`

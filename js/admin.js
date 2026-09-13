@@ -213,11 +213,31 @@ async function amCollect(){
     (orgS.types || []).forEach(t => hoTrackGaps(t.track, orgS.members || []).forEach(g =>
       d.gaps.push({ type: t.name || "Work", at: g.at, label: g.label, roleId: g.roleId })));
   }
+  /* Two things the home used to say nothing about, and both were read
+     as "the flow does not work": work that is WITH the admin (it sits
+     on the Me screen, behind the switch, and the Admin home never said
+     so), and work of a tracked kind that is on no step at all - made
+     before the steps were saved, or whose run failed to start - which
+     nobody holds and so no list anywhere shows. */
+  d.mine = null; d.stuck = null;
+  const org = typeof orgS !== "undefined" && orgS ? orgS : null;
+  if (org && typeof itemsByFacet === "function" && typeof auth !== "undefined" && auth.currentUser){
+    const doneOf = t => (typeof itemDoneStatus === "function" && itemDoneStatus(t)) || "done";
+    const typeOf = id => (org.types || []).find(t => t.id === id) || null;
+    jobs.push(itemsByFacet("assignee:" + auth.currentUser.uid, 200).then(rows => {
+      d.mine = rows.filter(it => it.status !== doneOf(typeOf(it.typeId))).length;
+    }).catch(e => { console.error(e); d.errors.mine = true; }));
+    if (owner && typeof itemsStuckOf === "function"){
+      d.stuck = [];
+      (org.types || []).filter(t => t.workflowId).forEach(t =>
+        jobs.push(itemsStuckOf(t).then(rows => { if (rows.length) d.stuck.push({ typeId: t.id, type: t.name || "Work", n: rows.length }); })
+          .catch(e => { console.error(e); d.errors.stuck = true; })));
+    }
+  }
   /* The board: the org's review documents, every status, read by any
      member (the rules let a person see their own feedback, and the board
      is the same documents). A failed read is recorded, so the panel can
      say "could not reach" instead of "nobody reviewed yet". */
-  const org = typeof orgS !== "undefined" && orgS ? orgS : null;
   if (org && typeof rvLoadAll === "function" && typeof rtBoard === "function"){
     d.members = (org.members || []).map(m => ({ uid: m.uid, roleId: m.roleId || null,
       name: typeof orgPersonName === "function" ? orgPersonName(m.uid) : m.uid }));
@@ -398,6 +418,14 @@ function amHomeHTML(d){
   g.gaps.forEach(gp => { needCount++;
     needs += row("gap", "", "orange", esc(gp.type) + " will stop at " + esc(gp.label || ("stop " + (gp.at + 1))),
       "Nobody holds that stop — seat someone or change the track", "Fix", "org"); });
+  if (err.stuck) needs += '<li class="am-err">Could not check for work stuck on no step — check your connection.</li>';
+  (d.stuck || []).forEach(st => { needCount++;
+    needs += row("stuck", st.typeId, "orange", n(st.n) + " " + esc(st.type) + (st.n === 1 ? " is" : " are") + " on no step",
+      "Made before the steps were saved, or the steps did not start — nobody holds " + (st.n === 1 ? "it" : "them"), "Start", "stuck"); });
+  if (err.mine) needs += '<li class="am-err">Could not reach the work assigned to you — check your connection.</li>';
+  if (d.mine) { needCount++;
+    needs += row("me", "", "green", n(d.mine) + (d.mine === 1 ? " piece of work is" : " pieces of work are") + " with you",
+      "Work given to you sits on your Me screen, not here", "Me →", "me"); }
   const needsHead = '<div class="am-panel-h"><h2>Needs you</h2>'
     + (needCount ? '<em>' + n(needCount) + '</em>' : "")
     + (c.admin && g.unacked.length > 1 ? '<button type="button" class="am-link" data-act="ackall">Acknowledge all</button>' : "")
@@ -479,6 +507,17 @@ function amClick(e){
     case "team": case "work": case "org": case "flow": call("go", act); break;
     case "late": call("go", "team"); break;
     case "gap": call("go", "org"); break;
+    case "me": amSet(false); break;
+    case "stuck": {
+      const t = ((typeof orgS !== "undefined" && orgS && orgS.types) || []).find(x => x.id === id);
+      if (!t || typeof itemsStartStuck !== "function") break;
+      el.disabled = true;
+      itemsStartStuck(t).then(r => {
+        toast(r.started ? r.started + " sent to step 1" + (r.failed ? ", " + r.failed + " could not start" : "") : "None could be started - see the console.");
+        amRefresh();
+      });
+      break;
+    }
     case "rtperiod": amRt.period = id; if (amLast) amRenderHome($("adminHome"), amLast); break;
     case "rtperson": amPersonSheet(id); break;
     case "rvopen": { const r = ((d.reviews) || []).find(x => x.id === id); if (r && typeof rvReviewSheet === "function") rvReviewSheet(r); break; }
