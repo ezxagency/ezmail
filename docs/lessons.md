@@ -667,3 +667,18 @@ the window. `vw` is only right for something that spans the window.
 before the deck begins at every desktop width, and the 1275-wide idle
 shot asserts it and that the empty card is not a column-tall slab.
 
+**An explicit min-height is a height a flex item may shrink to.** On a
+phone the stage is a flex column, and the classic shift readout carries
+`min-height:22px`. The scrubber replaced the readout's content but kept
+the rule - and in a column that is short of room, an explicit minimum
+REPLACES the automatic one (the content's own height), so the bar
+shrank to 22px and drew its 38px track under the next block: the
+Assigned strip sat on the scrubber. Found by looking at the 390 shot
+while fixing something else (2026-09-13); it was on the baseline. The
+scrubber is now `flex:none` in the column.
+*Rule:* a flex item that must never draw over its neighbour needs
+`flex:none` (or `min-height:auto`); a pixel minimum inherited from a
+rule written for shorter content is permission to shrink, not a floor.
+*Guard:* `tests/shots.mjs` > the layout loop asserts the scrubber's
+track ends above the Assigned panel at every phone width.
+

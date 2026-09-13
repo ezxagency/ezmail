@@ -245,6 +245,8 @@ for (const [width, height] of [[1920,1080], [1440,900], [1280,720], [1024,600], 
       avatar: rect(document.getElementById('railAvatar')),
       word: rect(document.querySelector('.brand-word')),
       bandOut: getComputedStyle(document.getElementById('bandSignOut')).display,
+      assign: rect(document.getElementById('assignedTasksSection')),
+      sbBar: rect(document.querySelector('.sb-bar')),
       actsParent: document.querySelector('.band-actions').parentElement.id
     };
   });
@@ -260,6 +262,8 @@ for (const [width, height] of [[1920,1080], [1440,900], [1280,720], [1024,600], 
   } else {
     assert.ok(layout.bell.top < 90 && layout.bell.right <= width, `${label}: the bell is not at the top-right (${Math.round(layout.bell.top)})`);
     assert.ok(layout.bell.left >= layout.word.right, `${label}: the bell sits on the wordmark`);
+    // stacked, the shift bar keeps its own height: nothing after it draws over its track
+    assert.ok(layout.sbBar.bottom <= layout.assign.top + 1, `${label}: the Assigned strip sits on the scrubber (${Math.round(layout.sbBar.bottom)} vs ${Math.round(layout.assign.top)})`);
   }
   // the week row (hours, bars, streak) is sized off its column: it never
   // runs under the deck, which it did at 1275 wide (2026-09-13)

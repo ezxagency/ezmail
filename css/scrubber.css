@@ -8,6 +8,12 @@
 .ui-next .shiftbar{
   display:block;
   width:100%;
+  /* On a phone the stage is a flex column, and the classic rule's
+     min-height:22px is an explicit minimum a flex item may SHRINK to -
+     so the bar shrank to one line and its track drew under the block
+     after it (the Assigned strip sat on the scrubber, 2026-09-13).
+     It keeps its own height. */
+  flex:none;
   font-family:var(--wk);
   /* the classic bar is one uppercase line; this one is a sentence in
      places, and inheriting that turned its note into SHOUTING */
